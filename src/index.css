@@ -5,8 +5,8 @@
 @tailwind utilities;
 
 :root {
-  color: #eaf1ff;
-  background: #0b1426;
+  color: #0f1b35;
+  background: #f5f7fa;
 }
 
 * {
@@ -17,10 +17,11 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  background: radial-gradient(circle at 20% 20%, rgba(80, 130, 255, 0.15), transparent 45%),
-    radial-gradient(circle at 80% 10%, rgba(61, 106, 255, 0.12), transparent 40%),
-    linear-gradient(145deg, #0a1629 0%, #0c1f3b 50%, #08101e 100%);
-  color: #e7ecf6;
+  background:
+    radial-gradient(circle at 8% 12%, rgba(122, 0, 255, 0.14), transparent 32%),
+    radial-gradient(circle at 92% 7%, rgba(26, 22, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, #fbfcfd 0%, #f3f7fb 100%);
+  color: #0f1b35;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -32,25 +33,23 @@ body::before,
 body::after {
   content: '';
   position: fixed;
-  width: 520px;
-  height: 520px;
-  border-radius: 9999px;
-  filter: blur(110px);
-  opacity: 0.32;
+  width: 320px;
+  height: 360px;
+  background-image: radial-gradient(circle, rgba(15, 27, 53, 0.12) 1px, transparent 1px);
+  background-size: 14px 14px;
+  opacity: 0.45;
   pointer-events: none;
   z-index: 0;
 }
 
 body::before {
-  top: -160px;
-  left: -140px;
-  background: radial-gradient(circle, rgba(104, 162, 255, 0.35), rgba(41, 86, 165, 0.08));
+  top: 140px;
+  left: max(12px, calc(50% - 730px));
 }
 
 body::after {
-  bottom: -180px;
-  right: -120px;
-  background: radial-gradient(circle, rgba(50, 107, 255, 0.35), rgba(13, 31, 69, 0.1));
+  top: 140px;
+  right: max(12px, calc(50% - 730px));
 }
 
 a {
@@ -59,23 +58,23 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid #7594fb;
+  outline: 2px solid #6d28ff;
   outline-offset: 3px;
   border-radius: 10px;
 }
 
 .glass-surface {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  box-shadow: 0 22px 60px rgba(6, 15, 35, 0.32);
+  background: linear-gradient(160deg, rgba(11, 24, 50, 0.88), rgba(18, 34, 68, 0.82));
+  border: 1px solid rgba(158, 186, 230, 0.2);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 22px 55px rgba(6, 14, 32, 0.28);
 }
 
 .badge-pill {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #eaf1ff;
+  background: #f1e6ff;
+  border: 1px solid #d9c2ff;
+  color: #5b22be;
   padding: 0.35rem 0.8rem;
   border-radius: 9999px;
   font-size: 0.9rem;

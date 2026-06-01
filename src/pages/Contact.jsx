@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
-import GlassCard from '../components/GlassCard'
 import SectionHeader from '../components/SectionHeader'
 import PrimaryButton from '../components/PrimaryButton'
 import AnimatedIcon from '../components/icons/AnimatedIcon'
@@ -87,7 +86,7 @@ function Contact() {
 
       const response = await fetch(config.apiUrl, requestInit)
       if (!response.ok) {
-        throw new Error(`Zoho submission failed with status ${response.status}`)
+        throw new Error(`Form submission failed with status ${response.status}`)
       }
 
       setStatus({
@@ -113,34 +112,34 @@ function Contact() {
   return (
     <>
       <Helmet>
-        <title>Hire a Website Developer &amp; AI Automation Specialist | Contact Devlab Studios</title>
-        <meta name="description" content="Get in touch with Devlab Studios — available to hire as a freelance website developer or AI automation specialist. Inquire about website projects, Zapier automations, n8n workflows, or AI agent development. Remote-first, worldwide." />
-        <meta name="keywords" content="hire website developer, hire AI automation specialist, freelance web developer for hire, Zapier automation service, n8n automation hire, contact web developer, remote developer hire, business automation consultant" />
-        <meta property="og:title" content="Hire a Website Developer &amp; AI Automation Specialist | Contact Devlab Studios" />
-        <meta property="og:description" content="Hire Devlab Studios for website development or AI automation projects. Remote-first, available worldwide. Specializing in React, Zapier, n8n, and AI agents." />
+        <title>Hire a Software Engineer &amp; AI Automation Specialist | Contact Devlab Studios</title>
+        <meta name="description" content="Get in touch with Devlab Studios for software engineering, website builds, backend integrations, or AI automation projects. Available for remote work worldwide across Java, Laravel, React, Next.js, and workflow systems." />
+        <meta name="keywords" content="hire software engineer, hire AI automation specialist, backend developer for hire, Java Spring Boot developer, Laravel developer, API integration specialist, remote developer hire, business automation consultant" />
+        <meta property="og:title" content="Hire a Software Engineer &amp; AI Automation Specialist | Contact Devlab Studios" />
+        <meta property="og:description" content="Hire Devlab Studios for software engineering, websites, backend integrations, or AI automation projects. Remote-first, available worldwide." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://www.devlabstudios.com/contact" />
         <meta property="og:image" content="/screenshots/portfolio-contact.png" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Hire a Website Developer &amp; AI Automation Specialist | Contact Devlab Studios" />
-        <meta name="twitter:description" content="Hire Devlab Studios for website development or AI automation. Remote-first, available worldwide." />
+        <meta name="twitter:title" content="Hire a Software Engineer &amp; AI Automation Specialist | Contact Devlab Studios" />
+        <meta name="twitter:description" content="Hire Devlab Studios for software engineering, backend integrations, websites, or AI automation. Remote-first, available worldwide." />
         <meta name="twitter:image" content="/screenshots/portfolio-contact.png" />
       </Helmet>
     <div className="space-y-8">
       <SectionHeader
         title="Contact Me"
-        subtitle="Share a project, request, or support need. I'll get back to you as soon as possible."
+        subtitle="Share a software, website, integration, or automation need. I'll get back to you as soon as possible."
       />
 
-      <GlassCard className="p-6 sm:p-8">
+      <section className="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-8">
         <form className="space-y-5" onSubmit={handleSubmit} noValidate>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-white" htmlFor="name">
+              <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="name">
                 <AnimatedIcon
                   icon={User}
                   size={16}
-                  color="text-navy-300"
+                  color="text-brand-teal"
                   animationType="none"
                   ariaLabel={null}
                 />
@@ -152,18 +151,18 @@ function Contact() {
                 type="text"
                 value={form.name}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-white placeholder:text-slate-300/50 focus:border-navy-300 focus:outline-none transition-colors"
+                className="w-full rounded-xl border border-slate-200/70 bg-white/90 px-4 py-3 text-brand-ink placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 transition"
                 placeholder="Your name"
               />
-              {errors.name ? <p className="text-sm text-red-200/90">{errors.name}</p> : null}
+              {errors.name ? <p className="text-sm text-rose-700">{errors.name}</p> : null}
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-white" htmlFor="email">
+              <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="email">
                 <AnimatedIcon
                   icon={Mail}
                   size={16}
-                  color="text-navy-300"
+                  color="text-brand-teal"
                   animationType="none"
                   ariaLabel={null}
                 />
@@ -175,19 +174,19 @@ function Contact() {
                 type="email"
                 value={form.email}
                 onChange={handleChange}
-                className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-white placeholder:text-slate-300/50 focus:border-navy-300 focus:outline-none transition-colors"
+                className="w-full rounded-xl border border-slate-200/70 bg-white/90 px-4 py-3 text-brand-ink placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 transition"
                 placeholder="name@email.com"
               />
-              {errors.email ? <p className="text-sm text-red-200/90">{errors.email}</p> : null}
+              {errors.email ? <p className="text-sm text-rose-700">{errors.email}</p> : null}
             </div>
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-white" htmlFor="subject">
+            <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="subject">
               <AnimatedIcon
                 icon={MessageSquare}
                 size={16}
-                color="text-navy-300"
+                color="text-brand-teal"
                 animationType="none"
                 ariaLabel={null}
               />
@@ -199,18 +198,18 @@ function Contact() {
               type="text"
               value={form.subject}
               onChange={handleChange}
-              className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-white placeholder:text-slate-300/50 focus:border-navy-300 focus:outline-none transition-colors"
+              className="w-full rounded-xl border border-slate-200/70 bg-white/90 px-4 py-3 text-brand-ink placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 transition"
               placeholder="Project inquiry, support, collaboration"
             />
-            {errors.subject ? <p className="text-sm text-red-200/90">{errors.subject}</p> : null}
+            {errors.subject ? <p className="text-sm text-rose-700">{errors.subject}</p> : null}
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-white" htmlFor="message">
+            <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="message">
               <AnimatedIcon
                 icon={MessageSquare}
                 size={16}
-                color="text-navy-300"
+                color="text-brand-teal"
                 animationType="none"
                 ariaLabel={null}
               />
@@ -222,10 +221,10 @@ function Contact() {
               rows="5"
               value={form.message}
               onChange={handleChange}
-              className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-white placeholder:text-slate-300/50 focus:border-navy-300 focus:outline-none transition-colors"
+              className="w-full rounded-xl border border-slate-200/70 bg-white/90 px-4 py-3 text-brand-ink placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 transition"
               placeholder="Share context, goals, timelines, and success criteria."
             />
-            {errors.message ? <p className="text-sm text-red-200/90">{errors.message}</p> : null}
+            {errors.message ? <p className="text-sm text-rose-700">{errors.message}</p> : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -254,13 +253,13 @@ function Contact() {
                 </>
               )}
             </PrimaryButton>
-            <span className="text-sm text-slate-200/80">Responses will be routed via Zoho.</span>
+            <span className="text-sm text-slate-600">Responses will be routed via Zoho.</span>
           </div>
 
           {status ? (
             <div
               className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold ${
-                status.type === 'success' ? 'bg-emerald-500/15 text-emerald-100' : 'bg-red-500/15 text-red-100'
+                status.type === 'success' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-700'
               }`}
               role="status"
               aria-live="polite"
@@ -276,7 +275,7 @@ function Contact() {
             </div>
           ) : null}
         </form>
-      </GlassCard>
+      </section>
     </div>
     </>
   )

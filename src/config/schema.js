@@ -6,36 +6,39 @@ export const getPersonSchema = () => ({
   alternateName: 'AgustinezTechVA',
   url: 'https://www.devlabstudios.com',
   description:
-    'Freelance website developer and AI automation specialist. Builds conversion-focused websites with React and Laravel, and designs workflow automations using Zapier, n8n, and AI agents for modern businesses worldwide.',
-  jobTitle: 'Website Developer & AI Automation Specialist',
+    'Software engineer and AI automation specialist building backend systems, API integrations, websites, and workflow automations for modern businesses worldwide.',
+  jobTitle: 'Software Engineer & AI Automation Specialist',
   knowsAbout: [
     'Website Development',
-    'Web Design',
+    'Software Engineering',
+    'Backend Development',
     'AI Automation',
     'Workflow Automation',
     'Business Process Automation',
+    'Java',
+    'Spring Boot',
     'React',
+    'Next.js',
     'Tailwind CSS',
     'Laravel',
     'Zapier',
     'n8n',
-    'AI Agents',
-    'Landing Page Development',
+    'Make.com',
+    'REST APIs',
+    'SQL',
+    'API Integrations',
     'Full Stack Development',
-    'Google Gemini',
     'Power BI',
-    'Google Apps Script',
     'CRM Automation',
-    'Lead Generation Websites',
-    'E-commerce Websites',
+    'Data Modeling',
   ],
   hasOccupation: {
     '@type': 'Occupation',
-    name: 'Website Developer & AI Automation Specialist',
+    name: 'Software Engineer & AI Automation Specialist',
     description:
-      'Builds conversion-focused websites and AI-driven automation systems for businesses, enabling lead generation, operational scaling, and process efficiency.',
+      'Builds backend systems, websites, API integrations, and AI-driven automation systems for businesses, enabling reliable delivery, process efficiency, and operational scaling.',
     skills:
-      'React, Tailwind CSS, Laravel, Zapier, n8n, AI Agents, Business Process Automation, Landing Pages, Full Stack Development',
+      'Java, Spring Boot, Laravel, React, Next.js, SQL, REST APIs, Zapier, n8n, Make.com, Business Process Automation, Full Stack Development',
     occupationLocation: {
       '@type': 'Country',
       name: 'Philippines',
@@ -53,7 +56,14 @@ export const getPersonSchema = () => ({
       '@type': 'Offer',
       name: 'AI Automation & Workflow Automation',
       description:
-        'Business process automations using Zapier, n8n, AI agents, and Google Gemini. Includes email automation, CRM integration, lead enrichment, and AI social media systems.',
+        'Business process automations using Zapier, n8n, Make.com, OpenAI, and Claude. Includes email automation, CRM integration, lead enrichment, and AI-assisted workflow systems.',
+      url: 'https://www.devlabstudios.com/portfolio',
+    },
+    {
+      '@type': 'Offer',
+      name: 'Backend & API Integration Support',
+      description:
+        'Backend and integration work across Java, Spring Boot, Laravel, SQL-backed workflows, REST APIs, and structured data handling for production-ready systems.',
       url: 'https://www.devlabstudios.com/portfolio',
     },
   ],
@@ -64,8 +74,8 @@ export const getPersonSchema = () => ({
     url: 'https://www.devlabstudios.com',
   },
   sameAs: [
-    'https://www.linkedin.com/in/agustinez/',
-    'https://github.com/agustinez',
+    'https://www.linkedin.com/in/stephen-rey-agustinez-8b86041b3',
+    'https://github.com/stpn-dev',
   ],
   image: 'https://www.devlabstudios.com/screenshots/portfolio-home.png',
   address: {
@@ -86,7 +96,7 @@ export const getPortfolioItemSchema = (project) => ({
   author: {
     '@type': 'Person',
     name: 'Stephen Rey G. Agustinez',
-    jobTitle: 'Website Developer & AI Automation Specialist',
+    jobTitle: 'Software Engineer & AI Automation Specialist',
   },
   datePublished: project.datePublished || '2026-03-11',
 })
@@ -97,27 +107,30 @@ export const getOrganizationSchema = () => ({
   name: 'DevLab Studios',
   url: 'https://www.devlabstudios.com',
   description:
-    'DevLab Studios provides freelance website development and AI automation services. Specializing in conversion-focused websites, Zapier automations, n8n workflows, and AI agent development for businesses worldwide.',
+    'DevLab Studios provides software engineering, website development, backend integration, and AI automation services for businesses worldwide.',
   logo: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
   founder: {
     '@type': 'Person',
     name: 'Stephen Rey G. Agustinez',
-    jobTitle: 'Website Developer & AI Automation Specialist',
+    jobTitle: 'Software Engineer & AI Automation Specialist',
   },
   knowsAbout: [
     'Website Development',
+    'Software Engineering',
+    'Backend Development',
     'AI Automation',
     'Workflow Automation',
     'Business Process Automation',
-    'Landing Pages',
     'React Development',
+    'Spring Boot',
+    'Laravel',
     'Zapier',
     'n8n',
   ],
   areaServed: 'Worldwide',
   sameAs: [
-    'https://www.linkedin.com/in/agustinez/',
-    'https://github.com/agustinez',
+    'https://www.linkedin.com/in/stephen-rey-agustinez-8b86041b3',
+    'https://github.com/stpn-dev',
   ],
   contactPoint: {
     '@type': 'ContactPoint',
@@ -129,10 +142,10 @@ export const getOrganizationSchema = () => ({
 export const getWebsiteSchema = () => ({
   '@context': 'https://schema.org',
   '@type': 'WebSite',
-  name: 'DevLab Studios – Website Developer & AI Automation Specialist',
+  name: 'DevLab Studios – Software Engineer & AI Automation Specialist',
   url: 'https://www.devlabstudios.com',
   description:
-    'Portfolio and resume of Stephen Agustinez — freelance website developer and AI automation specialist building conversion-focused websites and workflow automations for modern businesses.',
+    'Portfolio and resume of Stephen Agustinez — software engineer and AI automation specialist building websites, backend systems, integrations, and workflow automations for modern businesses.',
   publisher: {
     '@type': 'Organization',
     name: 'DevLab Studios',

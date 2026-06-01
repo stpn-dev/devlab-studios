@@ -20,73 +20,73 @@ function SystemsPanel() {
   const moreCharacteristicsCount = Math.max(characteristics.length - featuredCharacteristics.length, 0)
 
   return (
-    <div className="relative p-5 overflow-hidden border group glass-surface rounded-3xl border-white/20 shadow-glass sm:p-6">
-      <div className="flex items-center justify-between mb-5 text-sm text-white/90">
+    <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-[0_16px_36px_rgba(11,24,50,0.08)] sm:p-6">
+      <div className="mb-5 flex items-center justify-between text-sm text-slate-700">
         <p className="font-semibold tracking-wide">Systems & Workflows</p>
-        <span className="px-3 py-1 text-xs border rounded-full border-white/15 bg-white/10">Capabilities</span>
+        <span className="rounded-full border border-brand-teal/20 bg-brand-mint px-3 py-1 text-xs text-brand-teal">Capabilities</span>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2 xl:gap-5">
         {/* Core Tools */}
-        <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <p className="mb-3 text-xs uppercase tracking-[0.16em] text-navy-100/80">Core Tools In Use</p>
+        <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <p className="mb-3 text-xs uppercase tracking-[0.16em] text-brand-teal">Core Tools In Use</p>
           <div className="grid grid-cols-1 gap-2">
             {featuredTools.map((tool) => {
               const Icon = resolveIcon(tool.icon)
               return (
-                <div key={tool.key} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 transition-colors hover:bg-white/[0.08]">
-                  <AnimatedIcon icon={Icon} size={16} color="text-white/90" animationType="hover-scale" ariaLabel={tool.label} />
-                  <span className="text-xs font-medium text-white/90">{tool.label}</span>
+                <div key={tool.key} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 transition-colors hover:border-brand-teal/30 hover:bg-brand-mint/35">
+                  <AnimatedIcon icon={Icon} size={16} color="text-brand-ink" animationType="hover-scale" ariaLabel={tool.label} />
+                  <span className="text-xs font-medium text-slate-700">{tool.label}</span>
                 </div>
               )
             })}
           </div>
           {moreToolsCount > 0 && (
-            <p className="mt-3 text-xs text-white/60">+{moreToolsCount} additional tool(s)</p>
+            <p className="mt-3 text-xs text-slate-500">+{moreToolsCount} additional tool(s)</p>
           )}
         </section>
 
         {/* Right Column: Workflow + Characteristics */}
-        <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <p className="mb-3 text-xs uppercase tracking-[0.16em] text-navy-100/80">Workflow Patterns</p>
+        <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <p className="mb-3 text-xs uppercase tracking-[0.16em] text-brand-teal">Workflow Patterns</p>
           <div className="space-y-2">
             {featuredPatterns.map((item) => {
               const Icon = resolveIcon(item.icon)
               return (
-                <div key={item.key} className="flex items-start gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                  <AnimatedIcon icon={Icon} size={16} color="text-white/85" animationType="none" ariaLabel={item.label} />
-                  <span className="text-[13px] leading-snug text-white/85">{item.label}</span>
+                <div key={item.key} className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <AnimatedIcon icon={Icon} size={16} color="text-brand-ink" animationType="none" ariaLabel={item.label} />
+                  <span className="text-[13px] leading-snug text-slate-700">{item.label}</span>
                 </div>
               )
             })}
           </div>
           {morePatternsCount > 0 && (
-            <p className="mt-3 text-xs text-white/60">+{morePatternsCount} additional workflow pattern(s)</p>
+            <p className="mt-3 text-xs text-slate-500">+{morePatternsCount} additional workflow pattern(s)</p>
           )}
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 xl:col-span-2">
-          <p className="mb-3 text-xs uppercase tracking-[0.16em] text-navy-100/80">System Characteristics</p>
+        <section className="xl:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <p className="mb-3 text-xs uppercase tracking-[0.16em] text-brand-teal">System Characteristics</p>
           <div className="flex flex-wrap gap-2">
             {featuredCharacteristics.map((item) => {
               const Icon = resolveIcon(item.icon)
               return (
-                <div key={item.key} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2">
-                  <AnimatedIcon icon={Icon} size={15} color="text-white/85" animationType="none" ariaLabel={item.label} />
-                  <span className="text-xs text-white/85">{item.label}</span>
+                <div key={item.key} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2">
+                  <AnimatedIcon icon={Icon} size={15} color="text-brand-ink" animationType="none" ariaLabel={item.label} />
+                  <span className="text-xs text-slate-700">{item.label}</span>
                 </div>
               )
             })}
           </div>
           {moreCharacteristicsCount > 0 && (
-            <p className="mt-3 text-xs text-white/60">+{moreCharacteristicsCount} additional characteristic(s)</p>
+            <p className="mt-3 text-xs text-slate-500">+{moreCharacteristicsCount} additional characteristic(s)</p>
           )}
         </section>
       </div>
 
       {/* Soft background accents */}
-      <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-navy-400/20 blur-[70px]" aria-hidden />
-      <div className="absolute -left-8 bottom-8 h-24 w-24 rounded-full bg-sky-300/20 blur-[70px]" aria-hidden />
+      <div className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-brand-teal/15 blur-[70px]" aria-hidden />
+      <div className="absolute -left-8 bottom-8 h-24 w-24 rounded-full bg-brand-orange/15 blur-[70px]" aria-hidden />
     </div>
   )
 }

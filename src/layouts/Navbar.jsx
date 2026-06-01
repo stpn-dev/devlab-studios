@@ -10,7 +10,7 @@ import devlabStudiosLogoWebp from '../assets/devlabstudios-logo-only.webp'
 
 const navLinks = [
   { label: 'About Me', to: '/about' },
-  { label: 'Experiences', to: '/experiences' },
+  { label: 'Services', to: '/services' },
   { label: 'Portfolio', to: '/portfolio' },
 ]
 
@@ -18,13 +18,13 @@ function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
 
   const linkBase =
-    'px-3 py-2 text-sm font-semibold text-slate-100/90 transition hover:text-white focus-visible:outline-none'
+    'px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-brand-ink focus-visible:outline-none'
 
   return (
     <header className="fixed inset-x-0 top-0 z-40">
       <div className="w-full px-4 mx-auto max-w-7xl sm:px-6 lg:px-6">
-        <div className="flex items-center justify-between px-4 py-3 mt-4 border rounded-2xl border-white/15 bg-white/10 shadow-glass backdrop-blur-lg">
-          <Link to="/" className="flex items-center gap-3 text-lg font-bold tracking-tight text-white">
+        <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-[0_12px_34px_rgba(12,26,51,0.08)] backdrop-blur-md">
+          <Link to="/" className="flex items-center gap-3 text-lg font-bold tracking-tight text-brand-teal">
               <picture>
                 <source srcSet={devlabStudiosLogoWebp} type="image/webp" />
                 <img
@@ -39,7 +39,7 @@ function Navbar() {
             <span className="hidden sm:inline">DevLab Studios</span>
           </Link>
 
-          <nav className="items-center hidden gap-2 px-2 py-1 rounded-full bg-white/5 md:flex">
+          <nav className="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50/80 px-2 py-1 md:flex">
             {navLinks.map((item) => (
               <NavLink
                 key={item.to}
@@ -48,8 +48,8 @@ function Navbar() {
                   [
                     linkBase,
                     isActive
-                      ? 'text-white underline decoration-2 decoration-navy-300 underline-offset-8'
-                      : 'text-slate-100/80',
+                      ? 'text-brand-ink underline decoration-2 decoration-brand-orange underline-offset-8'
+                      : 'text-slate-600',
                   ].join(' ')
                 }
               >
@@ -69,7 +69,7 @@ function Navbar() {
 
           <button
             type="button"
-            className="inline-flex items-center justify-center p-2 text-white transition border rounded-lg group border-white/25 md:hidden hover:bg-white/10"
+            className="group inline-flex items-center justify-center rounded-lg border border-slate-300 p-2 text-brand-ink transition hover:bg-slate-100 md:hidden"
             aria-label="Toggle navigation"
             aria-expanded={isOpen}
             onClick={() => setIsOpen((prev) => !prev)}
@@ -84,7 +84,7 @@ function Navbar() {
         </div>
 
         {isOpen ? (
-          <div className="p-3 mt-2 border rounded-2xl border-white/15 bg-white/10 shadow-glass backdrop-blur-lg md:hidden">
+          <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_10px_25px_rgba(12,26,51,0.08)] md:hidden">
             <nav className="flex flex-col gap-1">
               {navLinks.map((item) => (
                 <NavLink
@@ -93,7 +93,7 @@ function Navbar() {
                   className={({ isActive }) =>
                     [
                       'block rounded-xl px-3 py-2 text-sm font-semibold transition',
-                      isActive ? 'bg-white/15 text-white' : 'text-slate-100/80 hover:bg-white/10',
+                      isActive ? 'bg-brand-mint text-brand-ink' : 'text-slate-600 hover:bg-slate-100',
                     ].join(' ')
                   }
                   onClick={() => setIsOpen(false)}

@@ -5,13 +5,13 @@ import { ArrowRight } from './icons/icons'
 
 const styles = {
   base:
-    'inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent focus-visible:ring-navy-300 disabled:cursor-not-allowed disabled:opacity-60',
+    'inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent focus-visible:ring-brand-orange disabled:cursor-not-allowed disabled:opacity-60',
   primary:
-    'bg-navy-500 text-white shadow-lg shadow-navy-900/30 hover:bg-navy-400 active:bg-navy-600 border border-white/15',
+    'border border-brand-orange bg-brand-orange text-white shadow-lg shadow-indigo-700/30 hover:bg-brand-orangeDark hover:border-brand-orangeDark active:scale-[0.99]',
   secondary:
-    'bg-white/10 text-white border border-white/20 hover:bg-white/15 active:bg-white/20',
+    'border border-slate-300 bg-white text-brand-ink hover:border-brand-teal/50 hover:text-brand-teal hover:bg-slate-50',
   ghost:
-    'bg-transparent text-white border border-white/20 hover:bg-white/10',
+    'border border-slate-300 bg-transparent text-brand-ink hover:border-brand-teal/50 hover:text-brand-teal hover:bg-white/70',
 }
 
 function PrimaryButton({

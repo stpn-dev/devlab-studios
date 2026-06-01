@@ -56,16 +56,17 @@ export const experiences = [
   {
     id: "manufacturing-engineer",
     title: "Professional Experience",
-    role: "Manufacturing Engineer I (6-Month NCG Program)",
+    role: "Manufacturing Engineer I (A 6-Month NCG Program)",
     company: "ONSEMI — MEPZ 1, IBO, Lapu-Lapu City, Cebu",
     dates: "January 2024 – July 2024",
     bullets: [
-      "Designed, built, and implemented stand-alone web applications to improve manufacturing execution.",
+      "Designed, built, and implemented stand-alone web applications to greatly improve manufacturing execution.",
       "Supported manufacturing requirements sets and Manufacturing Execution System (MES) models.",
       "Proactively deployed system improvements as site requirements changed to ensure smooth operations.",
-      "Participated in continuous enhancement of manufacturing processes by applying creative, technologically advanced solutions.",
-      "Deployed: Maintenance Online Logbook (web app for downtime tracking and tooling replacement logging for analysis and visualization).",
-      "Deployed: Fire Extinguisher Online Inspection (web app with QR codes to streamline EHS inspection process).",
+      "Actively participated in continuous enhancement of manufacturing processes by applying creative, technologically advanced solutions.",
+      "Deployed: Maintenance Online Logbook (website for maintenance operations to track machine downtime issues and tooling replacement logging for better data analysis and visualization).",
+      "Deployed: Fire Extinguisher Online Inspection (website for EHS personnel with QR codes to streamline fire extinguisher inspections in the manufacturing plant).",
+      "Built and supported data-driven web and automation solutions involving API integrations, structured payload handling, SQL-backed workflows, and modern TypeScript/React-based frontend delivery.",
     ],
   },
 

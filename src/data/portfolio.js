@@ -12,6 +12,8 @@ import project4 from "../assets/projects/project4-xero-to-asana.png";
 import project5 from "../assets/projects/project5-gmail-drive-sort.png";
 import project6 from "../assets/projects/project6-fb-messenger-ai.png";
 import project7 from "../assets/projects/project7-ai-social-creator.png";
+import project8ArvGeocoding from "../assets/projects/ARV_Generate_Proposed_v1.4_Enterprise_Geocoding.png";
+import project9GuestResearcher from "../assets/projects/Guest-Researcher-from-a-booked-calendar-client.png";
 
 // Website sample screenshots
 import sampleReact from "../assets/projects/sample-react-landing.png";
@@ -176,5 +178,27 @@ export const portfolioItems = [
     sourceUrl: "#",
     image: project7,
     type: "AI Automation",
+  },
+  {
+    id: "p8-arv-enterprise-geocoding",
+    title: "ARV Enterprise Geocoding Automation",
+    description:
+      "Automation workflow for generating proposed geocoding outputs from business records, structuring location data for downstream review and enterprise mapping use.",
+    techStack: ["Automation Workflow", "Geocoding", "Data Structuring", "Review Pipeline"],
+    liveUrl: "#",
+    sourceUrl: "#",
+    image: project8ArvGeocoding,
+    type: "Automation",
+  },
+  {
+    id: "p9-guest-researcher-calendar-client",
+    title: "Guest Researcher From Booked Calendar Client",
+    description:
+      "Booked-calendar intake automation that turns client scheduling data into a guest research workflow, helping the team prepare context and next-step actions before engagement.",
+    techStack: ["Calendar Intake", "Client Routing", "Research Workflow", "Automation"],
+    liveUrl: "#",
+    sourceUrl: "#",
+    image: project9GuestResearcher,
+    type: "Automation",
   },
 ];

@@ -4,6 +4,7 @@ import MainLayout from './layouts/MainLayout'
 import Home from './pages/Home'
 import About from './pages/About'
 import Experiences from './pages/Experiences'
+import Services from './pages/Services'
 import Portfolio from './pages/Portfolio'
 import Contact from './pages/Contact'
 
@@ -42,6 +43,9 @@ const router = createBrowserRouter([
       isMaintenance
         ? { path: 'experiences', element: <Maintenance /> }
         : { path: 'experiences', element: <Experiences /> },
+      isMaintenance
+        ? { path: 'services', element: <Maintenance /> }
+        : { path: 'services', element: <Services /> },
       isMaintenance
         ? { path: 'portfolio', element: <Maintenance /> }
         : { path: 'portfolio', element: <Portfolio /> },

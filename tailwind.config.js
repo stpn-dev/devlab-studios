@@ -7,6 +7,14 @@ export default {
         sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
+        brand: {
+          ink: '#121739',
+          teal: '#7a00ff',
+          mint: '#f2e9ff',
+          orange: '#1a16ff',
+          orangeDark: '#0e0ab8',
+          shell: '#f5f7fa',
+        },
         navy: {
           50: '#e8edff',
           100: '#cfd9ff',

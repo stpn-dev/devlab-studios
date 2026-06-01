@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Helmet } from 'react-helmet-async'
-import GlassCard from '../components/GlassCard'
 import SectionHeader from '../components/SectionHeader'
 import AnimatedIcon from '../components/icons/AnimatedIcon'
 import ImageModal from '../components/ImageModal'
@@ -13,17 +12,17 @@ function Experiences() {
   return (
     <>
       <Helmet>
-        <title>Work Experience – Website Developer &amp; AI Automation Specialist | Devlab Studios</title>
-        <meta name="description" content="Professional experience of Devlab Studios as a website developer and AI automation specialist. Past roles include AI Automation Specialist (self-employed), Software Engineer at Accenture, and Process Engineer at ONSEMI — with expertise in React, Zapier, n8n, Power BI, and business automation." />
-        <meta name="keywords" content="web developer experience, AI automation specialist experience, Zapier automation work history, n8n developer, software engineer, React developer experience, business automation projects, freelance developer portfolio" />
-        <meta property="og:title" content="Work Experience – Website Developer &amp; AI Automation Specialist | Devlab Studios" />
-        <meta property="og:description" content="Devlab Studios professional experience as a website developer and AI automation specialist. Roles include software engineer at Accenture and self-employed AI automation specialist." />
+        <title>Work Experience – Software Engineer &amp; AI Automation Specialist | Devlab Studios</title>
+        <meta name="description" content="Professional experience of Devlab Studios across software engineering, AI automation, and operations. Roles include AI Automation Specialist, Custom Software Engineer Associate at Accenture, and engineering roles at ONSEMI." />
+        <meta name="keywords" content="software engineer experience, AI automation specialist experience, Spring Boot engineer, backend developer experience, React developer experience, automation work history, Accenture Java developer" />
+        <meta property="og:title" content="Work Experience – Software Engineer &amp; AI Automation Specialist | Devlab Studios" />
+        <meta property="og:description" content="Devlab Studios professional experience across software engineering, automation systems, and operations improvement." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://www.devlabstudios.com/experiences" />
         <meta property="og:image" content="/screenshots/portfolio-experiences.png" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Work Experience – Website Developer &amp; AI Automation Specialist" />
-        <meta name="twitter:description" content="Work history as website developer and AI automation specialist — Accenture, ONSEMI, and self-employed automation projects." />
+        <meta name="twitter:title" content="Work Experience – Software Engineer &amp; AI Automation Specialist" />
+        <meta name="twitter:description" content="Work history across software engineering, automation systems, and operations roles — Accenture, ONSEMI, and self-employed projects." />
         <meta name="twitter:image" content="/screenshots/portfolio-experiences.png" />
       </Helmet>
     <div className="space-y-8">
@@ -34,11 +33,11 @@ function Experiences() {
 
       <div className="space-y-6">
         {experiences.map((item) => (
-          <GlassCard key={item.id} className="p-6 sm:p-8">
+          <section key={item.id} className="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-8">
             {/* Image Section (if image exists) */}
             {item.image && (
               <div
-                className="group relative mb-6 overflow-hidden rounded-xl border border-white/15 bg-white/5 cursor-pointer transition-all hover:border-white/30"
+                className="group relative mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white/90 cursor-pointer transition-all hover:border-brand-orange/35"
                 onClick={() => setSelectedImage(item.image)}
               >
                 <img
@@ -48,7 +47,7 @@ function Experiences() {
                   loading="lazy"
                 />
                 {/* Hover Overlay with Icon */}
-                <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-300 group-hover:bg-black/40">
+                <div className="absolute inset-0 flex items-center justify-center bg-brand-ink/0 transition-colors duration-300 group-hover:bg-brand-ink/35">
                   <AnimatedIcon
                     icon={Maximize2}
                     size={32}
@@ -67,20 +66,20 @@ function Experiences() {
                   <AnimatedIcon
                     icon={Briefcase}
                     size={16}
-                    color="text-navy-300"
+                    color="text-brand-teal"
                     animationType="none"
                     ariaLabel="Role type"
                   />
-                  <p className="text-sm uppercase tracking-[0.14em] text-navy-100/80">{item.title}</p>
+                  <p className="text-sm uppercase tracking-[0.14em] text-slate-500">{item.title}</p>
                 </div>
-                <h3 className="text-2xl font-semibold text-white">{item.role}</h3>
-                <p className="text-slate-200/75">{item.company}</p>
+                <h3 className="text-2xl font-semibold text-brand-ink">{item.role}</h3>
+                <p className="text-slate-700">{item.company}</p>
               </div>
-              <div className="flex items-center gap-2 rounded-full bg-white/10 px-4 py-1 text-sm font-semibold text-white/80 sm:whitespace-nowrap">
+              <div className="flex items-center gap-2 rounded-full bg-white/90 px-4 py-1 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 sm:whitespace-nowrap">
                 <AnimatedIcon
                   icon={Calendar}
                   size={14}
-                  color="text-navy-300"
+                  color="text-brand-teal"
                   animationType="none"
                   ariaLabel="Date range"
                 />
@@ -88,13 +87,13 @@ function Experiences() {
               </div>
             </div>
 
-            <ul className="mt-4 space-y-2 text-slate-200/85">
+            <ul className="mt-4 space-y-2 text-slate-700">
               {item.bullets.map((bullet) => (
                 <li key={bullet} className="flex gap-3 leading-relaxed">
                   <AnimatedIcon
                     icon={ArrowRight}
                     size={16}
-                    color="text-navy-300"
+                    color="text-brand-teal"
                     animationType="none"
                     ariaLabel={null}
                     className="mt-0.5 flex-shrink-0"
@@ -103,7 +102,7 @@ function Experiences() {
                 </li>
               ))}
             </ul>
-          </GlassCard>
+          </section>
         ))}
       </div>
 

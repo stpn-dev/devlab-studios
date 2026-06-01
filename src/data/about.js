@@ -3,16 +3,16 @@
 
 const aboutData = {
   name: "Stephen Rey G. Agustinez",
-  role: "Website Builder, AI Automation Specialist & Software Engineer",
+  role: "Software Engineer & AI Automation Specialist",
   location: "Pusok, Lapu-Lapu City, Cebu, 6015",
-  email: "stephen@devlabstudios.com",
+  email: "stpnrey.agustinez@gmail.com",
   phone: "+63 926 237 2965",
   dateOfBirth: "December 4, 2000",
   resumeLink: "https://stpn120400.github.io/stpn-resume/",
   careerObjectives:
-    "Results-driven Website Builder, AI Automation Specialist, and Software Engineer seeking a role where I can design, build, and optimize business websites and workflow automation systems using tools such as React, Make.com, Zapier, n8n, and HighLevel. I aim to help organizations grow through high-converting web experiences, streamlined operations, reduced manual processes, and reliable system architecture. Committed to delivering scalable solutions, clear documentation, and high-quality execution across technical and operational environments.",
+    "Software Engineer and AI Automation Specialist with experience building backend systems, API integrations, workflow automation, and data-driven business solutions across web and operations environments. My background includes Java, Spring Boot, Laravel, SQL, REST APIs, React-based interfaces, and automation platforms such as n8n, Make.com, Zapier, and HighLevel. I work with a systems-oriented approach focused on structured data flow, process reliability, and scalable solution design.",
   shortBio:
-    "Website Builder, AI Automation Specialist, and Software Engineer with experience creating business websites, conversion-focused landing pages, and workflow automations that improve operational efficiency. Skilled in integrating SaaS tools, CRMs, and data platforms, and recognized for clear documentation, reliable execution, and process-oriented problem solving across technical and operational environments.",
+    "Software engineer and AI automation specialist with hands-on experience across Java/Spring Boot backend work, Laravel and React web delivery, API integrations, and business process automation. I build maintainable systems that connect product, operations, and data workflows, with additional experience in TypeScript, Next.js, and PostgreSQL-style data modeling for production-ready applications.",
   education: [
     {
       program: "Bachelor of Science in Computer Engineering",

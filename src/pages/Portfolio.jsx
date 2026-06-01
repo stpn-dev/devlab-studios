@@ -24,16 +24,16 @@ function Portfolio() {
     <>
       <Helmet>
         <title>Portfolio – Website &amp; AI Automation Projects | Devlab Studios</title>
-        <meta name="description" content="Portfolio of Stephen Agustinez — freelance website developer and AI automation specialist. Projects include React landing pages, Laravel full-stack apps, e-commerce websites, Zapier automations, n8n AI agents, and social media automation systems." />
-        <meta name="keywords" content="web developer portfolio, AI automation portfolio, React landing page, Laravel website, Zapier automation project, n8n workflow, AI agent project, e-commerce website developer, lead generation website, business automation examples" />
+        <meta name="description" content="Portfolio of Stephen Agustinez — software engineer and AI automation specialist. Projects include React landing pages, Laravel full-stack apps, automation systems, API-connected workflows, and AI-assisted business tooling." />
+        <meta name="keywords" content="software engineer portfolio, AI automation portfolio, React landing page, Laravel website, API integration project, backend workflow automation, n8n workflow, business automation examples" />
         <meta property="og:title" content="Portfolio – Website &amp; AI Automation Projects | Devlab Studios" />
-        <meta property="og:description" content="Website development and AI automation projects by Stephen Agustinez — React, Laravel, Zapier, n8n, AI agents, and more." />
+        <meta property="og:description" content="Website development, backend integration, and AI automation projects by Stephen Agustinez — React, Laravel, APIs, n8n, and more." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://www.devlabstudios.com/portfolio" />
         <meta property="og:image" content="/screenshots/portfolio-portfolio.png" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Portfolio – Website &amp; AI Automation Projects | Devlab Studios" />
-        <meta name="twitter:description" content="Website development and AI automation projects — React, Laravel, Zapier, n8n, AI agents. View live demos and case studies." />
+        <meta name="twitter:description" content="Website development, backend integration, and AI automation projects — React, Laravel, APIs, and workflow systems." />
         <meta name="twitter:image" content="/screenshots/portfolio-portfolio.png" />
       </Helmet>
     <div className="space-y-8">

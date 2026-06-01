@@ -2,43 +2,36 @@
 // Resume-sourced skills lists
 
 export const technicalSkills = [
-  // Priority Services
-  "Website Builds",
-  "Landing Pages",
-  "AI Automation",
-  "Workflow Design",
-  "CRM Integrations",
-  "Lead Pipeline Automation",
-
-  // Website Delivery
-  "React + Tailwind",
-  "Responsive UI/UX",
-  "Conversion-Focused Layouts",
-  "Reusable Components",
-
-  // Automation Systems
-  "OpenAI + Claude Workflows",
-  "Forms + Sheets Integrations",
-  "Email/SMS Automation",
-  "Dashboards + Trackers",
-
-  // Engineering
+  "Java",
+  "JavaScript",
+  "TypeScript",
+  "PHP",
+  "SQL",
+  "HTML + CSS",
+  "Spring Boot",
+  "Laravel",
+  "REST APIs",
   "API Integrations",
-  "SQL + MariaDB",
-  "Git + CI/CD",
-  "Debugging + QA",
-
-  // Tooling
-  "VS Code + Postman",
-  "Cloudflare Pages",
-  "Tech Troubleshooting",
+  "ReactJS",
+  "Next.js",
+  "Tailwind CSS",
+  "PostgreSQL-style schema design",
+  "Google Sheets",
+  "Airtable",
+  "n8n",
+  "Make.com",
+  "Zapier",
+  "HighLevel",
+  "Git + GitHub",
+  "Postman",
+  "Vercel",
+  "AI-assisted workflows",
 ];
 
 export const personalSkills = [
-  "Client Communication",
-  "Requirement Gathering",
-  "Project Ownership",
-  "Detail-Oriented",
-  "Fast Learner",
-  "Independent + Collaborative",
+  "Excellent written and verbal communication",
+  "Highly organized and efficient",
+  "Works independently and in a team",
+  "Adapts quickly to change",
+  "Leadership and team motivation",
 ];
