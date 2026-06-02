@@ -2,7 +2,11 @@ import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
 import SectionHeader from '../components/SectionHeader'
 import PrimaryButton from '../components/PrimaryButton'
+import ServiceGraphic from '../components/ServiceGraphic'
 import { ArrowRight, Briefcase, CheckCircle2, Clock, Code2, Lightbulb, MessageSquare, Settings, Wrench, Zap } from '../components/icons/icons'
+import dataVectorPng from '../assets/vectors/free/data.png'
+import chatVectorPng from '../assets/vectors/free/chat.png'
+import syncVectorPng from '../assets/vectors/free/sync.png'
 
 const services = [
   {
@@ -12,6 +16,11 @@ const services = [
     details:
       'Built for businesses that need a clear offer, strong call-to-action flow, and a responsive page that can move visitors toward inquiry, booking, or purchase.',
     icon: Code2,
+    image: dataVectorPng,
+    imageAlt: 'Animated vector for landing page structure and conversion planning',
+    imageLabel: 'Page structure and launch build',
+    variant: 'landing',
+    visualNote: 'Sections, call-to-action flow, and responsive launch setup.',
     deliverables: ['Messaging-led page structure', 'Responsive React or static build', 'Fast deployment to Cloudflare Pages'],
     tools: ['React', 'Tailwind', 'CTA Flow'],
   },
@@ -22,6 +31,11 @@ const services = [
     details:
       'Best for teams that are losing time to manual follow-up, repetitive messaging, or disconnected apps across sales, support, and operations.',
     icon: Zap,
+    image: syncVectorPng,
+    imageAlt: 'Animated vector for connected AI workflow automation',
+    imageLabel: 'Automation and orchestration flow',
+    variant: 'automation',
+    visualNote: 'Trigger, route, qualify, and respond across connected tools.',
     deliverables: ['Zapier, n8n, or Make flows', 'AI-assisted summaries and drafting', 'Lead and client follow-up logic'],
     tools: ['Zapier', 'n8n', 'Make.com'],
   },
@@ -32,6 +46,11 @@ const services = [
     details:
       'A fit for businesses that need better routing, cleaner intake, stronger reporting, and less manual status checking across the team.',
     icon: Settings,
+    image: dataVectorPng,
+    imageAlt: 'Animated vector for CRM dashboards and operations data',
+    imageLabel: 'CRM, dashboard, and ops setup',
+    variant: 'crm',
+    visualNote: 'Operational visibility, routing, and reporting in one system flow.',
     deliverables: ['CRM and spreadsheet integrations', 'Dashboards and tracking systems', 'SOP and handoff documentation'],
     tools: ['CRM', 'Sheets', 'Dashboards'],
   },
@@ -42,6 +61,11 @@ const services = [
     details:
       'Useful when off-the-shelf tools are too rigid and the team needs a focused internal interface for specific operational steps.',
     icon: Wrench,
+    image: chatVectorPng,
+    imageAlt: 'Animated vector for custom business tools and internal workflows',
+    imageLabel: 'Internal tools and custom workflows',
+    variant: 'tools',
+    visualNote: 'Custom interfaces built around team actions and operational needs.',
     deliverables: ['Workflow-focused web interfaces', 'Backend/API integration support', 'Deployment and iteration support'],
     tools: ['Internal App', 'Workflow UI', 'SQL Logic'],
   },
@@ -52,6 +76,11 @@ const services = [
     details:
       'Designed for businesses or teams that need clean service logic, API integrations, structured payload handling, and reliable backend delivery.',
     icon: ArrowRight,
+    image: syncVectorPng,
+    imageAlt: 'Animated vector for backend API integrations and service delivery',
+    imageLabel: 'Backend services and API delivery',
+    variant: 'backend',
+    visualNote: 'Service logic, integrations, and reliable data exchange layers.',
     deliverables: ['Java or Laravel service work', 'REST API integration and structured payload handling', 'Data modeling and handoff-ready documentation'],
     tools: ['Java', 'Laravel', 'REST API'],
   },
@@ -86,7 +115,6 @@ function Services() {
         <SectionHeader
           title="Services"
           subtitle="Software engineering, automation, and web delivery services built around real business workflows and operational needs."
-          align="center"
         />
 
         <section className="rounded-[28px] bg-gradient-to-br from-brand-mint/40 via-white to-[#f3efff] p-8 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-10">
@@ -128,13 +156,19 @@ function Services() {
           </div>
         </section>
 
-        <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
-          {services.map((service) => {
+        <section className="space-y-6">
+          {services.map((service, index) => {
             const Icon = service.icon
+            const isVisualFirst = index % 2 === 1
 
             return (
-              <article key={service.id} className="flex h-full flex-col rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-7">
-                <div className="space-y-4">
+              <article key={service.id} className="overflow-hidden rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 shadow-[0_18px_45px_rgba(60,28,120,0.14)]">
+                <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+                  <div className={['flex justify-center p-6 sm:p-7 lg:p-8', isVisualFirst ? 'lg:order-2' : 'lg:order-1'].join(' ')}>
+                    <ServiceGraphic service={service} />
+                  </div>
+
+                  <div className={['space-y-4 p-6 sm:p-7 lg:p-8', isVisualFirst ? 'lg:order-1' : 'lg:order-2'].join(' ')}>
                   <div className="flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
                       <Icon className="h-5 w-5" aria-hidden="true" />
@@ -164,12 +198,13 @@ function Services() {
                       </li>
                     ))}
                   </ul>
-                </div>
 
-                <div className="mt-auto pt-5">
-                  <Link to="/contact" className="text-sm font-semibold text-brand-teal transition hover:text-brand-orange">
-                    Ask about this service
-                  </Link>
+                  <div className="pt-2">
+                    <Link to="/contact" className="text-sm font-semibold text-brand-teal transition hover:text-brand-orange">
+                      Ask about this service
+                    </Link>
+                  </div>
+                </div>
                 </div>
               </article>
             )
