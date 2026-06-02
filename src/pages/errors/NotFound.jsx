@@ -65,10 +65,10 @@ function NotFound() {
                 />
                 <p className="text-sm font-semibold text-navy-300">About</p>
               </div>
-              <p className="mt-1 text-sm text-slate-200/85">Learn more about me</p>
+              <p className="mt-1 text-sm text-slate-200/85">Learn about DevLab Studios</p>
             </GlassCard>
           </Link>
-          <Link to="/portfolio" className="block group">
+          <Link to="/profile" className="block group">
             <GlassCard className="h-full p-5 transition-all group-hover:border-navy-300/50">
               <div className="flex items-center gap-2">
                 <AnimatedIcon
@@ -78,9 +78,9 @@ function NotFound() {
                   animationType="none"
                   ariaLabel={null}
                 />
-                <p className="text-sm font-semibold text-navy-300">Portfolio</p>
+                <p className="text-sm font-semibold text-navy-300">Profile</p>
               </div>
-              <p className="mt-1 text-sm text-slate-200/85">View my work</p>
+              <p className="mt-1 text-sm text-slate-200/85">View founder profile and work</p>
             </GlassCard>
           </Link>
           <Link to="/contact" className="block group">

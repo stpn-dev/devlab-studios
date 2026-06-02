@@ -224,15 +224,16 @@ function Home() {
         <title>Devlab Studios – Software Engineer &amp; AI Automation Specialist</title>
         <meta name="description" content="Devlab Studios by Stephen Rey Agustinez — software engineer and AI automation specialist building backend systems, conversion-focused websites, API integrations, and workflow automation for modern businesses worldwide." />
         <meta name="keywords" content="Stephen Agustinez, Stephen Rey Agustinez, Devlab Studios, software engineer, AI automation specialist, backend developer, workflow automation, Spring Boot, Laravel, React developer, Next.js developer, API integrations, business automation" />
+        <link rel="canonical" href="https://www.devlabstudios.com/" />
         <meta property="og:title" content="Devlab Studios – Software Engineer &amp; AI Automation Specialist" />
         <meta property="og:description" content="Devlab Studios — software engineering, conversion-focused websites, backend systems, and workflow automation for modern businesses." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://www.devlabstudios.com/" />
-        <meta property="og:image" content="/screenshots/portfolio-home.png" />
+        <meta property="og:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Devlab Studios – Software Engineer &amp; AI Automation Specialist" />
         <meta name="twitter:description" content="Devlab Studios — software engineering, websites, backend integrations, and workflow automation for modern businesses." />
-        <meta name="twitter:image" content="/screenshots/portfolio-home.png" />
+        <meta name="twitter:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
         <script type="application/ld+json">{JSON.stringify(getPersonSchema())}</script>
         <script type="application/ld+json">{JSON.stringify(getWebsiteSchema())}</script>
       </Helmet>

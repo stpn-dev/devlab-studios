@@ -1,12 +1,12 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import MainLayout from './layouts/MainLayout'
 import Home from './pages/Home'
 import About from './pages/About'
-import Experiences from './pages/Experiences'
 import Services from './pages/Services'
-import Portfolio from './pages/Portfolio'
 import Contact from './pages/Contact'
+import Profile from './pages/Profile'
+import Resources from './pages/Resources'
 
 // Code split: Lazy load landing pages for better performance
 const LandingSampleReact = lazy(() => import('./pages/LandingSampleReact'))
@@ -42,13 +42,19 @@ const router = createBrowserRouter([
         : { path: 'about', element: <About /> },
       isMaintenance
         ? { path: 'experiences', element: <Maintenance /> }
-        : { path: 'experiences', element: <Experiences /> },
+        : { path: 'experiences', element: <Navigate to="/profile" replace /> },
       isMaintenance
         ? { path: 'services', element: <Maintenance /> }
         : { path: 'services', element: <Services /> },
       isMaintenance
         ? { path: 'portfolio', element: <Maintenance /> }
-        : { path: 'portfolio', element: <Portfolio /> },
+        : { path: 'portfolio', element: <Navigate to="/profile" replace /> },
+      isMaintenance
+        ? { path: 'profile', element: <Maintenance /> }
+        : { path: 'profile', element: <Profile /> },
+      isMaintenance
+        ? { path: 'resources', element: <Maintenance /> }
+        : { path: 'resources', element: <Resources /> },
       { path: 'landing-sample-react', element: <Suspense fallback={<LoadingFallback />}><LandingSampleReact /></Suspense> },
       { path: 'landing-sample-html', element: <Suspense fallback={<LoadingFallback />}><LandingSampleHtml /></Suspense> },
       { path: 'landing-sample-fullstack', element: <Suspense fallback={<LoadingFallback />}><LandingSampleFullStack /></Suspense> },

@@ -9,9 +9,10 @@ import devlabStudiosLogoWebp from '../assets/devlabstudios-logo-only.webp'
 
 
 const navLinks = [
-  { label: 'About Me', to: '/about' },
+  { label: 'About', to: '/about' },
   { label: 'Services', to: '/services' },
-  { label: 'Portfolio', to: '/portfolio' },
+  { label: 'Resources', to: '/resources' },
+  { label: 'Profile', to: '/profile' },
 ]
 
 function Navbar() {

@@ -50,21 +50,21 @@ export const getPersonSchema = () => ({
       name: 'Website Development',
       description:
         'Conversion-focused websites, landing pages, and full-stack web applications built with React, Tailwind CSS, and Laravel.',
-      url: 'https://www.devlabstudios.com/portfolio',
+      url: 'https://www.devlabstudios.com/services',
     },
     {
       '@type': 'Offer',
       name: 'AI Automation & Workflow Automation',
       description:
         'Business process automations using Zapier, n8n, Make.com, OpenAI, and Claude. Includes email automation, CRM integration, lead enrichment, and AI-assisted workflow systems.',
-      url: 'https://www.devlabstudios.com/portfolio',
+      url: 'https://www.devlabstudios.com/services',
     },
     {
       '@type': 'Offer',
       name: 'Backend & API Integration Support',
       description:
         'Backend and integration work across Java, Spring Boot, Laravel, SQL-backed workflows, REST APIs, and structured data handling for production-ready systems.',
-      url: 'https://www.devlabstudios.com/portfolio',
+      url: 'https://www.devlabstudios.com/services',
     },
   ],
   areaServed: 'Worldwide',
@@ -77,7 +77,7 @@ export const getPersonSchema = () => ({
     'https://www.linkedin.com/in/stephen-rey-agustinez-8b86041b3',
     'https://github.com/stpn-dev',
   ],
-  image: 'https://www.devlabstudios.com/screenshots/portfolio-home.png',
+  image: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
   address: {
     '@type': 'PostalAddress',
     addressCountry: 'PH',
@@ -91,7 +91,7 @@ export const getPortfolioItemSchema = (project) => ({
   '@type': 'CreativeWork',
   name: project.title,
   description: project.description,
-  url: project.link || `https://www.devlabstudios.com/portfolio#${project.id}`,
+  url: project.link || `https://www.devlabstudios.com/profile#${project.id}`,
   image: project.image,
   author: {
     '@type': 'Person',
@@ -142,10 +142,10 @@ export const getOrganizationSchema = () => ({
 export const getWebsiteSchema = () => ({
   '@context': 'https://schema.org',
   '@type': 'WebSite',
-  name: 'DevLab Studios – Software Engineer & AI Automation Specialist',
+  name: 'DevLab Studios - Software Engineering & AI Automation',
   url: 'https://www.devlabstudios.com',
   description:
-    'Portfolio and resume of Stephen Agustinez — software engineer and AI automation specialist building websites, backend systems, integrations, and workflow automations for modern businesses.',
+    'DevLab Studios builds software, web interfaces, backend integrations, and AI automation workflows for modern businesses.',
   publisher: {
     '@type': 'Organization',
     name: 'DevLab Studios',
