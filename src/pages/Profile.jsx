@@ -14,11 +14,11 @@ import { portfolioItems } from '../data/portfolio'
 
 function Profile() {
   const [selectedImage, setSelectedImage] = useState(null)
-  const [category, setCategory] = useState('Website')
+  const [category, setCategory] = useState('Automation')
 
   const categories = [
-    { label: 'Website Buildouts', value: 'Website' },
     { label: 'Automation Buildouts', value: 'Automation' },
+    { label: 'Website Buildouts', value: 'Website' },
   ]
 
   const filteredItems = portfolioItems.filter((item) =>

@@ -27,10 +27,11 @@ const solutionGroups = [
     capabilities: [
       'Webhook-based lead enrichment',
       'Booked-calendar intake workflows',
+      'AI call transcript qualification',
       'Priority routing and stakeholder alerts',
       'CRM, sheet, and task handoff logic',
     ],
-    projectIds: ['p3-leads-enrichment', 'p9-guest-researcher-calendar-client'],
+    projectIds: ['p10-automated-lead-qualification', 'p3-leads-enrichment', 'p9-guest-researcher-calendar-client'],
   },
   {
     eyebrow: 'Operations',
@@ -38,12 +39,13 @@ const solutionGroups = [
     description: 'Backend-friendly automation for files, finance records, location data, task systems, and reporting handoffs across business tools.',
     icon: Settings,
     capabilities: [
+      'Buyer ranking and contact enrichment',
       'Xero transaction export and task handoff',
       'Gmail attachment sorting and metadata logging',
       'Geocoding and structured review pipelines',
       'Google Sheets, Drive, Asana, and API integrations',
     ],
-    projectIds: ['p4-xero-to-asana', 'p5-gmail-attachments-drive', 'p8-arv-enterprise-geocoding'],
+    projectIds: ['p11-wholesaling-buyer-intelligence', 'p4-xero-to-asana', 'p5-gmail-attachments-drive', 'p8-arv-enterprise-geocoding'],
   },
   {
     eyebrow: 'Growth',

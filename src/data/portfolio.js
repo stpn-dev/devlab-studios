@@ -14,6 +14,8 @@ import project6 from "../assets/projects/project6-fb-messenger-ai.png";
 import project7 from "../assets/projects/project7-ai-social-creator.png";
 import project8ArvGeocoding from "../assets/projects/ARV_Generate_Proposed_v1.4_Enterprise_Geocoding.png";
 import project9GuestResearcher from "../assets/projects/Guest-Researcher-from-a-booked-calendar-client.png";
+import project10AutomatedLeadQualification from "../assets/projects/Automated_Lead_Qualification.png";
+import project11BuyerIntelligence from "../assets/projects/Wholesaling_BuyerIntelligence_v1D_Improvements.png";
 
 // Website sample screenshots
 import sampleReact from "../assets/projects/sample-react-landing.png";
@@ -79,6 +81,28 @@ export const portfolioItems = [
     sourceUrl: "#",
     image: sampleEcommerce,
     type: "Website",
+  },
+  {
+    id: "p10-automated-lead-qualification",
+    title: "Automated Lead Qualification",
+    description:
+      "Retell webhook workflow that receives AI voice call callbacks, analyzes transcripts, matches callers to existing lead rows, archives call records, updates monitoring, and feeds qualified opportunities into an acquisitions follow-up pipeline.",
+    techStack: ["Retell AI", "Claude/OpenAI", "Google Sheets", "Google Docs", "Google Drive", "Webhook"],
+    liveUrl: "#",
+    sourceUrl: "#",
+    image: project10AutomatedLeadQualification,
+    type: "AI Automation",
+  },
+  {
+    id: "p11-wholesaling-buyer-intelligence",
+    title: "Wholesaling Buyer Intelligence",
+    description:
+      "n8n deal-intake system that geocodes property addresses, checks a 15-day address cache, looks up property and buyer data, skip-traces LLC and person routes, normalizes contacts, and uses AI to rank the best cash buyers into Google Sheets.",
+    techStack: ["n8n", "Google Geocoding API", "BatchData", "Skip Sherpa", "OpenAI API", "Google Sheets"],
+    liveUrl: "#",
+    sourceUrl: "#",
+    image: project11BuyerIntelligence,
+    type: "AI Automation",
   },
   {
     id: "p1-content-repurposing",
