@@ -1,0 +1,622 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
+import { Refine } from '@refinedev/core'
+import simpleRestProvider from '@refinedev/simple-rest'
+import {
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  Image,
+  Plus,
+  RotateCw,
+  Save,
+  Search,
+  Trash2,
+} from '../components/icons/icons'
+import { portfolioItems } from '../data/portfolio'
+
+const PAGE_SIZE = 6
+
+const emptyProject = {
+  id: '',
+  title: '',
+  description: '',
+  techStackText: '',
+  liveUrl: '#',
+  sourceUrl: '#',
+  imageUrl: '',
+  imageFilename: '',
+  type: 'Automation',
+  sortOrder: 999,
+  status: 'published',
+}
+
+function toFormProject(project) {
+  return {
+    ...emptyProject,
+    ...project,
+    techStackText: Array.isArray(project.techStack) ? project.techStack.join(', ') : '',
+  }
+}
+
+function toPayload(form) {
+  return {
+    id: form.id.trim(),
+    title: form.title.trim(),
+    description: form.description.trim(),
+    techStack: form.techStackText.split(',').map((item) => item.trim()).filter(Boolean),
+    liveUrl: form.liveUrl.trim() || '#',
+    sourceUrl: form.sourceUrl.trim() || '#',
+    imageUrl: form.imageUrl.trim(),
+    imageFilename: form.imageFilename.trim(),
+    type: form.type,
+    sortOrder: Number(form.sortOrder) || 999,
+    status: form.status,
+  }
+}
+
+function badgeClass(value) {
+  if (value === 'Website') return 'bg-sky-50 text-sky-700 ring-sky-200'
+  if (value === 'draft') return 'bg-amber-50 text-amber-700 ring-amber-200'
+  return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+}
+
+function normalizeValue(value) {
+  return String(value ?? '').toLowerCase()
+}
+
+function AdminContent() {
+  const [projects, setProjects] = useState([])
+  const [selectedProject, setSelectedProject] = useState(emptyProject)
+  const [status, setStatus] = useState('Loading admin data...')
+  const [isSaving, setIsSaving] = useState(false)
+  const [isReadOnlyPreview, setIsReadOnlyPreview] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [typeFilter, setTypeFilter] = useState('All')
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const loadStaticPreview = useCallback((reason) => {
+    const staticProjects = portfolioItems.map((project) => ({
+      ...project,
+      imageUrl: '',
+    }))
+
+    setProjects(staticProjects)
+    setSelectedProject(staticProjects[0] ? toFormProject(staticProjects[0]) : emptyProject)
+    setIsReadOnlyPreview(true)
+    setCurrentPage(1)
+    setStatus(`${reason} Showing static project fallback in read-only preview mode.`)
+  }, [])
+
+  const loadProjects = useCallback(async () => {
+    try {
+      const response = await fetch('/api/admin/projects')
+      if (response.status === 401) {
+        setStatus('Admin API is protected. Configure Cloudflare Access for /admin and /api/admin/*, then sign in with the allowed email.')
+        return
+      }
+      if (response.status === 503) {
+        const payload = await response.json()
+        loadStaticPreview(payload.error)
+        return
+      }
+      if (!response.ok) {
+        loadStaticPreview(`Unable to load projects (${response.status}).`)
+        return
+      }
+
+      const data = await response.json()
+      setProjects(data)
+      setSelectedProject((current) => {
+        if (!current.id) return data[0] ? toFormProject(data[0]) : emptyProject
+        const match = data.find((project) => project.id === current.id)
+        return match ? toFormProject(match) : data[0] ? toFormProject(data[0]) : emptyProject
+      })
+      setIsReadOnlyPreview(false)
+      setCurrentPage(1)
+      setStatus(`Loaded ${data.length} project record(s).`)
+    } catch {
+      loadStaticPreview('Unable to reach the admin API.')
+    }
+  }, [loadStaticPreview])
+
+  useEffect(() => {
+    loadProjects()
+  }, [loadProjects])
+
+  async function saveProject(event) {
+    event.preventDefault()
+    if (isReadOnlyPreview) {
+      setStatus('Read-only preview mode. Configure Cloudflare Worker, Access, D1, and R2 to save changes.')
+      return
+    }
+
+    setIsSaving(true)
+    setStatus('Saving project...')
+
+    const payload = toPayload(selectedProject)
+    const method = projects.some((project) => project.id === payload.id) ? 'PUT' : 'POST'
+    const url = method === 'PUT' ? `/api/admin/projects/${payload.id}` : '/api/admin/projects'
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        setStatus(data.error || `Save failed (${response.status}).`)
+        return
+      }
+
+      setSelectedProject(toFormProject(data))
+      await loadProjects()
+      setStatus('Project saved.')
+    } catch {
+      setStatus('Project save failed.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function deleteSelectedProject() {
+    if (!selectedProject.id) return
+    if (isReadOnlyPreview) {
+      setStatus('Read-only preview mode. Configure the admin API before deleting projects.')
+      return
+    }
+
+    setStatus('Deleting project...')
+
+    try {
+      const response = await fetch(`/api/admin/projects/${selectedProject.id}`, { method: 'DELETE' })
+      if (!response.ok) {
+        const data = await response.json()
+        setStatus(data.error || `Delete failed (${response.status}).`)
+        return
+      }
+
+      setSelectedProject(emptyProject)
+      await loadProjects()
+      setStatus('Project deleted.')
+    } catch {
+      setStatus('Project delete failed.')
+    }
+  }
+
+  async function uploadImage(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (isReadOnlyPreview) {
+      setStatus('Read-only preview mode. Configure R2 and the admin API before uploading images.')
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('folder', 'projects')
+    formData.append('file', file)
+    setStatus('Uploading image...')
+
+    try {
+      const response = await fetch('/api/admin/media', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setStatus(data.error || `Upload failed (${response.status}).`)
+        return
+      }
+
+      setSelectedProject((current) => ({
+        ...current,
+        imageUrl: data.url,
+        imageFilename: data.filename,
+      }))
+      setStatus('Image uploaded. Save the project to persist it.')
+    } catch {
+      setStatus('Image upload failed.')
+    }
+  }
+
+  const sortedProjects = useMemo(
+    () => [...projects].sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder)),
+    [projects],
+  )
+
+  const filteredProjects = useMemo(() => {
+    const query = normalizeValue(searchTerm).trim()
+
+    return sortedProjects.filter((project) => {
+      if (typeFilter !== 'All' && project.type !== typeFilter) return false
+      if (!query) return true
+
+      const haystack = [
+        project.title,
+        project.id,
+        project.type,
+        ...(Array.isArray(project.techStack) ? project.techStack : []),
+      ]
+        .map(normalizeValue)
+        .join(' ')
+
+      return haystack.includes(query)
+    })
+  }, [searchTerm, sortedProjects, typeFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE))
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredProjects.slice(start, start + PAGE_SIZE)
+  }, [currentPage, filteredProjects])
+
+  const totals = useMemo(() => {
+    const published = projects.filter((project) => project.status === 'published').length
+    const draft = projects.filter((project) => project.status === 'draft').length
+    const websites = projects.filter((project) => project.type === 'Website').length
+    const automations = projects.filter((project) => project.type === 'Automation').length
+
+    return { published, draft, websites, automations }
+  }, [projects])
+
+  const previewImage = selectedProject.imageUrl || selectedProject.image
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">CMS Admin</p>
+              <h1 className="mt-1 text-2xl font-semibold text-slate-950">Project Manager</h1>
+              <p className="mt-1 text-sm text-slate-600">
+                Manage portfolio projects from D1 and store public media in R2.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={loadProjects}
+                className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                <RotateCw size={16} />
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProject(emptyProject)
+                  if (isReadOnlyPreview) {
+                    setStatus('Read-only preview mode. New records can be created after D1 and the admin API are configured.')
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                <Plus size={16} />
+                New Project
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Total Projects</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-950">{projects.length}</p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Automation</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-950">{totals.automations}</p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Website</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-950">{totals.websites}</p>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Draft</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-950">{totals.draft}</p>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            {status}
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto grid w-full max-w-[1600px] gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[380px_minmax(0,1fr)] lg:px-8">
+        <section className="flex min-h-[760px] flex-col rounded-md border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-4 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-950">Projects</h2>
+                <p className="text-sm text-slate-500">{filteredProjects.length} matching record(s)</p>
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${isReadOnlyPreview ? 'bg-amber-50 text-amber-700 ring-amber-200' : 'bg-emerald-50 text-emerald-700 ring-emerald-200'}`}>
+                {isReadOnlyPreview ? 'Read-only preview' : 'Connected'}
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <label className="relative block">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) => {
+                    setSearchTerm(event.target.value)
+                    setCurrentPage(1)
+                  }}
+                  placeholder="Search title, id, or tech"
+                  className="w-full rounded-md border border-slate-300 bg-white py-2 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+                />
+              </label>
+
+              <select
+                value={typeFilter}
+                onChange={(event) => {
+                  setTypeFilter(event.target.value)
+                  setCurrentPage(1)
+                }}
+                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+              >
+                <option value="All">All types</option>
+                <option value="Automation">Automation</option>
+                <option value="Website">Website</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-3 py-3">
+            <div className="space-y-2">
+              {paginatedProjects.map((project) => {
+                const isActive = selectedProject.id === project.id
+
+                return (
+                  <button
+                    key={project.id}
+                    type="button"
+                    onClick={() => setSelectedProject(toFormProject(project))}
+                    className={`block w-full rounded-md border px-3 py-3 text-left transition ${
+                      isActive
+                        ? 'border-slate-900 bg-slate-50'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-950">{project.title}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">{project.id}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${badgeClass(project.type)}`}>
+                        {project.type}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                      <span>Order {project.sortOrder}</span>
+                      <span className={`rounded-full px-2 py-0.5 font-semibold ring-1 ${badgeClass(project.status)}`}>
+                        {project.status}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+
+              {paginatedProjects.length === 0 ? (
+                <p className="rounded-md border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500">
+                  No projects match the current search and filter.
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3">
+            <p className="text-sm text-slate-500">
+              Page {currentPage} of {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronLeft size={16} />
+                Prev
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <form onSubmit={saveProject} className="rounded-md border border-slate-200 bg-white">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">Editor</h2>
+              <p className="text-sm text-slate-500">Update metadata, links, ordering, and project media.</p>
+            </div>
+            <button
+              type="button"
+              onClick={deleteSelectedProject}
+              className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+            >
+              <Trash2 size={16} />
+              Delete
+            </button>
+          </div>
+
+          <div className="grid gap-6 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="grid gap-4">
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+                ID
+                <input
+                  className="rounded-md border border-slate-300 px-3 py-2 text-slate-800 outline-none transition focus:border-slate-500"
+                  value={selectedProject.id}
+                  onChange={(event) => setSelectedProject({ ...selectedProject, id: event.target.value })}
+                  required
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+                Title
+                <input
+                  className="rounded-md border border-slate-300 px-3 py-2 text-slate-800 outline-none transition focus:border-slate-500"
+                  value={selectedProject.title}
+                  onChange={(event) => setSelectedProject({ ...selectedProject, title: event.target.value })}
+                  required
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+                Description
+                <textarea
+                  className="min-h-32 rounded-md border border-slate-300 px-3 py-2 text-slate-800 outline-none transition focus:border-slate-500"
+                  value={selectedProject.description}
+                  onChange={(event) => setSelectedProject({ ...selectedProject, description: event.target.value })}
+                  required
+                />
+              </label>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+                Tags / Tech Stack
+                <input
+                  className="rounded-md border border-slate-300 px-3 py-2 text-slate-800 outline-none transition focus:border-slate-500"
+                  value={selectedProject.techStackText}
+                  onChange={(event) => setSelectedProject({ ...selectedProject, techStackText: event.target.value })}
+                  placeholder="n8n, OpenAI API, Google Sheets"
+                />
+              </label>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+                  Type
+                  <select
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-800 outline-none transition focus:border-slate-500"
+                    value={selectedProject.type}
+                    onChange={(event) => setSelectedProject({ ...selectedProject, type: event.target.value })}
+                  >
+                    <option>Automation</option>
+                    <option>Website</option>
+                  </select>
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+                  Status
+                  <select
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-800 outline-none transition focus:border-slate-500"
+                    value={selectedProject.status}
+                    onChange={(event) => setSelectedProject({ ...selectedProject, status: event.target.value })}
+                  >
+                    <option value="published">Published</option>
+                    <option value="draft">Draft</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+                  Sort Order
+                  <input
+                    type="number"
+                    className="rounded-md border border-slate-300 px-3 py-2 text-slate-800 outline-none transition focus:border-slate-500"
+                    value={selectedProject.sortOrder}
+                    onChange={(event) => setSelectedProject({ ...selectedProject, sortOrder: event.target.value })}
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-semibold text-slate-800 md:col-span-2">
+                  Live URL
+                  <input
+                    className="rounded-md border border-slate-300 px-3 py-2 text-slate-800 outline-none transition focus:border-slate-500"
+                    value={selectedProject.liveUrl}
+                    onChange={(event) => setSelectedProject({ ...selectedProject, liveUrl: event.target.value })}
+                  />
+                </label>
+              </div>
+
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+                Image URL
+                <input
+                  className="rounded-md border border-slate-300 px-3 py-2 text-slate-800 outline-none transition focus:border-slate-500"
+                  value={selectedProject.imageUrl}
+                  onChange={(event) => setSelectedProject({ ...selectedProject, imageUrl: event.target.value })}
+                />
+              </label>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isSaving || isReadOnlyPreview}
+                  className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Save size={16} />
+                  Save Project
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            <aside className="grid content-start gap-4 border-t border-slate-200 pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Selected Record</p>
+                <p className="mt-2 truncate text-sm font-semibold text-slate-950">{selectedProject.title || 'New project'}</p>
+                <p className="mt-1 truncate text-xs text-slate-500">{selectedProject.id || 'No ID set yet'}</p>
+              </div>
+
+              {previewImage ? (
+                <div className="overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+                  <img
+                    src={previewImage}
+                    alt={`${selectedProject.title || 'Project'} preview`}
+                    className="h-56 w-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-56 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 px-4 text-center text-sm text-slate-500">
+                  No project image selected.
+                </div>
+              )}
+
+              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                <Image size={16} />
+                Upload Image
+                <input type="file" accept="image/*" className="hidden" onChange={uploadImage} disabled={isReadOnlyPreview} />
+              </label>
+            </aside>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function Admin() {
+  return (
+    <Refine dataProvider={simpleRestProvider('/api/admin')} resources={[{ name: 'projects' }]}>
+      <Helmet>
+        <title>Admin - DevLab Studios CMS</title>
+        <meta name="robots" content="noindex,nofollow" />
+      </Helmet>
+      <AdminContent />
+    </Refine>
+  )
+}
+
+export default Admin

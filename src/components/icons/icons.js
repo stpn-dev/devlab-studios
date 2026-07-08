@@ -24,6 +24,7 @@ export {
   EyeOff,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
   ChevronRight,
   ArrowLeft,
   Linkedin,
@@ -53,4 +54,8 @@ export {
   GraduationCap,
   Trophy,
   BadgeCheck,
+  Image,
+  Plus,
+  Save,
+  Trash2,
 } from 'lucide-react'

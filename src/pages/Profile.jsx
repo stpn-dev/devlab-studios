@@ -10,21 +10,22 @@ import AnimatedIcon from '../components/icons/AnimatedIcon'
 import { ArrowRight, BadgeCheck, Briefcase, Calendar, GraduationCap, Trophy } from '../components/icons/icons'
 import aboutData from '../data/about.js'
 import { experiences } from '../data/experiences'
-import { portfolioItems } from '../data/portfolio'
+import { useProjects } from '../hooks/useProjects'
 
 function Profile() {
   const [selectedImage, setSelectedImage] = useState(null)
   const [category, setCategory] = useState('Automation')
+  const projects = useProjects()
 
   const categories = [
     { label: 'Automation Buildouts', value: 'Automation' },
     { label: 'Website Buildouts', value: 'Website' },
   ]
 
-  const filteredItems = portfolioItems.filter((item) =>
+  const filteredItems = projects.filter((item) =>
     category === 'Website'
       ? item.type === 'Website'
-      : item.type === 'Automation' || item.type === 'AI Automation',
+      : item.type === 'Automation',
   )
 
   return (

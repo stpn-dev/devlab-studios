@@ -14,6 +14,7 @@ const LandingSampleHtml = lazy(() => import('./pages/LandingSampleHtml'))
 const LandingSampleFullStack = lazy(() => import('./pages/LandingSampleFullStack'))
 const LandingSampleLocalService = lazy(() => import('./pages/LandingSampleLocalService'))
 const LandingSampleEcommerce = lazy(() => import('./pages/LandingSampleEcommerce'))
+const Admin = lazy(() => import('./pages/Admin'))
 
 import NotFound from './pages/errors/NotFound'
 import Maintenance from './pages/errors/Maintenance'
@@ -29,6 +30,10 @@ const LoadingFallback = () => (
 const isMaintenance = import.meta.env.VITE_MAINTENANCE_MODE === 'true'
 
 const router = createBrowserRouter([
+  {
+    path: '/admin',
+    element: <Suspense fallback={<LoadingFallback />}><Admin /></Suspense>,
+  },
   {
     path: '/',
     element: <MainLayout />,

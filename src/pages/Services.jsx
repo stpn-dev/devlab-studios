@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import SectionHeader from '../components/SectionHeader'
 import PrimaryButton from '../components/PrimaryButton'
 import { ArrowRight, Briefcase, CheckCircle2, Code2, Lightbulb, MessageSquare, Settings, Shield, Wrench, Zap } from '../components/icons/icons'
-import { portfolioItems } from '../data/portfolio'
+import { useProjects } from '../hooks/useProjects'
 
 const solutionGroups = [
   {
@@ -112,13 +112,15 @@ const faqs = [
   },
 ]
 
-function getProjects(projectIds) {
+function getProjects(projectIds, projectItems) {
   return projectIds
-    .map((id) => portfolioItems.find((item) => item.id === id))
+    .map((id) => projectItems.find((item) => item.id === id))
     .filter(Boolean)
 }
 
 function Services() {
+  const projectItems = useProjects()
+
   return (
     <>
       <Helmet>
@@ -192,7 +194,7 @@ function Services() {
           <div className="space-y-6">
             {solutionGroups.map((group, index) => {
               const Icon = group.icon
-              const projects = getProjects(group.projectIds)
+              const projects = getProjects(group.projectIds, projectItems)
               const isReversed = index % 2 === 1
 
               return (

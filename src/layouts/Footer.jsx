@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { brandingAssets } from '../config/branding'
 
 function Footer() {
   return (
@@ -6,6 +7,15 @@ function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-8 text-sm text-slate-600 sm:px-6 lg:px-6">
         <div className="flex flex-col gap-8 text-center md:flex-row md:items-start md:justify-between md:text-left">
           <div className="mb-4 flex flex-1 flex-col items-center md:mb-0 md:items-start">
+            <img
+              src={brandingAssets.logoSideUrl}
+              alt="DevLab Studios"
+              className="mb-3 h-12 w-auto object-contain"
+              loading="lazy"
+              onError={(event) => {
+                event.currentTarget.style.display = 'none'
+              }}
+            />
             <p className="mb-1 text-lg font-semibold text-brand-ink">DevLab Studios</p>
             <p className="mb-3 whitespace-normal text-slate-500 md:whitespace-nowrap">
               Your Vision, Digitally Crafted - one solution at a time, always evolving.

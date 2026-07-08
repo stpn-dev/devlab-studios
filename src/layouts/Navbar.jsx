@@ -4,9 +4,7 @@ import PrimaryButton from '../components/PrimaryButton'
 import AnimatedIcon from '../components/icons/AnimatedIcon'
 import { Mail, Menu, X } from '../components/icons/icons'
 import devlabStudiosLogo from '../assets/devlabstudios-logo-only.png'
-import devlabStudiosLogoWebp from '../assets/devlabstudios-logo-only.webp'
-
-
+import { brandingAssets } from '../config/branding'
 
 const navLinks = [
   { label: 'About', to: '/about' },
@@ -26,17 +24,18 @@ function Navbar() {
       <div className="w-full px-4 mx-auto max-w-7xl sm:px-6 lg:px-6">
         <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-[0_12px_34px_rgba(12,26,51,0.08)] backdrop-blur-md">
           <Link to="/" className="flex items-center gap-3 text-lg font-bold tracking-tight text-brand-teal">
-              <picture>
-                <source srcSet={devlabStudiosLogoWebp} type="image/webp" />
-                <img
-                  src={devlabStudiosLogo}
-                  alt="DevLab Studios"
-                  className="h-11 w-11 rounded-md object-contain"
-                  loading="lazy"
-                  width="44"
-                  height="44"
-                />
-              </picture>
+            <img
+              src={brandingAssets.logoOnlyUrl}
+              alt="DevLab Studios"
+              className="h-11 w-11 rounded-md object-contain"
+              loading="eager"
+              width="44"
+              height="44"
+              onError={(event) => {
+                event.currentTarget.onerror = null
+                event.currentTarget.src = devlabStudiosLogo
+              }}
+            />
             <span className="hidden sm:inline">DevLab Studios</span>
           </Link>
 

@@ -1,7 +1,5 @@
 // src/data/portfolio.js
-// Projects updated to match the provided workflow screenshots + resume-deployed projects.
-// Put your screenshots in: src/assets/projects/
-// IMPORTANT: Filenames must match exactly.
+// Static portfolio fallback. D1-backed API data should match these records during migration.
 
 import project1 from "../assets/projects/project1-content-repurposing.png";
 import project2Escalation from "../assets/projects/project2-escalation-email.png";
@@ -16,213 +14,38 @@ import project8ArvGeocoding from "../assets/projects/ARV_Generate_Proposed_v1.4_
 import project9GuestResearcher from "../assets/projects/Guest-Researcher-from-a-booked-calendar-client.png";
 import project10AutomatedLeadQualification from "../assets/projects/Automated_Lead_Qualification.png";
 import project11BuyerIntelligence from "../assets/projects/Wholesaling_BuyerIntelligence_v1D_Improvements.png";
-
-// Website sample screenshots
 import sampleReact from "../assets/projects/sample-react-landing.png";
 import sampleHtml from "../assets/projects/sample-html-landing.png";
 import sampleFullstack from "../assets/projects/sample-fullstack-landing.png";
 import sampleLocalService from "../assets/projects/sample-local-service-landing.png";
 import sampleEcommerce from "../assets/projects/sample-ecommerce-landing.png";
+import { projectRecords } from "./projectRecords";
 
-export const portfolioItems = [
-  // --- Automation / AI Automation projects (from screenshots) ---
-  // --- Website Buildouts (Samples) ---
-  {
-    id: "w1-react-modern",
-    title: "Modern React Landing Page",
-    description:
-      "A modern, animated landing page built with React and Tailwind CSS. Showcases a tech-focused, responsive design.",
-    techStack: ["React", "Tailwind CSS"],
-    liveUrl: "/landing-sample-react",
-    sourceUrl: "#",
-    image: sampleReact,
-    type: "Website",
-  },
-  {
-    id: "w2-html-minimalist",
-    title: "Minimalist HTML/CSS/JS",
-    description:
-      "A clean, minimalist landing page using only HTML, CSS, and vanilla JavaScript. Fast, lightweight, and static.",
-    techStack: ["HTML", "CSS", "JavaScript"],
-    liveUrl: "/landing-sample-html",
-    sourceUrl: "#",
-    image: sampleHtml,
-    type: "Website",
-  },
-  {
-    id: "w4-laravel-fullstack",
-    title: "Full Stack (Laravel + MariaDB)",
-    description:
-      "A dynamic full stack landing page with backend interaction, built using Laravel (PHP) and MariaDB. Features a contact form and dashboard UI.",
-    techStack: ["Laravel", "PHP", "MariaDB", "Blade"],
-    liveUrl: "/landing-sample-fullstack",
-    sourceUrl: "#",
-    image: sampleFullstack,
-    type: "Website",
-  },
-  {
-    id: "w5-local-service",
-    title: "Local Service Business",
-    description:
-      "A local lead-generation website sample with strong call CTAs, booking form, trust stats, and service cards.",
-    techStack: ["React", "Tailwind CSS", "Lead Generation UX"],
-    liveUrl: "/landing-sample-local-service",
-    sourceUrl: "#",
-    image: sampleLocalService,
-    type: "Website",
-  },
-  {
-    id: "w6-ecommerce",
-    title: "E-commerce Product Landing",
-    description:
-      "A conversion-focused e-commerce design with featured product block, product cards, ratings, and purchase CTA flow.",
-    techStack: ["React", "Tailwind CSS", "E-commerce UI"],
-    liveUrl: "/landing-sample-ecommerce",
-    sourceUrl: "#",
-    image: sampleEcommerce,
-    type: "Website",
-  },
-  {
-    id: "p10-automated-lead-qualification",
-    title: "Automated Lead Qualification",
-    description:
-      "Retell webhook workflow that receives AI voice call callbacks, analyzes transcripts, matches callers to existing lead rows, archives call records, updates monitoring, and feeds qualified opportunities into an acquisitions follow-up pipeline.",
-    techStack: ["Retell AI", "Claude/OpenAI", "Google Sheets", "Google Docs", "Google Drive", "Webhook"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project10AutomatedLeadQualification,
-    type: "AI Automation",
-  },
-  {
-    id: "p11-wholesaling-buyer-intelligence",
-    title: "Wholesaling Buyer Intelligence",
-    description:
-      "n8n deal-intake system that geocodes property addresses, checks a 15-day address cache, looks up property and buyer data, skip-traces LLC and person routes, normalizes contacts, and uses AI to rank the best cash buyers into Google Sheets.",
-    techStack: ["n8n", "Google Geocoding API", "BatchData", "Skip Sherpa", "OpenAI API", "Google Sheets"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project11BuyerIntelligence,
-    type: "AI Automation",
-  },
-  {
-    id: "p1-content-repurposing",
-    title: "Content Repurposing Automation",
-    description:
-      "Automation that repurposes content from a single uploaded file by filtering inputs, generating AI outputs, and routing results into multiple publishing paths (e.g., Facebook Pages and LinkedIn).",
-    techStack: ["Zapier", "Google Drive", "AI by Zapier", "Facebook Pages", "LinkedIn"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project1,
-    type: "Automation",
-  },
-  {
-    id: "p2-escalation-email",
-    title: "Automated Email Response for Escalations",
-    description:
-      "Scheduled workflow that checks tasks and sends email responses for escalations, keeping communication consistent and reducing manual handling.",
-    techStack: ["Zapier", "Schedule", "Asana", "Gmail"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project2Escalation,
-    type: "Automation",
-  },
-  {
-    id: "p2-quote-follow-up",
-    title: "Quote Follow-up Automation",
-    description:
-      "Weekly scheduled automation that finds relevant tasks and sends quote follow-up emails to improve response rates and maintain consistent outreach.",
-    techStack: ["Zapier", "Schedule", "Asana", "Gmail"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project2QuoteFollowUp,
-    type: "Automation",
-  },
-  {
-    id: "p2-combined-automation",
-    title: "Combined Multi-step Client Workflow Automation",
-    description:
-      "End-to-end workflow triggered by task updates that branches into multiple paths (ready to start, no response, approved, paid & closed), creates folders/subtasks, and sends appropriate email sequences per service.",
-    techStack: ["Zapier", "Asana", "Gmail", "Google Drive", "Paths/Router"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project2Combined,
-    type: "Automation",
-  },
-  {
-    id: "p3-leads-enrichment",
-    title: "Automated Leads Enrichment",
-    description:
-      "Webhook-driven enrichment that formats incoming lead data, enriches via external lookup, routes by priority, logs high-priority leads to Sheets, notifies stakeholders, and emails outcomes.",
-    techStack: ["Zapier", "Webhooks", "Formatter", "Google Sheets", "Slack", "Gmail"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project3,
-    type: "Automation",
-  },
-  {
-    id: "p4-xero-to-asana",
-    title: "Export Xero Transactions → Upload CSV to Asana",
-    description:
-      "Pulls account transactions from Xero via API, routes/iterates records, writes and aggregates data in Google Sheets, then uploads the generated CSV/attachment to Asana for processing and tracking.",
-    techStack: ["Make (Integromat)", "Xero API", "Google Sheets", "Iterator/Router", "Asana"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project4,
-    type: "Automation",
-  },
-  {
-    id: "p5-gmail-attachments-drive",
-    title: "Auto-sort Gmail Attachments to Google Drive",
-    description:
-      "Watches Gmail, extracts attachments, optionally uses Gemini AI for processing, uploads files to Drive, logs metadata to Google Sheets, and sends confirmation emails for visibility.",
-    techStack: ["Make (Integromat)", "Gmail", "Google Drive", "Google Sheets", "Gemini AI"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project5,
-    type: "Automation",
-  },
-  {
-    id: "p6-messenger-ai-agent",
-    title: "Facebook Messenger AI Agent",
-    description:
-      "Webhook-based Messenger agent that filters events, fetches context, generates AI replies, triggers downstream actions via HTTP, and responds back through the webhook flow.",
-    techStack: ["n8n", "Webhooks", "AI Agent", "HTTP Request", "Gemini Chat Model", "Memory"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project6,
-    type: "AI Automation",
-  },
-  {
-    id: "p7-ai-social-content",
-    title: "AI Social Media Content Creator",
-    description:
-      "Scheduled pipeline that generates quote copy, checks duplicates in Google Sheets, fetches weather data, generates images, saves image URLs, and publishes to Facebook using Graph API.",
-    techStack: ["n8n", "Schedule", "OpenWeatherMap", "Google Sheets", "Facebook Graph API", "Gemini Chat Model"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project7,
-    type: "AI Automation",
-  },
-  {
-    id: "p8-arv-enterprise-geocoding",
-    title: "ARV Enterprise Geocoding Automation",
-    description:
-      "Automation workflow for generating proposed geocoding outputs from business records, structuring location data for downstream review and enterprise mapping use.",
-    techStack: ["Automation Workflow", "Geocoding", "Data Structuring", "Review Pipeline"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project8ArvGeocoding,
-    type: "Automation",
-  },
-  {
-    id: "p9-guest-researcher-calendar-client",
-    title: "Guest Researcher From Booked Calendar Client",
-    description:
-      "Booked-calendar intake automation that turns client scheduling data into a guest research workflow, helping the team prepare context and next-step actions before engagement.",
-    techStack: ["Calendar Intake", "Client Routing", "Research Workflow", "Automation"],
-    liveUrl: "#",
-    sourceUrl: "#",
-    image: project9GuestResearcher,
-    type: "Automation",
-  },
-];
+const imagesByFilename = {
+  "project1-content-repurposing.webp": project1,
+  "project2-escalation-email.webp": project2Escalation,
+  "project2-quote-followup.webp": project2QuoteFollowUp,
+  "project2-combined-automation.webp": project2Combined,
+  "project3-leads-enrichment.webp": project3,
+  "project4-xero-to-asana.webp": project4,
+  "project5-gmail-drive-sort.webp": project5,
+  "project6-fb-messenger-ai.webp": project6,
+  "project7-ai-social-creator.webp": project7,
+  "ARV_Generate_Proposed_v1.4_Enterprise_Geocoding.webp": project8ArvGeocoding,
+  "Guest-Researcher-from-a-booked-calendar-client.webp": project9GuestResearcher,
+  "Automated_Lead_Qualification.webp": project10AutomatedLeadQualification,
+  "Wholesaling_BuyerIntelligence_v1D_Improvements.webp": project11BuyerIntelligence,
+  "sample-react-landing.webp": sampleReact,
+  "sample-html-landing.webp": sampleHtml,
+  "sample-fullstack-landing.webp": sampleFullstack,
+  "sample-local-service-landing.webp": sampleLocalService,
+  "sample-ecommerce-landing.webp": sampleEcommerce,
+};
+
+export const portfolioItems = projectRecords.map(({ imageFilename, sortOrder, status, ...project }) => ({
+  ...project,
+  sortOrder,
+  status,
+  imageFilename,
+  image: imagesByFilename[imageFilename],
+}));

@@ -11,11 +11,13 @@ node_modules
 dist
 dist-ssr
 *.local
+.wrangler-dry-run
 
 # Environment variables (keep secrets out of git)
 .env
 .env.local
 .env.*.local
+.wrangler/
 
 # Editor directories and files
 .vscode/*

@@ -6,6 +6,19 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "devlab-studios-cms",
+      "database_id": "6ff5e313-51a4-43d5-a649-678eeff1ff25"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "devlab-studios"
+    }
+  ],
   "compatibility_date": "2026-03-10",
   "compatibility_flags": ["nodejs_compat"]
 }
