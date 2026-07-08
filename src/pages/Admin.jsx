@@ -129,7 +129,7 @@ function AdminContent() {
     setStatus(`${reason} Showing static project fallback in read-only preview mode.`)
   }, [])
 
-  const loadProjects = useCallback(async () => {
+  const loadProjects = useCallback(async ({ preserveStatus = false } = {}) => {
     try {
       const response = await fetch('/api/admin/projects')
       if (response.status === 401) {
@@ -155,7 +155,9 @@ function AdminContent() {
       })
       setIsReadOnlyPreview(false)
       setCurrentPage(1)
-      setStatus(`Loaded ${data.length} project record(s).`)
+      if (!preserveStatus) {
+        setStatus(`Loaded ${data.length} project record(s).`)
+      }
     } catch {
       loadStaticPreview('Unable to reach the admin API.')
     }
@@ -193,8 +195,8 @@ function AdminContent() {
       }
 
       setSelectedProject(toFormProject(data))
-      await loadProjects()
-      setStatus('Project saved.')
+      await loadProjects({ preserveStatus: true })
+      setStatus(`Project saved at ${new Date().toLocaleTimeString()}.`)
     } catch {
       setStatus('Project save failed.')
     } finally {
@@ -220,8 +222,8 @@ function AdminContent() {
       }
 
       setSelectedProject(emptyProject)
-      await loadProjects()
-      setStatus('Project deleted.')
+      await loadProjects({ preserveStatus: true })
+      setStatus(`Project deleted at ${new Date().toLocaleTimeString()}.`)
     } catch {
       setStatus('Project delete failed.')
     }

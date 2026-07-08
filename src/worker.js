@@ -20,6 +20,32 @@ function hasMediaBucket(env) {
   return Boolean(env.MEDIA_BUCKET)
 }
 
+function normalizeMediaUrl(url, env) {
+  const value = String(url || '').trim()
+  if (!value) return ''
+  if (/^https?:\/\//i.test(value)) return value
+
+  const publicBaseUrl = String(env.R2_PUBLIC_BASE_URL || '').trim()
+  if (!publicBaseUrl) return value
+
+  return `${publicBaseUrl.replace(/\/$/, '')}/${value.replace(/^\/+/, '')}`
+}
+
+function normalizeProjectMedia(project, env) {
+  if (!project) return project
+
+  return {
+    ...project,
+    imageUrl: normalizeMediaUrl(project.imageUrl, env),
+    galleryImages: Array.isArray(project.galleryImages)
+      ? project.galleryImages.map((image) => ({
+          ...image,
+          url: normalizeMediaUrl(image.url, env),
+        }))
+      : [],
+  }
+}
+
 async function handleContact(c) {
   const webhookUrl = c.env.ZOHO_WEBHOOK_URL
   if (!webhookUrl) {
@@ -71,7 +97,7 @@ app.get('/api/projects', async (c) => {
 
   try {
     const projects = await listProjects(c.env.DB)
-    return c.json({ data: projects, source: 'd1', configured: true })
+    return c.json({ data: projects.map((project) => normalizeProjectMedia(project, c.env)), source: 'd1', configured: true })
   } catch (error) {
     return jsonResponse({ data: [], source: 'static-fallback', configured: false, error: error.message }, 200)
   }
@@ -94,7 +120,11 @@ app.get('/api/admin/projects', async (c) => {
   if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
   const projects = await listProjects(c.env.DB, { includeDrafts: true })
-  return c.json(projects, 200, { 'X-Total-Count': String(projects.length) })
+  return c.json(
+    projects.map((project) => normalizeProjectMedia(project, c.env)),
+    200,
+    { 'X-Total-Count': String(projects.length) },
+  )
 })
 
 app.get('/api/admin/projects/:id', async (c) => {
@@ -102,7 +132,7 @@ app.get('/api/admin/projects/:id', async (c) => {
 
   const project = await getProject(c.env.DB, c.req.param('id'), { includeDrafts: true })
   if (!project) return jsonResponse({ error: 'Project not found.' }, 404)
-  return c.json(project)
+  return c.json(normalizeProjectMedia(project, c.env))
 })
 
 app.post('/api/admin/projects', async (c) => {
@@ -110,7 +140,7 @@ app.post('/api/admin/projects', async (c) => {
 
   try {
     const project = await upsertProject(c.env.DB, await c.req.json())
-    return c.json(project, 201)
+    return c.json(normalizeProjectMedia(project, c.env), 201)
   } catch (error) {
     return jsonResponse({ error: error.message }, error.status || 500)
   }
@@ -122,7 +152,7 @@ app.put('/api/admin/projects/:id', async (c) => {
   try {
     const payload = await c.req.json()
     const project = await upsertProject(c.env.DB, { ...payload, id: c.req.param('id') })
-    return c.json(project)
+    return c.json(normalizeProjectMedia(project, c.env))
   } catch (error) {
     return jsonResponse({ error: error.message }, error.status || 500)
   }
@@ -136,7 +166,7 @@ app.patch('/api/admin/projects/:id', async (c) => {
     if (!existing) return jsonResponse({ error: 'Project not found.' }, 404)
     const payload = await c.req.json()
     const project = await upsertProject(c.env.DB, { ...existing, ...payload, id: c.req.param('id') })
-    return c.json(project)
+    return c.json(normalizeProjectMedia(project, c.env))
   } catch (error) {
     return jsonResponse({ error: error.message }, error.status || 500)
   }
@@ -151,6 +181,9 @@ app.delete('/api/admin/projects/:id', async (c) => {
 
 app.post('/api/admin/media', async (c) => {
   if (!hasMediaBucket(c.env)) return jsonResponse({ error: 'R2 MEDIA_BUCKET binding is not configured.' }, 503)
+  if (!String(c.env.R2_PUBLIC_BASE_URL || '').trim()) {
+    return jsonResponse({ error: 'R2_PUBLIC_BASE_URL is not configured.' }, 503)
+  }
 
   const formData = await c.req.formData()
   const file = formData.get('file')
