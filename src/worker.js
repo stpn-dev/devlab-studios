@@ -156,6 +156,15 @@ app.post('/api/admin/media', async (c) => {
   const file = formData.get('file')
   const folder = String(formData.get('folder') || 'uploads').replace(/[^a-z0-9/_-]/gi, '')
   if (!file || typeof file === 'string') return jsonResponse({ error: 'A file upload is required.' }, 400)
+  if (!String(file.type || '').startsWith('image/')) {
+    return jsonResponse({ error: 'Only image uploads are allowed.' }, 400)
+  }
+  if (file.size <= 0) {
+    return jsonResponse({ error: 'Uploaded image is empty.' }, 400)
+  }
+  if (folder === 'projects' && file.type !== 'image/webp') {
+    return jsonResponse({ error: 'Project images must be uploaded as WebP.' }, 400)
+  }
 
   const key = `${folder}/${crypto.randomUUID()}-${file.name.replace(/[^a-z0-9._-]/gi, '-')}`
   await c.env.MEDIA_BUCKET.put(key, file.stream(), {

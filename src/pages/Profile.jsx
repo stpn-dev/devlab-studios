@@ -169,16 +169,17 @@ function Profile() {
               <PortfolioRow
                 key={project.id}
                 project={project}
-                onImageClick={() => setSelectedImage(project.image)}
+                onImageClick={(image) => setSelectedImage(image)}
               />
             ))}
           </div>
 
           <ImageModal
-            src={selectedImage}
-            alt="Portfolio project screenshot"
+            src={selectedImage?.url || ''}
+            alt={selectedImage?.altText || 'Portfolio project screenshot'}
             isOpen={!!selectedImage}
             onClose={() => setSelectedImage(null)}
+            caption={selectedImage?.altText || ''}
           />
         </section>
       </div>

@@ -6,12 +6,16 @@ function mergeWithStaticImages(projects) {
 
   return projects.map((project) => {
     const fallback = staticById.get(project.id)
+    const apiGallery = Array.isArray(project.galleryImages) ? project.galleryImages.filter((item) => item?.url) : []
+    const fallbackGallery = Array.isArray(fallback?.galleryImages) ? fallback.galleryImages : []
+
     return {
       ...project,
       liveUrl: project.liveUrl || '#',
       sourceUrl: project.sourceUrl || '#',
       techStack: Array.isArray(project.techStack) ? project.techStack : [],
-      image: project.imageUrl || fallback?.image,
+      image: project.imageUrl || apiGallery[0]?.url || fallback?.image,
+      galleryImages: apiGallery.length > 0 ? apiGallery : fallbackGallery,
     }
   })
 }

@@ -14,6 +14,7 @@ import {
   Trash2,
 } from '../components/icons/icons'
 import { portfolioItems } from '../data/portfolio'
+import { validateAndConvertToWebP } from '../utils/imageUpload'
 
 const PAGE_SIZE = 6
 
@@ -26,20 +27,49 @@ const emptyProject = {
   sourceUrl: '#',
   imageUrl: '',
   imageFilename: '',
+  galleryImages: [],
   type: 'Automation',
   sortOrder: 999,
   status: 'published',
+}
+
+function deriveFilenameFromUrl(url) {
+  const value = String(url || '').trim()
+  if (!value) return ''
+
+  try {
+    const normalized = new URL(value)
+    return normalized.pathname.split('/').filter(Boolean).pop() || ''
+  } catch {
+    return value.split('/').filter(Boolean).pop() || ''
+  }
 }
 
 function toFormProject(project) {
   return {
     ...emptyProject,
     ...project,
+    galleryImages: Array.isArray(project.galleryImages)
+      ? project.galleryImages
+          .filter((item) => item?.url)
+          .map((item, index) => ({
+            id: item.id || `${project.id || 'project'}-gallery-${index + 1}`,
+            url: item.url,
+            filename: item.filename || deriveFilenameFromUrl(item.url),
+            altText: item.altText || '',
+            sortOrder: Number(item.sortOrder) || index + 1,
+          }))
+      : [],
     techStackText: Array.isArray(project.techStack) ? project.techStack.join(', ') : '',
   }
 }
 
 function toPayload(form) {
+  const imageUrl = form.imageUrl.trim()
+  const imageFilename = imageUrl
+    ? (form.imageFilename.trim() || deriveFilenameFromUrl(imageUrl))
+    : ''
+
   return {
     id: form.id.trim(),
     title: form.title.trim(),
@@ -47,8 +77,19 @@ function toPayload(form) {
     techStack: form.techStackText.split(',').map((item) => item.trim()).filter(Boolean),
     liveUrl: form.liveUrl.trim() || '#',
     sourceUrl: form.sourceUrl.trim() || '#',
-    imageUrl: form.imageUrl.trim(),
-    imageFilename: form.imageFilename.trim(),
+    imageUrl,
+    imageFilename,
+    galleryImages: Array.isArray(form.galleryImages)
+      ? form.galleryImages
+          .filter((item) => String(item?.url || '').trim())
+          .map((item, index) => ({
+            id: String(item.id || `${form.id || 'project'}-gallery-${index + 1}`),
+            url: String(item.url || '').trim(),
+            filename: String(item.filename || '').trim() || deriveFilenameFromUrl(item.url),
+            altText: String(item.altText || '').trim(),
+            sortOrder: index + 1,
+          }))
+      : [],
     type: form.type,
     sortOrder: Number(form.sortOrder) || 999,
     status: form.status,
@@ -194,12 +235,15 @@ function AdminContent() {
       return
     }
 
-    const formData = new FormData()
-    formData.append('folder', 'projects')
-    formData.append('file', file)
-    setStatus('Uploading image...')
-
     try {
+      setStatus('Validating and converting image to WebP...')
+      const prepared = await validateAndConvertToWebP(file)
+
+      const formData = new FormData()
+      formData.append('folder', 'projects')
+      formData.append('file', prepared.file)
+
+      setStatus('Uploading image...')
       const response = await fetch('/api/admin/media', {
         method: 'POST',
         body: formData,
@@ -215,10 +259,114 @@ function AdminContent() {
         imageUrl: data.url,
         imageFilename: data.filename,
       }))
-      setStatus('Image uploaded. Save the project to persist it.')
-    } catch {
-      setStatus('Image upload failed.')
+      setStatus(`Image uploaded as WebP (${prepared.converted.width}x${prepared.converted.height}). Save the project to persist it.`)
+    } catch (error) {
+      setStatus(error.message || 'Image upload failed.')
+    } finally {
+      event.target.value = ''
     }
+  }
+
+  async function uploadGalleryImages(event) {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+    if (isReadOnlyPreview) {
+      setStatus('Read-only preview mode. Configure R2 and the admin API before uploading gallery images.')
+      return
+    }
+
+    setStatus(`Uploading ${files.length} gallery image(s)...`)
+
+    try {
+      const uploadedImages = []
+
+      for (const file of files) {
+        setStatus(`Validating ${file.name}...`)
+        const prepared = await validateAndConvertToWebP(file)
+
+        const formData = new FormData()
+        formData.append('folder', 'projects')
+        formData.append('file', prepared.file)
+
+        setStatus(`Uploading ${prepared.file.name}...`)
+
+        const response = await fetch('/api/admin/media', {
+          method: 'POST',
+          body: formData,
+        })
+        const data = await response.json()
+        if (!response.ok) {
+          setStatus(data.error || `Gallery upload failed (${response.status}).`)
+          return
+        }
+
+        uploadedImages.push({
+          id: data.key,
+          url: data.url,
+          filename: data.filename,
+          altText: '',
+        })
+      }
+
+      setSelectedProject((current) => {
+        const nextImages = [...(current.galleryImages || []), ...uploadedImages].map((item, index) => ({
+          ...item,
+          sortOrder: index + 1,
+        }))
+
+        return {
+          ...current,
+          galleryImages: nextImages,
+        }
+      })
+      setStatus('Gallery image(s) uploaded as WebP. Save the project to persist them.')
+    } catch (error) {
+      setStatus(error.message || 'Gallery upload failed.')
+    } finally {
+      event.target.value = ''
+    }
+  }
+
+  function updateGalleryImage(index, updates) {
+    setSelectedProject((current) => ({
+      ...current,
+      galleryImages: (current.galleryImages || []).map((item, itemIndex) => (
+        itemIndex === index ? { ...item, ...updates } : item
+      )),
+    }))
+  }
+
+  function removeGalleryImage(index) {
+    setSelectedProject((current) => ({
+      ...current,
+      galleryImages: (current.galleryImages || [])
+        .filter((_, itemIndex) => itemIndex !== index)
+        .map((item, itemIndex) => ({
+          ...item,
+          sortOrder: itemIndex + 1,
+        })),
+    }))
+    setStatus('Gallery image removed. Save the project to persist the change.')
+  }
+
+  function moveGalleryImage(index, direction) {
+    setSelectedProject((current) => {
+      const galleryImages = [...(current.galleryImages || [])]
+      const targetIndex = index + direction
+      if (targetIndex < 0 || targetIndex >= galleryImages.length) return current
+
+      const [item] = galleryImages.splice(index, 1)
+      galleryImages.splice(targetIndex, 0, item)
+
+      return {
+        ...current,
+        galleryImages: galleryImages.map((galleryItem, galleryIndex) => ({
+          ...galleryItem,
+          sortOrder: galleryIndex + 1,
+        })),
+      }
+    })
+    setStatus('Gallery order updated. Save the project to persist the change.')
   }
 
   const sortedProjects = useMemo(
@@ -560,7 +708,116 @@ function AdminContent() {
                 />
               </label>
 
-              <div className="flex justify-end">
+              <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Gallery Images</p>
+                    <p className="text-xs text-slate-500">
+                      Keep one thumbnail above, then add one or more carousel images here.
+                    </p>
+                  </div>
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                    <Image size={16} />
+                    Add Gallery Images
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={uploadGalleryImages}
+                      disabled={isReadOnlyPreview}
+                    />
+                  </label>
+                </div>
+
+                {selectedProject.galleryImages?.length ? (
+                  <div className="grid gap-3">
+                    {selectedProject.galleryImages.map((galleryImage, index) => (
+                      <div key={galleryImage.id || `${galleryImage.url}-${index}`} className="grid gap-3 rounded-md border border-slate-200 bg-white p-3">
+                        <div className="grid gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
+                          <div className="overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+                            <img
+                              src={galleryImage.url}
+                              alt={galleryImage.altText || `${selectedProject.title || 'Project'} gallery ${index + 1}`}
+                              className="h-24 w-full object-cover"
+                            />
+                          </div>
+
+                          <div className="grid gap-3">
+                            <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                              Alt Text
+                              <input
+                                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800 outline-none transition focus:border-slate-500"
+                                value={galleryImage.altText}
+                                onChange={(event) => updateGalleryImage(index, { altText: event.target.value })}
+                                placeholder="Project screenshot detail"
+                              />
+                            </label>
+                            <p className="truncate text-xs text-slate-500">{galleryImage.filename || deriveFilenameFromUrl(galleryImage.url)}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                            Slide {index + 1}
+                          </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => moveGalleryImage(index, -1)}
+                              disabled={index === 0}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <ChevronLeft size={14} />
+                              Up
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveGalleryImage(index, 1)}
+                              disabled={index === selectedProject.galleryImages.length - 1}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Down
+                              <ChevronRight size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeGalleryImage(index)}
+                              className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                            >
+                              <Trash2 size={14} />
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-500">
+                    No gallery images yet. Add images for the expandable project carousel.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedProject((current) => ({
+                      ...current,
+                      imageUrl: '',
+                      imageFilename: '',
+                    }))
+                    setStatus('Project image cleared. Save the project to persist the change.')
+                  }}
+                  disabled={isReadOnlyPreview || !selectedProject.imageUrl}
+                  className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 size={16} />
+                  Clear Image
+                </button>
+
                 <button
                   type="submit"
                   disabled={isSaving || isReadOnlyPreview}
@@ -596,9 +853,19 @@ function AdminContent() {
 
               <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                 <Image size={16} />
-                Upload Image
+                Upload / Replace Image
                 <input type="file" accept="image/*" className="hidden" onChange={uploadImage} disabled={isReadOnlyPreview} />
               </label>
+
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Gallery Summary</p>
+                <p className="mt-2 text-sm font-semibold text-slate-950">
+                  {selectedProject.galleryImages?.length || 0} gallery image(s)
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Public project cards use the thumbnail above and expand into a carousel from these images.
+                </p>
+              </div>
             </aside>
           </div>
         </form>

@@ -48,4 +48,15 @@ export const portfolioItems = projectRecords.map(({ imageFilename, sortOrder, st
   status,
   imageFilename,
   image: imagesByFilename[imageFilename],
+  galleryImages: imagesByFilename[imageFilename]
+    ? [
+        {
+          id: `${project.id}-cover`,
+          url: imagesByFilename[imageFilename],
+          filename: imageFilename,
+          altText: `${project.title} screenshot`,
+          sortOrder: 1,
+        },
+      ]
+    : [],
 }));

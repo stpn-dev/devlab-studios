@@ -1,6 +1,22 @@
 import { nowIso, parseJsonField } from '../utils/responses'
 
-function toProject(row) {
+function isMissingGalleryTableError(error) {
+  return /no such table:\s*project_gallery_images/i.test(String(error?.message || ''))
+}
+
+function toGalleryImage(row) {
+  return {
+    id: row.id,
+    url: row.url,
+    filename: row.filename || '',
+    altText: row.alt_text || '',
+    sortOrder: Number(row.sort_order) || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function toProject(row, galleryImages = []) {
   if (!row) return null
 
   return {
@@ -12,12 +28,27 @@ function toProject(row) {
     sourceUrl: row.source_url || '#',
     imageUrl: row.image_url || '',
     imageFilename: row.image_filename || '',
+    galleryImages,
     type: row.type,
     sortOrder: row.sort_order,
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+}
+
+function normalizeGalleryImages(input) {
+  if (!Array.isArray(input)) return []
+
+  return input
+    .map((item, index) => ({
+      id: String(item?.id || crypto.randomUUID()).trim(),
+      url: String(item?.url || '').trim(),
+      filename: String(item?.filename || '').trim(),
+      altText: String(item?.altText || '').trim(),
+      sortOrder: Number.isFinite(Number(item?.sortOrder)) ? Number(item.sortOrder) : index + 1,
+    }))
+    .filter((item) => item.url)
 }
 
 function toDbProject(input) {
@@ -36,6 +67,41 @@ function toDbProject(input) {
   }
 }
 
+async function listGalleryImagesForProjects(db, projectIds) {
+  if (!projectIds.length) return new Map()
+
+  try {
+    const placeholders = projectIds.map(() => '?').join(', ')
+    const result = await db
+      .prepare(
+        `SELECT id, project_id, url, filename, alt_text, sort_order, created_at, updated_at
+         FROM project_gallery_images
+         WHERE project_id IN (${placeholders})
+         ORDER BY project_id ASC, sort_order ASC, created_at ASC`,
+      )
+      .bind(...projectIds)
+      .all()
+
+    const byProjectId = new Map()
+    for (const row of result.results || []) {
+      const item = toGalleryImage(row)
+      const current = byProjectId.get(row.project_id) || []
+      current.push(item)
+      byProjectId.set(row.project_id, current)
+    }
+
+    return byProjectId
+  } catch (error) {
+    if (isMissingGalleryTableError(error)) return new Map()
+    throw error
+  }
+}
+
+async function listGalleryImagesForProject(db, projectId) {
+  const byProjectId = await listGalleryImagesForProjects(db, [projectId])
+  return byProjectId.get(projectId) || []
+}
+
 export async function listProjects(db, { includeDrafts = false } = {}) {
   const where = includeDrafts ? '' : "WHERE status = 'published'"
   const result = await db
@@ -47,7 +113,13 @@ export async function listProjects(db, { includeDrafts = false } = {}) {
     )
     .all()
 
-  return (result.results || []).map(toProject)
+  const rows = result.results || []
+  const galleryByProjectId = await listGalleryImagesForProjects(
+    db,
+    rows.map((row) => row.id),
+  )
+
+  return rows.map((row) => toProject(row, galleryByProjectId.get(row.id) || []))
 }
 
 export async function getProject(db, id, { includeDrafts = false } = {}) {
@@ -60,7 +132,45 @@ export async function getProject(db, id, { includeDrafts = false } = {}) {
     .bind(id)
     .first()
 
-  return toProject(row)
+  const galleryImages = row ? await listGalleryImagesForProject(db, row.id) : []
+  return toProject(row, galleryImages)
+}
+
+async function syncProjectGallery(db, projectId, galleryImages) {
+  const normalizedImages = normalizeGalleryImages(galleryImages)
+
+  try {
+    await db.prepare('DELETE FROM project_gallery_images WHERE project_id = ?').bind(projectId).run()
+
+    for (const image of normalizedImages) {
+      const timestamp = nowIso()
+      await db
+        .prepare(
+          `INSERT INTO project_gallery_images (
+            id, project_id, url, filename, alt_text, sort_order, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          image.id,
+          projectId,
+          image.url,
+          image.filename,
+          image.altText,
+          image.sortOrder,
+          timestamp,
+          timestamp,
+        )
+        .run()
+    }
+  } catch (error) {
+    if (isMissingGalleryTableError(error) && normalizedImages.length === 0) return
+    if (isMissingGalleryTableError(error)) {
+      const migrationError = new Error('Project gallery migration is missing. Apply migrations/0002_project_gallery_images.sql first.')
+      migrationError.status = 503
+      throw migrationError
+    }
+    throw error
+  }
 }
 
 export async function upsertProject(db, input) {
@@ -107,6 +217,8 @@ export async function upsertProject(db, input) {
       timestamp,
     )
     .run()
+
+  await syncProjectGallery(db, project.id, input.galleryImages)
 
   return getProject(db, project.id, { includeDrafts: true })
 }
