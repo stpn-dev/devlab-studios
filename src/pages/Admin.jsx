@@ -228,38 +228,68 @@ function AdminContent() {
   }
 
   async function uploadImage(event) {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
     if (isReadOnlyPreview) {
       setStatus('Read-only preview mode. Configure R2 and the admin API before uploading images.')
       return
     }
 
     try {
-      setStatus('Validating and converting image to WebP...')
-      const prepared = await validateAndConvertToWebP(file)
+      const uploadedImages = []
 
-      const formData = new FormData()
-      formData.append('folder', 'projects')
-      formData.append('file', prepared.file)
+      for (const [index, file] of files.entries()) {
+        setStatus(`Validating ${file.name} (${index + 1}/${files.length}) and converting to WebP...`)
+        const prepared = await validateAndConvertToWebP(file)
 
-      setStatus('Uploading image...')
-      const response = await fetch('/api/admin/media', {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        setStatus(data.error || `Upload failed (${response.status}).`)
-        return
+        const formData = new FormData()
+        formData.append('folder', 'projects')
+        formData.append('file', prepared.file)
+
+        setStatus(`Uploading ${prepared.file.name} (${index + 1}/${files.length})...`)
+        const response = await fetch('/api/admin/media', {
+          method: 'POST',
+          body: formData,
+        })
+        const data = await response.json()
+        if (!response.ok) {
+          setStatus(data.error || `Upload failed (${response.status}).`)
+          return
+        }
+
+        uploadedImages.push({
+          id: data.key,
+          url: data.url,
+          filename: data.filename,
+          altText: '',
+          converted: prepared.converted,
+        })
       }
 
-      setSelectedProject((current) => ({
-        ...current,
-        imageUrl: data.url,
-        imageFilename: data.filename,
-      }))
-      setStatus(`Image uploaded as WebP (${prepared.converted.width}x${prepared.converted.height}). Save the project to persist it.`)
+      setSelectedProject((current) => {
+        const [primaryImage, ...galleryImages] = uploadedImages
+        const nextGalleryImages = [
+          ...(current.galleryImages || []),
+          ...(galleryImages.length > 0 ? galleryImages : []),
+        ].map((item, index) => ({
+          ...item,
+          sortOrder: index + 1,
+        }))
+
+        return {
+          ...current,
+          imageUrl: primaryImage?.url || current.imageUrl,
+          imageFilename: primaryImage?.filename || current.imageFilename,
+          galleryImages: nextGalleryImages,
+        }
+      })
+
+      if (uploadedImages.length === 1) {
+        const image = uploadedImages[0]
+        setStatus(`Thumbnail uploaded as WebP (${image.converted.width}x${image.converted.height}). Save the project to persist it.`)
+      } else {
+        setStatus(`Thumbnail replaced and ${uploadedImages.length - 1} gallery image(s) uploaded. Save the project to persist the changes.`)
+      }
     } catch (error) {
       setStatus(error.message || 'Image upload failed.')
     } finally {
@@ -853,8 +883,15 @@ function AdminContent() {
 
               <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                 <Image size={16} />
-                Upload / Replace Image
-                <input type="file" accept="image/*" className="hidden" onChange={uploadImage} disabled={isReadOnlyPreview} />
+                Upload / Replace Images
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={uploadImage}
+                  disabled={isReadOnlyPreview}
+                />
               </label>
 
               <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4">

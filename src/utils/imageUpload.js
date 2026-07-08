@@ -23,11 +23,10 @@ function fileBaseName(filename) {
 
 function loadImage(file) {
   return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file)
+    const reader = new FileReader()
     const image = new Image()
 
     image.onload = () => {
-      URL.revokeObjectURL(objectUrl)
       resolve({
         image,
         width: image.naturalWidth,
@@ -36,11 +35,18 @@ function loadImage(file) {
     }
 
     image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
       reject(new Error('The selected file is not a readable image.'))
     }
 
-    image.src = objectUrl
+    reader.onerror = () => {
+      reject(new Error('The selected image could not be read.'))
+    }
+
+    reader.onload = () => {
+      image.src = String(reader.result || '')
+    }
+
+    reader.readAsDataURL(file)
   })
 }
 

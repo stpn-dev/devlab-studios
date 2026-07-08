@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PrimaryButton from './PrimaryButton'
 import GlassCard from './GlassCard'
 import AnimatedIcon from './icons/AnimatedIcon'
@@ -7,6 +7,7 @@ import { ExternalLink, Code2, Zap, Maximize2, ChevronLeft, ChevronRight, Image a
 function PortfolioRow({ project, onImageClick }) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [activeGalleryIndex, setActiveGalleryIndex] = useState(0)
+  const expandedSectionRef = useRef(null)
   const isInternalLiveLink = project.liveUrl?.startsWith('/')
   const galleryImages = useMemo(() => {
     const items = Array.isArray(project.galleryImages) ? project.galleryImages.filter((item) => item?.url) : []
@@ -37,6 +38,27 @@ function PortfolioRow({ project, onImageClick }) {
   function showNextImage() {
     setActiveGalleryIndex((current) => (current === galleryImages.length - 1 ? 0 : current + 1))
   }
+
+  useEffect(() => {
+    if (!isExpanded || !expandedSectionRef.current) return undefined
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) {
+          setIsExpanded(false)
+        }
+      },
+      {
+        threshold: 0.05,
+      },
+    )
+
+    observer.observe(expandedSectionRef.current)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [isExpanded])
 
   return (
     <GlassCard className="p-6 sm:p-8">
@@ -148,7 +170,7 @@ function PortfolioRow({ project, onImageClick }) {
       </div>
 
       {isExpanded ? (
-        <div className="mt-6 border-t border-white/10 pt-6">
+        <div ref={expandedSectionRef} className="mt-6 border-t border-white/10 pt-6">
           <div className="grid gap-6 lg:grid-cols-[1.5fr_0.9fr]">
             <div className="space-y-4">
               <div className="overflow-hidden rounded-xl border border-white/10 bg-slate-950/30">
