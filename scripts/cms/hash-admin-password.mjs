@@ -9,6 +9,10 @@ function base64Url(buffer) {
   return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
+function hex(buffer) {
+  return buffer.toString('hex')
+}
+
 const passwordArg = process.argv[2]
 let password = passwordArg
 
@@ -31,5 +35,5 @@ if (useLegacyPbkdf2) {
   console.log(`pbkdf2_sha256$${ITERATIONS}$${base64Url(salt)}$${base64Url(hash)}`)
 } else {
   const hash = createHash('sha256').update(salt).update(password).digest()
-  console.log(`sha256$${base64Url(salt)}$${base64Url(hash)}`)
+  console.log(`sha256hex$${hex(salt)}$${hex(hash)}`)
 }

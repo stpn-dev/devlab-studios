@@ -4,6 +4,7 @@ const SESSION_COOKIE = 'devlab_admin_session'
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8
 const PASSWORD_HASH_PREFIX = 'pbkdf2_sha256'
 const FAST_PASSWORD_HASH_PREFIX = 'sha256'
+const HEX_PASSWORD_HASH_PREFIX = 'sha256hex'
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const LOGIN_MAX_ATTEMPTS = 8
 const loginAttempts = new Map()
@@ -55,6 +56,18 @@ function concatBytes(...arrays) {
   })
 
   return output
+}
+
+function hexToBytes(value) {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (!/^[a-f0-9]+$/.test(normalized) || normalized.length % 2 !== 0) return null
+
+  const bytes = new Uint8Array(normalized.length / 2)
+  for (let index = 0; index < normalized.length; index += 2) {
+    bytes[index / 2] = Number.parseInt(normalized.slice(index, index + 2), 16)
+  }
+
+  return bytes
 }
 
 function parseCookies(cookieHeader) {
@@ -124,11 +137,28 @@ async function verifySha256Password(password, saltValue, hashValue) {
   return constantTimeEqual(new Uint8Array(digest), expectedHash)
 }
 
+async function verifySha256HexPassword(password, saltValue, hashValue) {
+  const salt = hexToBytes(saltValue)
+  const expectedHash = hexToBytes(hashValue)
+  if (!salt || !expectedHash) return false
+
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    concatBytes(salt, textBytes(password)),
+  )
+
+  return constantTimeEqual(new Uint8Array(digest), expectedHash)
+}
+
 async function verifyPassword(password, storedHash) {
   const [prefix, iterationsValue, saltValue, hashValue] = String(storedHash || '').split('$')
 
   if (prefix === FAST_PASSWORD_HASH_PREFIX) {
     return verifySha256Password(password, iterationsValue, saltValue)
+  }
+
+  if (prefix === HEX_PASSWORD_HASH_PREFIX) {
+    return verifySha256HexPassword(password, iterationsValue, saltValue)
   }
 
   const iterations = Number(iterationsValue)
@@ -263,12 +293,7 @@ export async function handleAdminLogin(c) {
 
   const admin = admins.find((user) => user.email === email)
 
-  let isValidPassword = false
-  try {
-    isValidPassword = Boolean(admin && await verifyPassword(password, admin.passwordHash))
-  } catch {
-    return jsonResponse({ error: 'Admin password hash could not be verified. Regenerate ADMIN_PASSWORD_HASH and redeploy.' }, 500)
-  }
+  const isValidPassword = Boolean(admin && await verifyPassword(password, admin.passwordHash))
 
   if (!isValidPassword) {
     recordFailedLogin(loginKey)
