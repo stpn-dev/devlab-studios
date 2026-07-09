@@ -471,8 +471,8 @@ export default function ProjectsManager() {
         {status}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <section className="flex min-h-[760px] flex-col rounded-md border border-slate-200 bg-white">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)]">
+        <section className="flex min-h-[760px] min-w-0 flex-col rounded-md border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -584,7 +584,7 @@ export default function ProjectsManager() {
           </div>
         </section>
 
-        <form onSubmit={saveProject} className="rounded-md border border-slate-200 bg-white">
+        <form onSubmit={saveProject} className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
           <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
             <div>
               <h2 className="text-base font-semibold text-slate-950">Editor</h2>
@@ -623,8 +623,8 @@ export default function ProjectsManager() {
             </div>
           </div>
 
-          <div className="grid gap-6 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="grid gap-4">
+          <div className="grid min-w-0 gap-6 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+            <div className="grid min-w-0 gap-4">
               <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
                 ID
                 <input
@@ -843,19 +843,19 @@ export default function ProjectsManager() {
               </div>
             </div>
 
-            <aside className="grid content-start gap-4 border-t border-slate-200 pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
+            <aside className="grid min-w-0 content-start gap-4 border-t border-slate-200 pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+              <div className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Selected Record</p>
-                <p className="mt-2 truncate text-sm font-semibold text-slate-950">{selectedProject.title || 'New project'}</p>
-                <p className="mt-1 truncate text-xs text-slate-500">{selectedProject.id || 'No ID set yet'}</p>
+                <p className="mt-2 break-words text-sm font-semibold text-slate-950 [overflow-wrap:anywhere]">{selectedProject.title || 'New project'}</p>
+                <p className="mt-1 break-words text-xs text-slate-500 [overflow-wrap:anywhere]">{selectedProject.id || 'No ID set yet'}</p>
               </div>
 
               {previewImage ? (
-                <div className="overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+                <div className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50">
                   <img
                     src={previewImage}
                     alt={`${selectedProject.title || 'Project'} preview`}
-                    className="h-56 w-full object-cover"
+                    className="h-56 w-full max-w-full object-cover"
                   />
                 </div>
               ) : (
@@ -864,9 +864,9 @@ export default function ProjectsManager() {
                 </div>
               )}
 
-              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+              <label className="inline-flex min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                 <Image size={16} />
-                Upload / Replace Images
+                <span className="truncate">Upload / Replace Images</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -877,12 +877,12 @@ export default function ProjectsManager() {
                 />
               </label>
 
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Gallery Summary</p>
                 <p className="mt-2 text-sm font-semibold text-slate-950">
                   {selectedProject.galleryImages?.length || 0} gallery image(s)
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 break-words text-xs text-slate-500">
                   Public project cards use the thumbnail above and expand into a carousel from these images.
                 </p>
               </div>
