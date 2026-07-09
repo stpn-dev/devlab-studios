@@ -172,7 +172,7 @@ function ResourceFeedCard({ post, featured = false }) {
               </span>
               {post.readingTimeMinutes ? (
                 <span className="inline-flex items-center gap-2">
-                  <Clock3 className="h-4 w-4" aria-hidden="true" />
+                  <Clock className="h-4 w-4" aria-hidden="true" />
                   {post.readingTimeMinutes} min read
                 </span>
               ) : null}
