@@ -6,6 +6,7 @@ import ProjectsManager from '../components/admin/ProjectsManager'
 import ContentManager from '../components/admin/ContentManager'
 import SiteSettingsManager from '../components/admin/SiteSettingsManager'
 import SeoManager from '../components/admin/SeoManager'
+import { LogOut, ShieldCheck, User } from '../components/icons/icons'
 import devlabStudiosLogo from '../assets/devlabstudios-logo-only.png'
 import { brandingAssets } from '../config/branding'
 
@@ -240,15 +241,30 @@ function Admin() {
               <p className="mt-1 text-sm text-slate-600">{section.subtitle}</p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 rounded-md border border-brand-teal/15 bg-brand-mint/55 px-3 py-2 text-sm text-slate-600">
-              <span className="font-medium text-brand-ink">{session.email}</span>
-              <span className="text-slate-400">/</span>
-              <span>{session.role || 'admin'}</span>
+            <div className="flex flex-col gap-3 rounded-md border border-brand-teal/15 bg-white px-4 py-3 shadow-sm shadow-brand-teal/5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-brand-mint text-brand-teal ring-1 ring-brand-teal/15">
+                  <User size={18} aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-brand-ink">{session.email}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                      <ShieldCheck size={13} aria-hidden="true" />
+                      Signed in
+                    </span>
+                    <span className="rounded-full bg-brand-mint px-2 py-0.5 font-semibold text-brand-teal ring-1 ring-brand-teal/15">
+                      {session.role || 'admin'}
+                    </span>
+                  </div>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="ml-auto rounded-md border border-brand-teal/20 bg-white px-3 py-1.5 text-sm font-semibold text-brand-teal transition hover:bg-brand-mint"
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-brand-teal/20 bg-white px-3 py-2 text-sm font-semibold text-brand-teal transition hover:border-brand-teal/35 hover:bg-brand-mint sm:shrink-0"
               >
+                <LogOut size={16} aria-hidden="true" />
                 Log out
               </button>
             </div>

@@ -61,6 +61,7 @@ export {
   Play,
   Volume2,
   Lock,
+  LogOut,
   Unlock,
   Network,
   Server,
