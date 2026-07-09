@@ -1,4 +1,4 @@
-import { pbkdf2Sync, randomBytes } from 'node:crypto'
+import { createHash, pbkdf2Sync, randomBytes } from 'node:crypto'
 import { stdin, stdout } from 'node:process'
 import { createInterface } from 'node:readline/promises'
 
@@ -24,6 +24,12 @@ if (!password || password.length < 12) {
 }
 
 const salt = randomBytes(16)
-const hash = pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, 'sha256')
+const useLegacyPbkdf2 = process.argv.includes('--pbkdf2')
 
-console.log(`pbkdf2_sha256$${ITERATIONS}$${base64Url(salt)}$${base64Url(hash)}`)
+if (useLegacyPbkdf2) {
+  const hash = pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, 'sha256')
+  console.log(`pbkdf2_sha256$${ITERATIONS}$${base64Url(salt)}$${base64Url(hash)}`)
+} else {
+  const hash = createHash('sha256').update(salt).update(password).digest()
+  console.log(`sha256$${base64Url(salt)}$${base64Url(hash)}`)
+}

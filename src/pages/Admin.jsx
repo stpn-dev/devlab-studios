@@ -6,6 +6,8 @@ import ProjectsManager from '../components/admin/ProjectsManager'
 import ContentManager from '../components/admin/ContentManager'
 import SiteSettingsManager from '../components/admin/SiteSettingsManager'
 import SeoManager from '../components/admin/SeoManager'
+import devlabStudiosLogo from '../assets/devlabstudios-logo-only.png'
+import { brandingAssets } from '../config/branding'
 
 const sections = [
   {
@@ -80,18 +82,38 @@ function AdminLogin({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-10 text-slate-900">
+    <div className="min-h-screen bg-brand-shell px-4 py-10 text-brand-ink">
       <Helmet>
         <title>Admin Login - DevLab Studios CMS</title>
         <meta name="robots" content="noindex,nofollow" />
       </Helmet>
 
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-md items-center">
-        <form onSubmit={handleSubmit} className="w-full rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">CMS Admin</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-950">Sign in</h1>
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute left-1/3 top-20 h-64 w-64 rounded-full bg-brand-teal/10 blur-[140px]" />
+        <div className="absolute right-1/4 top-48 h-80 w-80 rounded-full bg-brand-orange/10 blur-[160px]" />
+      </div>
 
-          <label className="mt-6 block text-sm font-semibold text-slate-800" htmlFor="admin-email">
+      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-md items-center">
+        <form onSubmit={handleSubmit} className="relative w-full rounded-2xl border border-brand-teal/15 bg-white/95 p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)]">
+          <div className="flex items-center gap-3">
+            <img
+              src={brandingAssets.logoOnlyUrl}
+              alt="DevLab Studios"
+              className="h-12 w-12 rounded-md object-contain"
+              width="48"
+              height="48"
+              onError={(event) => {
+                event.currentTarget.onerror = null
+                event.currentTarget.src = devlabStudiosLogo
+              }}
+            />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">CMS Admin</p>
+              <h1 className="mt-1 text-2xl font-semibold text-brand-ink">Sign in</h1>
+            </div>
+          </div>
+
+          <label className="mt-6 block text-sm font-semibold text-brand-ink" htmlFor="admin-email">
             Email
           </label>
           <input
@@ -100,11 +122,11 @@ function AdminLogin({ onLogin }) {
             autoComplete="username"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
+            className="mt-2 w-full rounded-md border border-brand-teal/20 px-3 py-2 text-sm outline-none transition focus:border-brand-teal focus:ring-2 focus:ring-brand-mint"
             required
           />
 
-          <label className="mt-4 block text-sm font-semibold text-slate-800" htmlFor="admin-password">
+          <label className="mt-4 block text-sm font-semibold text-brand-ink" htmlFor="admin-password">
             Password
           </label>
           <input
@@ -113,7 +135,7 @@ function AdminLogin({ onLogin }) {
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
+            className="mt-2 w-full rounded-md border border-brand-teal/20 px-3 py-2 text-sm outline-none transition focus:border-brand-teal focus:ring-2 focus:ring-brand-mint"
             required
           />
 
@@ -126,7 +148,7 @@ function AdminLogin({ onLogin }) {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="mt-6 w-full rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-6 w-full rounded-md bg-brand-teal px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-orange disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSubmitting ? 'Signing in...' : 'Sign in'}
           </button>
@@ -180,7 +202,7 @@ function Admin() {
 
   if (isCheckingSession) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm font-semibold text-slate-600">
+      <div className="flex min-h-screen items-center justify-center bg-brand-shell text-sm font-semibold text-brand-teal">
         Loading admin session...
       </div>
     )
@@ -196,23 +218,36 @@ function Admin() {
         <title>Admin - DevLab Studios CMS</title>
         <meta name="robots" content="noindex,nofollow" />
       </Helmet>
-      <div className="min-h-screen bg-slate-100 text-slate-900">
-        <div className="border-b border-slate-200 bg-white">
+      <div className="min-h-screen bg-brand-shell text-brand-ink">
+        <div className="border-b border-brand-teal/10 bg-white/95 backdrop-blur-sm">
           <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">CMS Admin</p>
-              <h1 className="mt-1 text-2xl font-semibold text-slate-950">{section.title}</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <img
+                src={brandingAssets.logoOnlyUrl}
+                alt="DevLab Studios"
+                className="h-12 w-12 rounded-md object-contain"
+                width="48"
+                height="48"
+                onError={(event) => {
+                  event.currentTarget.onerror = null
+                  event.currentTarget.src = devlabStudiosLogo
+                }}
+              />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">CMS Admin</p>
+                <h1 className="mt-1 text-2xl font-semibold text-brand-ink">{section.title}</h1>
+              </div>
               <p className="mt-1 text-sm text-slate-600">{section.subtitle}</p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-              <span className="font-medium text-slate-800">{session.email}</span>
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-brand-teal/15 bg-brand-mint/55 px-3 py-2 text-sm text-slate-600">
+              <span className="font-medium text-brand-ink">{session.email}</span>
               <span className="text-slate-400">/</span>
               <span>{session.role || 'admin'}</span>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="ml-auto rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                className="ml-auto rounded-md border border-brand-teal/20 bg-white px-3 py-1.5 text-sm font-semibold text-brand-teal transition hover:bg-brand-mint"
               >
                 Log out
               </button>
@@ -226,8 +261,8 @@ function Admin() {
                   onClick={() => setActiveSection(item.id)}
                   className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
                     activeSection === item.id
-                      ? 'bg-slate-900 text-white'
-                      : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                      ? 'bg-brand-teal text-white'
+                      : 'border border-brand-teal/20 bg-white text-brand-ink hover:bg-brand-mint'
                   }`}
                 >
                   {item.label}
