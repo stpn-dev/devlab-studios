@@ -1,5 +1,18 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import {
+  getProfileContent,
+  getResourcesContent,
+  getSeoContent,
+  getSeoMetadata,
+  getServicesContent,
+  getSiteSettingsContent,
+  replaceProfileContent,
+  replaceResourcesContent,
+  replaceSeoContent,
+  replaceServicesContent,
+  replaceSiteSettingsContent,
+} from './worker/repositories/content'
 import { deleteProject, getProject, listProjects, upsertProject } from './worker/repositories/projects'
 import { requireAdmin } from './worker/middleware/adminAuth'
 import { jsonResponse, nowIso } from './worker/utils/responses'
@@ -104,9 +117,70 @@ app.get('/api/projects', async (c) => {
 })
 
 app.get('/api/content/:page', (c) => c.json({ page: c.req.param('page'), data: null, source: 'static-fallback' }))
-app.get('/api/services', (c) => c.json({ data: [], source: 'static-fallback' }))
-app.get('/api/resources', (c) => c.json({ data: [], source: 'static-fallback' }))
-app.get('/api/site-settings', (c) => c.json({ data: null, source: 'static-fallback' }))
+app.get('/api/services', async (c) => {
+  if (!hasDb(c.env)) {
+    return c.json({ data: null, source: 'static-fallback', configured: false })
+  }
+
+  try {
+    const data = await getServicesContent(c.env.DB)
+    return c.json({ data, source: 'd1', configured: true })
+  } catch (error) {
+    return jsonResponse({ data: null, source: 'static-fallback', configured: false, error: error.message }, 200)
+  }
+})
+
+app.get('/api/resources', async (c) => {
+  if (!hasDb(c.env)) {
+    return c.json({ data: null, source: 'static-fallback', configured: false })
+  }
+
+  try {
+    const data = await getResourcesContent(c.env.DB)
+    return c.json({ data, source: 'd1', configured: true })
+  } catch (error) {
+    return jsonResponse({ data: null, source: 'static-fallback', configured: false, error: error.message }, 200)
+  }
+})
+
+app.get('/api/profile-content', async (c) => {
+  if (!hasDb(c.env)) {
+    return c.json({ data: null, source: 'static-fallback', configured: false })
+  }
+
+  try {
+    const data = await getProfileContent(c.env.DB)
+    return c.json({ data, source: 'd1', configured: true })
+  } catch (error) {
+    return jsonResponse({ data: null, source: 'static-fallback', configured: false, error: error.message }, 200)
+  }
+})
+
+app.get('/api/site-settings', async (c) => {
+  if (!hasDb(c.env)) {
+    return c.json({ data: null, source: 'static-fallback', configured: false })
+  }
+
+  try {
+    const data = await getSiteSettingsContent(c.env.DB)
+    return c.json({ data, source: 'd1', configured: true })
+  } catch (error) {
+    return jsonResponse({ data: null, source: 'static-fallback', configured: false, error: error.message }, 200)
+  }
+})
+
+app.get('/api/seo/:pageSlug', async (c) => {
+  if (!hasDb(c.env)) {
+    return c.json({ data: null, source: 'static-fallback', configured: false })
+  }
+
+  try {
+    const data = await getSeoMetadata(c.env.DB, c.req.param('pageSlug'))
+    return c.json({ data, source: data ? 'd1' : 'static-fallback', configured: Boolean(data) })
+  } catch (error) {
+    return jsonResponse({ data: null, source: 'static-fallback', configured: false, error: error.message }, 200)
+  }
+})
 
 app.use('/api/admin/*', requireAdmin)
 
@@ -133,6 +207,91 @@ app.get('/api/admin/projects/:id', async (c) => {
   const project = await getProject(c.env.DB, c.req.param('id'), { includeDrafts: true })
   if (!project) return jsonResponse({ error: 'Project not found.' }, 404)
   return c.json(normalizeProjectMedia(project, c.env))
+})
+
+app.get('/api/admin/content/services', async (c) => {
+  if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+  const data = await getServicesContent(c.env.DB, { includeDrafts: true })
+  return c.json(data)
+})
+
+app.put('/api/admin/content/services', async (c) => {
+  if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+
+  try {
+    const data = await replaceServicesContent(c.env.DB, await c.req.json())
+    return c.json(data)
+  } catch (error) {
+    return jsonResponse({ error: error.message }, error.status || 500)
+  }
+})
+
+app.get('/api/admin/content/resources', async (c) => {
+  if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+  const data = await getResourcesContent(c.env.DB, { includeDrafts: true })
+  return c.json(data)
+})
+
+app.put('/api/admin/content/resources', async (c) => {
+  if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+
+  try {
+    const data = await replaceResourcesContent(c.env.DB, await c.req.json())
+    return c.json(data)
+  } catch (error) {
+    return jsonResponse({ error: error.message }, error.status || 500)
+  }
+})
+
+app.get('/api/admin/content/profile', async (c) => {
+  if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+  const data = await getProfileContent(c.env.DB, { includeDrafts: true })
+  return c.json(data)
+})
+
+app.put('/api/admin/content/profile', async (c) => {
+  if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+
+  try {
+    const data = await replaceProfileContent(c.env.DB, await c.req.json())
+    return c.json(data)
+  } catch (error) {
+    return jsonResponse({ error: error.message }, error.status || 500)
+  }
+})
+
+app.get('/api/admin/content/site-settings', async (c) => {
+  if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+  const data = await getSiteSettingsContent(c.env.DB, { includeDrafts: true })
+  return c.json(data)
+})
+
+app.put('/api/admin/content/site-settings', async (c) => {
+  if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+
+  try {
+    const data = await replaceSiteSettingsContent(c.env.DB, await c.req.json())
+    return c.json(data)
+  } catch (error) {
+    return jsonResponse({ error: error.message }, error.status || 500)
+  }
+})
+
+app.get('/api/admin/content/seo', async (c) => {
+  if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+  const data = await getSeoContent(c.env.DB)
+  return c.json(data)
+})
+
+app.put('/api/admin/content/seo', async (c) => {
+  if (!hasDb(c.env)) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+
+  try {
+    const data = await replaceSeoContent(c.env.DB, await c.req.json())
+    return c.json(data)
+  } catch (error) {
+    return jsonResponse({ error: error.message }, error.status || 500)
+  }
 })
 
 app.post('/api/admin/projects', async (c) => {

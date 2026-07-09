@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Helmet } from 'react-helmet-async'
+import PageSeo from '../components/PageSeo'
 import SectionHeader from '../components/SectionHeader'
 import PrimaryButton from '../components/PrimaryButton'
 import AnimatedIcon from '../components/icons/AnimatedIcon'
@@ -111,21 +111,7 @@ function Contact() {
 
   return (
     <>
-      <Helmet>
-        <title>Hire a Software Engineer &amp; AI Automation Specialist | Contact Devlab Studios</title>
-        <meta name="description" content="Get in touch with Devlab Studios for software engineering, website builds, backend integrations, or AI automation projects. Available for remote work worldwide across Java, Laravel, React, Next.js, and workflow systems." />
-        <meta name="keywords" content="hire software engineer, hire AI automation specialist, backend developer for hire, Java Spring Boot developer, Laravel developer, API integration specialist, remote developer hire, business automation consultant" />
-        <link rel="canonical" href="https://www.devlabstudios.com/contact" />
-        <meta property="og:title" content="Hire a Software Engineer &amp; AI Automation Specialist | Contact Devlab Studios" />
-        <meta property="og:description" content="Hire Devlab Studios for software engineering, websites, backend integrations, or AI automation projects. Remote-first, available worldwide." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://www.devlabstudios.com/contact" />
-        <meta property="og:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Hire a Software Engineer &amp; AI Automation Specialist | Contact Devlab Studios" />
-        <meta name="twitter:description" content="Hire Devlab Studios for software engineering, backend integrations, websites, or AI automation. Remote-first, available worldwide." />
-        <meta name="twitter:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-      </Helmet>
+      <PageSeo pageSlug="contact" />
     <div className="space-y-8">
       <SectionHeader
         title="Contact Me"

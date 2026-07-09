@@ -1,116 +1,15 @@
-import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
+import PageSeo from '../components/PageSeo'
 import SectionHeader from '../components/SectionHeader'
 import PrimaryButton from '../components/PrimaryButton'
-import { ArrowRight, Briefcase, CheckCircle2, Code2, Lightbulb, MessageSquare, Settings, Shield, Wrench, Zap } from '../components/icons/icons'
+import * as Icons from '../components/icons/icons'
+import { ArrowRight, Briefcase, MessageSquare, Shield } from '../components/icons/icons'
 import { useProjects } from '../hooks/useProjects'
+import { useServicesContent } from '../hooks/useServicesContent'
 
-const solutionGroups = [
-  {
-    eyebrow: 'Customer Response',
-    title: 'Customer Response & AI Agents',
-    description: 'AI-assisted messaging, customer follow-up, and response systems that keep leads and clients moving without waiting on manual replies.',
-    icon: MessageSquare,
-    capabilities: [
-      'Facebook Messenger AI agents',
-      'Escalation and quote follow-up emails',
-      'AI-assisted support and response workflows',
-      'Context-aware reply generation and routing',
-    ],
-    projectIds: ['p6-messenger-ai-agent', 'p2-escalation-email', 'p2-quote-follow-up'],
-  },
-  {
-    eyebrow: 'Intake',
-    title: 'Lead Intake & Scheduling Automation',
-    description: 'Systems that capture inquiries, qualify leads, prepare context, and route next steps before work gets stuck in inboxes or calendars.',
-    icon: Zap,
-    capabilities: [
-      'Webhook-based lead enrichment',
-      'Booked-calendar intake workflows',
-      'AI call transcript qualification',
-      'Priority routing and stakeholder alerts',
-      'CRM, sheet, and task handoff logic',
-    ],
-    projectIds: ['p10-automated-lead-qualification', 'p3-leads-enrichment', 'p9-guest-researcher-calendar-client'],
-  },
-  {
-    eyebrow: 'Operations',
-    title: 'Operations & Data Workflows',
-    description: 'Backend-friendly automation for files, finance records, location data, task systems, and reporting handoffs across business tools.',
-    icon: Settings,
-    capabilities: [
-      'Buyer ranking and contact enrichment',
-      'Xero transaction export and task handoff',
-      'Gmail attachment sorting and metadata logging',
-      'Geocoding and structured review pipelines',
-      'Google Sheets, Drive, Asana, and API integrations',
-    ],
-    projectIds: ['p11-wholesaling-buyer-intelligence', 'p4-xero-to-asana', 'p5-gmail-attachments-drive', 'p8-arv-enterprise-geocoding'],
-  },
-  {
-    eyebrow: 'Growth',
-    title: 'Content & Growth Automation',
-    description: 'Automations that help teams generate, route, check, and publish content without rebuilding the same campaign steps manually.',
-    icon: Lightbulb,
-    capabilities: [
-      'Content repurposing from uploaded assets',
-      'AI social content generation',
-      'Duplicate checks and publishing safeguards',
-      'Facebook, LinkedIn, Drive, and Sheets flows',
-    ],
-    projectIds: ['p1-content-repurposing', 'p7-ai-social-content'],
-  },
-  {
-    eyebrow: 'Web Systems',
-    title: 'Web & Business Interfaces',
-    description: 'Conversion pages, business websites, ecommerce concepts, local-service pages, and full-stack UI samples built around clear offers and workflows.',
-    icon: Code2,
-    capabilities: [
-      'React and Tailwind landing pages',
-      'Local service lead-generation pages',
-      'E-commerce product landing flows',
-      'Full-stack dashboard and contact interface samples',
-    ],
-    projectIds: ['w1-react-modern', 'w5-local-service', 'w6-ecommerce', 'w4-laravel-fullstack'],
-  },
-]
-
-const processSteps = [
-  {
-    title: 'Map the workflow',
-    description: 'Review the current process, tools, handoffs, and friction before recommending a solution.',
-    icon: Lightbulb,
-  },
-  {
-    title: 'Build the system',
-    description: 'Implement the website, automation, integration, or internal workflow in practical delivery phases.',
-    icon: Wrench,
-  },
-  {
-    title: 'Validate and hand off',
-    description: 'Test reliability, document the flow, and make the system understandable for real operations.',
-    icon: CheckCircle2,
-  },
-]
-
-const faqs = [
-  {
-    question: 'Are these fixed products or custom solutions?',
-    answer: 'Most DevLab Studios solutions are custom builds using proven patterns. The starting point is the business problem, then the implementation is scoped around the tools, data, and workflow already in use.',
-  },
-  {
-    question: 'Can you work with Zapier, Make, and n8n?',
-    answer: 'Yes. Solutions can be built with Zapier, Make, n8n, or direct API integrations depending on complexity, maintainability, and what the workflow requires.',
-  },
-  {
-    question: 'Do you only build AI automations?',
-    answer: 'No. AI is used where it creates leverage, such as drafting, summarizing, classifying, or responding. Many solutions also include websites, backend services, dashboards, CRM logic, or internal tools.',
-  },
-  {
-    question: 'How do I know which solution fits?',
-    answer: 'Start with the workflow that wastes the most time or loses the most opportunities. A discovery conversation can identify whether the best first move is a website, an automation, an AI agent, or a backend integration.',
-  },
-]
+function resolveIcon(name) {
+  return Icons[name] || Icons.Lightbulb
+}
 
 function getProjects(projectIds, projectItems) {
   return projectIds
@@ -120,24 +19,11 @@ function getProjects(projectIds, projectItems) {
 
 function Services() {
   const projectItems = useProjects()
+  const { solutionGroups, processSteps, faqs } = useServicesContent()
 
   return (
     <>
-      <Helmet>
-        <title>Services - Business Automation & Web Solutions | DevLab Studios</title>
-        <meta name="description" content="Explore DevLab Studios services and solutions across AI agents, lead intake, operations workflows, content automation, websites, and backend integrations." />
-        <meta name="keywords" content="AI automation services, workflow automation, business automation solutions, AI agents, lead intake automation, web development services, backend integrations" />
-        <link rel="canonical" href="https://www.devlabstudios.com/services" />
-        <meta property="og:title" content="Services - Business Automation & Web Solutions | DevLab Studios" />
-        <meta property="og:description" content="Solutions for customer response, lead intake, operations workflows, content automation, and web business interfaces." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://www.devlabstudios.com/services" />
-        <meta property="og:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Services - DevLab Studios" />
-        <meta name="twitter:description" content="Business automation and web solution categories built around real workflows." />
-        <meta name="twitter:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-      </Helmet>
+      <PageSeo pageSlug="services" />
 
       <div className="space-y-10">
         <section className="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10">
@@ -164,10 +50,10 @@ function Services() {
 
             <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
               {processSteps.map((step, index) => {
-                const Icon = step.icon
+                const Icon = resolveIcon(step.icon)
 
                 return (
-                  <article key={step.title} className="rounded-2xl bg-white/92 p-5 shadow-[0_12px_28px_rgba(48,28,114,0.10)] ring-1 ring-slate-200/70">
+                  <article key={step.id || step.title} className="rounded-2xl bg-white/92 p-5 shadow-[0_12px_28px_rgba(48,28,114,0.10)] ring-1 ring-slate-200/70">
                     <div className="flex items-start gap-4">
                       <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
                         <Icon className="h-5 w-5" aria-hidden="true" />
@@ -193,12 +79,12 @@ function Services() {
 
           <div className="space-y-6">
             {solutionGroups.map((group, index) => {
-              const Icon = group.icon
+              const Icon = resolveIcon(group.icon)
               const projects = getProjects(group.projectIds, projectItems)
               const isReversed = index % 2 === 1
 
               return (
-                <article key={group.title} className="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#fff9ff]/95 via-[#f8f6ff]/92 to-[#f2f0ff]/90 shadow-[0_18px_45px_rgba(60,28,120,0.14)]">
+                <article key={group.id || group.title} className="overflow-hidden rounded-[28px] bg-gradient-to-br from-[#fff9ff]/95 via-[#f8f6ff]/92 to-[#f2f0ff]/90 shadow-[0_18px_45px_rgba(60,28,120,0.14)]">
                   <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr] lg:items-stretch">
                     <div className={['space-y-5 p-6 sm:p-8', isReversed ? 'lg:order-2' : 'lg:order-1'].join(' ')}>
                       <div className="flex items-center gap-3">
@@ -277,7 +163,7 @@ function Services() {
           <SectionHeader title="FAQ" subtitle="Common questions about DevLab Studios solution work." />
           <div className="grid gap-4 lg:grid-cols-2">
             {faqs.map((faq) => (
-              <article key={faq.question} className="rounded-2xl bg-white/92 p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
+              <article key={faq.id || faq.question} className="rounded-2xl bg-white/92 p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
                 <h3 className="font-semibold text-brand-ink">{faq.question}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{faq.answer}</p>
               </article>

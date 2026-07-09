@@ -1,8 +1,9 @@
-import { Link } from 'react-router-dom'
+﻿import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import PrimaryButton from '../components/PrimaryButton'
 import SectionHeader from '../components/SectionHeader'
 import ServiceGraphic from '../components/ServiceGraphic'
+import PageSeo from '../components/PageSeo'
 import { ArrowRight, Briefcase, CheckCircle2, Clock, Code2, Download, Lightbulb, MessageSquare, Search, Settings, TrendingUp, Wrench, Zap } from '../components/icons/icons'
 import resumePdf from '../assets/documents/Agustinez_Tech VA_Resume.pdf'
 import dataVectorPng from '../assets/vectors/free/data.png'
@@ -220,20 +221,8 @@ function ProcessGraphic({ item }) {
 function Home() {
   return (
     <>
+      <PageSeo pageSlug="home" />
       <Helmet>
-        <title>Devlab Studios – Software Engineer &amp; AI Automation Specialist</title>
-        <meta name="description" content="Devlab Studios by Stephen Rey Agustinez — software engineer and AI automation specialist building backend systems, conversion-focused websites, API integrations, and workflow automation for modern businesses worldwide." />
-        <meta name="keywords" content="Stephen Agustinez, Stephen Rey Agustinez, Devlab Studios, software engineer, AI automation specialist, backend developer, workflow automation, Spring Boot, Laravel, React developer, Next.js developer, API integrations, business automation" />
-        <link rel="canonical" href="https://www.devlabstudios.com/" />
-        <meta property="og:title" content="Devlab Studios – Software Engineer &amp; AI Automation Specialist" />
-        <meta property="og:description" content="Devlab Studios — software engineering, conversion-focused websites, backend systems, and workflow automation for modern businesses." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://www.devlabstudios.com/" />
-        <meta property="og:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Devlab Studios – Software Engineer &amp; AI Automation Specialist" />
-        <meta name="twitter:description" content="Devlab Studios — software engineering, websites, backend integrations, and workflow automation for modern businesses." />
-        <meta name="twitter:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
         <script type="application/ld+json">{JSON.stringify(getPersonSchema())}</script>
         <script type="application/ld+json">{JSON.stringify(getWebsiteSchema())}</script>
       </Helmet>
@@ -273,7 +262,7 @@ function Home() {
 
             <div className="flex flex-wrap gap-3 text-sm text-slate-600">
               <span className="badge-pill">Available for part-time and full-time engagements</span>
-              <span className="badge-pill">Based in Asia/Manila (GMT+8) • Remote-first</span>
+              <span className="badge-pill">Based in Asia/Manila (GMT+8) â€¢ Remote-first</span>
             </div>
           </div>
 
@@ -512,3 +501,4 @@ function Home() {
 }
 
 export default Home
+

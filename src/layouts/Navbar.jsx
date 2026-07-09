@@ -5,16 +5,17 @@ import AnimatedIcon from '../components/icons/AnimatedIcon'
 import { Mail, Menu, X } from '../components/icons/icons'
 import devlabStudiosLogo from '../assets/devlabstudios-logo-only.png'
 import { brandingAssets } from '../config/branding'
-
-const navLinks = [
-  { label: 'About', to: '/about' },
-  { label: 'Services', to: '/services' },
-  { label: 'Resources', to: '/resources' },
-  { label: 'Profile', to: '/profile' },
-]
+import { useSiteSettingsContent } from '../hooks/useSiteSettingsContent'
 
 function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
+  const siteSettings = useSiteSettingsContent()
+  const navLinks = (siteSettings.navigation || []).map((item) => ({
+    label: item.label,
+    to: item.href,
+  }))
+  const desktopContactLabel = siteSettings.ctas?.navbarContactLabel || 'Contact Me'
+  const mobileContactLabel = siteSettings.ctas?.mobileContactLabel || desktopContactLabel
 
   const linkBase =
     'px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-brand-ink focus-visible:outline-none'
@@ -62,7 +63,7 @@ function Navbar() {
             <div className="group">
               <PrimaryButton to="/contact" className="flex items-center gap-2 px-4 py-2">
                 <AnimatedIcon icon={Mail} size={18} animationType="hover-scale" />
-                Contact Me
+                {desktopContactLabel}
               </PrimaryButton>
             </div>
           </div>
@@ -103,7 +104,7 @@ function Navbar() {
               ))}
               <PrimaryButton to="/contact" className="flex items-center justify-center w-full gap-2">
                 <AnimatedIcon icon={Mail} size={16} animationType="none" />
-                Contact Me
+                {mobileContactLabel}
               </PrimaryButton>
             </nav>
           </div>

@@ -1,5 +1,5 @@
-import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
+import PageSeo from '../components/PageSeo'
 import SectionHeader from '../components/SectionHeader'
 import PrimaryButton from '../components/PrimaryButton'
 import { ArrowRight, BadgeCheck, Briefcase, CheckCircle2, Code2, Lightbulb, MessageSquare, Settings, Shield, Zap } from '../components/icons/icons'
@@ -51,21 +51,7 @@ const faqs = [
 function About() {
   return (
     <>
-      <Helmet>
-        <title>About DevLab Studios - Software Engineering & AI Automation</title>
-        <meta name="description" content="Learn about DevLab Studios, founded March 2, 2026, a software engineering and AI automation studio building websites, integrations, and workflow systems for modern businesses." />
-        <meta name="keywords" content="DevLab Studios, software engineering studio, AI automation studio, business automation, website development, workflow automation, backend integrations" />
-        <link rel="canonical" href="https://www.devlabstudios.com/about" />
-        <meta property="og:title" content="About DevLab Studios - Software Engineering & AI Automation" />
-        <meta property="og:description" content="DevLab Studios builds conversion websites, backend integrations, and AI automation systems around real business workflows." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://www.devlabstudios.com/about" />
-        <meta property="og:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="About DevLab Studios" />
-        <meta name="twitter:description" content="A practical software engineering and AI automation studio founded on March 2, 2026." />
-        <meta name="twitter:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-      </Helmet>
+      <PageSeo pageSlug="about" />
 
       <div className="space-y-10">
         <SectionHeader

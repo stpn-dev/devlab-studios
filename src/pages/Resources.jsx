@@ -1,71 +1,292 @@
+import { useState } from 'react'
 import { Helmet } from 'react-helmet-async'
+import { Link, useParams } from 'react-router-dom'
+import PageSeo from '../components/PageSeo'
 import SectionHeader from '../components/SectionHeader'
 import PrimaryButton from '../components/PrimaryButton'
-import { ArrowRight, CheckCircle2, Code2, Lightbulb, MessageSquare, Search, Settings, Shield, Zap } from '../components/icons/icons'
+import * as Icons from '../components/icons/icons'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Code2,
+  MessageSquare,
+} from '../components/icons/icons'
+import { useResourcesContent } from '../hooks/useResourcesContent'
 
-const guides = [
-  {
-    title: 'Where AI automation fits in small business workflows',
-    summary: 'A practical guide to finding repetitive, high-friction tasks where automation can improve speed, consistency, and handoff quality.',
-    category: 'Strategy',
-    icon: Lightbulb,
-    points: ['Missed follow-ups', 'Manual routing', 'Repeated summaries', 'Disconnected tools'],
-  },
-  {
-    title: 'When to use Zapier, Make, or n8n',
-    summary: 'How to choose an automation platform based on workflow complexity, maintainability, integrations, and technical control.',
-    category: 'Tools',
-    icon: Settings,
-    points: ['Simple app triggers', 'Router-heavy flows', 'Self-hosted control', 'API-heavy builds'],
-  },
-  {
-    title: 'Lead intake automation checklist',
-    summary: 'A checklist for capturing, qualifying, enriching, routing, and following up with inbound leads before opportunities get cold.',
-    category: 'Lead Systems',
-    icon: Search,
-    points: ['Capture source', 'Qualification logic', 'Priority routing', 'CRM or sheet logging'],
-  },
-  {
-    title: 'AI agents vs workflow automations',
-    summary: 'A clear distinction between deterministic automations and AI agents that reason through context, messages, and multi-step tasks.',
-    category: 'AI Agents',
-    icon: Zap,
-    points: ['Fixed workflow', 'Context-aware response', 'Human review', 'Tool execution'],
-  },
-  {
-    title: 'Preparing business data for automation',
-    summary: 'What to clean, structure, and document before connecting spreadsheets, CRMs, inboxes, APIs, and task systems.',
-    category: 'Data Readiness',
-    icon: Shield,
-    points: ['Stable fields', 'Clean ownership', 'Error handling', 'Audit visibility'],
-  },
-]
+function resolveIcon(name) {
+  return Icons[name] || Icons.Lightbulb
+}
 
-const playbooks = [
-  'Map one workflow from trigger to final handoff.',
-  'Identify where work waits on a person, inbox, or spreadsheet.',
-  'Define what should be automated, drafted, routed, or only reported.',
-  'Keep humans in the loop where risk, judgment, or client trust matters.',
-]
+function formatDate(value) {
+  if (!value) return ''
 
-function Resources() {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+
+  return parsed.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function slugifyLabel(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function renderBody(body) {
+  const lines = String(body || '').split(/\r?\n/)
+  const blocks = []
+  let paragraph = []
+  let bulletList = []
+
+  function flushParagraph() {
+    if (!paragraph.length) return
+    blocks.push({
+      type: 'paragraph',
+      text: paragraph.join(' '),
+    })
+    paragraph = []
+  }
+
+  function flushBulletList() {
+    if (!bulletList.length) return
+    blocks.push({
+      type: 'list',
+      items: [...bulletList],
+    })
+    bulletList = []
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim()
+
+    if (!line) {
+      flushParagraph()
+      flushBulletList()
+      continue
+    }
+
+    if (line.startsWith('## ')) {
+      flushParagraph()
+      flushBulletList()
+      blocks.push({
+        type: 'heading',
+        text: line.slice(3).trim(),
+      })
+      continue
+    }
+
+    if (line.startsWith('- ')) {
+      flushParagraph()
+      bulletList.push(line.slice(2).trim())
+      continue
+    }
+
+    flushBulletList()
+    paragraph.push(line)
+  }
+
+  flushParagraph()
+  flushBulletList()
+
+  return blocks.map((block, index) => {
+    if (block.type === 'heading') {
+      return (
+        <h2 key={`heading-${index}`} className="mt-8 text-2xl font-semibold text-brand-ink first:mt-0">
+          {block.text}
+        </h2>
+      )
+    }
+
+    if (block.type === 'list') {
+      return (
+        <ul key={`list-${index}`} className="mt-4 grid gap-3 text-base leading-relaxed text-slate-700">
+          {block.items.map((item) => (
+            <li key={item} className="flex gap-3">
+              <CheckCircle2 className="mt-1 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    return (
+      <p key={`paragraph-${index}`} className="mt-4 text-base leading-8 text-slate-700 first:mt-0">
+        {block.text}
+      </p>
+    )
+  })
+}
+
+function ResourceFeedCard({ post, featured = false }) {
+  const Icon = resolveIcon(post.icon)
+
+  return (
+    <article className={`rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_18px_45px_rgba(60,28,120,0.10)] ${featured ? 'overflow-hidden' : 'p-6 sm:p-7'}`}>
+      {featured ? (
+        <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="flex min-h-[260px] items-center justify-center bg-gradient-to-br from-brand-ink via-[#22185a] to-[#3526b5] p-8 text-white">
+            {post.coverImageUrl ? (
+              <img
+                src={post.coverImageUrl}
+                alt={post.title}
+                className="max-h-[360px] w-full rounded-2xl object-cover shadow-[0_16px_42px_rgba(0,0,0,0.28)]"
+                loading="eager"
+              />
+            ) : (
+              <div className="flex h-full min-h-[220px] w-full flex-col items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
+                  <Icon className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <p className="mt-4 text-sm font-semibold uppercase tracking-[0.16em] text-white/70">{post.category}</p>
+                <p className="mt-2 text-2xl font-semibold">{post.title}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="p-6 sm:p-8">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-brand-mint px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">
+                Featured
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                {post.category}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                {post.contentType}
+              </span>
+            </div>
+
+            <h2 className="mt-4 text-3xl font-semibold text-brand-ink">{post.title}</h2>
+            <p className="mt-3 text-base leading-relaxed text-slate-600">{post.summary}</p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-slate-500">
+              <span className="inline-flex items-center gap-2">
+                <Calendar className="h-4 w-4" aria-hidden="true" />
+                {formatDate(post.publishedAt)}
+              </span>
+              {post.readingTimeMinutes ? (
+                <span className="inline-flex items-center gap-2">
+                  <Clock3 className="h-4 w-4" aria-hidden="true" />
+                  {post.readingTimeMinutes} min read
+                </span>
+              ) : null}
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              {(post.tags || []).map((tag) => (
+                <span key={tag} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                  {tag}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-6">
+              <PrimaryButton to={`/resources/${post.slug}`} showIcon>
+                Read Article
+              </PrimaryButton>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
+              <Icon className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {post.category}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {post.contentType}
+                </span>
+              </div>
+              <h2 className="mt-3 text-2xl font-semibold text-brand-ink">{post.title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{post.summary}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-4 text-sm text-slate-500">
+            {post.publishedAt ? (
+              <span className="inline-flex items-center gap-2">
+                <Calendar className="h-4 w-4" aria-hidden="true" />
+                {formatDate(post.publishedAt)}
+              </span>
+            ) : null}
+            {post.readingTimeMinutes ? (
+              <span className="inline-flex items-center gap-2">
+                <Clock className="h-4 w-4" aria-hidden="true" />
+                {post.readingTimeMinutes} min read
+              </span>
+            ) : null}
+            <span>{post.authorName || 'DevLab Studios'}</span>
+          </div>
+
+          {(post.points || []).length > 0 ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {post.points.map((point) => (
+                <span key={point} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {point}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              {(post.tags || []).map((tag) => (
+                <span key={tag} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+                  {tag}
+                </span>
+              ))}
+            </div>
+
+            <Link
+              to={`/resources/${post.slug}`}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-teal transition hover:text-brand-tealDark"
+            >
+              Read more
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </>
+      )}
+    </article>
+  )
+}
+
+function ResourcesIndex({ posts, playbook }) {
+  const [activeFilter, setActiveFilter] = useState('all')
+  const sortedPosts = [...posts].sort((left, right) => {
+    const leftTime = new Date(left.publishedAt || 0).getTime()
+    const rightTime = new Date(right.publishedAt || 0).getTime()
+    if (leftTime !== rightTime) return rightTime - leftTime
+    return (left.sortOrder || 0) - (right.sortOrder || 0)
+  })
+
+  const featuredPost = sortedPosts.find((post) => post.isFeatured) || sortedPosts[0] || null
+  const filterOptions = [
+    { id: 'all', label: 'All posts' },
+    ...Array.from(new Set(sortedPosts.map((post) => slugifyLabel(post.contentType)).filter(Boolean))).map((key) => ({
+      id: key,
+      label: key.charAt(0).toUpperCase() + key.slice(1),
+    })),
+  ]
+  const filteredPosts = sortedPosts.filter((post) => {
+    if (activeFilter === 'all') return post.id !== featuredPost?.id
+    return slugifyLabel(post.contentType) === activeFilter && post.id !== featuredPost?.id
+  })
+
   return (
     <>
-      <Helmet>
-        <title>Resources - AI Automation Guides | DevLab Studios</title>
-        <meta name="description" content="AI automation resources from DevLab Studios covering workflow automation, Zapier, Make, n8n, AI agents, lead intake systems, and automation readiness." />
-        <meta name="keywords" content="AI automation resources, workflow automation guide, Zapier Make n8n comparison, AI agents guide, lead intake automation checklist" />
-        <link rel="canonical" href="https://www.devlabstudios.com/resources" />
-        <meta property="og:title" content="Resources - AI Automation Guides | DevLab Studios" />
-        <meta property="og:description" content="Practical guides for understanding AI automation, workflow tools, lead intake, AI agents, and business data readiness." />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://www.devlabstudios.com/resources" />
-        <meta property="og:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Resources - AI Automation Guides" />
-        <meta name="twitter:description" content="Static AI automation guide hub from DevLab Studios." />
-        <meta name="twitter:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-      </Helmet>
+      <PageSeo pageSlug="resources" />
 
       <div className="space-y-10">
         <section className="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10">
@@ -73,10 +294,10 @@ function Resources() {
             <div className="space-y-5">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Resources</p>
               <h1 className="text-4xl font-semibold leading-tight text-brand-ink sm:text-5xl">
-                Practical AI automation guides for business workflows.
+                Guides, AI updates, and operational notes for modern workflows.
               </h1>
               <p className="max-w-3xl text-base leading-relaxed text-slate-700 sm:text-lg">
-                A static resource hub for understanding where AI automation fits, how workflow tools compare, and what to prepare before building connected systems.
+                A CMS-managed feed of practical implementation notes across AI automation, websites, systems design, delivery workflows, and business operations.
               </p>
               <div className="flex flex-wrap gap-3">
                 <PrimaryButton to="/services">
@@ -94,7 +315,7 @@ function Resources() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Automation Readiness</p>
               <h2 className="mt-2 text-2xl font-semibold text-brand-ink">Start with workflow clarity.</h2>
               <ul className="mt-4 space-y-3 text-sm text-slate-700">
-                {playbooks.map((item) => (
+                {playbook.map((item) => (
                   <li key={item} className="flex gap-3 leading-relaxed">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />
                     <span>{item}</span>
@@ -105,39 +326,43 @@ function Resources() {
           </div>
         </section>
 
+        {featuredPost ? (
+          <section className="space-y-6">
+            <SectionHeader
+              title="Featured Insight"
+              subtitle="Longer-form guidance and implementation notes with enough detail to read, not just skim."
+            />
+            <ResourceFeedCard post={featuredPost} featured />
+          </section>
+        ) : null}
+
         <section className="space-y-6">
           <SectionHeader
-            title="AI Automation Guides"
-            subtitle="Evergreen notes for business owners and teams planning automation, AI agents, and tool integrations."
+            title="Latest From the Feed"
+            subtitle="A practical mix of evergreen guides, automation notes, and current AI or systems insights."
           />
 
-          <div className="grid gap-5 lg:grid-cols-2">
-            {guides.map((guide) => {
-              const Icon = guide.icon
+          <div className="flex flex-wrap gap-2">
+            {filterOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setActiveFilter(option.id)}
+                className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                  activeFilter === option.id
+                    ? 'border-brand-teal bg-brand-teal text-white'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-brand-teal/40 hover:text-brand-teal'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
 
-              return (
-                <article key={guide.title} className="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-7">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
-                      <Icon className="h-5 w-5" aria-hidden="true" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">{guide.category}</p>
-                      <h2 className="mt-1 text-xl font-semibold text-brand-ink">{guide.title}</h2>
-                      <p className="mt-2 text-sm leading-relaxed text-slate-600">{guide.summary}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {guide.points.map((point) => (
-                      <span key={point} className="rounded-full border border-slate-200 bg-white/95 px-3 py-1 text-xs font-semibold text-slate-600">
-                        {point}
-                      </span>
-                    ))}
-                  </div>
-                </article>
-              )
-            })}
+          <div className="grid gap-5">
+            {filteredPosts.map((post) => (
+              <ResourceFeedCard key={post.id} post={post} />
+            ))}
           </div>
         </section>
 
@@ -145,9 +370,9 @@ function Resources() {
           <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-center">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Need implementation?</p>
-              <h2 className="mt-2 text-3xl font-semibold">Turn the guide into a working workflow.</h2>
+              <h2 className="mt-2 text-3xl font-semibold">Turn the article into a working system.</h2>
               <p className="mt-3 text-white/75">
-                DevLab Studios can help map your current process, pick the right automation stack, and build the system around your team’s tools.
+                DevLab Studios can map the process, choose the stack, and build the website, automation, or internal workflow around your current tools.
               </p>
             </div>
             <div className="flex flex-wrap gap-3 lg:justify-end">
@@ -165,6 +390,185 @@ function Resources() {
       </div>
     </>
   )
+}
+
+function ResourcesDetail({ post, relatedPosts }) {
+  const Icon = resolveIcon(post.icon)
+  const seoTitle = `${post.title} | DevLab Studios Resources`
+  const seoDescription = post.summary
+  const canonicalUrl = `https://www.devlabstudios.com/resources/${post.slug}`
+  const imageUrl = post.coverImageUrl || 'https://www.devlabstudios.com/devlabstudios-logo-only.png'
+
+  return (
+    <>
+      <Helmet>
+        <title>{seoTitle}</title>
+        <meta name="description" content={seoDescription} />
+        <link rel="canonical" href={canonicalUrl} />
+        <meta property="og:title" content={seoTitle} />
+        <meta property="og:description" content={seoDescription} />
+        <meta property="og:type" content="article" />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:image" content={imageUrl} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={seoTitle} />
+        <meta name="twitter:description" content={seoDescription} />
+        <meta name="twitter:image" content={imageUrl} />
+      </Helmet>
+
+      <div className="space-y-8">
+        <nav className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          <Link to="/resources" className="inline-flex items-center gap-2 font-semibold text-brand-teal transition hover:text-brand-tealDark">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to Resources
+          </Link>
+          <span>/</span>
+          <span>{post.title}</span>
+        </nav>
+
+        <section className="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10">
+          <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-brand-mint px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">
+                  {post.category}
+                </span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                  {post.contentType}
+                </span>
+              </div>
+
+              <h1 className="text-4xl font-semibold leading-tight text-brand-ink sm:text-5xl">{post.title}</h1>
+              <p className="max-w-3xl text-base leading-relaxed text-slate-700 sm:text-lg">{post.summary}</p>
+
+              <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                <span>{post.authorName || 'DevLab Studios'}</span>
+                {post.publishedAt ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Calendar className="h-4 w-4" aria-hidden="true" />
+                    {formatDate(post.publishedAt)}
+                  </span>
+                ) : null}
+                {post.readingTimeMinutes ? (
+                  <span className="inline-flex items-center gap-2">
+              <Clock className="h-4 w-4" aria-hidden="true" />
+                    {post.readingTimeMinutes} min read
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {(post.tags || []).map((tag) => (
+                  <span key={tag} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex min-h-[280px] items-center justify-center rounded-[24px] bg-gradient-to-br from-brand-ink via-[#22185a] to-[#3526b5] p-8 text-white shadow-[0_16px_36px_rgba(20,13,64,0.22)]">
+              {post.coverImageUrl ? (
+                <img
+                  src={post.coverImageUrl}
+                  alt={post.title}
+                  className="max-h-[380px] w-full rounded-2xl object-cover shadow-[0_16px_42px_rgba(0,0,0,0.28)]"
+                />
+              ) : (
+                <div className="flex h-full min-h-[220px] w-full flex-col items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-white">
+                    <Icon className="h-7 w-7" aria-hidden="true" />
+                  </div>
+                  <p className="mt-4 text-sm font-semibold uppercase tracking-[0.16em] text-white/70">{post.category}</p>
+                  <p className="mt-2 text-2xl font-semibold">{post.title}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <article className="rounded-[28px] bg-white p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)] sm:p-8">
+            <div className="prose prose-slate max-w-none">
+              {renderBody(post.body)}
+            </div>
+          </article>
+
+          <aside className="space-y-6">
+            {(post.points || []).length > 0 ? (
+              <section className="rounded-[24px] bg-white p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Key Takeaways</p>
+                <ul className="mt-4 grid gap-3 text-sm text-slate-700">
+                  {post.points.map((point) => (
+                    <li key={point} className="flex gap-3 leading-relaxed">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {relatedPosts.length > 0 ? (
+              <section className="rounded-[24px] bg-white p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">More From Resources</p>
+                <div className="mt-4 grid gap-4">
+                  {relatedPosts.map((item) => (
+                    <Link
+                      key={item.id}
+                      to={`/resources/${item.slug}`}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-brand-teal/30 hover:bg-white"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{item.category}</p>
+                      <p className="mt-2 text-sm font-semibold text-brand-ink">{item.title}</p>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-500">{item.summary}</p>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </aside>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function Resources() {
+  const { posts, playbook } = useResourcesContent()
+  const { slug } = useParams()
+  const publishedPosts = (posts || []).filter((post) => post.status !== 'draft')
+  const activePost = slug
+    ? publishedPosts.find((post) => post.slug === slug || post.id === slug)
+    : null
+
+  if (slug && !activePost) {
+    return (
+      <>
+        <PageSeo pageSlug="resources" />
+        <div className="rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Resources</p>
+          <h1 className="mt-3 text-3xl font-semibold text-brand-ink">Article not found</h1>
+          <p className="mt-3 text-slate-600">The resource you tried to open is missing or no longer published.</p>
+          <div className="mt-6 flex justify-center">
+            <PrimaryButton to="/resources">
+              <ArrowLeft size={16} />
+              Back to Resources
+            </PrimaryButton>
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  if (activePost) {
+    const relatedPosts = publishedPosts
+      .filter((post) => post.id !== activePost.id)
+      .slice(0, 3)
+
+    return <ResourcesDetail post={activePost} relatedPosts={relatedPosts} />
+  }
+
+  return <ResourcesIndex posts={publishedPosts} playbook={playbook || []} />
 }
 
 export default Resources

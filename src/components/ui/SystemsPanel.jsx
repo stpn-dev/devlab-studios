@@ -7,11 +7,22 @@ function resolveIcon(name) {
   return Icons[name] || Icons.Lightbulb
 }
 
-function SystemsPanel() {
-  // Resilient access to data (supports named and default exports)
-  const tools = Tools.coreTools || (Tools.default ? Tools.default.coreTools : [])
-  const patterns = Data.workflowPatterns || (Data.default ? Data.default.workflowPatterns : [])
-  const characteristics = Data.systemCharacteristics || (Data.default ? Data.default.systemCharacteristics : [])
+function SystemsPanel({
+  tools: providedTools,
+  workflowPatterns: providedPatterns,
+  systemCharacteristics: providedCharacteristics,
+}) {
+  const staticTools = Tools.coreTools || (Tools.default ? Tools.default.coreTools : [])
+  const staticPatterns = Data.workflowPatterns || (Data.default ? Data.default.workflowPatterns : [])
+  const staticCharacteristics = Data.systemCharacteristics || (Data.default ? Data.default.systemCharacteristics : [])
+
+  const tools = Array.isArray(providedTools) && providedTools.length ? providedTools : staticTools
+  const patterns = Array.isArray(providedPatterns) && providedPatterns.length ? providedPatterns : staticPatterns
+  const characteristics =
+    Array.isArray(providedCharacteristics) && providedCharacteristics.length
+      ? providedCharacteristics
+      : staticCharacteristics
+
   const featuredTools = tools.slice(0, 10)
   const moreToolsCount = Math.max(tools.length - featuredTools.length, 0)
   const featuredPatterns = patterns.slice(0, 4)

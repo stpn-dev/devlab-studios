@@ -1,21 +1,24 @@
 import { useState } from 'react'
-import { Helmet } from 'react-helmet-async'
+import PageSeo from '../components/PageSeo'
 import SectionHeader from '../components/SectionHeader'
 import PersonalInfoCard from '../components/PersonalInfoCard'
 import PortfolioRow from '../components/PortfolioRow'
 import ImageModal from '../components/ImageModal'
 import SkillsSection from '../components/ui/SkillsSection'
+import SystemsPanel from '../components/ui/SystemsPanel'
 import ListItemWithIcon from '../components/ui/ListItemWithIcon'
 import AnimatedIcon from '../components/icons/AnimatedIcon'
 import { ArrowRight, BadgeCheck, Briefcase, Calendar, GraduationCap, Trophy } from '../components/icons/icons'
-import aboutData from '../data/about.js'
-import { experiences } from '../data/experiences'
 import { useProjects } from '../hooks/useProjects'
+import { useProfileContent } from '../hooks/useProfileContent'
 
 function Profile() {
   const [selectedImage, setSelectedImage] = useState(null)
   const [category, setCategory] = useState('Automation')
   const projects = useProjects()
+  const profileContent = useProfileContent()
+  const aboutData = profileContent.about || {}
+  const experiences = profileContent.experiences || []
 
   const categories = [
     { label: 'Automation Buildouts', value: 'Automation' },
@@ -30,21 +33,7 @@ function Profile() {
 
   return (
     <>
-      <Helmet>
-        <title>Profile - Stephen Rey Agustinez | DevLab Studios</title>
-        <meta name="description" content="Profile of Stephen Rey Agustinez, founder of DevLab Studios, software engineer and AI automation specialist building websites, backend integrations, and business automation systems." />
-        <meta name="keywords" content="Stephen Rey Agustinez profile, DevLab Studios founder, software engineer portfolio, AI automation specialist, React Laravel automation portfolio" />
-        <link rel="canonical" href="https://www.devlabstudios.com/profile" />
-        <meta property="og:title" content="Profile - Stephen Rey Agustinez | DevLab Studios" />
-        <meta property="og:description" content="Founder profile, experience, skills, and selected website and automation projects from DevLab Studios." />
-        <meta property="og:type" content="profile" />
-        <meta property="og:url" content="https://www.devlabstudios.com/profile" />
-        <meta property="og:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Profile - Stephen Rey Agustinez | DevLab Studios" />
-        <meta name="twitter:description" content="Software engineer and AI automation specialist profile with experience, skills, and project portfolio." />
-        <meta name="twitter:image" content="https://www.devlabstudios.com/devlabstudios-logo-only.png" />
-      </Helmet>
+      <PageSeo pageSlug="profile" />
 
       <div className="space-y-10">
         <SectionHeader
@@ -141,7 +130,22 @@ function Profile() {
           </div>
         </section>
 
-        <SkillsSection />
+        <SkillsSection
+          technicalSkills={profileContent.skills?.technical || []}
+          personalSkills={profileContent.skills?.personal || []}
+        />
+
+        <section className="space-y-4">
+          <SectionHeader
+            title="Systems & Workflows"
+            subtitle="Core tools, repeatable workflow patterns, and operating characteristics used across delivery."
+          />
+          <SystemsPanel
+            tools={profileContent.tools || []}
+            workflowPatterns={profileContent.workflowPatterns || []}
+            systemCharacteristics={profileContent.systemCharacteristics || []}
+          />
+        </section>
 
         <section className="space-y-6">
           <SectionHeader

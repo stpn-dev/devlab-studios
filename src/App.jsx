@@ -60,6 +60,9 @@ const router = createBrowserRouter([
       isMaintenance
         ? { path: 'resources', element: <Maintenance /> }
         : { path: 'resources', element: <Resources /> },
+      isMaintenance
+        ? { path: 'resources/:slug', element: <Maintenance /> }
+        : { path: 'resources/:slug', element: <Resources /> },
       { path: 'landing-sample-react', element: <Suspense fallback={<LoadingFallback />}><LandingSampleReact /></Suspense> },
       { path: 'landing-sample-html', element: <Suspense fallback={<LoadingFallback />}><LandingSampleHtml /></Suspense> },
       { path: 'landing-sample-fullstack', element: <Suspense fallback={<LoadingFallback />}><LandingSampleFullStack /></Suspense> },
