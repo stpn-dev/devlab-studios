@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import {
   getProfileContent,
   getResourcesContent,
@@ -14,16 +13,28 @@ import {
   replaceSiteSettingsContent,
 } from './worker/repositories/content'
 import { deleteProject, getProject, listProjects, upsertProject } from './worker/repositories/projects'
-import { requireAdmin } from './worker/middleware/adminAuth'
+import { handleAdminLogin, handleAdminLogout, requireAdmin } from './worker/middleware/adminAuth'
 import { jsonResponse, nowIso } from './worker/utils/responses'
 
 const app = new Hono()
+const CONTACT_WINDOW_MS = 10 * 60 * 1000
+const CONTACT_MAX_ATTEMPTS = 5
+const contactAttempts = new Map()
 
-app.use('/api/*', cors({
-  origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type'],
-}))
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url)
+  const forwardedProto = c.req.header('x-forwarded-proto')
+  const shouldUseWww = url.hostname === 'devlabstudios.com'
+  const shouldUseHttps = url.hostname.endsWith('devlabstudios.com') && (url.protocol === 'http:' || forwardedProto === 'http')
+
+  if (shouldUseWww || shouldUseHttps) {
+    url.hostname = 'www.devlabstudios.com'
+    url.protocol = 'https:'
+    return Response.redirect(url.toString(), 301)
+  }
+
+  return next()
+})
 
 function hasDb(env) {
   return Boolean(env.DB)
@@ -59,10 +70,59 @@ function normalizeProjectMedia(project, env) {
   }
 }
 
+function getClientIp(c) {
+  return c.req.header('cf-connecting-ip')
+    || c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+    || 'unknown'
+}
+
+function isContactRateLimited(c) {
+  const key = getClientIp(c)
+  const now = Date.now()
+  const attempt = contactAttempts.get(key)
+
+  if (!attempt || now >= attempt.resetAt) {
+    contactAttempts.set(key, { count: 1, resetAt: now + CONTACT_WINDOW_MS })
+    return false
+  }
+
+  attempt.count += 1
+  return attempt.count > CONTACT_MAX_ATTEMPTS
+}
+
+function validateContactPayload(payload) {
+  const limits = {
+    name: 120,
+    email: 254,
+    subject: 180,
+    message: 5000,
+  }
+  const required = Object.keys(limits)
+  const missing = required.filter((key) => !String(payload[key] || '').trim())
+  if (missing.length > 0) {
+    return `Missing required fields: ${missing.join(', ')}`
+  }
+
+  const oversized = required.filter((key) => String(payload[key] || '').length > limits[key])
+  if (oversized.length > 0) {
+    return `Fields exceed maximum length: ${oversized.join(', ')}`
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(payload.email || '').trim())) {
+    return 'Email address is invalid.'
+  }
+
+  return null
+}
+
 async function handleContact(c) {
   const webhookUrl = c.env.ZOHO_WEBHOOK_URL
   if (!webhookUrl) {
     return jsonResponse({ error: 'Server misconfiguration: ZOHO_WEBHOOK_URL missing.' }, 500)
+  }
+
+  if (isContactRateLimited(c)) {
+    return jsonResponse({ error: 'Too many contact submissions. Try again later.' }, 429)
   }
 
   let payload
@@ -72,10 +132,9 @@ async function handleContact(c) {
     return jsonResponse({ error: 'Invalid JSON payload.' }, 400)
   }
 
-  const required = ['name', 'email', 'subject', 'message']
-  const missing = required.filter((key) => !String(payload[key] || '').trim())
-  if (missing.length > 0) {
-    return jsonResponse({ error: `Missing required fields: ${missing.join(', ')}` }, 400)
+  const validationError = validateContactPayload(payload)
+  if (validationError) {
+    return jsonResponse({ error: validationError }, 400)
   }
 
   try {
@@ -182,12 +241,15 @@ app.get('/api/seo/:pageSlug', async (c) => {
   }
 })
 
+app.post('/api/admin/login', handleAdminLogin)
+app.post('/api/admin/logout', handleAdminLogout)
 app.use('/api/admin/*', requireAdmin)
 
 app.get('/api/admin/session', (c) => c.json({
   ok: true,
   email: c.get('adminEmail'),
-  mode: 'cloudflare-access',
+  role: c.get('adminRole') || 'admin',
+  mode: c.get('adminAuthMode') || 'cloudflare-access',
 }))
 
 app.get('/api/admin/projects', async (c) => {

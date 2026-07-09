@@ -16,6 +16,7 @@ function Navbar() {
   }))
   const desktopContactLabel = siteSettings.ctas?.navbarContactLabel || 'Contact Me'
   const mobileContactLabel = siteSettings.ctas?.mobileContactLabel || desktopContactLabel
+  const toggleLabel = isOpen ? 'Close navigation' : 'Open navigation'
 
   const linkBase =
     'px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-brand-ink focus-visible:outline-none'
@@ -70,12 +71,13 @@ function Navbar() {
 
           <button
             type="button"
-            className="group inline-flex items-center justify-center rounded-lg border border-slate-300 p-2 text-brand-ink transition hover:bg-slate-100 md:hidden"
-            aria-label="Toggle navigation"
+            className="group inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-950 bg-slate-950 text-white shadow-sm transition hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2 md:hidden"
+            aria-label={toggleLabel}
+            aria-controls="mobile-navigation"
             aria-expanded={isOpen}
             onClick={() => setIsOpen((prev) => !prev)}
           >
-            <span className="sr-only">Toggle menu</span>
+            <span className="sr-only">{toggleLabel}</span>
             {isOpen ? (
               <AnimatedIcon icon={X} size={24} animationType="none" />
             ) : (
@@ -85,7 +87,7 @@ function Navbar() {
         </div>
 
         {isOpen ? (
-          <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_10px_25px_rgba(12,26,51,0.08)] md:hidden">
+          <div id="mobile-navigation" className="mt-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_10px_25px_rgba(12,26,51,0.08)] md:hidden">
             <nav className="flex flex-col gap-1">
               {navLinks.map((item) => (
                 <NavLink

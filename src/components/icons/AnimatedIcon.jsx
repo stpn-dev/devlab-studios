@@ -15,7 +15,7 @@ import clsx from 'clsx'
 function AnimatedIcon({
   icon,
   size = 20,
-  color = 'text-white',
+  color = 'text-current',
   animationType = 'none',
   respectMotion = true,
   className = '',

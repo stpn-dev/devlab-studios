@@ -5,7 +5,7 @@ import SectionHeader from '../components/SectionHeader'
 import ServiceGraphic from '../components/ServiceGraphic'
 import PageSeo from '../components/PageSeo'
 import { ArrowRight, Briefcase, CheckCircle2, Clock, Code2, Download, Lightbulb, MessageSquare, Search, Settings, TrendingUp, Wrench, Zap } from '../components/icons/icons'
-import resumePdf from '../assets/documents/Agustinez_Tech VA_Resume.pdf'
+import resumePdf from '../assets/documents/Stephen-Rey-Agustinez-Resume.pdf'
 import dataVectorPng from '../assets/vectors/free/data.png'
 import chatVectorPng from '../assets/vectors/free/chat.png'
 import syncVectorPng from '../assets/vectors/free/sync.png'
@@ -248,7 +248,7 @@ function Home() {
             <div className="flex flex-wrap gap-3">
               <a
                 href={resumePdf}
-                download="Agustinez_Tech_VA_Resume.pdf"
+                download="Stephen-Rey-Agustinez-Resume.pdf"
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-brand-ink transition duration-200 hover:border-brand-teal/50 hover:text-brand-teal hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
                 aria-label="Download resume as PDF"
               >
@@ -262,7 +262,7 @@ function Home() {
 
             <div className="flex flex-wrap gap-3 text-sm text-slate-600">
               <span className="badge-pill">Available for part-time and full-time engagements</span>
-              <span className="badge-pill">Based in Asia/Manila (GMT+8) â€¢ Remote-first</span>
+              <span className="badge-pill">Based in Asia/Manila (GMT+8) - Remote-first</span>
             </div>
           </div>
 
@@ -272,7 +272,9 @@ function Home() {
                 src={dataVectorPng}
                 alt="Data systems workflow illustration"
                 className="h-auto w-full rounded-xl object-contain"
-                loading="lazy"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
               />
             </div>
           </div>

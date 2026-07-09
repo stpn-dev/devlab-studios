@@ -4,6 +4,8 @@
 User-agent: *
 Allow: /
 Disallow: /404
+Disallow: /admin
+Disallow: /api/admin/
 
 # Sitemap location for search engines
 Sitemap: https://www.devlabstudios.com/sitemap.xml

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { resourcesContent } from '../data/resourcesContent'
+import { fetchJsonOnce } from '../utils/cachedFetch'
 
 function normalizeResourcesPayload(payload) {
   if (!payload) return null
@@ -36,18 +37,11 @@ export function useResourcesContent() {
     let ignore = false
 
     async function loadContent() {
-      try {
-        const response = await fetch('/api/resources')
-        if (!response.ok) return
-
-        const payload = await response.json()
-        const normalized = normalizeResourcesPayload(payload?.data)
-        const hasData = payload?.configured && Array.isArray(normalized?.posts) && normalized.posts.length > 0
-        if (!ignore && hasData) {
-          setApiContent(normalized)
-        }
-      } catch {
-        // Static fallback keeps resources page resilient during CMS migration.
+      const payload = await fetchJsonOnce('/api/resources')
+      const normalized = normalizeResourcesPayload(payload?.data)
+      const hasData = payload?.configured && Array.isArray(normalized?.posts) && normalized.posts.length > 0
+      if (!ignore && hasData) {
+        setApiContent(normalized)
       }
     }
 

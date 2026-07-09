@@ -1,3 +1,4 @@
+import { Helmet } from 'react-helmet-async'
 import GlassCard from '../components/GlassCard'
 import PrimaryButton from '../components/PrimaryButton'
 
@@ -22,7 +23,11 @@ const trustPills = ['Licensed and Insured', 'Arrival Window Guarantee', 'Transpa
 
 export default function LandingSampleLocalService() {
   return (
-    <div className="min-h-screen bg-[#eef4f9] text-[#0f243b]">
+    <>
+      <Helmet>
+        <meta name="robots" content="noindex,follow" />
+      </Helmet>
+      <div className="min-h-screen bg-[#eef4f9] text-[#0f243b]">
       <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <section className="grid gap-6 lg:grid-cols-12">
           <div className="lg:col-span-8">
@@ -148,6 +153,7 @@ export default function LandingSampleLocalService() {
           </div>
         </section>
       </main>
-    </div>
+      </div>
+    </>
   )
 }
