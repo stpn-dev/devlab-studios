@@ -1,6 +1,12 @@
+import { Helmet } from 'react-helmet-async'
+
 export default function LandingSampleHtml() {
   return (
-    <div className="min-h-screen bg-[#f7f7f5] text-[#222]">
+    <>
+      <Helmet>
+        <meta name="robots" content="noindex,follow" />
+      </Helmet>
+      <div className="min-h-screen bg-[#f7f7f5] text-[#222]">
       <main className="mx-auto max-w-5xl px-6 py-16 sm:py-24">
         <header className="border-b border-[#d7d7d2] pb-10">
           <p className="text-xs uppercase tracking-[0.2em] text-[#666]">HTML / CSS / JavaScript</p>
@@ -53,6 +59,7 @@ export default function LandingSampleHtml() {
           Sample website build for portfolio presentation.
         </footer>
       </main>
-    </div>
+      </div>
+    </>
   )
 }

@@ -1,12 +1,291 @@
 import { jsonResponse } from '../utils/responses'
 
+const SESSION_COOKIE = 'devlab_admin_session'
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8
+const PASSWORD_HASH_PREFIX = 'pbkdf2_sha256'
+const LOGIN_WINDOW_MS = 15 * 60 * 1000
+const LOGIN_MAX_ATTEMPTS = 8
+const loginAttempts = new Map()
+
+function textBytes(value) {
+  return new TextEncoder().encode(value)
+}
+
+function bytesToBase64Url(bytes) {
+  let binary = ''
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte)
+  })
+
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function base64UrlToBytes(value) {
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+
+  return bytes
+}
+
+function constantTimeEqual(left, right) {
+  if (left.length !== right.length) return false
+
+  let mismatch = 0
+  for (let index = 0; index < left.length; index += 1) {
+    mismatch |= left[index] ^ right[index]
+  }
+
+  return mismatch === 0
+}
+
+function parseCookies(cookieHeader) {
+  return String(cookieHeader || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((cookies, part) => {
+      const separatorIndex = part.indexOf('=')
+      if (separatorIndex === -1) return cookies
+
+      const name = part.slice(0, separatorIndex).trim()
+      const value = part.slice(separatorIndex + 1).trim()
+      cookies[name] = value
+      return cookies
+    }, {})
+}
+
+function getCookieOptions(c, maxAge = SESSION_MAX_AGE_SECONDS) {
+  const url = new URL(c.req.url)
+  const secure = url.protocol === 'https:' ? '; Secure' : ''
+  return `Path=/; HttpOnly; SameSite=Strict${secure}; Max-Age=${maxAge}`
+}
+
+function clearSessionCookie(c) {
+  return `${SESSION_COOKIE}=; ${getCookieOptions(c, 0)}`
+}
+
+function getConfiguredAdmins(env) {
+  if (env.ADMIN_USERS) {
+    try {
+      const users = JSON.parse(env.ADMIN_USERS)
+      if (Array.isArray(users)) {
+        return users
+          .map((user) => ({
+            email: String(user.email || '').trim().toLowerCase(),
+            passwordHash: String(user.passwordHash || '').trim(),
+            role: String(user.role || 'admin').trim() || 'admin',
+          }))
+          .filter((user) => user.email && user.passwordHash)
+      }
+    } catch {
+      return []
+    }
+  }
+
+  const email = String(env.ADMIN_EMAIL || '').trim().toLowerCase()
+  const passwordHash = String(env.ADMIN_PASSWORD_HASH || '').trim()
+  if (!email || !passwordHash) return []
+
+  return [{ email, passwordHash, role: 'owner' }]
+}
+
+async function importPasswordKey(password) {
+  return crypto.subtle.importKey('raw', textBytes(password), 'PBKDF2', false, ['deriveBits'])
+}
+
+async function verifyPassword(password, storedHash) {
+  const [prefix, iterationsValue, saltValue, hashValue] = String(storedHash || '').split('$')
+  const iterations = Number(iterationsValue)
+
+  if (prefix !== PASSWORD_HASH_PREFIX || !Number.isInteger(iterations) || iterations < 100000 || !saltValue || !hashValue) {
+    return false
+  }
+
+  const key = await importPasswordKey(password)
+  const expectedHash = base64UrlToBytes(hashValue)
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      hash: 'SHA-256',
+      salt: base64UrlToBytes(saltValue),
+      iterations,
+    },
+    key,
+    expectedHash.length * 8,
+  )
+
+  return constantTimeEqual(new Uint8Array(derivedBits), expectedHash)
+}
+
+async function getSessionSigningKey(secret) {
+  return crypto.subtle.importKey('raw', textBytes(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])
+}
+
+async function signSessionPayload(payload, secret) {
+  const encodedPayload = bytesToBase64Url(textBytes(JSON.stringify(payload)))
+  const key = await getSessionSigningKey(secret)
+  const signature = await crypto.subtle.sign('HMAC', key, textBytes(encodedPayload))
+
+  return `v1.${encodedPayload}.${bytesToBase64Url(new Uint8Array(signature))}`
+}
+
+async function verifySessionToken(token, secret) {
+  const [version, encodedPayload, encodedSignature] = String(token || '').split('.')
+  if (version !== 'v1' || !encodedPayload || !encodedSignature) return null
+
+  const key = await getSessionSigningKey(secret)
+  const isValid = await crypto.subtle.verify(
+    'HMAC',
+    key,
+    base64UrlToBytes(encodedSignature),
+    textBytes(encodedPayload),
+  )
+
+  if (!isValid) return null
+
+  try {
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(encodedPayload)))
+    if (!payload.exp || Date.now() >= payload.exp * 1000) return null
+    return payload
+  } catch {
+    return null
+  }
+}
+
+function getSessionSecret(env) {
+  return String(env.ADMIN_SESSION_SECRET || '').trim()
+}
+
+function getClientIp(c) {
+  return c.req.header('cf-connecting-ip')
+    || c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+    || 'unknown'
+}
+
+function isLoginRateLimited(key) {
+  const now = Date.now()
+  const attempt = loginAttempts.get(key)
+
+  if (!attempt || now >= attempt.resetAt) {
+    loginAttempts.set(key, { count: 0, resetAt: now + LOGIN_WINDOW_MS })
+    return false
+  }
+
+  return attempt.count >= LOGIN_MAX_ATTEMPTS
+}
+
+function recordFailedLogin(key) {
+  const now = Date.now()
+  const attempt = loginAttempts.get(key)
+
+  if (!attempt || now >= attempt.resetAt) {
+    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS })
+    return
+  }
+
+  attempt.count += 1
+}
+
+function clearFailedLogins(key) {
+  loginAttempts.delete(key)
+}
+
+export async function handleAdminLogin(c) {
+  if (String(c.env.ADMIN_AUTH_MODE || '').toLowerCase() === 'disabled') {
+    return jsonResponse({ error: 'Admin password login is disabled.' }, 400)
+  }
+
+  const sessionSecret = getSessionSecret(c.env)
+  const admins = getConfiguredAdmins(c.env)
+  if (!sessionSecret || admins.length === 0) {
+    return jsonResponse({ error: 'Admin login is not configured.' }, 503)
+  }
+
+  let payload
+  try {
+    payload = await c.req.json()
+  } catch {
+    return jsonResponse({ error: 'Invalid login payload.' }, 400)
+  }
+
+  const email = String(payload.email || '').trim().toLowerCase()
+  const password = String(payload.password || '')
+  const loginKey = `${getClientIp(c)}:${email || 'unknown'}`
+
+  if (isLoginRateLimited(loginKey)) {
+    return jsonResponse({ error: 'Too many login attempts. Try again later.' }, 429)
+  }
+
+  const admin = admins.find((user) => user.email === email)
+
+  if (!admin || !(await verifyPassword(password, admin.passwordHash))) {
+    recordFailedLogin(loginKey)
+    return jsonResponse({ error: 'Invalid email or password.' }, 401)
+  }
+
+  clearFailedLogins(loginKey)
+
+  const now = Math.floor(Date.now() / 1000)
+  const token = await signSessionPayload({
+    sub: admin.email,
+    email: admin.email,
+    role: admin.role,
+    iat: now,
+    exp: now + SESSION_MAX_AGE_SECONDS,
+  }, sessionSecret)
+
+  return jsonResponse(
+    { ok: true, email: admin.email, role: admin.role, mode: 'password' },
+    200,
+    { 'Set-Cookie': `${SESSION_COOKIE}=${token}; ${getCookieOptions(c)}` },
+  )
+}
+
+export function handleAdminLogout(c) {
+  return jsonResponse(
+    { ok: true },
+    200,
+    { 'Set-Cookie': clearSessionCookie(c) },
+  )
+}
+
 export async function requireAdmin(c, next) {
+  if (String(c.env.ADMIN_AUTH_MODE || '').toLowerCase() === 'disabled') {
+    c.set('adminEmail', 'admin-auth-disabled')
+    c.set('adminAuthMode', 'disabled')
+    return next()
+  }
+
+  if (String(c.env.ADMIN_AUTH_MODE || '').toLowerCase() === 'password') {
+    const sessionSecret = getSessionSecret(c.env)
+    if (!sessionSecret) {
+      return jsonResponse({ error: 'Admin session secret is not configured.' }, 503)
+    }
+
+    const cookies = parseCookies(c.req.header('Cookie'))
+    const session = await verifySessionToken(cookies[SESSION_COOKIE], sessionSecret)
+    if (session?.email) {
+      c.set('adminEmail', session.email)
+      c.set('adminRole', session.role || 'admin')
+      c.set('adminAuthMode', 'password')
+      return next()
+    }
+
+    return jsonResponse({ error: 'Admin login is required.' }, 401)
+  }
+
   const request = c.req.raw
   const accessEmail = request.headers.get('cf-access-authenticated-user-email')
   const configuredEmail = c.env.ADMIN_EMAIL
 
   if (accessEmail && (!configuredEmail || accessEmail.toLowerCase() === configuredEmail.toLowerCase())) {
     c.set('adminEmail', accessEmail)
+    c.set('adminAuthMode', 'cloudflare-access')
     return next()
   }
 

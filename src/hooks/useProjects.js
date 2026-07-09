@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { portfolioItems } from '../data/portfolio'
+import { fetchJsonOnce } from '../utils/cachedFetch'
 
 function mergeWithStaticImages(projects) {
   const staticById = new Map(portfolioItems.map((project) => [project.id, project]))
@@ -27,15 +28,9 @@ export function useProjects() {
     let ignore = false
 
     async function loadProjects() {
-      try {
-        const response = await fetch('/api/projects')
-        if (!response.ok) return
-        const payload = await response.json()
-        if (!ignore && payload.configured && Array.isArray(payload.data) && payload.data.length > 0) {
-          setApiProjects(mergeWithStaticImages(payload.data))
-        }
-      } catch {
-        // Static fallback keeps public pages resilient during CMS migration.
+      const payload = await fetchJsonOnce('/api/projects')
+      if (!ignore && payload?.configured && Array.isArray(payload.data) && payload.data.length > 0) {
+        setApiProjects(mergeWithStaticImages(payload.data))
       }
     }
 

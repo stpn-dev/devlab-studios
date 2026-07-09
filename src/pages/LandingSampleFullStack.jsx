@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import GlassCard from '../components/GlassCard'
 
 const metrics = [
@@ -12,7 +13,11 @@ export default function LandingSampleFullStack() {
   const [formData, setFormData] = useState({ name: '', email: '', message: '' })
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white">
+    <>
+      <Helmet>
+        <meta name="robots" content="noindex,follow" />
+      </Helmet>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white">
       <main className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
         <section className="text-center">
           <p className="inline-flex rounded-full border border-cyan-400/40 bg-cyan-500/10 px-4 py-1 text-sm text-cyan-200">
@@ -93,6 +98,7 @@ export default function LandingSampleFullStack() {
           </GlassCard>
         </section>
       </main>
-    </div>
+      </div>
+    </>
   )
 }

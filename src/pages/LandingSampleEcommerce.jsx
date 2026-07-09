@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import GlassCard from '../components/GlassCard'
 import PrimaryButton from '../components/PrimaryButton'
 
@@ -45,7 +46,11 @@ export default function LandingSampleEcommerce() {
   const subtotal = selectedTab.items.reduce((sum, item) => sum + item.price, 0)
 
   return (
-    <div className="min-h-screen bg-[#f3efe7] text-[#1f2a36]">
+    <>
+      <Helmet>
+        <meta name="robots" content="noindex,follow" />
+      </Helmet>
+      <div className="min-h-screen bg-[#f3efe7] text-[#1f2a36]">
       <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <section className="rounded-3xl border border-[#d9cdbf] bg-[#fffdf8] p-6 sm:p-8">
           <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
@@ -156,6 +161,7 @@ export default function LandingSampleEcommerce() {
           </aside>
         </section>
       </main>
-    </div>
+      </div>
+    </>
   )
 }

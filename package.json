@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "cms:seed:projects": "node scripts/cms/generate-project-seed.mjs",
-    "cms:upload:project-media": "node scripts/cms/upload-project-media.mjs"
+    "cms:upload:project-media": "node scripts/cms/upload-project-media.mjs",
+    "cms:hash-admin-password": "node scripts/cms/hash-admin-password.mjs"
   },
   "dependencies": {
     "@refinedev/core": "^5.0.12",

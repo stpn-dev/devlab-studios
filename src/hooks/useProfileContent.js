@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getStaticProfileContent } from '../data/profileContent'
+import { fetchJsonOnce } from '../utils/cachedFetch'
 
 const staticProfileContent = getStaticProfileContent()
 
@@ -10,23 +11,16 @@ export function useProfileContent() {
     let ignore = false
 
     async function loadContent() {
-      try {
-        const response = await fetch('/api/profile-content')
-        if (!response.ok) return
+      const payload = await fetchJsonOnce('/api/profile-content')
+      const data = payload?.data
+      const hasData = payload?.configured && (
+        Boolean(data?.about?.name)
+        || (Array.isArray(data?.experiences) && data.experiences.length > 0)
+        || (Array.isArray(data?.skills?.technical) && data.skills.technical.length > 0)
+      )
 
-        const payload = await response.json()
-        const data = payload?.data
-        const hasData = payload?.configured && (
-          Boolean(data?.about?.name)
-          || (Array.isArray(data?.experiences) && data.experiences.length > 0)
-          || (Array.isArray(data?.skills?.technical) && data.skills.technical.length > 0)
-        )
-
-        if (!ignore && hasData) {
-          setApiContent(data)
-        }
-      } catch {
-        // Static fallback keeps profile page resilient during CMS migration.
+      if (!ignore && hasData) {
+        setApiContent(data)
       }
     }
 

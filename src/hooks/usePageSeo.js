@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import seoContent from '../data/seoContent'
+import { fetchJsonOnce } from '../utils/cachedFetch'
 
 const staticSeoPages = seoContent.pages || []
 
@@ -14,16 +15,9 @@ export function usePageSeo(pageSlug) {
     let cancelled = false
 
     async function loadSeo() {
-      try {
-        const response = await fetch(`/api/seo/${pageSlug}`)
-        if (!response.ok) return
-
-        const payload = await response.json()
-        if (!cancelled && payload?.data) {
-          setApiContent(payload.data)
-        }
-      } catch {
-        // Keep static fallback.
+      const payload = await fetchJsonOnce(`/api/seo/${pageSlug}`)
+      if (!cancelled && payload?.data) {
+        setApiContent(payload.data)
       }
     }
 

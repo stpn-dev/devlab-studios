@@ -272,7 +272,9 @@ function Home() {
                 src={dataVectorPng}
                 alt="Data systems workflow illustration"
                 className="h-auto w-full rounded-xl object-contain"
-                loading="lazy"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
               />
             </div>
           </div>

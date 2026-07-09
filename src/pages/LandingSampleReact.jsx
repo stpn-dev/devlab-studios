@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import GlassCard from '../components/GlassCard'
 import PrimaryButton from '../components/PrimaryButton'
 import { Check } from '../components/icons/icons'
@@ -73,7 +74,11 @@ export default function LandingSampleReact() {
   const activePackage = packages.find((pack) => pack.key === selectedPackage) ?? packages[1]
 
   return (
-    <div className="min-h-screen bg-[#f7f1e8] text-[#1c2535]">
+    <>
+      <Helmet>
+        <meta name="robots" content="noindex,follow" />
+      </Helmet>
+      <div className="min-h-screen bg-[#f7f1e8] text-[#1c2535]">
       <section className="relative overflow-hidden border-b border-[#d8c9b3]">
         <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#d88f4c]/30 blur-3xl" />
         <div className="absolute top-16 -right-28 h-80 w-80 rounded-full bg-[#5d7ea7]/25 blur-3xl" />
@@ -198,6 +203,7 @@ export default function LandingSampleReact() {
           </div>
         </div>
       </section>
-    </div>
+      </div>
+    </>
   )
 }
