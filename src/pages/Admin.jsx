@@ -222,11 +222,11 @@ function Admin() {
       <div className="min-h-screen bg-brand-shell text-brand-ink">
         <div className="border-b border-brand-teal/10 bg-white/95 backdrop-blur-sm">
           <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-start gap-3">
               <img
                 src={brandingAssets.logoOnlyUrl}
                 alt="DevLab Studios"
-                className="h-12 w-12 rounded-md object-contain"
+                className="mt-1 h-12 w-12 shrink-0 rounded-md object-contain"
                 width="48"
                 height="48"
                 onError={(event) => {
@@ -234,11 +234,11 @@ function Admin() {
                   event.currentTarget.src = devlabStudiosLogo
                 }}
               />
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">CMS Admin</p>
-                <h1 className="mt-1 text-2xl font-semibold text-brand-ink">{section.title}</h1>
+                <h1 className="mt-1 text-2xl font-semibold leading-tight text-brand-ink">{section.title}</h1>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{section.subtitle}</p>
               </div>
-              <p className="mt-1 text-sm text-slate-600">{section.subtitle}</p>
             </div>
 
             <div className="flex flex-col gap-3 rounded-md border border-brand-teal/15 bg-white px-4 py-3 shadow-sm shadow-brand-teal/5 sm:flex-row sm:items-center sm:justify-between">
