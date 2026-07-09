@@ -161,6 +161,15 @@ function getSessionSecret(env) {
   return String(env.ADMIN_SESSION_SECRET || '').trim()
 }
 
+function getAdminAuthMode(env) {
+  const configuredMode = String(env.ADMIN_AUTH_MODE || '').trim().toLowerCase()
+  if (configuredMode) return configuredMode
+
+  return getSessionSecret(env) && getConfiguredAdmins(env).length > 0
+    ? 'password'
+    : 'cloudflare-access'
+}
+
 function getClientIp(c) {
   return c.req.header('cf-connecting-ip')
     || c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
@@ -196,7 +205,7 @@ function clearFailedLogins(key) {
 }
 
 export async function handleAdminLogin(c) {
-  if (String(c.env.ADMIN_AUTH_MODE || '').toLowerCase() === 'disabled') {
+  if (getAdminAuthMode(c.env) === 'disabled') {
     return jsonResponse({ error: 'Admin password login is disabled.' }, 400)
   }
 
@@ -255,13 +264,15 @@ export function handleAdminLogout(c) {
 }
 
 export async function requireAdmin(c, next) {
-  if (String(c.env.ADMIN_AUTH_MODE || '').toLowerCase() === 'disabled') {
+  const authMode = getAdminAuthMode(c.env)
+
+  if (authMode === 'disabled') {
     c.set('adminEmail', 'admin-auth-disabled')
     c.set('adminAuthMode', 'disabled')
     return next()
   }
 
-  if (String(c.env.ADMIN_AUTH_MODE || '').toLowerCase() === 'password') {
+  if (authMode === 'password') {
     const sessionSecret = getSessionSecret(c.env)
     if (!sessionSecret) {
       return jsonResponse({ error: 'Admin session secret is not configured.' }, 503)
