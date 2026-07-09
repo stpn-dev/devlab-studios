@@ -676,8 +676,8 @@ function ServicesEditor({ value, onChange }) {
 }
 
 function ResourcesEditor({ value, onChange, onSave, onStatusChange, isSaving, isReadOnlyPreview }) {
-  const posts = value.posts || value.guides || []
-  const playbook = value.playbook || []
+  const posts = useMemo(() => value.posts || value.guides || [], [value.guides, value.posts])
+  const playbook = useMemo(() => value.playbook || [], [value.playbook])
   const [selectedPostId, setSelectedPostId] = useState(posts[0]?.id || '')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')

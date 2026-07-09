@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { createElement, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link, useParams } from 'react-router-dom'
 import PageSeo from '../components/PageSeo'
@@ -18,6 +18,10 @@ import { useResourcesContent } from '../hooks/useResourcesContent'
 
 function resolveIcon(name) {
   return Icons[name] || Icons.Lightbulb
+}
+
+function renderResourceIcon(name, props) {
+  return createElement(resolveIcon(name), props)
 }
 
 function formatDate(value) {
@@ -124,8 +128,6 @@ function renderBody(body) {
 }
 
 function ResourceFeedCard({ post, featured = false }) {
-  const Icon = resolveIcon(post.icon)
-
   return (
     <article className={`rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_18px_45px_rgba(60,28,120,0.10)] ${featured ? 'overflow-hidden' : 'p-6 sm:p-7'}`}>
       {featured ? (
@@ -141,7 +143,7 @@ function ResourceFeedCard({ post, featured = false }) {
             ) : (
               <div className="flex h-full min-h-[220px] w-full flex-col items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
-                  <Icon className="h-6 w-6" aria-hidden="true" />
+                  {renderResourceIcon(post.icon, { className: 'h-6 w-6', 'aria-hidden': 'true' })}
                 </div>
                 <p className="mt-4 text-sm font-semibold uppercase tracking-[0.16em] text-white/70">{post.category}</p>
                 <p className="mt-2 text-2xl font-semibold">{post.title}</p>
@@ -197,7 +199,7 @@ function ResourceFeedCard({ post, featured = false }) {
         <>
           <div className="flex items-start gap-4">
             <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
-              <Icon className="h-5 w-5" aria-hidden="true" />
+              {renderResourceIcon(post.icon, { className: 'h-5 w-5', 'aria-hidden': 'true' })}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -393,7 +395,6 @@ function ResourcesIndex({ posts, playbook }) {
 }
 
 function ResourcesDetail({ post, relatedPosts }) {
-  const Icon = resolveIcon(post.icon)
   const seoTitle = `${post.title} | DevLab Studios Resources`
   const seoDescription = post.summary
   const canonicalUrl = `https://www.devlabstudios.com/resources/${post.slug}`
@@ -476,7 +477,7 @@ function ResourcesDetail({ post, relatedPosts }) {
               ) : (
                 <div className="flex h-full min-h-[220px] w-full flex-col items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 text-center">
                   <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-white">
-                    <Icon className="h-7 w-7" aria-hidden="true" />
+                    {renderResourceIcon(post.icon, { className: 'h-7 w-7', 'aria-hidden': 'true' })}
                   </div>
                   <p className="mt-4 text-sm font-semibold uppercase tracking-[0.16em] text-white/70">{post.category}</p>
                   <p className="mt-2 text-2xl font-semibold">{post.title}</p>
