@@ -262,7 +262,7 @@ function Home() {
 
             <div className="flex flex-wrap gap-3 text-sm text-slate-600">
               <span className="badge-pill">Available for part-time and full-time engagements</span>
-              <span className="badge-pill">Based in Asia/Manila (GMT+8) â€¢ Remote-first</span>
+              <span className="badge-pill">Based in Asia/Manila (GMT+8) - Remote-first</span>
             </div>
           </div>
 
