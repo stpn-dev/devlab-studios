@@ -1,30 +1,34 @@
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import MainLayout from './layouts/MainLayout'
-import Home from './pages/Home'
-import About from './pages/About'
-import Services from './pages/Services'
-import Contact from './pages/Contact'
-import Profile from './pages/Profile'
-import Resources from './pages/Resources'
 
-// Code split: Lazy load landing pages for better performance
+const Home = lazy(() => import('./pages/Home'))
+const About = lazy(() => import('./pages/About'))
+const Services = lazy(() => import('./pages/Services'))
+const Contact = lazy(() => import('./pages/Contact'))
+const Profile = lazy(() => import('./pages/Profile'))
+const Resources = lazy(() => import('./pages/Resources'))
 const LandingSampleReact = lazy(() => import('./pages/LandingSampleReact'))
 const LandingSampleHtml = lazy(() => import('./pages/LandingSampleHtml'))
 const LandingSampleFullStack = lazy(() => import('./pages/LandingSampleFullStack'))
 const LandingSampleLocalService = lazy(() => import('./pages/LandingSampleLocalService'))
 const LandingSampleEcommerce = lazy(() => import('./pages/LandingSampleEcommerce'))
 const Admin = lazy(() => import('./pages/Admin'))
+const NotFound = lazy(() => import('./pages/errors/NotFound'))
+const Maintenance = lazy(() => import('./pages/errors/Maintenance'))
 
-import NotFound from './pages/errors/NotFound'
-import Maintenance from './pages/errors/Maintenance'
 import ErrorBoundary from './components/ErrorBoundary'
 
-// Fallback component for lazy loaded pages
 const LoadingFallback = () => (
-  <div className="flex items-center justify-center min-h-screen">
-    <div className="text-white animate-pulse">Loading...</div>
+  <div className="flex min-h-[55vh] items-center justify-center">
+    <div className="rounded-full bg-brand-mint px-4 py-2 text-sm font-semibold text-brand-teal">Loading...</div>
   </div>
+)
+
+const lazyPage = (Component) => (
+  <Suspense fallback={<LoadingFallback />}>
+    <Component />
+  </Suspense>
 )
 
 const isMaintenance = import.meta.env.VITE_MAINTENANCE_MODE === 'true'
@@ -32,7 +36,7 @@ const isMaintenance = import.meta.env.VITE_MAINTENANCE_MODE === 'true'
 const router = createBrowserRouter([
   {
     path: '/admin',
-    element: <Suspense fallback={<LoadingFallback />}><Admin /></Suspense>,
+    element: lazyPage(Admin),
   },
   {
     path: '/',
@@ -40,36 +44,36 @@ const router = createBrowserRouter([
     errorElement: <MainLayout />,
     children: [
       isMaintenance
-        ? { index: true, element: <Maintenance /> }
-        : { index: true, element: <Home /> },
+        ? { index: true, element: lazyPage(Maintenance) }
+        : { index: true, element: lazyPage(Home) },
       isMaintenance
-        ? { path: 'about', element: <Maintenance /> }
-        : { path: 'about', element: <About /> },
+        ? { path: 'about', element: lazyPage(Maintenance) }
+        : { path: 'about', element: lazyPage(About) },
       isMaintenance
-        ? { path: 'experiences', element: <Maintenance /> }
+        ? { path: 'experiences', element: lazyPage(Maintenance) }
         : { path: 'experiences', element: <Navigate to="/profile" replace /> },
       isMaintenance
-        ? { path: 'services', element: <Maintenance /> }
-        : { path: 'services', element: <Services /> },
+        ? { path: 'services', element: lazyPage(Maintenance) }
+        : { path: 'services', element: lazyPage(Services) },
       isMaintenance
-        ? { path: 'portfolio', element: <Maintenance /> }
+        ? { path: 'portfolio', element: lazyPage(Maintenance) }
         : { path: 'portfolio', element: <Navigate to="/profile" replace /> },
       isMaintenance
-        ? { path: 'profile', element: <Maintenance /> }
-        : { path: 'profile', element: <Profile /> },
+        ? { path: 'profile', element: lazyPage(Maintenance) }
+        : { path: 'profile', element: lazyPage(Profile) },
       isMaintenance
-        ? { path: 'resources', element: <Maintenance /> }
-        : { path: 'resources', element: <Resources /> },
+        ? { path: 'resources', element: lazyPage(Maintenance) }
+        : { path: 'resources', element: lazyPage(Resources) },
       isMaintenance
-        ? { path: 'resources/:slug', element: <Maintenance /> }
-        : { path: 'resources/:slug', element: <Resources /> },
-      { path: 'landing-sample-react', element: <Suspense fallback={<LoadingFallback />}><LandingSampleReact /></Suspense> },
-      { path: 'landing-sample-html', element: <Suspense fallback={<LoadingFallback />}><LandingSampleHtml /></Suspense> },
-      { path: 'landing-sample-fullstack', element: <Suspense fallback={<LoadingFallback />}><LandingSampleFullStack /></Suspense> },
-      { path: 'landing-sample-local-service', element: <Suspense fallback={<LoadingFallback />}><LandingSampleLocalService /></Suspense> },
-      { path: 'landing-sample-ecommerce', element: <Suspense fallback={<LoadingFallback />}><LandingSampleEcommerce /></Suspense> },
-      { path: 'contact', element: <Contact /> },
-      { path: '*', element: <NotFound /> },
+        ? { path: 'resources/:slug', element: lazyPage(Maintenance) }
+        : { path: 'resources/:slug', element: lazyPage(Resources) },
+      { path: 'landing-sample-react', element: lazyPage(LandingSampleReact) },
+      { path: 'landing-sample-html', element: lazyPage(LandingSampleHtml) },
+      { path: 'landing-sample-fullstack', element: lazyPage(LandingSampleFullStack) },
+      { path: 'landing-sample-local-service', element: lazyPage(LandingSampleLocalService) },
+      { path: 'landing-sample-ecommerce', element: lazyPage(LandingSampleEcommerce) },
+      { path: 'contact', element: lazyPage(Contact) },
+      { path: '*', element: lazyPage(NotFound) },
     ],
   },
 ])

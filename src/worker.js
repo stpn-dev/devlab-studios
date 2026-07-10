@@ -19,6 +19,9 @@ import { jsonResponse, nowIso } from './worker/utils/responses'
 const app = new Hono()
 const CONTACT_WINDOW_MS = 10 * 60 * 1000
 const CONTACT_MAX_ATTEMPTS = 5
+const PUBLIC_CONTENT_CACHE_HEADERS = {
+  'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400',
+}
 const contactAttempts = new Map()
 
 app.use('*', async (c, next) => {
@@ -42,6 +45,10 @@ function hasDb(env) {
 
 function hasMediaBucket(env) {
   return Boolean(env.MEDIA_BUCKET)
+}
+
+function publicJson(body) {
+  return jsonResponse(body, 200, PUBLIC_CONTENT_CACHE_HEADERS)
 }
 
 function normalizeMediaUrl(url, env) {
@@ -164,26 +171,26 @@ app.post('/api/contact', handleContact)
 
 app.get('/api/projects', async (c) => {
   if (!hasDb(c.env)) {
-    return c.json({ data: [], source: 'static-fallback', configured: false })
+    return publicJson({ data: [], source: 'static-fallback', configured: false })
   }
 
   try {
     const projects = await listProjects(c.env.DB)
-    return c.json({ data: projects.map((project) => normalizeProjectMedia(project, c.env)), source: 'd1', configured: true })
+    return publicJson({ data: projects.map((project) => normalizeProjectMedia(project, c.env)), source: 'd1', configured: true })
   } catch (error) {
     return jsonResponse({ data: [], source: 'static-fallback', configured: false, error: error.message }, 200)
   }
 })
 
-app.get('/api/content/:page', (c) => c.json({ page: c.req.param('page'), data: null, source: 'static-fallback' }))
+app.get('/api/content/:page', (c) => publicJson({ page: c.req.param('page'), data: null, source: 'static-fallback' }))
 app.get('/api/services', async (c) => {
   if (!hasDb(c.env)) {
-    return c.json({ data: null, source: 'static-fallback', configured: false })
+    return publicJson({ data: null, source: 'static-fallback', configured: false })
   }
 
   try {
     const data = await getServicesContent(c.env.DB)
-    return c.json({ data, source: 'd1', configured: true })
+    return publicJson({ data, source: 'd1', configured: true })
   } catch (error) {
     return jsonResponse({ data: null, source: 'static-fallback', configured: false, error: error.message }, 200)
   }
@@ -191,12 +198,12 @@ app.get('/api/services', async (c) => {
 
 app.get('/api/resources', async (c) => {
   if (!hasDb(c.env)) {
-    return c.json({ data: null, source: 'static-fallback', configured: false })
+    return publicJson({ data: null, source: 'static-fallback', configured: false })
   }
 
   try {
     const data = await getResourcesContent(c.env.DB)
-    return c.json({ data, source: 'd1', configured: true })
+    return publicJson({ data, source: 'd1', configured: true })
   } catch (error) {
     return jsonResponse({ data: null, source: 'static-fallback', configured: false, error: error.message }, 200)
   }
@@ -204,12 +211,12 @@ app.get('/api/resources', async (c) => {
 
 app.get('/api/profile-content', async (c) => {
   if (!hasDb(c.env)) {
-    return c.json({ data: null, source: 'static-fallback', configured: false })
+    return publicJson({ data: null, source: 'static-fallback', configured: false })
   }
 
   try {
     const data = await getProfileContent(c.env.DB)
-    return c.json({ data, source: 'd1', configured: true })
+    return publicJson({ data, source: 'd1', configured: true })
   } catch (error) {
     return jsonResponse({ data: null, source: 'static-fallback', configured: false, error: error.message }, 200)
   }
@@ -217,12 +224,12 @@ app.get('/api/profile-content', async (c) => {
 
 app.get('/api/site-settings', async (c) => {
   if (!hasDb(c.env)) {
-    return c.json({ data: null, source: 'static-fallback', configured: false })
+    return publicJson({ data: null, source: 'static-fallback', configured: false })
   }
 
   try {
     const data = await getSiteSettingsContent(c.env.DB)
-    return c.json({ data, source: 'd1', configured: true })
+    return publicJson({ data, source: 'd1', configured: true })
   } catch (error) {
     return jsonResponse({ data: null, source: 'static-fallback', configured: false, error: error.message }, 200)
   }
@@ -230,12 +237,12 @@ app.get('/api/site-settings', async (c) => {
 
 app.get('/api/seo/:pageSlug', async (c) => {
   if (!hasDb(c.env)) {
-    return c.json({ data: null, source: 'static-fallback', configured: false })
+    return publicJson({ data: null, source: 'static-fallback', configured: false })
   }
 
   try {
     const data = await getSeoMetadata(c.env.DB, c.req.param('pageSlug'))
-    return c.json({ data, source: data ? 'd1' : 'static-fallback', configured: Boolean(data) })
+    return publicJson({ data, source: data ? 'd1' : 'static-fallback', configured: Boolean(data) })
   } catch (error) {
     return jsonResponse({ data: null, source: 'static-fallback', configured: false, error: error.message }, 200)
   }
