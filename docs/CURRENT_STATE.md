@@ -69,10 +69,12 @@ Identified during this audit and removed as part of housekeeping:
 These were identified during the audit but intentionally left for a separate,
 explicit decision rather than being changed automatically:
 
-- **Stale remote branches** — `origin/cloudflare/workers-autoconfig` and
-  `origin/copilot/fix-error-in-actions` are diverged from `main` and appear
-  abandoned. Recommend deleting after confirming no in-progress work depends
-  on them.
+- ~~**Stale remote branches** — `origin/cloudflare/workers-autoconfig` and
+  `origin/copilot/fix-error-in-actions`~~ **Done (2026-07-31).** Both were
+  one-off bot/agent-generated branches (Cloudflare's dashboard auto-config
+  proposal and a GitHub Copilot CI-fix attempt, both from 2026-03-10, both
+  fully superseded by later manual commits on `main`) and have been deleted
+  from `origin`.
 - **`screenshots/` folder** — currently tracked in git (~800 KB of ad-hoc QA
   PNGs). Recommend either untracking + gitignoring it, or moving it into
   `docs/` if it's meant to be an intentional documentation asset.
