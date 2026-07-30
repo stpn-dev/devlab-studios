@@ -59,7 +59,11 @@ docs: update architecture diagram
 
 ## Versioning
 
-This project follows [Semantic Versioning](https://semver.org/) starting at
-`1.0.0`. Bump `package.json`'s `version` and tag the release (`git tag
-vX.Y.Z`) when cutting a new version; move the corresponding `CHANGELOG.md`
-entries from `[Unreleased]` into a new dated `[X.Y.Z]` section.
+Full policy and the release process live in
+[CHANGELOG.md](CHANGELOG.md#versioning-policy) — read that before cutting a
+release. Short version: decide the SemVer bump yourself based on what
+actually changed (CI does not guess this from commit messages), bump
+`package.json` and retitle `[Unreleased]` to a dated version heading in one
+commit, then push to `main`. CI detects the version change and automatically
+tags the release and publishes a GitHub Release — you never run `git tag`
+by hand except as a documented fallback if CI is down.

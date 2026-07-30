@@ -38,3 +38,68 @@ jobs:
       - name: Audit production dependencies
         run: npx audit-ci --config audit-ci.json
 
+  tag-release:
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for a version bump
+        id: version
+        run: |
+          CURRENT=$(jq -r .version package.json)
+          BEFORE="${{ github.event.before }}"
+          if [ -n "$BEFORE" ] && git cat-file -e "$BEFORE" 2>/dev/null; then
+            PREVIOUS=$(git show "$BEFORE:package.json" | jq -r .version)
+          else
+            PREVIOUS=""
+          fi
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT" != "$PREVIOUS" ]; then
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Guard against retagging an existing version
+        if: steps.version.outputs.bumped == 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.current }}"
+          if git rev-parse "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists. Version tags are immutable and never reused — bump to a new version instead."
+            exit 1
+          fi
+
+      - name: Extract CHANGELOG section for this version
+        if: steps.version.outputs.bumped == 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.current }}"
+          awk -v ver="$VERSION" '
+            BEGIN { heading = "## [" ver "]" }
+            index($0, heading) == 1 { found=1; next }
+            found && index($0, "## [") == 1 { exit }
+            found { print }
+          ' CHANGELOG.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "::error::No '## [$VERSION]' section found in CHANGELOG.md — add one before bumping the version."
+            exit 1
+          fi
+
+      - name: Tag and publish release
+        if: steps.version.outputs.bumped == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.current }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" --title "v$VERSION" --notes-file release_notes.md
+
