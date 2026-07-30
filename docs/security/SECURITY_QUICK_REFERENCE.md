@@ -1,3 +1,14 @@
+> ## ⚠️ 2026-07-30 Status Update
+> This audit is from **March 10, 2026**, against an assumed GitHub Pages /
+> Cloudflare Pages static deployment. The project now deploys as a single
+> Cloudflare Worker with D1 + R2. Both CRITICAL issues below and most MAJOR
+> items are **resolved** — see
+> [SECURITY_DOCUMENTATION_INDEX.md](./SECURITY_DOCUMENTATION_INDEX.md) for the
+> full resolved/open table. This banner is the only edit made to this
+> document; the content below is preserved as historical record.
+
+---
+
 # 🔐 Security Audit Summary - Quick Reference
 
 **Project:** Tech VA Portfolio  
@@ -156,15 +167,15 @@ git push origin main
 
 ## 🌐 Deployment Platform Recommendation
 
-### Current: Cloudflare Pages + GitHub
+### Historical: Cloudflare Pages + GitHub
 - ✅ **Pros:** Global edge CDN, custom security headers via `_headers`, SPA routing via `_redirects`
 - ✅ **Pros:** Automatic HTTPS and continuous deployment from `main`
 - ⚠️ **Watchout:** Keep Cloudflare environment variables in sync with rotated Zoho endpoint URLs
 
-**Decision:** Stay on Cloudflare Pages and harden existing setup (already applied in repo)
-
-**Setup Time:** 10-15 minutes  
-**Migration Time:** Not needed
+> Superseded: the project now deploys as a single Cloudflare **Worker**
+> (`wrangler.jsonc`), not Cloudflare Pages. SPA fallback is handled by the
+> Worker's asset binding, not a `_redirects` file. See
+> [../guides/PRODUCTION_DEPLOYMENT_GUIDE.md](../guides/PRODUCTION_DEPLOYMENT_GUIDE.md).
 
 ---
 
@@ -174,8 +185,7 @@ git push origin main
 |------|------|
 | **Full Audit Report** | [SECURITY_AUDIT_REPORT.md](./SECURITY_AUDIT_REPORT.md) |
 | **Fix Checklist** | [SECURITY_REMEDIATION_CHECKLIST.md](./SECURITY_REMEDIATION_CHECKLIST.md) |
-| **Deployment Guide** | [PRODUCTION_DEPLOYMENT_GUIDE.md](./PRODUCTION_DEPLOYMENT_GUIDE.md) |
-| **Cloudflare Deployment Guide** | [PRODUCTION_DEPLOYMENT_GUIDE.md](./PRODUCTION_DEPLOYMENT_GUIDE.md) |
+| **Deployment Guide** | [../guides/PRODUCTION_DEPLOYMENT_GUIDE.md](../guides/PRODUCTION_DEPLOYMENT_GUIDE.md) |
 
 ---
 
@@ -203,71 +213,42 @@ git push origin main
 
 ---
 
-## 🚀 Go/No-Go Checklist
+## 🚀 Go/No-Go Checklist (original, March 2026)
 
 ### GO ✅
 - [x] Code quality excellent
 - [x] Dependencies current
 - [x] Error handling proper
 - [x] React best practices followed
-- [ ] All critical vulnerabilities fixed
-- [ ] All major vulnerabilities addressed
+- [x] All critical vulnerabilities fixed *(as of 2026-07-30)*
+- [x] All major vulnerabilities addressed *(as of 2026-07-30, except SRI — see status update)*
 - [x] Testing completed
 - [x] Documentation provided
 
-### NO-GO 🛑
-- [x] Exposed credentials in .env.example (CRITICAL)
-- [x] Exposed credentials in .env.local (CRITICAL)
-- [ ] Missing CSP headers (MAJOR)
-- [ ] Missing rate limiting (MAJOR)
-
-**Current Status:** 🛑 **NO-GO** until CRITICAL issues resolved
-
-**Expected READY Date:** March 10, 2026 (Today) + 1 hour
+**Current Status (2026-07-30):** ✅ **GO** — critical/major items resolved; SRI and email-regex hardening remain as low-priority open items (see [SECURITY_DOCUMENTATION_INDEX.md](./SECURITY_DOCUMENTATION_INDEX.md)).
 
 ---
 
 ## 📊 Metrics Summary
 
-| Metric | Status | Target |
+| Metric | Original Status (Mar 2026) | Current Status (Jul 2026) |
 |--------|--------|--------|
-| **Security Headers** | Partial (meta tags only) | Full (HTTP headers via platform) |
+| **Security Headers** | Partial (meta tags only) | ✅ Full (HTTP headers via `public/_headers`) |
 | **HTTPS** | ✅ Enforced | ✅ Enforced |
 | **XSS Protection** | ✅ Good | ✅ Good |
-| **Dependency Vulnerabilities** | ✅ Zero | ✅ Zero |
-| **Rate Limiting** | ❌ Missing | ✅ Implemented |
+| **Dependency Vulnerabilities** | ✅ Zero | ✅ Checked in CI (`npm audit`) |
+| **Rate Limiting** | ❌ Missing | ✅ Implemented (server-side, `src/worker.js`) |
 | **Error Handling** | ✅ Excellent | ✅ Excellent |
 | **Credential Exposure** | 🔴 CRITICAL | ✅ Resolved |
-| **Sub-resource Integrity** | ⏳ Pending | ✅ Added |
+| **Sub-resource Integrity** | ⏳ Pending | ❌ Still open |
 
 ---
 
 ## 🎓 Security Training
 
-**After deploying this fix:**
+**Ongoing:**
 
 1. Read: [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 2. Watch: [Security Headers Explained](https://securityheaders.com/)
 3. Practice: Run monthly `npm audit`
 4. Rotate: Credentials every 3-6 months
-
----
-
-## 💬 Questions?
-
-See full documentation:
-- **"What do I fix first?"** → Start with Phase 1 above
-- **"How long will this take?"** → 4-6 hours total
-- **"Can I skip something?"** → No, CRITICAL items are blockers
-- **"When should I deploy?"** → After all Phase 1 + Phase 2 complete
-- **"Where do I go from here?"** → See PRODUCTION_DEPLOYMENT_GUIDE.md
-
----
-
-**Status:** ⏳ **READY FOR PHASE 1** - Start credential regeneration today
-
-**Next Checkpoint:** Phase 2 completion within 7 days
-
-**Production Ready:** After all 3 phases complete (~1 week)
-
-**Good Luck! 🚀**

@@ -1,16 +1,25 @@
 {
   "name": "tech-va-resume",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "license": "UNLICENSED",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "cms:seed:projects": "node scripts/cms/generate-project-seed.mjs",
+    "prepare": "husky",
+    "cms:seed:projects": "node scripts/cms/generate-project-seed.mjs > scripts/cms/seed/project-seed.sql",
     "cms:upload:project-media": "node scripts/cms/upload-project-media.mjs",
     "cms:hash-admin-password": "node scripts/cms/hash-admin-password.mjs"
+  },
+  "lint-staged": {
+    "*.{js,jsx}": "eslint --fix",
+    "*.css": "stylelint --fix"
   },
   "dependencies": {
     "@refinedev/core": "^5.0.12",
@@ -25,6 +34,8 @@
     "react-router-dom": "^7.11.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
     "@eslint/js": "^9.39.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
@@ -34,6 +45,8 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.3.0",
     "postcss": "^8.4.49",
     "stylelint": "^16.26.1",
     "stylelint-config-tailwindcss": "^1.0.0",
