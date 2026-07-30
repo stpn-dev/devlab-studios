@@ -25,6 +25,20 @@ pass. Replaces the stale "Known Limitations" section that used to live in
   `robots.txt`, JSON-LD (per prior `feat: implement comprehensive SEO
   optimizations` commit).
 
+## Dependency security
+
+CI runs `npx audit-ci --config audit-ci.json` (replacing plain `npm audit` on
+2026-07-31) against production dependencies. One advisory is allowlisted:
+
+- **`GHSA-qwww-vcr4-c8h2`** (react-router, RSC-mode CSRF bypass) — fixed only
+  in react-router 8.3.0, but `react-router-dom` (the package this app actually
+  imports) has not published a v8 release, so there is no available
+  non-breaking fix. The advisory explicitly states it only affects apps using
+  React Router's unstable RSC (React Server Components) APIs — this app uses
+  none (plain `createBrowserRouter`/`RouterProvider`, no RSC). Revisit and
+  remove the allowlist entry once `react-router-dom` ships a fixed release, or
+  when evaluating a move to the unified `react-router` v8+ package.
+
 ## Known issues / limitations
 
 - **No SSR/SSG** — pure client-side rendering; see

@@ -36,5 +36,5 @@ jobs:
         run: npm run build
 
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        run: npx audit-ci --config audit-ci.json
 
