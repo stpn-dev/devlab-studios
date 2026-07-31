@@ -96,9 +96,9 @@
 
 ---
 
-### [ ] 12. Set Up Monthly Dependency Updates
+### [x] 12. Set Up Monthly Dependency Updates
 
-**Status:** ⏳ Still pending — no Dependabot config found (`.github/dependabot.yml` does not exist). Consider adding.
+**Status:** ✅ Complete (2026-07-31) — `.github/dependabot.yml` added, monthly schedule for both the npm ecosystem (dev-dependencies grouped into one PR) and GitHub Actions.
 
 ---
 

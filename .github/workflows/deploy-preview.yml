@@ -1,0 +1,48 @@
+name: Deploy Preview
+
+on:
+  push:
+    branches: [development]
+
+concurrency:
+  group: "deploy-preview-${{ github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # CLOUDFLARE_ENV must be set for the build step, not the deploy step —
+      # @astrojs/cloudflare bakes the resolved wrangler.jsonc environment
+      # (bindings, D1 database, R2 bucket, Worker name) into
+      # dist/server/wrangler.json at `astro build` time, before `wrangler
+      # deploy` ever runs. Passing --env preview to wrangler alone deploys
+      # whatever was baked in at build time, which defaults to production's
+      # bindings if this env var isn't set here. See
+      # docs/architecture/decisions/0005-preview-environment-build-time-env.md.
+      - name: Build (preview environment)
+        run: npm run build
+        env:
+          CLOUDFLARE_ENV: preview
+
+      - name: Deploy to preview
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: db49443cea6f0725d848254f17bcdab5
+          command: deploy --env preview

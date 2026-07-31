@@ -36,69 +36,80 @@ what was baked in, under the separate `devlab-studios-preview` Worker
 name, so there's no path by which a preview deploy can accidentally
 overwrite the production Worker.
 
-### One-time setup (requires Cloudflare account access this environment doesn't have)
+### One-time setup — done
 
-The API token available when this was written could not create D1
-databases or R2 buckets (`wrangler d1 create` / `wrangler r2 bucket
-create` both failed with a permissions error), so provisioning is a
-manual one-time step:
+This has already been provisioned once (2026-07-31):
 
-1. **Create the preview D1 database**:
-   ```
-   npx wrangler d1 create devlab-studios-cms-preview
-   ```
-   Copy the returned `database_id` into `wrangler.jsonc`'s
-   `env.preview.d1_databases[0].database_id` (replacing
-   `REPLACE_WITH_PREVIEW_DATABASE_ID`).
+1. **Preview D1 database**: `devlab-studios-cms-preview`
+   (`3e01246b-fe41-4bb4-b667-30fa964ba82b`), created via
+   `wrangler d1 create` and filled into `wrangler.jsonc`'s
+   `env.preview.d1_databases[0].database_id`. All 6 migrations applied
+   with `wrangler d1 migrations apply devlab-studios-cms-preview --remote --env preview`.
+2. **Preview R2 bucket**: `devlab-studios-preview`, created via
+   `wrangler r2 bucket create`, public access enabled via
+   `wrangler r2 bucket dev-url enable devlab-studios-preview`. The
+   resulting public URL is in `wrangler.jsonc`'s
+   `env.preview.vars.R2_PUBLIC_BASE_URL`.
+3. **Preview secrets** — deliberately different from production's, set via
+   `wrangler secret put <NAME> --env preview`: `ADMIN_EMAIL`,
+   `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET`, `ZOHO_WEBHOOK_URL`
+   (a placeholder — preview leads still persist to D1 even though delivery
+   fails). `TURNSTILE_SECRET_KEY` intentionally left unset (degrades
+   gracefully, safe for preview).
+4. **Verified end to end** against the live deployed Worker: homepage,
+   `/api/health`, `/admin` login, and security headers all confirmed
+   working at `https://devlab-studios-preview.<subdomain>.workers.dev`.
 
-2. **Apply all migrations to it**:
-   ```
-   npx wrangler d1 migrations apply devlab-studios-cms-preview --remote --env preview
-   ```
+If these ever need re-provisioning (e.g. after deleting the resources), repeat with:
 
-3. **Create the preview R2 bucket**:
-   ```
-   npx wrangler r2 bucket create devlab-studios-preview
-   ```
-   Enable public access (R2 dashboard → bucket → Settings → Public
-   Access → allow `r2.dev` subdomain) and put the resulting URL into
-   `wrangler.jsonc`'s `env.preview.vars.R2_PUBLIC_BASE_URL` (replacing
-   `REPLACE_WITH_PREVIEW_BUCKET_PUBLIC_URL`).
+```sh
+npx wrangler d1 create devlab-studios-cms-preview
+npx wrangler d1 migrations apply devlab-studios-cms-preview --remote --env preview
+npx wrangler r2 bucket create devlab-studios-preview
+npx wrangler r2 bucket dev-url enable devlab-studios-preview
+```
 
-4. **Set preview's own secrets** — never copy production's:
-   ```
-   npx wrangler secret put ADMIN_SESSION_SECRET --env preview
-   npx wrangler secret put ADMIN_EMAIL --env preview
-   npx wrangler secret put ADMIN_PASSWORD_HASH --env preview
-   npx wrangler secret put ZOHO_WEBHOOK_URL --env preview
-   npx wrangler secret put TURNSTILE_SECRET_KEY --env preview
-   ```
-   Using a *different* admin password and a placeholder/non-production
-   Zoho webhook for preview is deliberate — it's what makes preview
-   genuinely isolated rather than a second door into the same data.
+then fill the resulting IDs/URL into `wrangler.jsonc`'s `env.preview` block.
 
-5. **Wire Workers Builds to deploy preview separately.** This repo's
-   Workers Builds project deploys `main` → production. Whether preview
-   deploys automatically (e.g. on PR branches) or is triggered manually
-   depends on dashboard configuration this document can't set from the
-   repo — see **Workers Builds → Settings → Build configuration** and set
-   the build command for non-production branches to:
-   ```
-   CLOUDFLARE_ENV=preview npm run build
-   ```
-   with the deploy step passing `--env preview`. If Workers Builds on
-   your plan doesn't support per-branch build commands, deploy preview
-   manually instead:
-   ```
-   CLOUDFLARE_ENV=preview npx astro build && npx wrangler deploy --env preview
-   ```
+### Automated deploys
+
+`.github/workflows/deploy-preview.yml` deploys automatically on every
+push to the `development` branch: `npm ci` → `CLOUDFLARE_ENV=preview npm
+run build` → `wrangler deploy --env preview` (via
+`cloudflare/wrangler-action`). This is a GitHub Actions workflow, not
+Workers Builds — it was added because Workers Builds' dashboard
+configuration isn't something this repo can set, and per-branch build
+commands aren't guaranteed to be available on every plan.
+
+**Requires a `CLOUDFLARE_API_TOKEN` repository secret** (Settings →
+Secrets and variables → Actions), scoped with at least `D1:Edit`,
+`Workers R2 Storage:Edit`, and `Workers Scripts:Edit` — the same token
+used for the manual setup above works. Set it with:
+
+```sh
+gh secret set CLOUDFLARE_API_TOKEN
+```
+
+(paste the token when prompted) or via the GitHub UI. Nothing else is
+needed — `db49443cea6f0725d848254f17bcdab5` (the account ID, not
+secret) is already in the workflow file.
+
+**Production (`main`) is deliberately left to Workers Builds**, which
+already auto-deploys it — adding a second automated deploy path for the
+same branch would risk two concurrent deploys racing each other. If you
+ever want GitHub Actions to own production too, disable Workers Builds'
+auto-deploy for `main` first, then add a matching `deploy.yml` for it
+(same shape as `deploy-preview.yml`, without `CLOUDFLARE_ENV` and without
+`--env preview`).
 
 ### Verifying isolation
 
 After setup, confirm preview and production can't see each other:
-```
+
+```sh
 npx wrangler d1 execute devlab-studios-cms-preview --remote --env preview --command "SELECT COUNT(*) FROM leads"
 ```
+
 should show only preview's own test data, never a real lead captured
 through the production contact form (and vice versa).
 
