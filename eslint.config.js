@@ -27,7 +27,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['vite.config.js', 'postcss.config.js', 'tailwind.config.js'],
+    files: ['vite.config.js', 'postcss.config.js', 'tailwind.config.js', 'playwright.config.js'],
     languageOptions: { globals: globals.node },
   },
 ])
