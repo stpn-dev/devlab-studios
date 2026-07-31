@@ -14,12 +14,20 @@ async function fillForm(page) {
   await page.getByLabel(/message/i).fill(validForm.message)
 }
 
+// The form is a client:load React island — the Send button is present in
+// the server-rendered HTML before hydration attaches its submit handler, so
+// clicking too early falls through to a native (unhandled) form submit.
+async function gotoContact(page) {
+  await page.goto('/contact')
+  await page.waitForLoadState('networkidle')
+}
+
 test('submits successfully and shows a success message', async ({ page }) => {
   await page.route('**/api/contact', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) }),
   )
 
-  await page.goto('/contact')
+  await gotoContact(page)
   await fillForm(page)
   await page.getByRole('button', { name: /send/i }).click()
 
@@ -31,7 +39,7 @@ test('shows an error message when the API call fails', async ({ page }) => {
     route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'boom' }) }),
   )
 
-  await page.goto('/contact')
+  await gotoContact(page)
   await fillForm(page)
   await page.getByRole('button', { name: /send/i }).click()
 
@@ -39,7 +47,7 @@ test('shows an error message when the API call fails', async ({ page }) => {
 })
 
 test('shows validation errors on an empty submit', async ({ page }) => {
-  await page.goto('/contact')
+  await gotoContact(page)
   await page.getByRole('button', { name: /send/i }).click()
 
   await expect(page.getByText(/full name is required/i)).toBeVisible()

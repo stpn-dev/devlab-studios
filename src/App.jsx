@@ -2,7 +2,6 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import MainLayout from './layouts/MainLayout'
 
-const Contact = lazy(() => import('./legacy-app/pages/Contact'))
 const LandingSampleReact = lazy(() => import('./legacy-app/pages/LandingSampleReact'))
 const LandingSampleHtml = lazy(() => import('./legacy-app/pages/LandingSampleHtml'))
 const LandingSampleFullStack = lazy(() => import('./legacy-app/pages/LandingSampleFullStack'))
@@ -40,7 +39,6 @@ const router = createBrowserRouter([
       { path: 'landing-sample-fullstack', element: lazyPage(LandingSampleFullStack) },
       { path: 'landing-sample-local-service', element: lazyPage(LandingSampleLocalService) },
       { path: 'landing-sample-ecommerce', element: lazyPage(LandingSampleEcommerce) },
-      { path: 'contact', element: lazyPage(Contact) },
       { path: '*', element: lazyPage(NotFound) },
     ],
   },

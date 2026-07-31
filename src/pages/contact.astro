@@ -1,0 +1,19 @@
+---
+import Layout from '../layouts/Layout.astro'
+import SectionHeader from '../components/SectionHeader.jsx'
+import ContactForm from '../components/islands/ContactForm.jsx'
+import { loadPageSeo } from '../lib/content/seo'
+
+const seo = await loadPageSeo('contact')
+---
+
+<Layout title="Contact — DevLab Studios" seo={seo}>
+  <div class="space-y-8">
+    <SectionHeader
+      title="Contact Me"
+      subtitle="Share a software, website, integration, or automation need. I'll get back to you as soon as possible."
+    />
+
+    <ContactForm client:load />
+  </div>
+</Layout>
