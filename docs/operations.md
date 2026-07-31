@@ -45,6 +45,42 @@ Maintenance mode is a runtime check (`src/middleware.ts`), not a build-time flag
 - GA4 Measurement ID (`G-MD3PL91M9G`) is hardcoded in `index.html` — GA IDs are meant to be public, not a secret.
 - `compatibility_date`/`compatibility_flags` in `wrangler.jsonc` are deployment config, not environment-specific.
 
+## Switching admin auth to Cloudflare Access
+
+The code path (`src/worker/middleware/adminAuth.js`'s `cloudflare-access`
+branch) has existed since Phase 1 and needs no application changes to use
+— Phase 4's admin rebuild (new shell, schema-driven forms, versioning)
+goes through the same `requireAdmin` gate in `src/middleware.ts`
+regardless of mode, so switching modes doesn't touch any admin screen.
+What's actually required is Cloudflare-side configuration this repo can't
+perform on its own:
+
+1. In the Cloudflare dashboard, go to **Zero Trust → Access → Applications**
+   and add a **Self-hosted** application covering `admin.devlabstudios.com/*`
+   or `www.devlabstudios.com/admin*` (and `/api/admin/*`) — whichever
+   matches how `/admin` is actually served.
+2. Add at least one **policy** (e.g. "Allow" for a specific email or your
+   Google/GitHub identity) — Access enforces this at the edge, before any
+   request reaches the Worker.
+3. Set `ADMIN_AUTH_MODE=cloudflare-access` in `wrangler.jsonc`'s `vars` (or
+   leave `ADMIN_AUTH_MODE` unset with no `ADMIN_SESSION_SECRET`/admin
+   credentials configured — `getAdminAuthMode()` falls back to
+   `cloudflare-access` in that case too).
+4. Once Access is enforcing the policy, every request reaching the Worker
+   already carries `cf-access-authenticated-user-email`, so
+   `requireAdmin` passes and `GET /api/admin/session` returns immediately
+   — the admin app's login screen is only ever seen if Access itself isn't
+   actually in front of `/admin`, e.g. a misconfigured policy.
+5. `ADMIN_EMAIL` (if still set) is used as an optional extra check against
+   the Access-authenticated email — remove it if you want to allow anyone
+   the Access policy admits, or keep it to additionally pin one specific
+   admin address.
+
+Verify locally is not meaningful for this mode — Cloudflare Access is an
+edge product, not something `wrangler dev` can simulate. Verification has
+to happen against the real deployed Worker after the Access application
+and policy are in place.
+
 ## Preview/production isolation (Phase 6 target — not yet in place)
 
 Today there is one environment: whatever the Cloudflare dashboard's single Workers Builds project points at. Phase 6 of the rebuild plan introduces a real `local`/`preview`/`production` split, where preview must never share production's D1 database, R2 bucket, Zoho webhook, Queues, or secrets. This document should gain a second table per environment once that split exists.

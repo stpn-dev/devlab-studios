@@ -69,9 +69,12 @@ at a time, in production, afterward. Phase 1 is that first step:
   documented in `../performance/PERFORMANCE_FINDINGS.md`. The `use*Content.js`
   client hooks were deleted alongside each page they powered. What remains
   behind the legacy `client:only` island (`src/AppIsland.jsx`, routed via
-  `src/pages/[...all].astro`) is `/admin` (Phase 4 territory) and the 5
-  `landing-sample-*` demo pages, which are intentionally excluded from
-  conversion — see the comment in `[...all].astro` for the up-to-date list.
+  `src/pages/[...all].astro`) is only the 5 `landing-sample-*` demo pages,
+  intentionally excluded from conversion — see the comment in
+  `[...all].astro` for the up-to-date list. `/admin` moved out of the
+  legacy island entirely in Phase 4, onto its own dedicated Astro entry
+  (`src/pages/admin/[...path].astro`) with its own `client:only` React
+  app (`src/admin-app/`) and internal routing.
 
 ## The API layer
 
@@ -93,6 +96,15 @@ shapes, same validation, same rate limiting:
 | `POST /api/admin/media` | `src/pages/api/admin/media.ts` |
 | `app.use('*', ...)` canonical redirect + `app.use('/api/admin/*', requireAdmin)` | both moved into `src/middleware.ts` |
 
+**New in Phase 4** (no Hono precedent — these didn't exist before the
+admin rebuild): `GET /api/admin/media` (list, alongside the existing
+upload `POST`), `GET/PUT /api/admin/collections/[type]` +
+`DELETE /api/admin/collections/[type]/[id]` (generic replace-all/per-item
+collection CRUD, Zod-validated), `GET /api/admin/versions/[type]` +
+`POST /api/admin/versions/[type]/rollback`, `GET /api/admin/audit-log`,
+`GET/PUT /api/admin/pages/[slug]` (block-composed pages). See
+`docs/content-model.md` for what each actually does.
+
 **The underlying business logic didn't move or change** —
 `src/worker/repositories/content.js`, `projects.js`, `utils/responses.js`
 are imported into the new `.ts` route files unchanged, since they were
@@ -104,9 +116,14 @@ security-critical, so rather than rewrite it against Astro's request
 model, `src/lib/honoShim.js` provides a minimal object matching the subset
 of Hono's context (`c.req.header()`, `c.req.json()`, `c.env`, `c.set()`)
 that `handleAdminLogin`/`handleAdminLogout`/`requireAdmin` actually call.
-This lets that code run byte-for-byte identical to before. It's a
-deliberate bridge, not a permanent pattern — Phase 4's CMS rebuild will
-replace it with an Astro-native auth module.
+This lets that code run byte-for-byte identical to before. **Update
+(Phase 4):** the shim stayed — `adminAuth.js`/`honoShim.js` are unchanged,
+and every new Phase 4 admin route (`api/admin/collections/*`,
+`api/admin/versions/*`, `api/admin/pages/*`) is gated by the same
+`requireAdmin` call in `src/middleware.ts` as everything else under
+`/api/admin/*`. Turned out not to need an Astro-native rewrite — the
+bridge was a fine permanent home for this, not just a migration
+stopgap.
 
 ## Bindings
 

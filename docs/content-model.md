@@ -1,10 +1,9 @@
 # Content Model
 
-Written 2026-07-31 as Phase 2 of the Astro/CMS rebuild. This documents the
-data layer (D1 schema, TypeScript/Zod validation, repository functions) —
-it does **not** mean the admin UI or public pages consume all of this yet.
-That's Phase 4 (admin) and Phase 3 (public pages) respectively. Phase 2 is
-the foundation those phases build on.
+Written 2026-07-31 as Phase 2 of the Astro/CMS rebuild, updated as Phase 4
+(admin rebuild) landed. This documents the data layer (D1 schema,
+TypeScript/Zod validation, repository functions) and, as of Phase 4, the
+admin UI that edits it. Public pages consuming this data was Phase 3.
 
 ## Versioning & audit (cross-cutting, applies to everything below)
 
@@ -18,10 +17,17 @@ the foundation those phases build on.
 - **`audit_log`** — one row per create/update/publish/unpublish/archive/
   restore/delete: `{actor_email, action, entity_type, entity_id,
   metadata_json, created_at}`. See `src/worker/repositories/auditLog.js`.
-- **Not yet wired into any route** — Phase 2 built the tables and the
-  repository functions (`recordVersion`/`recordAuditEvent`); actually
-  *calling* them from every admin save happens as part of Phase 4, once
-  there's a real admin UI issuing those saves.
+- **Wired in Phase 4** for everything that goes through the new generic
+  admin routes: `api/admin/collections/[type]/*` (Testimonials,
+  Certifications, Redirects, Case Studies) and `api/admin/pages/[slug]`
+  (block-composed pages) call `recordVersion`/`recordAuditEvent` on every
+  write, with a version-history panel + one-click rollback in the admin
+  UI (`src/admin-app/pages/VersionHistoryPanel.jsx`) and a read-only audit
+  log viewer (`AuditLogPage.jsx`). The 5 pre-existing bespoke editors
+  (Projects, Services, Articles, Profile, Site Settings, SEO) were
+  relocated into the new admin shell unchanged and do **not** yet call
+  these — rewriting them onto the same generic infrastructure is open
+  follow-up work.
 
 ## Singletons
 
@@ -41,8 +47,15 @@ Thirteen approved block types, each with its own Zod-validated props shape
 (`src/lib/schemas/blocks.ts`): `hero`, `richText`, `stats`, `processSteps`,
 `experienceTimeline`, `servicesGrid`, `featuredProjects`,
 `featuredCaseStudies`, `testimonials`, `faq`, `resourceCards`,
-`imageGallery`, `cta`. No arbitrary HTML/JS/CSS — editors (once Phase 4's
-UI exists) can only configure and reorder these.
+`imageGallery`, `cta`. No arbitrary HTML/JS/CSS — editors can only
+configure and reorder these, via the Phase 4 page builder
+(`src/admin-app/pages/PageBuilderPage.jsx`, `api/admin/pages/[slug]`).
+Each block's flat props render through the same schema-driven `SchemaForm`
+every other admin screen uses; nested array/object props (CTAs, stat
+items, gallery images) use a JSON escape hatch
+(`src/admin-app/lib/blockFieldDescriptors.js`) rather than a bespoke
+widget per shape — a reasonable follow-up once real content shows which
+ones need it.
 
 ## Collections
 
@@ -57,7 +70,7 @@ UI exists) can only configure and reorder these.
 | Articles | `articles` (renamed from `resources`) | See "The Articles/Resources split" below |
 | Resources | `resources` (redefined) | See below — **ships empty**, nothing in today's content is actually downloads-shaped |
 | FAQs | `faqs` (existing, `page_slug` column doubles as the "context" tag) | Unchanged — already generic, just needs consistent use across pages |
-| Redirects | `redirects` (new) | **Seeded** (migration 0004) with the 2 redirects that existed at Phase 2 time (`/experiences`→`/profile`, `/portfolio`→`/profile`), but nothing reads this table at request time. Phase 3 implemented all 4 real redirects that exist today — those 2 plus `/resources`→`/insights` and `/resources/:slug`→`/insights/:slug` — as small dedicated `Astro.redirect()` pages (`src/pages/experiences.astro`, `portfolio.astro`, `resources.astro`, `resources/[slug].astro`) instead of reading the table, since that was simpler than generic pattern matching for a handful of known routes. The `redirects` table itself is consequently unseeded for the newer 2 and unused by any runtime code — wiring a real D1-backed redirect-serving middleware (so the table becomes the actual source of truth, e.g. once Phase 4's admin can manage it) is still open. |
+| Redirects | `redirects` (new) | **Seeded** (migration 0004) with the 2 redirects that existed at Phase 2 time (`/experiences`→`/profile`, `/portfolio`→`/profile`), but nothing reads this table at request time. Phase 3 implemented all 4 real redirects that exist today — those 2 plus `/resources`→`/insights` and `/resources/:slug`→`/insights/:slug` — as small dedicated `Astro.redirect()` pages (`src/pages/experiences.astro`, `portfolio.astro`, `resources.astro`, `resources/[slug].astro`) instead of reading the table, since that was simpler than generic pattern matching for a handful of known routes. Phase 4 added a real admin screen for this table (`/admin/collections/redirects`, full create/edit/delete with versioning + audit logging), so it's now genuinely manageable — but it's still not the runtime source of truth: wiring a real D1-backed redirect-serving middleware (so editing a row here actually changes routing behavior) is still open. |
 
 ### The Articles/Resources split
 
@@ -97,13 +110,28 @@ content_type, size, alt_text, folder) existed unused since migration 0001.
 `src/pages/api/admin/media.ts` now writes a row here on every upload
 (`src/worker/repositories/mediaAssets.js`) — failure to record metadata
 doesn't fail the upload itself, since the R2 object is already the source
-of truth for file bytes.
+of truth for file bytes. Phase 4 added a `GET` on the same route (list by
+folder) and a read-only browse screen (`/admin/media`) over this index —
+uploads still happen from within each content editor, not from the
+library screen itself.
 
 ## Schema files
 
 All TypeScript/Zod validation lives in `src/lib/schemas/`:
 `shared.ts` (status enum, slug pattern, SEO shape, common base fields),
-`blocks.ts` (the 13 block types), `singletons.ts`, `collections.ts`. These
-aren't wired into any route yet (Phase 4 validates admin writes against
-them) — Phase 2's job was defining the contract, not enforcing it
-end-to-end.
+`blocks.ts` (the 13 block types), `singletons.ts`, `collections.ts`.
+Phase 4 wired `testimonialSchema`, `certificationSchema`, `redirectSchema`,
+`caseStudySchema`, and `pageSingletonSchema` into real admin write paths
+(`api/admin/collections/[type]/*`, `api/admin/pages/[slug]`) — every
+other schema in these files (the 5 pre-existing bespoke editors' content
+types, plus `siteSettingsSchema`/`navigationSchema`/`footerSchema`/
+`profileSchema`/`legalPageSchema`) still isn't enforced end-to-end; those
+editors validate ad-hoc in their own component code, not against these
+Zod schemas.
+
+Two schema bugs surfaced and fixed while wiring the first real writes
+through them: `testimonialSchema.relatedServiceId` and
+`caseStudySchema.testimonialId` were typed `.optional()` (undefined-only)
+but their repositories map absent values to `null` — every re-save of an
+existing row failed validation until both were changed to
+`.nullable().optional()`.

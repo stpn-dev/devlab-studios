@@ -24,7 +24,7 @@ Updated 2026-07-31 for the Astro/CMS rebuild (Phase 1). Check
 | API routes | Astro file-based API routes | — | `src/pages/api/**/*.ts`, one file per endpoint (or per dynamic segment) |
 | Database | Cloudflare D1 | — | `devlab-studios-cms`, unchanged from before this rebuild |
 | Object storage | Cloudflare R2 | — | `devlab-studios` bucket, unchanged |
-| Admin CMS (current, being rebuilt in Phase 4) | Plain React components + hand-rolled `fetch()` | — | `@refinedev/*` is present as a dependency but genuinely unused (confirmed via exhaustive grep) — scheduled for removal in Phase 4 |
+| Admin CMS | React SPA under `/admin/*` (`src/admin-app/`), own react-router routing, `client:only="react"` | — | Rebuilt in Phase 4: schema-driven `SchemaForm` + field descriptors instead of hand-coded fields per type, generic collection API with automatic versioning + audit logging. `@refinedev/*` was confirmed dead weight (declared but genuinely unused) and removed. |
 
 ## Tooling
 
@@ -41,7 +41,8 @@ Updated 2026-07-31 for the Astro/CMS rebuild (Phase 1). Check
 
 ## Explicitly not used (revisit if this changes)
 
-- **No `@refinedev/*` usage** despite being a declared dependency — confirmed dead weight, removal scheduled for Phase 4.
+- **No `@refinedev/*`** — was a declared dependency with zero actual usage (confirmed via exhaustive grep); removed in Phase 4.
 - **No Tailwind v4** — staying on 3.4 to avoid an unrelated, unscoped migration risk during the rebuild.
 - **No CSS-in-JS** — Tailwind utility classes + plain CSS files.
-- **No third-party headless CMS** — the CMS being built in Phase 4 is D1-backed and custom (schema-driven, benchmarked against mature CMS UX conventions, not a Git-backed CMS — see the approved plan's decision log for why).
+- **No third-party headless CMS** — the Phase 4 CMS is D1-backed and custom (schema-driven, benchmarked against mature CMS UX conventions, not a Git-backed CMS — see the approved plan's decision log for why).
+- **No runtime Zod-schema introspection for admin forms** — deliberately not attempted (fragile, version-coupled to Zod's internals). Instead, lightweight field-descriptor arrays (`src/admin-app/lib/fieldDescriptors.js`, `blockFieldDescriptors.js`) pair with each Zod schema: Zod validates, descriptors describe how to render/edit. This is closer to how real headless CMS schema systems work (Sanity, etc.) than either hand-JSX or auto-generated-from-JSON-Schema forms.
