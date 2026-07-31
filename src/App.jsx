@@ -2,7 +2,6 @@ import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import MainLayout from './layouts/MainLayout'
 
-const Services = lazy(() => import('./legacy-app/pages/Services'))
 const Contact = lazy(() => import('./legacy-app/pages/Contact'))
 const Profile = lazy(() => import('./legacy-app/pages/Profile'))
 const Resources = lazy(() => import('./legacy-app/pages/Resources'))
@@ -39,7 +38,6 @@ const router = createBrowserRouter([
     errorElement: <MainLayout />,
     children: [
       { path: 'experiences', element: <Navigate to="/profile" replace /> },
-      { path: 'services', element: lazyPage(Services) },
       { path: 'portfolio', element: <Navigate to="/profile" replace /> },
       { path: 'profile', element: lazyPage(Profile) },
       { path: 'resources', element: lazyPage(Resources) },
