@@ -8,7 +8,6 @@ const LandingSampleFullStack = lazy(() => import('./legacy-app/pages/LandingSamp
 const LandingSampleLocalService = lazy(() => import('./legacy-app/pages/LandingSampleLocalService'))
 const LandingSampleEcommerce = lazy(() => import('./legacy-app/pages/LandingSampleEcommerce'))
 const Admin = lazy(() => import('./legacy-app/pages/Admin'))
-const NotFound = lazy(() => import('./legacy-app/pages/errors/NotFound'))
 
 import ErrorBoundary from './components/ErrorBoundary'
 
@@ -39,7 +38,6 @@ const router = createBrowserRouter([
       { path: 'landing-sample-fullstack', element: lazyPage(LandingSampleFullStack) },
       { path: 'landing-sample-local-service', element: lazyPage(LandingSampleLocalService) },
       { path: 'landing-sample-ecommerce', element: lazyPage(LandingSampleEcommerce) },
-      { path: '*', element: lazyPage(NotFound) },
     ],
   },
 ])
