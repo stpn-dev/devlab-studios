@@ -52,12 +52,12 @@ UI exists) can only configure and reorder these.
 | Projects | `projects` + `project_gallery_images` (existing) | Unchanged |
 | Case Studies | `case_studies` (new) | **Ships empty** — no real content yet. Optionally references `projects` (via `project_ids_json`) and at most one `testimonials` row |
 | Experience | `experiences` (existing) | Unchanged |
-| Certifications | `certifications` (new) | Table created, **not yet seeded** — real data exists (Make/n8n/Zapier certs, currently plain text in `src/data/about.js`, badge images in `src/assets/certificates/`) but migrating it accurately is Phase 3's job (alongside the Profile page conversion), not guessed at here |
+| Certifications | `certifications` (new) | Table created, **not yet seeded**. `src/assets/certificates/` has Make/n8n/Zapier badge images, but no certificate name, issuer, or issue date for any of them exists anywhere in the codebase — `src/data/about.js`'s `certificatesAndLicenses` is a different, unrelated set of certs (CCNA, Google, OWASP, CCSP). Seeding requires the real Make/n8n/Zapier certificate details from Stephen; not guessed at here. The Profile page still renders the existing plain-text `certificatesAndLicenses` list as-is in the meantime. |
 | Testimonials | `testimonials` (new) | **Ships empty** — no real content yet |
 | Articles | `articles` (renamed from `resources`) | See "The Articles/Resources split" below |
 | Resources | `resources` (redefined) | See below — **ships empty**, nothing in today's content is actually downloads-shaped |
 | FAQs | `faqs` (existing, `page_slug` column doubles as the "context" tag) | Unchanged — already generic, just needs consistent use across pages |
-| Redirects | `redirects` (new) | **Seeded** with the 2 real redirects that exist today (`/experiences`→`/profile`, `/portfolio`→`/profile`), currently implemented as hardcoded `<Navigate>` elements in `src/App.jsx`. Phase 3 wires real redirect-serving middleware reading this table; `App.jsx`'s versions stay authoritative until then. |
+| Redirects | `redirects` (new) | **Seeded** (migration 0004) with the 2 redirects that existed at Phase 2 time (`/experiences`→`/profile`, `/portfolio`→`/profile`), but nothing reads this table at request time. Phase 3 implemented all 4 real redirects that exist today — those 2 plus `/resources`→`/insights` and `/resources/:slug`→`/insights/:slug` — as small dedicated `Astro.redirect()` pages (`src/pages/experiences.astro`, `portfolio.astro`, `resources.astro`, `resources/[slug].astro`) instead of reading the table, since that was simpler than generic pattern matching for a handful of known routes. The `redirects` table itself is consequently unseeded for the newer 2 and unused by any runtime code — wiring a real D1-backed redirect-serving middleware (so the table becomes the actual source of truth, e.g. once Phase 4's admin can manage it) is still open. |
 
 ### The Articles/Resources split
 

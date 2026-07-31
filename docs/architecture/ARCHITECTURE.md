@@ -58,14 +58,20 @@ at a time, in production, afterward. Phase 1 is that first step:
   out of `src/pages/`, which Astro now treats as its own file-based routing
   directory — leaving them at the old path would make Astro warn on every
   one of them as an "unsupported page file type").
-- Every page today still fetches its own content client-side via the
+- At Phase 1, every page still fetched its own content client-side via the
   original `src/hooks/use*Content.js` pattern (static fallback → fetch →
-  swap) — **this has not changed yet**. Phase 3 replaces this per-page,
-  moving to direct D1 queries in `.astro` frontmatter, which is what
-  actually eliminates the double-render performance cost documented in
-  `../performance/PERFORMANCE_FINDINGS.md`. Phase 1 only changed *how the
-  app is served*, not *how it renders content* — don't conflate the two
-  when reading this doc.
+  swap). Phase 1 only changed *how the app is served*, not *how it renders
+  content* — don't conflate the two when reading this doc.
+- **Update (Phase 3, complete):** all 7 real content pages (About, Home,
+  Services, Insights, Profile, Contact, plus the 404 page) are now real
+  `.astro` routes querying D1 directly in frontmatter via
+  `src/lib/content/*.ts` loaders, eliminating the double-render cost
+  documented in `../performance/PERFORMANCE_FINDINGS.md`. The `use*Content.js`
+  client hooks were deleted alongside each page they powered. What remains
+  behind the legacy `client:only` island (`src/AppIsland.jsx`, routed via
+  `src/pages/[...all].astro`) is `/admin` (Phase 4 territory) and the 5
+  `landing-sample-*` demo pages, which are intentionally excluded from
+  conversion — see the comment in `[...all].astro` for the up-to-date list.
 
 ## The API layer
 
