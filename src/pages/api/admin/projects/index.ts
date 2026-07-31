@@ -2,10 +2,7 @@ import type { APIRoute } from 'astro'
 import { listProjects, upsertProject } from '../../../../worker/repositories/projects.js'
 import { getEnv } from '../../../../lib/env'
 import { normalizeProjectMedia } from '../../../../lib/media'
-
-function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
-}
+import { jsonResponse, readJsonBody } from '../../../../lib/http'
 
 export const GET: APIRoute = async () => {
   const env = getEnv()
@@ -24,7 +21,9 @@ export const POST: APIRoute = async ({ request }) => {
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
   try {
-    const project = await upsertProject(env.DB, await request.json())
+    const payload = await readJsonBody(request)
+    const project = await upsertProject(env.DB, payload)
+    if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
     return jsonResponse(normalizeProjectMedia(project, env), 201)
   } catch (error) {
     const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500

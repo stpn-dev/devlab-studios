@@ -2,10 +2,7 @@ import type { APIRoute } from 'astro'
 import { deleteProject, getProject, upsertProject } from '../../../../worker/repositories/projects.js'
 import { getEnv } from '../../../../lib/env'
 import { normalizeProjectMedia } from '../../../../lib/media'
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
-}
+import { jsonResponse, readJsonBody } from '../../../../lib/http'
 
 export const GET: APIRoute = async ({ params }) => {
   const env = getEnv()
@@ -21,8 +18,9 @@ export const PUT: APIRoute = async ({ params, request }) => {
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
   try {
-    const payload = await request.json()
+    const payload = await readJsonBody(request)
     const project = await upsertProject(env.DB, { ...payload, id: params.id })
+    if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
     return jsonResponse(normalizeProjectMedia(project, env))
   } catch (error) {
     const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500
@@ -38,8 +36,9 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   try {
     const existing = await getProject(env.DB, params.id as string, { includeDrafts: true })
     if (!existing) return jsonResponse({ error: 'Project not found.' }, 404)
-    const payload = await request.json()
+    const payload = await readJsonBody(request)
     const project = await upsertProject(env.DB, { ...existing, ...payload, id: params.id })
+    if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
     return jsonResponse(normalizeProjectMedia(project, env))
   } catch (error) {
     const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500

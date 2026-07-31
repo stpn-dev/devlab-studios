@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro'
 import { getEnv } from '../../../lib/env'
+import { recordMediaAsset } from '../../../worker/repositories/mediaAssets.js'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -38,11 +39,21 @@ export const POST: APIRoute = async ({ request }) => {
   })
 
   const publicBaseUrl = env.R2_PUBLIC_BASE_URL || ''
+  const url = publicBaseUrl ? `${publicBaseUrl.replace(/\/$/, '')}/${key}` : key
+
+  if (env.DB) {
+    try {
+      await recordMediaAsset(env.DB, { key, url, filename: file.name, contentType: file.type, size: file.size, folder })
+    } catch {
+      // The R2 object is already stored — a metadata-tracking failure shouldn't fail the upload itself.
+    }
+  }
+
   return jsonResponse({
     key,
     filename: file.name,
     contentType: file.type,
     size: file.size,
-    url: publicBaseUrl ? `${publicBaseUrl.replace(/\/$/, '')}/${key}` : key,
+    url,
   }, 201)
 }

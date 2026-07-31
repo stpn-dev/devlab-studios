@@ -230,6 +230,15 @@ export async function replaceServiceGroups(db, groups) {
   }
 }
 
+// NOTE: these functions/exports keep their original "Resources" names for
+// backward compatibility with the existing /api/resources routes and
+// Resources.jsx, even though the underlying table was renamed to `articles`
+// in migrations/0004_content_model_v2.sql (it's genuinely article-shaped
+// content, not the new downloads-oriented Resources collection). Renaming
+// these too happens in Phase 3 alongside the actual page rewrite. See
+// docs/content-model.md for the full explanation. The new, real
+// downloads/reference Resources collection lives in
+// src/worker/repositories/resourceLibrary.js.
 export async function listResources(db, { includeDrafts = false } = {}) {
   const rows = await listRows(
     db,
@@ -253,7 +262,7 @@ export async function listResources(db, { includeDrafts = false } = {}) {
        status,
        created_at,
        updated_at
-     FROM resources
+     FROM articles
      ${buildStatusWhere(includeDrafts)}
      ORDER BY sort_order ASC, updated_at DESC`,
   )
@@ -261,14 +270,14 @@ export async function listResources(db, { includeDrafts = false } = {}) {
 }
 
 export async function replaceResources(db, items) {
-  await db.prepare('DELETE FROM resources').run()
+  await db.prepare('DELETE FROM articles').run()
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
     const timestamp = nowIso()
     const id = normalizeString(item.id) || crypto.randomUUID()
     await db
       .prepare(
-        `INSERT INTO resources (
+        `INSERT INTO articles (
           id, slug, title, summary, category, content_type, icon, points, body_markdown, cover_image_url, tags_json,
           author_name, published_at, reading_time_minutes, is_featured, sort_order, status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
