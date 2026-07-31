@@ -4,6 +4,15 @@ Snapshot as of 2026-07-30, written as part of a repo housekeeping/documentation
 pass. Replaces the stale "Known Limitations" section that used to live in
 `README.md` (which incorrectly described the site as having no CMS/backend).
 
+> **2026-07-31 update**: An Astro/CMS rebuild is in progress on the
+> `feat/astro-cms-rebuild` branch (see the approved plan and
+> `docs/architecture/ARCHITECTURE.md`). Phase 1 (Astro foundation + full API
+> port) is complete and merged into that branch — the site now runs on
+> Astro's Cloudflare adapter, though page-by-page conversion to real
+> `.astro` components (which is what actually fixes the "No SSR/SSG" and
+> double-render findings below) hasn't started yet. The sections below still
+> describe `main`'s current state until this branch merges.
+
 ## What's implemented
 
 - Public site: Home, About, Services, Profile, Resources (+ dynamic

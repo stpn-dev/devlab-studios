@@ -1,125 +1,146 @@
 # Architecture
 
-This document describes how the site is actually built and deployed today. For a
-list of every tool/library and its version, see [TECH_STACK.md](./TECH_STACK.md).
-For known issues and performance findings, see
-[../CURRENT_STATE.md](../CURRENT_STATE.md) and
-[../performance/PERFORMANCE_FINDINGS.md](../performance/PERFORMANCE_FINDINGS.md).
+Rewritten 2026-07-31 as part of the Astro/CMS rebuild program (see the
+approved plan). This describes the system **as of the end of Phase 1**
+(rendering foundation + API port) — Phases 2-6 (schema-driven CMS, full
+page conversions, leads backend) will change this further; update this doc
+alongside each phase.
 
 ## System overview
 
-The project is a single Cloudflare Worker that serves both the built static
-frontend and the JSON API. There is no separate backend service and no
-third-party CMS — the "CMS" is a small custom admin UI backed by Cloudflare D1
-and R2.
+The project is a single Cloudflare Worker, now built and served by
+**Astro** (`output: 'server'`, `@astrojs/cloudflare` adapter) instead of a
+hand-written Hono app. D1 and R2 bindings are unchanged from before this
+rebuild — no data migration happened, only the rendering/API layer moved.
 
 ```mermaid
 flowchart TB
     subgraph Browser
-        SPA["React 19 SPA\n(react-router-dom v7, client-side rendered)"]
+        Legacy["Legacy React SPA\n(react-router-dom, wrapped as one\nclient:only island — AppIsland.jsx)"]
     end
 
-    subgraph Cloudflare
-        Worker["Cloudflare Worker\nsrc/worker.js (Hono)"]
-        Assets["Static assets\ndist/ (built by Vite)"]
-        D1[("D1 database\ndevlab-studios-cms")]
-        R2[("R2 bucket\ndevlab-studios\n(uploaded media)")]
+    subgraph Astro["Astro (@astrojs/cloudflare adapter)"]
+        MW["src/middleware.ts\n(canonical-domain redirect, /api/admin/* auth gate)"]
+        Pages["src/pages/index.astro\nsrc/pages/[...all].astro\n(both render LegacyAppShell.astro)"]
+        API["src/pages/api/**/*.ts\n(ported from the old Hono worker)"]
     end
 
-    Zoho["Zoho webhook\n(contact form upstream)"]
+    D1[("D1 database\ndevlab-studios-cms")]
+    R2[("R2 bucket\ndevlab-studios")]
+    Zoho["Zoho webhook"]
 
-    Browser -- "GET /, /about, ... (SPA fallback)" --> Worker
-    Worker -- "serves matched routes" --> Assets
-    SPA -- "fetch('/api/projects', '/api/services', ...)" --> Worker
-    Worker -- "reads/writes when DB bound" --> D1
-    Worker -- "media upload/read" --> R2
-    SPA -- "POST /api/contact" --> Worker
-    Worker -- "forwards validated payload" --> Zoho
+    Browser -- "GET any non-API route" --> MW --> Pages
+    Pages -- "renders" --> Legacy
+    Legacy -- "fetch('/api/*') — still client-side for now" --> MW
+    MW -- "/api/admin/* only" --> API
+    Browser -- "GET/POST /api/*" --> MW --> API
+    API -- "content/projects reads+writes" --> D1
+    API -- "media upload" --> R2
+    API -- "contact form" --> Zoho
 ```
 
-## Request flow: public pages
+## Why it's built this way: the wrap-then-convert strategy
 
-1. The browser requests a route (e.g. `/services`). `wrangler.jsonc` configures
-   `assets.not_found_handling: single-page-application`, so any path that
-   doesn't match a static file in `dist/` falls through to `index.html`.
-2. `src/main.jsx` mounts `App.jsx`, which sets up `react-router-dom`'s
-   `createBrowserRouter`. Every page component is `React.lazy`-loaded
-   (`src/App.jsx`), so only the JS for the visited route is fetched.
-3. **Content is rendered twice per page, by design (a hybrid fallback model):**
-   - On first render, each page's data hook (e.g. `useServicesContent`,
-     `useProfileContent` in `src/hooks/`) returns the hardcoded content from
-     `src/data/*.js` immediately via `useMemo` — this is what makes the first
-     paint content-complete instead of blank/skeleton.
-   - A `useEffect` in the same hook then calls `fetchJsonOnce()`
-     (`src/utils/cachedFetch.js`) against the matching Worker endpoint
-     (`/api/services`, `/api/profile-content`, etc.).
-   - If the Worker responds with `configured: true` (meaning D1 has real rows
-     for that content type), the hook swaps in the D1 data and the component
-     re-renders with "live" content.
-   - If D1 is empty/unbound, the Worker returns `source: 'static-fallback'`
-     and the page just keeps showing the bundled static content — no visible
-     change.
-4. This pattern means **every page does a client-side network round trip after
-   first paint**, even though the static fallback prevents a blank screen. See
-   [PERFORMANCE_FINDINGS.md](../performance/PERFORMANCE_FINDINGS.md) for the
-   performance implications of this.
+Astro's own migration guide recommends, for exactly this situation
+(migrating an existing React SPA), wrapping the whole app as one
+client-rendered island first — zero behavior change, immediately deployed
+on the new stack — then converting pages to real `.astro` components one
+at a time, in production, afterward. Phase 1 is that first step:
 
-## Request flow: `/admin`
+- `src/pages/index.astro` and `src/pages/[...all].astro` both render the
+  same `src/layouts/shells/LegacyAppShell.astro` component, which mounts
+  `<AppIsland client:only="react" />` — the entire legacy `App.jsx`
+  (react-router, all pages, `/admin`) unchanged.
+- **Two page files, not one**: a `[...all].astro` rest-parameter route does
+  **not** match the bare root `/` by default in Astro — it only matches
+  paths with at least one segment. `index.astro` explicitly covers `/`.
+- The legacy React page components live in `src/legacy-app/pages/` (moved
+  out of `src/pages/`, which Astro now treats as its own file-based routing
+  directory — leaving them at the old path would make Astro warn on every
+  one of them as an "unsupported page file type").
+- Every page today still fetches its own content client-side via the
+  original `src/hooks/use*Content.js` pattern (static fallback → fetch →
+  swap) — **this has not changed yet**. Phase 3 replaces this per-page,
+  moving to direct D1 queries in `.astro` frontmatter, which is what
+  actually eliminates the double-render performance cost documented in
+  `../performance/PERFORMANCE_FINDINGS.md`. Phase 1 only changed *how the
+  app is served*, not *how it renders content* — don't conflate the two
+  when reading this doc.
 
-- `/admin` is a separate lazy-loaded route (`src/pages/Admin.jsx`), built on
-  `@refinedev/core` + `@refinedev/simple-rest`, talking to `/api/admin/*`.
-- `src/worker/middleware/adminAuth.js` (`requireAdmin`) gates every
-  `/api/admin/*` route behind a password-based session check
-  (`ADMIN_AUTH_MODE=password` in `wrangler.jsonc`).
-- CRUD for projects/services/resources/profile/site-settings/SEO content goes
-  through `src/worker/repositories/content.js` and `projects.js`, which run
-  parameterized queries against the D1 binding (`c.env.DB`).
-- Media (images) uploaded from the admin UI go to the R2 bucket via
-  `POST /api/admin/media`; uploads to the `projects` folder are restricted to
-  WebP. Public URLs are derived from `R2_PUBLIC_BASE_URL`.
-- `/admin*` and `/api/admin/*` are marked `noindex, nofollow` in
-  `public/_headers`.
+## The API layer
 
-## Contact form flow
+Every route from the old `src/worker.js` (Hono) has been ported to Astro's
+file-based API convention (`src/pages/api/**/*.ts`), 1:1, same response
+shapes, same validation, same rate limiting:
 
-`POST /api/contact` (handled in `src/worker.js`, `handleContact`) validates the
-payload, applies a simple in-memory per-IP rate limit (5 requests / 10 minutes,
-reset on Worker cold start since it's an in-memory `Map`), then forwards the
-payload to the `ZOHO_WEBHOOK_URL` configured as a Cloudflare secret/env var
-(never exposed to the client — the frontend only ever calls the same-origin
-`/api/contact`).
+| Old (Hono, deleted) | New |
+|---|---|
+| `GET /api/health` | `src/pages/api/health.ts` |
+| `POST /api/contact` | `src/pages/api/contact.ts` |
+| `GET /api/projects` | `src/pages/api/projects.ts` |
+| `GET /api/services` \| `/resources` \| `/profile-content` \| `/site-settings` | one file each, sharing `src/lib/publicContent.ts`'s `servePublicContent()` helper for the common "D1 or static-fallback" pattern |
+| `GET /api/seo/:pageSlug` | `src/pages/api/seo/[pageSlug].ts` |
+| `POST /api/admin/login` \| `/logout` | `src/pages/api/admin/login.ts` \| `logout.ts` |
+| `GET /api/admin/session` | `src/pages/api/admin/session.ts`, reads `locals.adminEmail`/etc. set by middleware |
+| `GET/PUT /api/admin/content/{services,resources,profile,site-settings,seo}` | one dynamic file, `src/pages/api/admin/content/[type].ts` |
+| `GET/POST /api/admin/projects`, `GET/PUT/PATCH/DELETE /api/admin/projects/:id` | `src/pages/api/admin/projects/index.ts` + `[id].ts` |
+| `POST /api/admin/media` | `src/pages/api/admin/media.ts` |
+| `app.use('*', ...)` canonical redirect + `app.use('/api/admin/*', requireAdmin)` | both moved into `src/middleware.ts` |
 
-> Note: `functions/api/contact.js` is a legacy Cloudflare Pages Functions
-> handler for the same route, left over from before the project moved to a
-> single Worker (`wrangler.jsonc` → `main: "src/worker.js"`). It is not part of
-> the active deploy path — see [CURRENT_STATE.md](../CURRENT_STATE.md).
+**The underlying business logic didn't move or change** —
+`src/worker/repositories/content.js`, `projects.js`, `utils/responses.js`
+are imported into the new `.ts` route files unchanged, since they were
+already plain functions taking `db`/`env` as arguments, not Hono-coupled.
 
-## Rendering model
+**The one deliberately-reused-unchanged piece**: `src/worker/middleware/adminAuth.js`
+(PBKDF2 password verification, HMAC session cookie signing) is
+security-critical, so rather than rewrite it against Astro's request
+model, `src/lib/honoShim.js` provides a minimal object matching the subset
+of Hono's context (`c.req.header()`, `c.req.json()`, `c.env`, `c.set()`)
+that `handleAdminLogin`/`handleAdminLogout`/`requireAdmin` actually call.
+This lets that code run byte-for-byte identical to before. It's a
+deliberate bridge, not a permanent pattern — Phase 4's CMS rebuild will
+replace it with an Astro-native auth module.
 
-- **100% client-side rendered (CSR).** `index.html` ships an empty
-  `<div id="root">`; there is no SSR or static prerendering step. All
-  meta/title tags are set at runtime via `react-helmet-async`
-  (`src/components/PageSeo.jsx`) except the base fallback tags baked into
-  `index.html` for crawlers that don't execute JS.
-- **Code splitting** is route-based (`React.lazy` per page) plus manual vendor
-  chunking in `vite.config.js` (`react-vendor`, `router`, `ui-vendor`,
-  `helmet`). The admin bundle (Refine + related deps) is isolated to its own
-  lazy chunk and never loaded for public visitors.
+## Bindings
 
-## Data model
-
-- Static/fallback content: `src/data/*.js` (one file per content domain —
-  profile, services, resources, site settings, SEO, portfolio/projects).
-- Live content: Cloudflare D1 (`devlab-studios-cms`), schema defined by
-  `migrations/0001_cms_foundation.sql` through `0003_expand_resources_feed.sql`.
-- Seed data for D1 is generated by `scripts/cms/generate-project-seed.mjs` into
-  SQL files applied via `wrangler d1 execute`.
+Accessed via `import { env } from 'cloudflare:workers'` (the adapter's
+current convention, replacing Hono's `c.env`), wrapped by
+`src/lib/env.ts`'s `getEnv(): Env` for a typed accessor
+(`src/env.d.ts` declares the `Env` interface matching `wrangler.jsonc`'s
+bindings). Same D1 database (`devlab-studios-cms`) and R2 bucket
+(`devlab-studios`) as before — untouched by this rebuild so far.
 
 ## Deployment
 
-- `wrangler.jsonc` defines the Worker (`main: src/worker.js`), static asset
-  binding (`./dist`), D1 binding (`DB`), and R2 binding (`MEDIA_BUCKET`).
-- `.github/workflows/ci.yml` runs lint, build, and `npm audit` on every PR/push
-  to `main` — it does **not** deploy. Actual deployment is triggered by
-  Cloudflare's own Git integration watching the `main` branch (see
-  [../guides/PRODUCTION_DEPLOYMENT_GUIDE.md](../guides/PRODUCTION_DEPLOYMENT_GUIDE.md)).
+`wrangler.jsonc`'s `main` now points at
+`@astrojs/cloudflare/entrypoints/server` (the adapter's own entry) instead
+of a hand-written file. Two config details that silently break in SSR mode
+if left as they were for the old static SPA:
+
+- `assets.not_found_handling: "single-page-application"` → changed to
+  `run_worker_first: true`. The SPA-fallback setting tries to serve
+  `index.html` for unmatched paths, but there is no static `index.html`
+  in SSR mode — every request 404'd at the assets layer before ever
+  reaching Astro's router.
+- `main` pointing at the old `src/worker.js` caused the adapter to merge/
+  wrap that legacy Hono app ahead of Astro's own router, so requests were
+  fully handled (and 404'd) by the old app before Astro ever saw them.
+
+Local dev note: `astro dev`'s live SSR pipeline hits a known upstream bug
+in this Astro/`@astrojs/cloudflare` version combination ("Missing field
+`moduleType`"). Use `astro build && astro preview` for local
+testing/E2E instead — it runs the real `workerd` runtime via the built
+output and works correctly. `npm run dev` is left pointing at `astro dev`
+for hot-reload during page conversion work where it does function (the bug
+appears to specifically affect the earliest cold-start dependency
+optimization pass), but don't rely on it for anything requiring a full
+clean start.
+
+## Testing
+
+`tests/e2e/*.spec.js` (Playwright) run against `astro build && astro
+preview` (`public-pages.spec.js`, `contact-form.spec.js`) and `wrangler dev
+--local` (`admin.spec.js`, exercising the real ported auth + D1 CRUD path).
+See `docs/operations.md` for local environment setup
+(`.dev.vars`, D1 migrations).
