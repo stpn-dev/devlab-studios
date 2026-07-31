@@ -124,6 +124,12 @@ under Changed) — nothing in the public contract broke.
   from 2026-03-10, fully absorbed into `main` already).
 
 ### Fixed
+- `.nvmrc`, `package.json`'s `engines.node`, and both GitHub Actions
+  workflows bumped from Node 20 to 22 — the Astro version in use requires
+  Node `>=22.12.0` and had for a while, but `ci.yml` only runs on `main`,
+  which this branch hadn't reached yet, so nothing had ever actually
+  built this code with Node 20 in CI until the new preview deploy workflow
+  ran and failed immediately.
 - `scripts/cms/hash-admin-password.mjs` capped at 100,000 PBKDF2 iterations
   (was 210,000) — Cloudflare's actual deployed Worker runtime rejects
   higher counts with `NotSupportedError`, which `wrangler dev --local` does
