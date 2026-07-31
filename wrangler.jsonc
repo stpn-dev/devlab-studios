@@ -1,5 +1,5 @@
 {
-  "name": "tech-va-portfolio",
+  "name": "devlab-studios",
   "main": "src/worker.js",
   "assets": {
     "directory": "./dist",
