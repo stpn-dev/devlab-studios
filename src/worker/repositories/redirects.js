@@ -23,7 +23,7 @@ export async function listRedirects(db) {
   return (result.results || []).map(toRedirect)
 }
 
-/** Used by middleware on every request, so this should stay a fast indexed lookup, not a full table scan of anything else. */
+/** Used by middleware only when a response already 404'd (see src/middleware.ts) — a fast indexed lookup, not a full table scan. */
 export async function findRedirect(db, fromPath) {
   const row = await db
     .prepare('SELECT id, from_path, to_path, status_code, note, created_at, updated_at FROM redirects WHERE from_path = ?')

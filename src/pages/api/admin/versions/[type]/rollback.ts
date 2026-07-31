@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro'
-import { getReplaceAllCollection, getPerItemCollection } from '../../../../../worker/adminRegistry.js'
+import { getReplaceAllCollection, getPerItemCollection, getSingletonContentType } from '../../../../../worker/adminRegistry.js'
 import { getVersion, recordVersion } from '../../../../../worker/repositories/contentVersions.js'
 import { recordAuditEvent } from '../../../../../worker/repositories/auditLog.js'
 import { getEnv } from '../../../../../lib/env'
@@ -25,6 +25,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
   const replaceAll = getReplaceAllCollection(type)
   const perItem = getPerItemCollection(type)
+  const singleton = getSingletonContentType(type)
 
   let restored: unknown
   if (replaceAll) {
@@ -32,6 +33,8 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     restored = await replaceAll.list(env.DB)
   } else if (perItem) {
     restored = await perItem.upsert(env.DB, version.snapshot)
+  } else if (singleton) {
+    restored = await singleton.replace(env.DB, version.snapshot)
   } else {
     return jsonResponse({ error: 'Unknown content type.' }, 404)
   }

@@ -12,6 +12,7 @@ import {
 } from '../icons/icons'
 import { portfolioItems } from '../../data/portfolio'
 import { validateAndConvertToWebP } from '../../utils/imageUpload'
+import VersionHistoryPanel from '../../admin-app/pages/VersionHistoryPanel'
 
 const PAGE_SIZE = 6
 
@@ -112,6 +113,7 @@ export default function ProjectsManager() {
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
   const [currentPage, setCurrentPage] = useState(1)
+  const [showHistory, setShowHistory] = useState(false)
 
   const loadStaticPreview = useCallback((reason) => {
     const staticProjects = portfolioItems.map((project) => ({
@@ -224,6 +226,13 @@ export default function ProjectsManager() {
     } catch {
       setStatus('Project delete failed.')
     }
+  }
+
+  async function handleVersionRestored(restored) {
+    setShowHistory(false)
+    setSelectedProject(toFormProject(restored))
+    await loadProjects({ preserveStatus: true })
+    setStatus(`Project restored to a previous version at ${new Date().toLocaleTimeString()}.`)
   }
 
   async function uploadImage(event) {
@@ -523,7 +532,10 @@ export default function ProjectsManager() {
                   <button
                     key={project.id}
                     type="button"
-                    onClick={() => setSelectedProject(toFormProject(project))}
+                    onClick={() => {
+                      setSelectedProject(toFormProject(project))
+                      setShowHistory(false)
+                    }}
                     className={`block w-full rounded-md border px-3 py-3 text-left transition ${
                       isActive
                         ? 'border-slate-900 bg-slate-50'
@@ -603,6 +615,7 @@ export default function ProjectsManager() {
                 type="button"
                 onClick={() => {
                   setSelectedProject(emptyProject)
+                  setShowHistory(false)
                   if (isReadOnlyPreview) {
                     setStatus('Read-only preview mode. New records can be created after D1 and the admin API are configured.')
                   }
@@ -612,6 +625,15 @@ export default function ProjectsManager() {
                 <Plus size={16} />
                 New Project
               </button>
+              {selectedProject.id && projects.some((project) => project.id === selectedProject.id) ? (
+                <button
+                  type="button"
+                  onClick={() => setShowHistory((value) => !value)}
+                  className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  {showHistory ? 'Hide History' : 'Version History'}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={deleteSelectedProject}
@@ -622,6 +644,12 @@ export default function ProjectsManager() {
               </button>
             </div>
           </div>
+
+          {showHistory && selectedProject.id ? (
+            <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
+              <VersionHistoryPanel contentType="projects" contentId={selectedProject.id} onRestored={handleVersionRestored} />
+            </div>
+          ) : null}
 
           <div className="grid min-w-0 gap-6 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
             <div className="grid min-w-0 gap-4">

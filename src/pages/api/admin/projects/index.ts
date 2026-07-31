@@ -1,5 +1,7 @@
 import type { APIRoute } from 'astro'
 import { listProjects, upsertProject } from '../../../../worker/repositories/projects.js'
+import { recordVersion } from '../../../../worker/repositories/contentVersions.js'
+import { recordAuditEvent } from '../../../../worker/repositories/auditLog.js'
 import { getEnv } from '../../../../lib/env'
 import { normalizeProjectMedia } from '../../../../lib/media'
 import { jsonResponse, readJsonBody } from '../../../../lib/http'
@@ -16,14 +18,16 @@ export const GET: APIRoute = async () => {
   )
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   const env = getEnv()
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
   try {
     const payload = await readJsonBody(request)
-    const project = await upsertProject(env.DB, payload)
+    const project = await upsertProject(env.DB, payload) as { id?: string; status?: string } | null
     if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
+    await recordVersion(env.DB, { contentType: 'projects', contentId: project.id || null, status: project.status || 'draft', snapshot: project, createdBy: locals.adminEmail || null })
+    await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'create', entityType: 'projects', entityId: project.id || null, metadata: {} })
     return jsonResponse(normalizeProjectMedia(project, env), 201)
   } catch (error) {
     const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500

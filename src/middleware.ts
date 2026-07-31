@@ -3,6 +3,7 @@ import { requireAdmin } from './worker/middleware/adminAuth.js'
 import { createHonoLikeContext } from './lib/honoShim.js'
 import { getEnv } from './lib/env'
 import { getSiteSetting } from './worker/repositories/content.js'
+import { findRedirect } from './worker/repositories/redirects.js'
 
 const ADMIN_API_PREFIX = '/api/admin/'
 const ADMIN_PUBLIC_ROUTES = new Set(['/api/admin/login', '/api/admin/logout'])
@@ -46,5 +47,21 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
   }
 
-  return next()
+  const response = await next()
+
+  // The admin's Redirects screen (D1 `redirects` table) only needs to be
+  // consulted for paths nothing else already handled — so this only ever
+  // runs on an actual 404, not on every request/asset.
+  if (context.request.method === 'GET' && response.status === 404) {
+    const env = getEnv()
+    if (env.DB) {
+      const redirect = await findRedirect(env.DB, url.pathname)
+      if (redirect) {
+        const destination = new URL(redirect.toPath, url)
+        return Response.redirect(destination.toString(), redirect.statusCode)
+      }
+    }
+  }
+
+  return response
 })

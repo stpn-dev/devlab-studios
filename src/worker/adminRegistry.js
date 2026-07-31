@@ -1,8 +1,21 @@
-import { testimonialSchema, certificationSchema, redirectSchema, caseStudySchema } from '../lib/schemas/collections.js'
+import { testimonialSchema, certificationSchema, redirectSchema, caseStudySchema, projectSchema } from '../lib/schemas/collections.js'
 import { listTestimonials, replaceTestimonials } from './repositories/testimonials.js'
 import { listCertifications, replaceCertifications } from './repositories/certifications.js'
 import { listRedirects, upsertRedirect, deleteRedirect } from './repositories/redirects.js'
 import { listCaseStudies, upsertCaseStudy, deleteCaseStudy } from './repositories/caseStudies.js'
+import { listProjects, upsertProject, deleteProject } from './repositories/projects.js'
+import {
+  getProfileContent,
+  getResourcesContent,
+  getSeoContent,
+  getServicesContent,
+  getSiteSettingsContent,
+  replaceProfileContent,
+  replaceResourcesContent,
+  replaceSeoContent,
+  replaceServicesContent,
+  replaceSiteSettingsContent,
+} from './repositories/content.js'
 
 /**
  * Collections edited as one whole array at a time (delete-all-then-reinsert
@@ -40,6 +53,34 @@ export const PER_ITEM_COLLECTIONS = {
     upsert: (db, payload) => upsertCaseStudy(db, payload),
     delete: (db, id) => deleteCaseStudy(db, id),
   },
+  /**
+   * Registered here (in addition to ProjectsManager's own dedicated
+   * /api/admin/projects routes) purely so rollback.ts's existing
+   * getPerItemCollection() branch can restore a project snapshot without
+   * a third code path — ProjectsManager never calls /api/admin/collections/projects.
+   */
+  projects: {
+    label: 'Projects',
+    schema: projectSchema,
+    list: (db) => listProjects(db, { includeDrafts: true }),
+    upsert: (db, payload) => upsertProject(db, payload),
+    delete: (db, id) => deleteProject(db, id),
+  },
+}
+
+/**
+ * Singleton content blobs edited as one whole object (services, resources,
+ * profile, site-settings, seo) — pre-dates the schema-driven collections
+ * above and keeps its own bespoke admin UI (see src/components/admin/),
+ * but shares the same version/audit-log plumbing via content/[type].ts
+ * and versions/[type]/rollback.ts.
+ */
+export const SINGLETON_CONTENT_TYPES = {
+  services: { label: 'Services', get: getServicesContent, replace: replaceServicesContent },
+  resources: { label: 'Resources', get: getResourcesContent, replace: replaceResourcesContent },
+  profile: { label: 'Profile', get: getProfileContent, replace: replaceProfileContent },
+  'site-settings': { label: 'Site Settings', get: getSiteSettingsContent, replace: replaceSiteSettingsContent },
+  seo: { label: 'SEO', get: getSeoContent, replace: replaceSeoContent },
 }
 
 export function getReplaceAllCollection(type) {
@@ -48,4 +89,8 @@ export function getReplaceAllCollection(type) {
 
 export function getPerItemCollection(type) {
   return PER_ITEM_COLLECTIONS[type] || null
+}
+
+export function getSingletonContentType(type) {
+  return SINGLETON_CONTENT_TYPES[type] || null
 }
