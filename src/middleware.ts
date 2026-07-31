@@ -14,11 +14,11 @@ const MAINTENANCE_GATED_PATHS = new Set([
   '/services',
   '/portfolio',
   '/profile',
-  '/resources',
+  '/insights',
 ])
 
 function isMaintenanceGated(pathname: string): boolean {
-  return MAINTENANCE_GATED_PATHS.has(pathname) || pathname.startsWith('/resources/')
+  return MAINTENANCE_GATED_PATHS.has(pathname) || pathname.startsWith('/insights/')
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {

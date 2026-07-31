@@ -1,0 +1,273 @@
+---
+import { createElement } from 'react'
+import Layout from '../layouts/Layout.astro'
+import SectionHeader from '../components/SectionHeader.jsx'
+import PrimaryButton from '../components/PrimaryButton.jsx'
+import * as Icons from '../components/icons/icons.js'
+import { ArrowRight, Calendar, CheckCircle2, Clock, Code2, MessageSquare } from '../components/icons/icons.js'
+import { loadPageSeo } from '../lib/content/seo'
+import { loadArticlesContent, formatArticleDate, slugifyLabel, type ArticlePost } from '../lib/content/articles'
+
+function resolveIcon(name: string) {
+  return (Icons as Record<string, typeof Icons.Lightbulb>)[name] || Icons.Lightbulb
+}
+
+const seo = await loadPageSeo('insights')
+const { posts, playbook } = await loadArticlesContent()
+
+const publishedPosts = posts.filter((post) => post.status !== 'draft')
+const sortedPosts = [...publishedPosts].sort((left, right) => {
+  const leftTime = new Date(left.publishedAt || 0).getTime()
+  const rightTime = new Date(right.publishedAt || 0).getTime()
+  if (leftTime !== rightTime) return rightTime - leftTime
+  return (left.sortOrder || 0) - (right.sortOrder || 0)
+})
+
+const featuredPost: ArticlePost | null = sortedPosts.find((post) => post.isFeatured) || sortedPosts[0] || null
+const filterOptions = [
+  { id: 'all', label: 'All posts' },
+  ...Array.from(new Set(sortedPosts.map((post) => slugifyLabel(post.contentType)).filter(Boolean))).map((key) => ({
+    id: key,
+    label: key.charAt(0).toUpperCase() + key.slice(1),
+  })),
+]
+const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
+---
+
+<Layout title="Resources — DevLab Studios" seo={seo}>
+  <div class="space-y-10">
+    <section class="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10">
+      <div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div class="space-y-5">
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Resources</p>
+          <h1 class="text-4xl font-semibold leading-tight text-brand-ink sm:text-5xl">
+            Guides, AI updates, and operational notes for modern workflows.
+          </h1>
+          <p class="max-w-3xl text-base leading-relaxed text-slate-700 sm:text-lg">
+            A CMS-managed feed of practical implementation notes across AI automation, websites, systems design, delivery workflows, and business operations.
+          </p>
+          <div class="flex flex-wrap gap-3">
+            <PrimaryButton to="/services">
+              <Code2 size={16} />
+              Explore Solutions
+            </PrimaryButton>
+            <PrimaryButton to="/contact" variant="secondary">
+              <MessageSquare size={16} />
+              Ask About a Workflow
+            </PrimaryButton>
+          </div>
+        </div>
+
+        <div class="rounded-[24px] bg-white/90 p-6 shadow-[0_16px_34px_rgba(48,28,114,0.10)] ring-1 ring-slate-200">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Automation Readiness</p>
+          <h2 class="mt-2 text-2xl font-semibold text-brand-ink">Start with workflow clarity.</h2>
+          <ul class="mt-4 space-y-3 text-sm text-slate-700">
+            {playbook.map((item) => (
+              <li class="flex gap-3 leading-relaxed">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    {featuredPost ? (
+      <section class="space-y-6">
+        <SectionHeader
+          title="Featured Insight"
+          subtitle="Longer-form guidance and implementation notes with enough detail to read, not just skim."
+        />
+        <article class="overflow-hidden rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
+          <div class="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
+            <div class="flex min-h-[260px] items-center justify-center bg-gradient-to-br from-brand-ink via-[#22185a] to-[#3526b5] p-8 text-white">
+              {featuredPost.coverImageUrl ? (
+                <img
+                  src={featuredPost.coverImageUrl}
+                  alt={featuredPost.title}
+                  class="max-h-[360px] w-full rounded-2xl object-cover shadow-[0_16px_42px_rgba(0,0,0,0.28)]"
+                  loading="eager"
+                />
+              ) : (
+                <div class="flex h-full min-h-[220px] w-full flex-col items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 text-center">
+                  <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
+                    {createElement(resolveIcon(featuredPost.icon), { className: 'h-6 w-6', 'aria-hidden': 'true' })}
+                  </div>
+                  <p class="mt-4 text-sm font-semibold uppercase tracking-[0.16em] text-white/70">{featuredPost.category}</p>
+                  <p class="mt-2 text-2xl font-semibold">{featuredPost.title}</p>
+                </div>
+              )}
+            </div>
+
+            <div class="p-6 sm:p-8">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded-full bg-brand-mint px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">Featured</span>
+                <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{featuredPost.category}</span>
+                <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{featuredPost.contentType}</span>
+              </div>
+
+              <h2 class="mt-4 text-3xl font-semibold text-brand-ink">{featuredPost.title}</h2>
+              <p class="mt-3 text-base leading-relaxed text-slate-600">{featuredPost.summary}</p>
+
+              <div class="mt-5 flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                <span class="inline-flex items-center gap-2">
+                  <Calendar className="h-4 w-4" aria-hidden="true" />
+                  {formatArticleDate(featuredPost.publishedAt)}
+                </span>
+                {featuredPost.readingTimeMinutes ? (
+                  <span class="inline-flex items-center gap-2">
+                    <Clock className="h-4 w-4" aria-hidden="true" />
+                    {featuredPost.readingTimeMinutes} min read
+                  </span>
+                ) : null}
+              </div>
+
+              <div class="mt-5 flex flex-wrap gap-2">
+                {(featuredPost.tags || []).map((tag) => (
+                  <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">{tag}</span>
+                ))}
+              </div>
+
+              <div class="mt-6">
+                <PrimaryButton to={`/insights/${featuredPost.slug}`} showIcon>
+                  Read Article
+                </PrimaryButton>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+    ) : null}
+
+    <section class="space-y-6">
+      <SectionHeader
+        title="Latest From the Feed"
+        subtitle="A practical mix of evergreen guides, automation notes, and current AI or systems insights."
+      />
+
+      <div id="insights-filters" class="flex flex-wrap gap-2">
+        {filterOptions.map((option, index) => (
+          <button
+            type="button"
+            data-filter={option.id}
+            aria-pressed={index === 0 ? 'true' : 'false'}
+            class={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+              index === 0
+                ? 'border-brand-teal bg-brand-teal text-white'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-brand-teal/40 hover:text-brand-teal'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      <div id="insights-feed" class="grid gap-5">
+        {feedPosts.map((post) => (
+          <article data-content-type={slugifyLabel(post.contentType)} class="rounded-[28px] border border-slate-200 bg-white/95 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)] sm:p-7">
+            <div class="flex items-start gap-4">
+              <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
+                {createElement(resolveIcon(post.icon), { className: 'h-5 w-5', 'aria-hidden': 'true' })}
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{post.category}</span>
+                  <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{post.contentType}</span>
+                </div>
+                <h2 class="mt-3 text-2xl font-semibold text-brand-ink">{post.title}</h2>
+                <p class="mt-2 text-sm leading-relaxed text-slate-600">{post.summary}</p>
+              </div>
+            </div>
+
+            <div class="mt-5 flex flex-wrap items-center gap-4 text-sm text-slate-500">
+              {post.publishedAt ? (
+                <span class="inline-flex items-center gap-2">
+                  <Calendar className="h-4 w-4" aria-hidden="true" />
+                  {formatArticleDate(post.publishedAt)}
+                </span>
+              ) : null}
+              {post.readingTimeMinutes ? (
+                <span class="inline-flex items-center gap-2">
+                  <Clock className="h-4 w-4" aria-hidden="true" />
+                  {post.readingTimeMinutes} min read
+                </span>
+              ) : null}
+              <span>{post.authorName || 'DevLab Studios'}</span>
+            </div>
+
+            {(post.points || []).length > 0 ? (
+              <div class="mt-5 flex flex-wrap gap-2">
+                {post.points.map((point) => (
+                  <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{point}</span>
+                ))}
+              </div>
+            ) : null}
+
+            <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap gap-2">
+                {(post.tags || []).map((tag) => (
+                  <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">{tag}</span>
+                ))}
+              </div>
+
+              <a href={`/insights/${post.slug}`} class="inline-flex items-center gap-2 text-sm font-semibold text-brand-teal transition hover:text-brand-tealDark">
+                Read more
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="rounded-[28px] bg-gradient-to-r from-brand-ink via-[#22185a] to-[#3120a3] p-6 text-white shadow-[0_22px_50px_rgba(20,13,64,0.22)] sm:p-8">
+      <div class="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-center">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Need implementation?</p>
+          <h2 class="mt-2 text-3xl font-semibold">Turn the article into a working system.</h2>
+          <p class="mt-3 text-white/75">
+            DevLab Studios can map the process, choose the stack, and build the website, automation, or internal workflow around your current tools.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-3 lg:justify-end">
+          <PrimaryButton to="/contact">
+            <MessageSquare size={16} />
+            Start a Conversation
+          </PrimaryButton>
+          <PrimaryButton to="/services" variant="secondary">
+            <ArrowRight size={16} />
+            View Services
+          </PrimaryButton>
+        </div>
+      </div>
+    </section>
+  </div>
+</Layout>
+
+<script>
+  const filterBar = document.getElementById('insights-filters')
+  const feed = document.getElementById('insights-feed')
+
+  filterBar?.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement)?.closest<HTMLButtonElement>('button[data-filter]')
+    if (!button) return
+
+    const filter = button.dataset.filter
+    filterBar.querySelectorAll('button[data-filter]').forEach((btn) => {
+      const isActive = btn === button
+      btn.setAttribute('aria-pressed', String(isActive))
+      btn.classList.toggle('border-brand-teal', isActive)
+      btn.classList.toggle('bg-brand-teal', isActive)
+      btn.classList.toggle('text-white', isActive)
+      btn.classList.toggle('border-slate-200', !isActive)
+      btn.classList.toggle('bg-white', !isActive)
+      btn.classList.toggle('text-slate-600', !isActive)
+    })
+
+    feed?.querySelectorAll<HTMLElement>('article[data-content-type]').forEach((card) => {
+      const matches = filter === 'all' || card.dataset.contentType === filter
+      card.classList.toggle('hidden', !matches)
+    })
+  })
+</script>

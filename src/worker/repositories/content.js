@@ -237,15 +237,14 @@ export async function replaceServiceGroups(db, groups) {
   }
 }
 
-// NOTE: these functions/exports keep their original "Resources" names for
-// backward compatibility with the existing /api/resources routes and
-// Resources.jsx, even though the underlying table was renamed to `articles`
-// in migrations/0004_content_model_v2.sql (it's genuinely article-shaped
-// content, not the new downloads-oriented Resources collection). Renaming
-// these too happens in Phase 3 alongside the actual page rewrite. See
-// docs/content-model.md for the full explanation. The new, real
-// downloads/reference Resources collection lives in
-// src/worker/repositories/resourceLibrary.js.
+// NOTE: these functions/exports keep their original "Resources" names since
+// they still power the admin content editor's `resources` content type
+// (Phase 4), even though the public-facing rename to Articles/Insights is
+// done (src/pages/insights.astro, src/pages/api/articles.ts) and the
+// underlying table was renamed to `articles` in
+// migrations/0004_content_model_v2.sql. See docs/content-model.md for the
+// full explanation. The new, real downloads/reference Resources collection
+// lives in src/worker/repositories/resourceLibrary.js.
 export async function listResources(db, { includeDrafts = false } = {}) {
   const rows = await listRows(
     db,

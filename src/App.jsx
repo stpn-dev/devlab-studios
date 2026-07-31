@@ -4,7 +4,6 @@ import MainLayout from './layouts/MainLayout'
 
 const Contact = lazy(() => import('./legacy-app/pages/Contact'))
 const Profile = lazy(() => import('./legacy-app/pages/Profile'))
-const Resources = lazy(() => import('./legacy-app/pages/Resources'))
 const LandingSampleReact = lazy(() => import('./legacy-app/pages/LandingSampleReact'))
 const LandingSampleHtml = lazy(() => import('./legacy-app/pages/LandingSampleHtml'))
 const LandingSampleFullStack = lazy(() => import('./legacy-app/pages/LandingSampleFullStack'))
@@ -40,8 +39,6 @@ const router = createBrowserRouter([
       { path: 'experiences', element: <Navigate to="/profile" replace /> },
       { path: 'portfolio', element: <Navigate to="/profile" replace /> },
       { path: 'profile', element: lazyPage(Profile) },
-      { path: 'resources', element: lazyPage(Resources) },
-      { path: 'resources/:slug', element: lazyPage(Resources) },
       { path: 'landing-sample-react', element: lazyPage(LandingSampleReact) },
       { path: 'landing-sample-html', element: lazyPage(LandingSampleHtml) },
       { path: 'landing-sample-fullstack', element: lazyPage(LandingSampleFullStack) },

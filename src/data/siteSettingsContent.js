@@ -2,7 +2,7 @@ export const siteSettingsContent = {
   navigation: [
     { id: 'nav-about', label: 'About', href: '/about', sortOrder: 10, status: 'published' },
     { id: 'nav-services', label: 'Services', href: '/services', sortOrder: 20, status: 'published' },
-    { id: 'nav-resources', label: 'Resources', href: '/resources', sortOrder: 30, status: 'published' },
+    { id: 'nav-resources', label: 'Resources', href: '/insights', sortOrder: 30, status: 'published' },
     { id: 'nav-profile', label: 'Profile', href: '/profile', sortOrder: 40, status: 'published' },
   ],
   ctas: {
@@ -18,7 +18,7 @@ export const siteSettingsContent = {
       { label: 'Home', href: '/' },
       { label: 'About', href: '/about' },
       { label: 'Services', href: '/services' },
-      { label: 'Resources', href: '/resources' },
+      { label: 'Resources', href: '/insights' },
       { label: 'Profile', href: '/profile' },
       { label: 'Contact', href: '/contact' },
     ],

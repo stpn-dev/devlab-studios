@@ -1,0 +1,181 @@
+---
+import { createElement } from 'react'
+import Layout from '../../layouts/Layout.astro'
+import PrimaryButton from '../../components/PrimaryButton.jsx'
+import * as Icons from '../../components/icons/icons.js'
+import { ArrowLeft, Calendar, CheckCircle2, Clock } from '../../components/icons/icons.js'
+import { loadArticlesContent, parseArticleBody, formatArticleDate } from '../../lib/content/articles'
+import type { SeoData } from '../../lib/content/seo'
+
+function resolveIcon(name: string) {
+  return (Icons as Record<string, typeof Icons.Lightbulb>)[name] || Icons.Lightbulb
+}
+
+const { slug } = Astro.params
+const { posts } = await loadArticlesContent()
+const publishedPosts = posts.filter((post) => post.status !== 'draft')
+const activePost = publishedPosts.find((post) => post.slug === slug || post.id === slug) || null
+
+if (!activePost) {
+  Astro.response.status = 404
+}
+
+const relatedPosts = activePost
+  ? publishedPosts.filter((post) => post.id !== activePost.id).slice(0, 3)
+  : []
+
+const seo: SeoData | null = activePost
+  ? {
+      metaTitle: `${activePost.title} | DevLab Studios Resources`,
+      metaDescription: activePost.summary,
+      canonicalUrl: `https://www.devlabstudios.com/insights/${activePost.slug}`,
+      ogTitle: activePost.title,
+      ogDescription: activePost.summary,
+      ogImage: activePost.coverImageUrl || 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
+      twitterTitle: activePost.title,
+      twitterDescription: activePost.summary,
+      twitterImage: activePost.coverImageUrl || 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
+    }
+  : null
+
+const bodyBlocks = activePost ? parseArticleBody(activePost.body) : []
+---
+
+<Layout title={activePost ? activePost.title : 'Article not found'} seo={seo}>
+  {!activePost ? (
+    <div class="rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
+      <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Resources</p>
+      <h1 class="mt-3 text-3xl font-semibold text-brand-ink">Article not found</h1>
+      <p class="mt-3 text-slate-600">The resource you tried to open is missing or no longer published.</p>
+      <div class="mt-6 flex justify-center">
+        <PrimaryButton to="/insights">
+          <ArrowLeft size={16} />
+          Back to Resources
+        </PrimaryButton>
+      </div>
+    </div>
+  ) : (
+    <div class="space-y-8">
+      <nav class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+        <a href="/insights" class="inline-flex items-center gap-2 font-semibold text-brand-teal transition hover:text-brand-tealDark">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Back to Resources
+        </a>
+        <span>/</span>
+        <span>{activePost.title}</span>
+      </nav>
+
+      <section class="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10">
+        <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+          <div class="space-y-5">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rounded-full bg-brand-mint px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">{activePost.category}</span>
+              <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">{activePost.contentType}</span>
+            </div>
+
+            <h1 class="text-4xl font-semibold leading-tight text-brand-ink sm:text-5xl">{activePost.title}</h1>
+            <p class="max-w-3xl text-base leading-relaxed text-slate-700 sm:text-lg">{activePost.summary}</p>
+
+            <div class="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+              <span>{activePost.authorName || 'DevLab Studios'}</span>
+              {activePost.publishedAt ? (
+                <span class="inline-flex items-center gap-2">
+                  <Calendar className="h-4 w-4" aria-hidden="true" />
+                  {formatArticleDate(activePost.publishedAt)}
+                </span>
+              ) : null}
+              {activePost.readingTimeMinutes ? (
+                <span class="inline-flex items-center gap-2">
+                  <Clock className="h-4 w-4" aria-hidden="true" />
+                  {activePost.readingTimeMinutes} min read
+                </span>
+              ) : null}
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              {(activePost.tags || []).map((tag) => (
+                <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">{tag}</span>
+              ))}
+            </div>
+          </div>
+
+          <div class="flex min-h-[280px] items-center justify-center rounded-[24px] bg-gradient-to-br from-brand-ink via-[#22185a] to-[#3526b5] p-8 text-white shadow-[0_16px_36px_rgba(20,13,64,0.22)]">
+            {activePost.coverImageUrl ? (
+              <img
+                src={activePost.coverImageUrl}
+                alt={activePost.title}
+                class="max-h-[380px] w-full rounded-2xl object-cover shadow-[0_16px_42px_rgba(0,0,0,0.28)]"
+              />
+            ) : (
+              <div class="flex h-full min-h-[220px] w-full flex-col items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 text-center">
+                <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-white">
+                  {createElement(resolveIcon(activePost.icon), { className: 'h-7 w-7', 'aria-hidden': 'true' })}
+                </div>
+                <p class="mt-4 text-sm font-semibold uppercase tracking-[0.16em] text-white/70">{activePost.category}</p>
+                <p class="mt-2 text-2xl font-semibold">{activePost.title}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <div class="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <article class="rounded-[28px] bg-white p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)] sm:p-8">
+          <div class="prose prose-slate max-w-none">
+            {bodyBlocks.map((block) => {
+              if (block.type === 'heading') {
+                return <h2 class="mt-8 text-2xl font-semibold text-brand-ink first:mt-0">{block.text}</h2>
+              }
+
+              if (block.type === 'list') {
+                return (
+                  <ul class="mt-4 grid gap-3 text-base leading-relaxed text-slate-700">
+                    {block.items.map((item) => (
+                      <li class="flex gap-3">
+                        <CheckCircle2 className="mt-1 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              }
+
+              return <p class="mt-4 text-base leading-8 text-slate-700 first:mt-0">{block.text}</p>
+            })}
+          </div>
+        </article>
+
+        <aside class="space-y-6">
+          {(activePost.points || []).length > 0 ? (
+            <section class="rounded-[24px] bg-white p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Key Takeaways</p>
+              <ul class="mt-4 grid gap-3 text-sm text-slate-700">
+                {activePost.points.map((point) => (
+                  <li class="flex gap-3 leading-relaxed">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />
+                    <span>{point}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {relatedPosts.length > 0 ? (
+            <section class="rounded-[24px] bg-white p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">More From Resources</p>
+              <div class="mt-4 grid gap-4">
+                {relatedPosts.map((item) => (
+                  <a href={`/insights/${item.slug}`} class="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-brand-teal/30 hover:bg-white">
+                    <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{item.category}</p>
+                    <p class="mt-2 text-sm font-semibold text-brand-ink">{item.title}</p>
+                    <p class="mt-2 text-xs leading-relaxed text-slate-500">{item.summary}</p>
+                  </a>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </aside>
+      </div>
+    </div>
+  )}
+</Layout>

@@ -55,13 +55,13 @@ export const seoContent = {
     },
     {
       id: 'seo-resources',
-      pageSlug: 'resources',
+      pageSlug: 'insights',
       metaTitle: 'Resources - AI, Automation & Web Systems Feed | DevLab Studios',
       metaDescription:
         'Read DevLab Studios resources covering practical automation guides, AI updates, website systems, operations insights, and implementation notes for modern business workflows.',
       metaKeywords:
         'AI automation resources, workflow guides, automation news, website systems insights, operations playbook, DevLab Studios resources',
-      canonicalUrl: 'https://www.devlabstudios.com/resources',
+      canonicalUrl: 'https://www.devlabstudios.com/insights',
       ogTitle: 'Resources - AI, Automation & Web Systems Feed | DevLab Studios',
       ogDescription:
         'A feed of practical guides, AI updates, web systems notes, and operational implementation insights.',

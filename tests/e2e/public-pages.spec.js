@@ -5,7 +5,7 @@ const pages = [
   { path: '/about', heading: 'Systems for clearer offers' },
   { path: '/services', heading: 'Business automation, AI agents, and web systems' },
   { path: '/profile', heading: 'Profile' },
-  { path: '/resources', heading: 'Guides, AI updates, and operational notes' },
+  { path: '/insights', heading: 'Guides, AI updates, and operational notes' },
   { path: '/contact', heading: 'Contact Me' },
   { path: '/landing-sample-react', heading: 'A Different Look' },
   { path: '/landing-sample-html', heading: 'Editorial Minimal Landing Page' },
@@ -27,6 +27,18 @@ test('legacy redirects still work', async ({ page }) => {
   await expect(page).toHaveURL(/\/profile$/)
   await page.goto('/portfolio')
   await expect(page).toHaveURL(/\/profile$/)
+  await page.goto('/resources')
+  await expect(page).toHaveURL(/\/insights$/)
+})
+
+test('a specific insights article loads via the old /resources/:slug redirect', async ({ page, request }) => {
+  const feedResponse = await request.get('/api/articles')
+  const { data } = await feedResponse.json()
+  const firstSlug = data?.posts?.[0]?.slug
+  test.skip(!firstSlug, 'No published articles to verify')
+
+  await page.goto(`/resources/${firstSlug}`)
+  await expect(page).toHaveURL(new RegExp(`/insights/${firstSlug}$`))
 })
 
 test('unknown route shows 404 page', async ({ page }) => {
