@@ -1,5 +1,8 @@
 import type { APIRoute } from 'astro'
 import { getEnv } from '../../lib/env'
+import { createLead, findRecentDuplicateLead } from '../../worker/repositories/leads.js'
+import { attemptLeadDelivery } from '../../worker/leadDelivery.js'
+import { verifyTurnstileToken } from '../../worker/turnstile.js'
 
 const CONTACT_WINDOW_MS = 10 * 60 * 1000
 const CONTACT_MAX_ATTEMPTS = 5
@@ -10,6 +13,7 @@ interface ContactPayload {
   email?: string
   subject?: string
   message?: string
+  turnstileToken?: string
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -25,6 +29,11 @@ function getClientIp(request: Request): string {
     || 'unknown'
 }
 
+/**
+ * Fast, in-memory first line of defense — not durable across Worker
+ * isolates, but cheap and catches obvious abuse before it touches D1.
+ * Turnstile and the D1-backed duplicate check handle the rest.
+ */
 function isContactRateLimited(request: Request): boolean {
   const key = getClientIp(request)
   const now = Date.now()
@@ -59,11 +68,10 @@ function validateContactPayload(payload: ContactPayload): string | null {
   return null
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   const env = getEnv()
-  const webhookUrl = env.ZOHO_WEBHOOK_URL
-  if (!webhookUrl) {
-    return jsonResponse({ error: 'Server misconfiguration: ZOHO_WEBHOOK_URL missing.' }, 500)
+  if (!env.DB) {
+    return jsonResponse({ error: 'Server misconfiguration: D1 DB binding missing.' }, 503)
   }
 
   if (isContactRateLimited(request)) {
@@ -82,19 +90,41 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonResponse({ error: validationError }, 400)
   }
 
-  try {
-    const upstream = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-
-    if (!upstream.ok) {
-      return jsonResponse({ error: `Zoho upstream error: ${upstream.status}` }, 502)
-    }
-
-    return jsonResponse({ ok: true })
-  } catch {
-    return jsonResponse({ error: 'Unable to reach Zoho endpoint.' }, 502)
+  const turnstileResult = await verifyTurnstileToken(env.TURNSTILE_SECRET_KEY, payload.turnstileToken, getClientIp(request))
+  if (!turnstileResult.ok) {
+    console.log(JSON.stringify({ event: 'contact_submission', outcome: 'turnstile_rejected', reason: turnstileResult.reason }))
+    return jsonResponse({ error: 'Verification failed. Please try again.' }, 400)
   }
+
+  // Durability guarantee starts here: once this insert succeeds, the lead
+  // survives regardless of what happens to the downstream Zoho delivery.
+  const duplicate = await findRecentDuplicateLead(env.DB, { email: payload.email, message: payload.message })
+  const lead = duplicate || (await createLead(env.DB, {
+    name: payload.name || '',
+    email: payload.email || '',
+    subject: payload.subject || '',
+    message: payload.message || '',
+  }))
+
+  if (!lead) {
+    return jsonResponse({ error: 'Unable to save your message. Please try again.' }, 500)
+  }
+
+  if (!duplicate) {
+    // attemptLeadDelivery already catches its own errors and records them
+    // as a failed attempt — this catch is only a last-resort net so a bug
+    // there can never surface as an unhandled rejection in the background.
+    const deliveryTask = attemptLeadDelivery(env, lead).catch((error) => {
+      console.log(JSON.stringify({ event: 'lead_delivery', outcome: 'unhandled_error', leadId: lead.id, error: error instanceof Error ? error.message : String(error) }))
+    })
+    if (locals.cfContext) {
+      locals.cfContext.waitUntil(deliveryTask)
+    } else {
+      // Dev fallback (astro preview / no cfContext available) — await inline
+      // so the attempt still happens instead of silently never running.
+      await deliveryTask
+    }
+  }
+
+  return jsonResponse({ ok: true })
 }

@@ -21,7 +21,8 @@ Snapshot as of 2026-07-31, taken as Phase 0 of the Astro/CMS rebuild program (se
 
 | Secret | Used by | Purpose |
 |---|---|---|
-| `ZOHO_WEBHOOK_URL` | `POST /api/contact` | Upstream contact-form delivery target. |
+| `ZOHO_WEBHOOK_URL` | `POST /api/contact` (background delivery, see below) | Upstream contact-form delivery target. |
+| `TURNSTILE_SECRET_KEY` | `POST /api/contact` | Cloudflare Turnstile server-side verification. Verification is skipped entirely (not rejected) when unset — see "Turnstile setup" below. |
 | `ADMIN_SESSION_SECRET` | `adminAuth.js` | HMAC key signing the admin session cookie. |
 | `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` | `adminAuth.js` | Single-admin credential pair (PBKDF2 hash format — see `scripts/cms/hash-admin-password.mjs`). |
 | `ADMIN_USERS` | `adminAuth.js` | Alternative to the pair above — a JSON array of `{email, passwordHash, role}` for multiple admins. Only one of this or the pair above is needed. |
@@ -32,6 +33,50 @@ Snapshot as of 2026-07-31, taken as Phase 0 of the Astro/CMS rebuild program (se
 | Variable | Purpose |
 |---|---|
 | `VITE_CONTACT_API_URL` | Overrides the contact form's submit target; defaults to `/api/contact`. |
+| `VITE_TURNSTILE_SITE_KEY` | Turnstile widget sitekey (public, safe to expose client-side). Defaults to Cloudflare's published "always passes" testing key (`1x00000000000000000000AA`) — see "Turnstile setup" below. |
+
+## Leads backend (Phase 5)
+
+`POST /api/contact` persists every submission to the `leads` table
+*before* attempting delivery — this is the core reliability guarantee:
+a Zoho outage never loses a lead, it just leaves it in `status: failed`,
+retryable from `/admin/leads`. The Zoho delivery attempt itself runs
+in the background via `Astro.locals.cfContext.waitUntil()` (Astro 6.2+'s
+Cloudflare-forwarded `ExecutionContext.waitUntil`, not the older/removed
+`locals.runtime.ctx` pattern), so the visitor's response doesn't wait on
+it. Every attempt (the automatic first one and any manual admin retry)
+is recorded in `delivery_attempts` — see `src/worker/leadDelivery.js`.
+
+There's no Cloudflare Queue involved: `@astrojs/cloudflare`'s generated
+Worker entry only exports `fetch`, with no hook for a `queue()` consumer
+export, so genuine Queue-based retry would require a second,
+independently-deployed Worker. Given this site's scale, `waitUntil` +
+durable D1 persistence + manual retry was chosen instead — see the
+git history around the Phase 5 commits for the fuller tradeoff.
+
+Submissions with the same email + message within a 5-minute window are
+treated as the same inquiry (`findRecentDuplicateLead`) — no new lead
+or delivery attempt, so double-clicks and retry-after-timeout don't
+spam Zoho or the admin Leads list.
+
+### Turnstile setup
+
+The contact form always renders a Turnstile widget, but server-side
+verification (`src/worker/turnstile.js`) is skipped entirely — not
+rejected — until `TURNSTILE_SECRET_KEY` is set, matching this
+codebase's established pattern for not-yet-configured optional
+integrations (see `adminAuth.js`'s auth-mode fallback). To turn on real
+spam protection:
+
+1. Create a Turnstile widget in the Cloudflare dashboard (**Turnstile**
+   → **Add site**) for the production domain.
+2. Set `VITE_TURNSTILE_SITE_KEY` (build-time, public) to the new
+   sitekey.
+3. Set `TURNSTILE_SECRET_KEY` (runtime secret) to the matching secret.
+
+Until both are set, the widget uses Cloudflare's published testing
+keys, which always pass verification — safe for local dev, but not
+real spam protection.
 
 Maintenance mode is a runtime check (`src/middleware.ts`), not a build-time flag: it reads the `maintenance_mode` key from the `site_settings` D1 table on every request to `/`, `/about`, `/experiences`, `/services`, `/portfolio`, `/profile`, and `/resources*`, rewriting to `/maintenance` when set. Toggle it with `wrangler d1 execute` against `site_settings` (or the future admin Site Settings screen) — no redeploy required.
 

@@ -17,9 +17,13 @@ async function fillForm(page) {
 // The form is a client:load React island — the Send button is present in
 // the server-rendered HTML before hydration attaches its submit handler, so
 // clicking too early falls through to a native (unhandled) form submit.
+// `networkidle` used to be the wait signal here, but the Turnstile widget
+// (added for spam protection) does continuous background network activity
+// that networkidle never resolves against — so instead, wrap the
+// click+assert pair in `toPass()` to retry the click if hydration hasn't
+// attached its handler yet.
 async function gotoContact(page) {
   await page.goto('/contact')
-  await page.waitForLoadState('networkidle')
 }
 
 test('submits successfully and shows a success message', async ({ page }) => {
@@ -28,10 +32,16 @@ test('submits successfully and shows a success message', async ({ page }) => {
   )
 
   await gotoContact(page)
-  await fillForm(page)
-  await page.getByRole('button', { name: /send/i }).click()
-
-  await expect(page.getByRole('status')).toContainText(/sent successfully/i)
+  // fillForm is inside the retry block, not before it: a successful submit
+  // clears the form (setForm(initialForm)), so if the first click's result
+  // wasn't observed in time and toPass() retries, it must re-fill before
+  // re-clicking — otherwise the retry submits an empty form and fails
+  // client-side validation instead of re-testing the real assertion.
+  await expect(async () => {
+    await fillForm(page)
+    await page.getByRole('button', { name: /send/i }).click()
+    await expect(page.getByRole('status')).toContainText(/sent successfully/i, { timeout: 1_000 })
+  }).toPass({ timeout: 15_000 })
 })
 
 test('shows an error message when the API call fails', async ({ page }) => {
@@ -40,15 +50,17 @@ test('shows an error message when the API call fails', async ({ page }) => {
   )
 
   await gotoContact(page)
-  await fillForm(page)
-  await page.getByRole('button', { name: /send/i }).click()
-
-  await expect(page.getByRole('status')).toBeVisible()
+  await expect(async () => {
+    await fillForm(page)
+    await page.getByRole('button', { name: /send/i }).click()
+    await expect(page.getByRole('status')).toBeVisible({ timeout: 1_000 })
+  }).toPass({ timeout: 15_000 })
 })
 
 test('shows validation errors on an empty submit', async ({ page }) => {
   await gotoContact(page)
-  await page.getByRole('button', { name: /send/i }).click()
-
-  await expect(page.getByText(/full name is required/i)).toBeVisible()
+  await expect(async () => {
+    await page.getByRole('button', { name: /send/i }).click()
+    await expect(page.getByText(/full name is required/i)).toBeVisible({ timeout: 1_000 })
+  }).toPass({ timeout: 15_000 })
 })

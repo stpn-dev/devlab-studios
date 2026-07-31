@@ -105,6 +105,16 @@ collection CRUD, Zod-validated), `GET /api/admin/versions/[type]` +
 `GET/PUT /api/admin/pages/[slug]` (block-composed pages). See
 `docs/content-model.md` for what each actually does.
 
+**New in Phase 5**: `POST /api/contact` was rewritten — it now persists
+every submission to the `leads` table before attempting delivery
+(previously delivery was synchronous and a Zoho failure lost the
+submission entirely), and adds `GET /api/admin/leads`,
+`GET /api/admin/leads/[id]`, and `POST /api/admin/leads/[id]/retry`.
+`leads`/`delivery_attempts` are deliberately separate tables from every
+content table above — see docs/operations.md's "Leads backend" section
+for the full delivery architecture (and why it's `waitUntil` + manual
+retry rather than a Cloudflare Queue).
+
 **The underlying business logic didn't move or change** —
 `src/worker/repositories/content.js`, `projects.js`, `utils/responses.js`
 are imported into the new `.ts` route files unchanged, since they were

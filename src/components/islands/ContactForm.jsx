@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PrimaryButton from '../PrimaryButton'
 import AnimatedIcon from '../icons/AnimatedIcon'
 import { ERROR_MESSAGES } from '../../config/errorMessages'
@@ -11,11 +11,69 @@ const initialForm = {
   message: '',
 }
 
+// Cloudflare's published "always passes" testing sitekey — safe as a
+// default so the widget renders in dev/preview before a real one is
+// configured. Server-side verification is skipped entirely until
+// TURNSTILE_SECRET_KEY is set (see src/worker/turnstile.js), so this
+// default has no security implication either way.
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'
+const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+
+function useTurnstile() {
+  const containerRef = useRef(null)
+  const widgetIdRef = useRef(null)
+  const [token, setToken] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+
+    function renderWidget() {
+      if (cancelled || !containerRef.current || !window.turnstile) return
+      widgetIdRef.current = window.turnstile.render(containerRef.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        callback: (nextToken) => setToken(nextToken),
+        'expired-callback': () => setToken(''),
+        'error-callback': () => setToken(''),
+      })
+    }
+
+    if (window.turnstile) {
+      renderWidget()
+    } else if (!document.querySelector(`script[src="${TURNSTILE_SCRIPT_SRC}"]`)) {
+      const script = document.createElement('script')
+      script.src = TURNSTILE_SCRIPT_SRC
+      script.async = true
+      script.defer = true
+      script.onload = renderWidget
+      document.head.appendChild(script)
+    } else {
+      document.querySelector(`script[src="${TURNSTILE_SCRIPT_SRC}"]`)?.addEventListener('load', renderWidget)
+    }
+
+    return () => {
+      cancelled = true
+      if (window.turnstile && widgetIdRef.current !== null) {
+        window.turnstile.remove(widgetIdRef.current)
+      }
+    }
+  }, [])
+
+  function reset() {
+    setToken('')
+    if (window.turnstile && widgetIdRef.current !== null) {
+      window.turnstile.reset(widgetIdRef.current)
+    }
+  }
+
+  return { containerRef, token, reset }
+}
+
 function ContactForm() {
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const turnstile = useTurnstile()
 
   const config = useMemo(
     () => ({
@@ -72,6 +130,7 @@ function ContactForm() {
         subject: form.subject,
         message: form.message,
         source: 'devlabstudios-contact-form',
+        turnstileToken: turnstile.token,
       }
 
       const requestInit = {
@@ -104,6 +163,7 @@ function ContactForm() {
       }
     } finally {
       setIsSubmitting(false)
+      turnstile.reset()
     }
   }
 
@@ -179,6 +239,8 @@ function ContactForm() {
           />
           {errors.message ? <p className="text-sm text-rose-700">{errors.message}</p> : null}
         </div>
+
+        <div ref={turnstile.containerRef} />
 
         <div className="flex flex-wrap items-center gap-3">
           <PrimaryButton type="submit" disabled={isSubmitting} className="px-6 py-3">

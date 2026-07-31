@@ -110,3 +110,35 @@ test('page builder: add a block, save, verify it persists, then remove it', asyn
   await page.getByRole('button', { name: /^save page/i }).click()
   await expect(page.getByText(/^saved/i)).toBeVisible({ timeout: 10_000 })
 })
+
+test('a lead persists in D1 and shows a failed delivery attempt when Zoho is unreachable', async ({ page, baseURL }) => {
+  // .dev.vars points ZOHO_WEBHOOK_URL at an RFC 2606 .invalid address, so
+  // delivery is guaranteed to fail here — this is exactly what proves the
+  // core Phase 5 guarantee: the lead survives a downstream outage.
+  // Both subject and message must be unique per run: findRecentDuplicateLead
+  // dedupes on email+message within a 5-minute window, so a repeated message
+  // here would be (correctly) treated as a resubmission of the same inquiry
+  // and skip a fresh delivery attempt entirely.
+  const marker = `Smoke test lead ${Date.now()}`
+  const response = await page.request.post(`${baseURL}/api/contact`, {
+    data: { name: 'Smoke Test', email: 'smoke-test-lead@example.com', subject: marker, message: `Verifying lead persistence. ${marker}` },
+  })
+  expect(response.ok()).toBeTruthy()
+
+  await login(page)
+
+  // The Zoho attempt runs in the background (waitUntil) — poll briefly for
+  // the delivery_attempts row to land rather than assuming it's instant.
+  await expect(async () => {
+    const leadsResponse = await page.request.get(`${baseURL}/api/admin/leads`)
+    const leads = await leadsResponse.json()
+    const lead = leads.find((item) => item.subject === marker)
+    expect(lead).toBeTruthy()
+    expect(lead.status).toBe('failed')
+  }).toPass({ timeout: 10_000 })
+
+  await page.getByRole('navigation').getByRole('link', { name: 'Leads' }).click()
+  await page.getByText(marker).click()
+  await expect(page.getByText(/attempt 1/i)).toBeVisible()
+  await expect(page.getByText('failure').first()).toBeVisible()
+})

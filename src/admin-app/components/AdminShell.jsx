@@ -41,6 +41,10 @@ const NAV_GROUPS = [
       { label: 'Audit Log', to: '/admin/audit-log' },
     ],
   },
+  {
+    heading: 'Operations',
+    items: [{ label: 'Leads', to: '/admin/leads' }],
+  },
 ]
 
 function getEnvironmentLabel() {

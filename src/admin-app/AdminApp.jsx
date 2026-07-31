@@ -8,6 +8,7 @@ import CollectionTypePage from './pages/CollectionTypePage'
 import PageBuilderPage from './pages/PageBuilderPage'
 import MediaLibraryPage from './pages/MediaLibraryPage'
 import AuditLogPage from './pages/AuditLogPage'
+import LeadsPage from './pages/LeadsPage'
 
 function buildRouter(session, onLogout) {
   return createBrowserRouter([
@@ -21,6 +22,7 @@ function buildRouter(session, onLogout) {
         { path: 'pages/:slug', element: <PageBuilderPage /> },
         { path: 'media', element: <MediaLibraryPage /> },
         { path: 'audit-log', element: <AuditLogPage /> },
+        { path: 'leads', element: <LeadsPage /> },
       ],
     },
   ])
