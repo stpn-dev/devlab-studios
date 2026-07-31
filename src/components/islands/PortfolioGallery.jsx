@@ -32,7 +32,7 @@ function PortfolioGallery({ projects }) {
         ))}
       </div>
 
-      <div className="space-y-6">
+      <div className="mt-6 space-y-6">
         {filteredItems.map((project) => (
           <PortfolioRow key={project.id} project={project} onImageClick={(image) => setSelectedImage(image)} />
         ))}

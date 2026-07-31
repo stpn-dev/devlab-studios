@@ -7,17 +7,11 @@ import SystemsPanel from '../components/ui/SystemsPanel.jsx'
 import ListItemWithIcon from '../components/ui/ListItemWithIcon.jsx'
 import AnimatedIcon from '../components/icons/AnimatedIcon.jsx'
 import PortfolioGallery from '../components/islands/PortfolioGallery.jsx'
+import CertificationsGallery from '../components/islands/CertificationsGallery.jsx'
 import { ArrowRight, BadgeCheck, Briefcase, Calendar, GraduationCap, Trophy } from '../components/icons/icons.js'
 import { loadPageSeo } from '../lib/content/seo'
 import { loadProfileContent } from '../lib/content/profile'
 import { loadProjects } from '../lib/content/projects'
-
-function formatCertDate(value: string): string {
-  if (!value) return ''
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-}
 
 const seo = await loadPageSeo('profile')
 const profileContent = await loadProfileContent()
@@ -93,22 +87,7 @@ const certifications = profileContent.certifications || []
           title="Platform Certifications"
           subtitle="Automation platform training completed through recognized programs."
         />
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {certifications.map((cert) => (
-            <div class="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-5 text-center shadow-[0_18px_45px_rgba(60,28,120,0.14)]">
-              {cert.badgeImageUrl ? (
-                <img src={cert.badgeImageUrl} alt={`${cert.name} certificate`} class="mx-auto h-20 w-auto object-contain" loading="lazy" />
-              ) : (
-                <div class="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
-                  <BadgeCheck className="h-8 w-8" aria-hidden="true" />
-                </div>
-              )}
-              <h3 class="mt-3 text-sm font-semibold text-brand-ink">{cert.name}</h3>
-              <p class="mt-1 text-xs text-slate-600">{cert.issuer}</p>
-              {cert.issuedDate ? <p class="mt-1 text-xs text-slate-500">{formatCertDate(cert.issuedDate)}</p> : null}
-            </div>
-          ))}
-        </div>
+        <CertificationsGallery client:visible certifications={certifications} />
       </section>
     ) : null}
 

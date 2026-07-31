@@ -1,12 +1,31 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { brandingAssets } from '../../config/branding'
 import devlabStudiosLogo from '../../assets/devlabstudios-logo-only.png'
+import siteSettingsContent from '../../data/siteSettingsContent'
 
 function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [status, setStatus] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [tagline, setTagline] = useState(siteSettingsContent.footer.tagline)
+
+  useEffect(() => {
+    let ignore = false
+
+    fetch('/api/site-settings')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!ignore && data?.footer?.tagline) {
+          setTagline(data.footer.tagline)
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -36,28 +55,58 @@ function LoginPage({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-10 text-slate-900">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-md items-center">
-        <form onSubmit={handleSubmit} className="w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-lg">
-          <div className="flex items-center gap-3">
+    <div className="grid min-h-screen lg:grid-cols-2">
+      <div className="relative hidden overflow-hidden bg-gradient-to-br from-brand-ink via-[#241963] to-[#3320a3] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -left-16 top-10 h-72 w-72 rounded-full bg-brand-teal/20 blur-[120px]" />
+          <div className="absolute bottom-10 right-0 h-80 w-80 rounded-full bg-fuchsia-400/15 blur-[140px]" />
+        </div>
+
+        <div className="relative z-10 flex items-center gap-3">
+          <img
+            src={brandingAssets.logoOnlyUrl}
+            alt="DevLab Studios"
+            className="h-10 w-10 rounded-md object-contain"
+            width="40"
+            height="40"
+            onError={(event) => {
+              event.currentTarget.onerror = null
+              event.currentTarget.src = devlabStudiosLogo.src
+            }}
+          />
+          <span className="text-lg font-semibold tracking-tight">DevLab Studios</span>
+        </div>
+
+        <div className="relative z-10 space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Content Management System</p>
+          <h1 className="max-w-md text-3xl font-semibold leading-tight sm:text-4xl">{tagline}</h1>
+        </div>
+
+        <p className="relative z-10 text-xs text-white/40">{siteSettingsContent.footer.copyright}</p>
+      </div>
+
+      <div className="flex items-center justify-center bg-slate-50 px-4 py-10">
+        <form onSubmit={handleSubmit} className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
+          <div className="flex items-center gap-3 lg:hidden">
             <img
               src={brandingAssets.logoOnlyUrl}
               alt="DevLab Studios"
-              className="h-12 w-12 rounded-md object-contain"
-              width="48"
-              height="48"
+              className="h-10 w-10 rounded-md object-contain"
+              width="40"
+              height="40"
               onError={(event) => {
                 event.currentTarget.onerror = null
                 event.currentTarget.src = devlabStudiosLogo.src
               }}
             />
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">CMS Admin</p>
-              <h1 className="mt-1 text-2xl font-semibold">Sign in</h1>
-            </div>
+            <span className="text-base font-semibold tracking-tight text-brand-ink">DevLab Studios</span>
           </div>
 
-          <label className="mt-6 block text-sm font-semibold" htmlFor="admin-email">Email</label>
+          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal lg:mt-0">CMS Admin</p>
+          <h2 className="mt-1 text-2xl font-semibold text-brand-ink">Sign in</h2>
+          <p className="mt-1 text-sm text-slate-500">Manage content, projects, and leads.</p>
+
+          <label className="mt-6 block text-sm font-semibold text-slate-800" htmlFor="admin-email">Email</label>
           <input
             id="admin-email"
             type="email"
@@ -68,7 +117,7 @@ function LoginPage({ onLogin }) {
             required
           />
 
-          <label className="mt-4 block text-sm font-semibold" htmlFor="admin-password">Password</label>
+          <label className="mt-4 block text-sm font-semibold text-slate-800" htmlFor="admin-password">Password</label>
           <input
             id="admin-password"
             type="password"

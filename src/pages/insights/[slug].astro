@@ -1,5 +1,4 @@
 ---
-import { createElement } from 'react'
 import Layout from '../../layouts/Layout.astro'
 import PrimaryButton from '../../components/PrimaryButton.jsx'
 import * as Icons from '../../components/icons/icons.js'
@@ -39,6 +38,7 @@ const seo: SeoData | null = activePost
   : null
 
 const bodyBlocks = activePost ? parseArticleBody(activePost.body) : []
+const ActiveIcon = activePost ? resolveIcon(activePost.icon) : null
 ---
 
 <Layout title={activePost ? activePost.title : 'Article not found'} seo={seo}>
@@ -109,7 +109,7 @@ const bodyBlocks = activePost ? parseArticleBody(activePost.body) : []
             ) : (
               <div class="flex h-full min-h-[220px] w-full flex-col items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 text-center">
                 <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-white">
-                  {createElement(resolveIcon(activePost.icon), { className: 'h-7 w-7', 'aria-hidden': 'true' })}
+                  {ActiveIcon ? <ActiveIcon className="h-7 w-7" aria-hidden="true" /> : null}
                 </div>
                 <p class="mt-4 text-sm font-semibold uppercase tracking-[0.16em] text-white/70">{activePost.category}</p>
                 <p class="mt-2 text-2xl font-semibold">{activePost.title}</p>

@@ -124,6 +124,22 @@ under Changed) — nothing in the public contract broke.
   from 2026-03-10, fully absorbed into `main` already).
 
 ### Fixed
+- Insights pages (`/insights` and `/insights/:slug`) rendered `[object Object]`
+  wherever a post had no cover image: `{createElement(resolveIcon(...), ...)}`
+  produces a raw React element object, and Astro's template interpolation
+  just stringifies non-renderable values instead of mounting them. Fixed by
+  resolving the icon to a component reference and using it as a normal
+  `<Icon />` tag, which Astro does know how to render.
+- `PortfolioGallery`'s category tabs had no spacing before the results grid
+  below them (missing `mt-6`).
+- Admin login page was a bare, unbranded form — added the site's actual
+  logo, wordmark, and CMS-editable footer tagline (fetched from
+  `/api/site-settings`) in a branded split-screen layout matching the rest
+  of the site's visual identity.
+- Platform Certifications on the Profile page weren't clickable — extracted
+  into a `CertificationsGallery` island reusing the same `ImageModal`
+  lightbox `PortfolioGallery` already had, so certificate images now open
+  full-size on click like project screenshots do.
 - `tailwind.config.js`'s `content` glob (`./src/**/*.{js,jsx,ts,tsx}`) never
   included `.astro` files, so Tailwind silently purged every utility class
   used only inside a `.astro` template — which by this point was most of

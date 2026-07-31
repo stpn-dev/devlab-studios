@@ -1,5 +1,4 @@
 ---
-import { createElement } from 'react'
 import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PrimaryButton from '../components/PrimaryButton.jsx'
@@ -24,6 +23,7 @@ const sortedPosts = [...publishedPosts].sort((left, right) => {
 })
 
 const featuredPost: ArticlePost | null = sortedPosts.find((post) => post.isFeatured) || sortedPosts[0] || null
+const FeaturedIcon = featuredPost ? resolveIcon(featuredPost.icon) : null
 const filterOptions = [
   { id: 'all', label: 'All posts' },
   ...Array.from(new Set(sortedPosts.map((post) => slugifyLabel(post.contentType)).filter(Boolean))).map((key) => ({
@@ -92,7 +92,7 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
               ) : (
                 <div class="flex h-full min-h-[220px] w-full flex-col items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 text-center">
                   <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
-                    {createElement(resolveIcon(featuredPost.icon), { className: 'h-6 w-6', 'aria-hidden': 'true' })}
+                    {FeaturedIcon ? <FeaturedIcon className="h-6 w-6" aria-hidden="true" /> : null}
                   </div>
                   <p class="mt-4 text-sm font-semibold uppercase tracking-[0.16em] text-white/70">{featuredPost.category}</p>
                   <p class="mt-2 text-2xl font-semibold">{featuredPost.title}</p>
@@ -164,11 +164,13 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
       </div>
 
       <div id="insights-feed" class="grid gap-5">
-        {feedPosts.map((post) => (
+        {feedPosts.map((post) => {
+          const Icon = resolveIcon(post.icon)
+          return (
           <article data-content-type={slugifyLabel(post.contentType)} class="rounded-[28px] border border-slate-200 bg-white/95 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)] sm:p-7">
             <div class="flex items-start gap-4">
               <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
-                {createElement(resolveIcon(post.icon), { className: 'h-5 w-5', 'aria-hidden': 'true' })}
+                <Icon className="h-5 w-5" aria-hidden="true" />
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
@@ -217,7 +219,8 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
               </a>
             </div>
           </article>
-        ))}
+          )
+        })}
       </div>
     </section>
 
