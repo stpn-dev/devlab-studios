@@ -1,7 +1,14 @@
 import { pbkdf2Sync, randomBytes } from 'node:crypto'
 import { stdin, stdout } from 'node:process'
 
-const ITERATIONS = 210000
+// Cloudflare Workers' real deployed runtime hard-caps crypto.subtle.deriveBits()
+// PBKDF2 at 100,000 iterations (NotSupportedError above that) — confirmed directly
+// against a live Worker, not just docs. adminAuth.js's verifyPassword() separately
+// rejects anything below 100,000 as too weak, so 100,000 is the only valid value,
+// not just a default. wrangler dev --local does NOT enforce the platform cap, which
+// is why a too-high value here can pass every local/CI test and still fail on the
+// real deployed Worker.
+const ITERATIONS = 100000
 const KEY_LENGTH = 32
 const MIN_PASSWORD_LENGTH = 12
 const CTRL_C = '\x03'

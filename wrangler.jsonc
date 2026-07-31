@@ -42,13 +42,13 @@
       "name": "devlab-studios-preview",
       "vars": {
         "ADMIN_AUTH_MODE": "password",
-        "R2_PUBLIC_BASE_URL": "REPLACE_WITH_PREVIEW_BUCKET_PUBLIC_URL"
+        "R2_PUBLIC_BASE_URL": "https://pub-2450236b7cbf4d68aa4bc07f9b606e29.r2.dev"
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "devlab-studios-cms-preview",
-          "database_id": "REPLACE_WITH_PREVIEW_DATABASE_ID"
+          "database_id": "3e01246b-fe41-4bb4-b667-30fa964ba82b"
         }
       ],
       "r2_buckets": [
