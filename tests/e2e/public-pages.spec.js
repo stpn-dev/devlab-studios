@@ -6,6 +6,10 @@ const pages = [
   { path: '/services', heading: 'Business automation, AI agents, and web systems' },
   { path: '/profile', heading: 'Profile' },
   { path: '/insights', heading: 'Guides, AI updates, and operational notes' },
+  { path: '/process', heading: 'A four-phase delivery model' },
+  { path: '/privacy', heading: 'Privacy Policy' },
+  { path: '/terms', heading: 'Terms of Service' },
+  { path: '/work', heading: 'In-depth case studies' },
   { path: '/contact', heading: 'Contact Me' },
   { path: '/landing-sample-react', heading: 'A Different Look' },
   { path: '/landing-sample-html', heading: 'Editorial Minimal Landing Page' },
@@ -45,4 +49,16 @@ test('unknown route shows 404 page', async ({ page }) => {
   const response = await page.goto('/this-route-does-not-exist')
   expect(response.status()).toBe(404)
   await expect(page.getByRole('heading', { name: 'Page Not Found' })).toBeVisible()
+})
+
+test('unknown case study slug returns a real 404 status', async ({ page }) => {
+  const response = await page.goto('/work/this-case-study-does-not-exist')
+  expect(response.status()).toBe(404)
+  await expect(page.getByRole('heading', { name: 'Case study not found' })).toBeVisible()
+})
+
+test('footer has real links to Privacy and Terms', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy')
+  await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '/terms')
 })

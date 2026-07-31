@@ -1,0 +1,66 @@
+---
+import Layout from '../layouts/Layout.astro'
+import SectionHeader from '../components/SectionHeader.jsx'
+import PrimaryButton from '../components/PrimaryButton.jsx'
+import { MessageSquare, Briefcase } from '../components/icons/icons.js'
+import { loadPageSeo } from '../lib/content/seo'
+import { loadCaseStudies } from '../lib/content/caseStudies'
+
+const seo = await loadPageSeo('work')
+const caseStudies = await loadCaseStudies()
+---
+
+<Layout title="Work — DevLab Studios" seo={seo}>
+  <div class="space-y-10">
+    <section class="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10">
+      <div class="space-y-5">
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Work</p>
+        <h1 class="text-4xl font-semibold leading-tight text-brand-ink sm:text-5xl">In-depth case studies of real project work.</h1>
+        <p class="max-w-3xl text-base leading-relaxed text-slate-700 sm:text-lg">
+          Deeper write-ups of specific engagements — the problem, constraints, architecture, and outcomes — alongside the project screenshots already shown on the Profile page.
+        </p>
+        <div class="flex flex-wrap gap-3">
+          <PrimaryButton to="/profile">
+            <Briefcase size={16} />
+            View Portfolio
+          </PrimaryButton>
+          <PrimaryButton to="/contact" variant="secondary">
+            <MessageSquare size={16} />
+            Start a Project Conversation
+          </PrimaryButton>
+        </div>
+      </div>
+    </section>
+
+    {caseStudies.length > 0 ? (
+      <section class="space-y-6">
+        <SectionHeader title="Case Studies" subtitle="Selected engagements with full context on the problem and the solution." />
+        <div class="grid gap-5 sm:grid-cols-2">
+          {caseStudies.map((caseStudy) => (
+            <a href={`/work/${caseStudy.slug}`} class="block overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)] transition hover:border-brand-teal/40">
+              {caseStudy.industry ? (
+                <span class="rounded-full bg-brand-mint px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">{caseStudy.industry}</span>
+              ) : null}
+              <h2 class="mt-3 text-2xl font-semibold text-brand-ink">{caseStudy.title}</h2>
+              <p class="mt-2 text-sm leading-relaxed text-slate-600">{caseStudy.summary}</p>
+            </a>
+          ))}
+        </div>
+      </section>
+    ) : (
+      <section class="rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Coming soon</p>
+        <h2 class="mt-3 text-2xl font-semibold text-brand-ink">Case studies are in progress.</h2>
+        <p class="mx-auto mt-3 max-w-xl text-slate-600">
+          In the meantime, the Profile page has real project screenshots and descriptions across automation and website work.
+        </p>
+        <div class="mt-6 flex justify-center">
+          <PrimaryButton to="/profile">
+            <Briefcase size={16} />
+            View Portfolio
+          </PrimaryButton>
+        </div>
+      </section>
+    )}
+  </div>
+</Layout>

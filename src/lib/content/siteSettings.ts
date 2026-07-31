@@ -11,7 +11,7 @@ export interface SiteSettingsData {
     email?: string
     location?: string
     copyright?: string
-    legalText?: string
+    legalLinks?: Array<{ label: string; href: string }>
     quickLinks?: Array<{ label: string; href: string }>
     socialLinks?: Array<{ label: string; href: string }>
   }

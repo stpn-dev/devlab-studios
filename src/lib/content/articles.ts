@@ -1,6 +1,7 @@
 import { getResourcesContent } from '../../worker/repositories/content.js'
 import { resourcesContent } from '../../data/resourcesContent.js'
 import { getEnv } from '../env'
+import { parseLiteMarkdown, type LiteMarkdownBlock } from './liteMarkdown'
 
 export interface ArticlePost {
   id: string
@@ -46,64 +47,14 @@ export async function loadArticlesContent(): Promise<ArticlesContentData> {
   }
 }
 
-export type ArticleBodyBlock =
-  | { type: 'heading'; text: string }
-  | { type: 'list'; items: string[] }
-  | { type: 'paragraph'; text: string }
+export type ArticleBodyBlock = LiteMarkdownBlock
 
 /**
- * Parses the plain-text article body format used by the CMS: blank lines
- * separate blocks, `## ` starts a heading, `- ` starts a bullet list item.
+ * Parses the plain-text article body format used by the CMS. Kept as a
+ * named re-export for backward compatibility with existing callers — the
+ * actual parser is shared with richText page blocks in liteMarkdown.ts.
  */
-export function parseArticleBody(body: string): ArticleBodyBlock[] {
-  const lines = String(body || '').split(/\r?\n/)
-  const blocks: ArticleBodyBlock[] = []
-  let paragraph: string[] = []
-  let bulletList: string[] = []
-
-  function flushParagraph() {
-    if (!paragraph.length) return
-    blocks.push({ type: 'paragraph', text: paragraph.join(' ') })
-    paragraph = []
-  }
-
-  function flushBulletList() {
-    if (!bulletList.length) return
-    blocks.push({ type: 'list', items: [...bulletList] })
-    bulletList = []
-  }
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim()
-
-    if (!line) {
-      flushParagraph()
-      flushBulletList()
-      continue
-    }
-
-    if (line.startsWith('## ')) {
-      flushParagraph()
-      flushBulletList()
-      blocks.push({ type: 'heading', text: line.slice(3).trim() })
-      continue
-    }
-
-    if (line.startsWith('- ')) {
-      flushParagraph()
-      bulletList.push(line.slice(2).trim())
-      continue
-    }
-
-    flushBulletList()
-    paragraph.push(line)
-  }
-
-  flushParagraph()
-  flushBulletList()
-
-  return blocks
-}
+export const parseArticleBody = parseLiteMarkdown
 
 export function slugifyLabel(value: string | undefined): string {
   return String(value || '').trim().toLowerCase()

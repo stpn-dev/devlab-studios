@@ -273,7 +273,6 @@ export default function SiteSettingsManager() {
             ['email', 'Email'],
             ['location', 'Location'],
             ['copyright', 'Copyright'],
-            ['legalText', 'Legal Text'],
           ].map(([key, label]) => (
             <label key={key} className="grid gap-1.5 text-sm font-semibold text-slate-800">
               {label}
@@ -316,6 +315,22 @@ export default function SiteSettingsManager() {
         fields={[
           { key: 'label', label: 'Label' },
           { key: 'href', label: 'URL' },
+        ]}
+      />
+
+      <ArrayEditor
+        title="Legal Links"
+        description="Footer Privacy/Terms links."
+        items={value.footer?.legalLinks || []}
+        onChange={(legalLinks) => setValue((current) => ({ ...current, footer: { ...(current.footer || {}), legalLinks } }))}
+        createItem={(index) => ({
+          id: makeId(`legal-link-${index + 1}`),
+          label: '',
+          href: '/',
+        })}
+        fields={[
+          { key: 'label', label: 'Label' },
+          { key: 'href', label: 'Path' },
         ]}
       />
     </div>

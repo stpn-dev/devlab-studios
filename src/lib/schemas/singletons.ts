@@ -28,7 +28,7 @@ export const footerSchema = z.object({
   email: z.string().default(''),
   location: z.string().default(''),
   copyright: z.string().default(''),
-  legalText: z.string().default(''),
+  legalLinks: z.array(z.object({ label: z.string(), href: z.string() })).default([]),
   quickLinks: z.array(z.object({ label: z.string(), href: z.string() })).default([]),
   socialLinks: z.array(z.object({ label: z.string(), href: z.string() })).default([]),
 })

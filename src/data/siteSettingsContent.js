@@ -2,6 +2,7 @@ export const siteSettingsContent = {
   navigation: [
     { id: 'nav-about', label: 'About', href: '/about', sortOrder: 10, status: 'published' },
     { id: 'nav-services', label: 'Services', href: '/services', sortOrder: 20, status: 'published' },
+    { id: 'nav-process', label: 'Process', href: '/process', sortOrder: 25, status: 'published' },
     { id: 'nav-resources', label: 'Resources', href: '/insights', sortOrder: 30, status: 'published' },
     { id: 'nav-profile', label: 'Profile', href: '/profile', sortOrder: 40, status: 'published' },
   ],
@@ -27,7 +28,10 @@ export const siteSettingsContent = {
       { label: 'GitHub', href: 'https://github.com/stpn-dev' },
       { label: 'Email', href: 'mailto:stpnrey.agustinez@gmail.com' },
     ],
-    legalText: 'Privacy Policy | Terms of Service',
+    legalLinks: [
+      { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Terms of Service', href: '/terms' },
+    ],
     copyright: '© 2026 DevLab Studios. All rights reserved.',
   },
 }
