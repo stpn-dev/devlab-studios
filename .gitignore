@@ -13,6 +13,9 @@ dist-ssr
 *.local
 .wrangler-dry-run
 
+# Astro build cache/generated types
+.astro/
+
 # Environment variables (keep secrets out of git)
 .env
 .env.local

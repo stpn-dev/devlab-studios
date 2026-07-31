@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
-import GlassCard from '../../components/GlassCard'
-import PrimaryButton from '../../components/PrimaryButton'
-import SectionHeader from '../../components/SectionHeader'
-import AnimatedIcon from '../../components/icons/AnimatedIcon'
-import { ERROR_MESSAGES } from '../../config/errorMessages'
-import { AlertTriangle, Home, ArrowLeft, MessageSquare, User, Briefcase } from '../../components/icons/icons'
+import GlassCard from '../../../components/GlassCard'
+import PrimaryButton from '../../../components/PrimaryButton'
+import SectionHeader from '../../../components/SectionHeader'
+import AnimatedIcon from '../../../components/icons/AnimatedIcon'
+import { ERROR_MESSAGES } from '../../../config/errorMessages'
+import { AlertTriangle, Home, ArrowLeft, MessageSquare, User, Briefcase } from '../../../components/icons/icons'
 
 function NotFound() {
   const { title, message } = ERROR_MESSAGES.NOT_FOUND

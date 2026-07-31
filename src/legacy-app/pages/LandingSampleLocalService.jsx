@@ -1,6 +1,6 @@
 import { Helmet } from 'react-helmet-async'
-import GlassCard from '../components/GlassCard'
-import PrimaryButton from '../components/PrimaryButton'
+import GlassCard from '../../components/GlassCard'
+import PrimaryButton from '../../components/PrimaryButton'
 
 const jobFlow = [
   {

@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom'
-import PageSeo from '../components/PageSeo'
-import SectionHeader from '../components/SectionHeader'
-import PrimaryButton from '../components/PrimaryButton'
-import { ArrowRight, BadgeCheck, Briefcase, CheckCircle2, Code2, Lightbulb, MessageSquare, Settings, Shield, Zap } from '../components/icons/icons'
+import PageSeo from '../../components/PageSeo'
+import SectionHeader from '../../components/SectionHeader'
+import PrimaryButton from '../../components/PrimaryButton'
+import { ArrowRight, BadgeCheck, Briefcase, CheckCircle2, Code2, Lightbulb, MessageSquare, Settings, Shield, Zap } from '../../components/icons/icons'
 
 const buildAreas = [
   {

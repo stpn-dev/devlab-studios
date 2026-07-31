@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
-import PageSeo from '../components/PageSeo'
-import SectionHeader from '../components/SectionHeader'
-import PrimaryButton from '../components/PrimaryButton'
-import AnimatedIcon from '../components/icons/AnimatedIcon'
-import { ERROR_MESSAGES } from '../config/errorMessages'
-import { User, Mail, MessageSquare, Send, Check, AlertCircle, Loader2 } from '../components/icons/icons'
+import PageSeo from '../../components/PageSeo'
+import SectionHeader from '../../components/SectionHeader'
+import PrimaryButton from '../../components/PrimaryButton'
+import AnimatedIcon from '../../components/icons/AnimatedIcon'
+import { ERROR_MESSAGES } from '../../config/errorMessages'
+import { User, Mail, MessageSquare, Send, Check, AlertCircle, Loader2 } from '../../components/icons/icons'
 
 const initialForm = {
   name: '',

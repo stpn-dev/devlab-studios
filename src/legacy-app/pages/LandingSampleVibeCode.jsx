@@ -1,4 +1,4 @@
-import GlassCard from '../components/GlassCard'
+import GlassCard from '../../components/GlassCard'
 
 const cards = [
   { title: 'Visual Builder', desc: 'Create sections with drag-and-drop blocks in minutes.', color: 'from-fuchsia-500 to-pink-500' },

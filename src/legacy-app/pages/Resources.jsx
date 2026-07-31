@@ -1,10 +1,10 @@
 import { createElement, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link, useParams } from 'react-router-dom'
-import PageSeo from '../components/PageSeo'
-import SectionHeader from '../components/SectionHeader'
-import PrimaryButton from '../components/PrimaryButton'
-import * as Icons from '../components/icons/icons'
+import PageSeo from '../../components/PageSeo'
+import SectionHeader from '../../components/SectionHeader'
+import PrimaryButton from '../../components/PrimaryButton'
+import * as Icons from '../../components/icons/icons'
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,8 +13,8 @@ import {
   Clock,
   Code2,
   MessageSquare,
-} from '../components/icons/icons'
-import { useResourcesContent } from '../hooks/useResourcesContent'
+} from '../../components/icons/icons'
+import { useResourcesContent } from '../../hooks/useResourcesContent'
 
 function resolveIcon(name) {
   return Icons[name] || Icons.Lightbulb

@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom'
-import PageSeo from '../components/PageSeo'
-import SectionHeader from '../components/SectionHeader'
-import PrimaryButton from '../components/PrimaryButton'
-import * as Icons from '../components/icons/icons'
-import { ArrowRight, Briefcase, MessageSquare, Shield } from '../components/icons/icons'
-import { useProjects } from '../hooks/useProjects'
-import { useServicesContent } from '../hooks/useServicesContent'
+import PageSeo from '../../components/PageSeo'
+import SectionHeader from '../../components/SectionHeader'
+import PrimaryButton from '../../components/PrimaryButton'
+import * as Icons from '../../components/icons/icons'
+import { ArrowRight, Briefcase, MessageSquare, Shield } from '../../components/icons/icons'
+import { useProjects } from '../../hooks/useProjects'
+import { useServicesContent } from '../../hooks/useServicesContent'
 
 function resolveIcon(name) {
   return Icons[name] || Icons.Lightbulb

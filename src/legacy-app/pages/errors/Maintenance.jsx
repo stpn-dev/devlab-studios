@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
-import GlassCard from '../../components/GlassCard'
-import PrimaryButton from '../../components/PrimaryButton'
-import SectionHeader from '../../components/SectionHeader'
-import AnimatedIcon from '../../components/icons/AnimatedIcon'
-import { ERROR_MESSAGES } from '../../config/errorMessages'
-import { Wrench, RotateCw, Mail, Phone } from '../../components/icons/icons'
+import GlassCard from '../../../components/GlassCard'
+import PrimaryButton from '../../../components/PrimaryButton'
+import SectionHeader from '../../../components/SectionHeader'
+import AnimatedIcon from '../../../components/icons/AnimatedIcon'
+import { ERROR_MESSAGES } from '../../../config/errorMessages'
+import { Wrench, RotateCw, Mail, Phone } from '../../../components/icons/icons'
 
 function Maintenance() {
   const { title, message, details } = ERROR_MESSAGES.MAINTENANCE_MODE

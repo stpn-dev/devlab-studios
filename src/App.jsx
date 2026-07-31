@@ -2,20 +2,20 @@ import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import MainLayout from './layouts/MainLayout'
 
-const Home = lazy(() => import('./pages/Home'))
-const About = lazy(() => import('./pages/About'))
-const Services = lazy(() => import('./pages/Services'))
-const Contact = lazy(() => import('./pages/Contact'))
-const Profile = lazy(() => import('./pages/Profile'))
-const Resources = lazy(() => import('./pages/Resources'))
-const LandingSampleReact = lazy(() => import('./pages/LandingSampleReact'))
-const LandingSampleHtml = lazy(() => import('./pages/LandingSampleHtml'))
-const LandingSampleFullStack = lazy(() => import('./pages/LandingSampleFullStack'))
-const LandingSampleLocalService = lazy(() => import('./pages/LandingSampleLocalService'))
-const LandingSampleEcommerce = lazy(() => import('./pages/LandingSampleEcommerce'))
-const Admin = lazy(() => import('./pages/Admin'))
-const NotFound = lazy(() => import('./pages/errors/NotFound'))
-const Maintenance = lazy(() => import('./pages/errors/Maintenance'))
+const Home = lazy(() => import('./legacy-app/pages/Home'))
+const About = lazy(() => import('./legacy-app/pages/About'))
+const Services = lazy(() => import('./legacy-app/pages/Services'))
+const Contact = lazy(() => import('./legacy-app/pages/Contact'))
+const Profile = lazy(() => import('./legacy-app/pages/Profile'))
+const Resources = lazy(() => import('./legacy-app/pages/Resources'))
+const LandingSampleReact = lazy(() => import('./legacy-app/pages/LandingSampleReact'))
+const LandingSampleHtml = lazy(() => import('./legacy-app/pages/LandingSampleHtml'))
+const LandingSampleFullStack = lazy(() => import('./legacy-app/pages/LandingSampleFullStack'))
+const LandingSampleLocalService = lazy(() => import('./legacy-app/pages/LandingSampleLocalService'))
+const LandingSampleEcommerce = lazy(() => import('./legacy-app/pages/LandingSampleEcommerce'))
+const Admin = lazy(() => import('./legacy-app/pages/Admin'))
+const NotFound = lazy(() => import('./legacy-app/pages/errors/NotFound'))
+const Maintenance = lazy(() => import('./legacy-app/pages/errors/Maintenance'))
 
 import ErrorBoundary from './components/ErrorBoundary'
 

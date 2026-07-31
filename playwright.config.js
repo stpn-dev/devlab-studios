@@ -18,12 +18,6 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: 'npm run dev',
-      port: 5173,
-      reuseExistingServer: !process.env.CI,
-      timeout: 60_000,
-    },
-    {
       command: 'npx wrangler dev --port 8787 --local',
       url: 'http://localhost:8787/api/health',
       reuseExistingServer: !process.env.CI,
@@ -33,13 +27,8 @@ export default defineConfig({
   projects: [
     {
       name: 'static',
-      testMatch: /public-pages\.spec\.js/,
+      testMatch: /(public-pages|contact-form)\.spec\.js/,
       use: { baseURL: 'http://localhost:4173' },
-    },
-    {
-      name: 'dev',
-      testMatch: /contact-form\.spec\.js/,
-      use: { baseURL: 'http://localhost:5173' },
     },
     {
       name: 'worker',

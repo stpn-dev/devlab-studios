@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Helmet } from 'react-helmet-async'
-import GlassCard from '../components/GlassCard'
-import PrimaryButton from '../components/PrimaryButton'
-import { Check } from '../components/icons/icons'
+import GlassCard from '../../components/GlassCard'
+import PrimaryButton from '../../components/PrimaryButton'
+import { Check } from '../../components/icons/icons'
 
 const spotlightBlocks = [
   {

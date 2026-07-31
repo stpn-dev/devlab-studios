@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Helmet } from 'react-helmet-async'
-import GlassCard from '../components/GlassCard'
+import GlassCard from '../../components/GlassCard'
 
 const metrics = [
   { label: 'Active Users', value: '1,247', tone: 'text-cyan-300' },
