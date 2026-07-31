@@ -29,13 +29,13 @@ test('rejects an invalid login', async ({ page }) => {
 
 test('logs in and can open Site Settings', async ({ page }) => {
   await login(page)
-  await page.getByRole('link', { name: 'Site Settings' }).click()
+  await page.getByRole('navigation').getByRole('link', { name: 'Site Settings' }).click()
   await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 })
 
 test('site settings save round-trip persists across reload', async ({ page }) => {
   await login(page)
-  await page.getByRole('link', { name: 'Site Settings' }).click()
+  await page.getByRole('navigation').getByRole('link', { name: 'Site Settings' }).click()
   await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 
   const taglineInput = page.getByLabel(/tagline/i).first()
@@ -45,13 +45,13 @@ test('site settings save round-trip persists across reload', async ({ page }) =>
   await expect(page.getByText(/saved/i)).toBeVisible({ timeout: 10_000 })
 
   await page.reload()
-  await page.getByRole('link', { name: 'Site Settings' }).click()
+  await page.getByRole('navigation').getByRole('link', { name: 'Site Settings' }).click()
   await expect(page.getByLabel(/tagline/i).first()).toHaveValue(marker)
 })
 
 test('site settings changes are versioned and a prior version can be restored', async ({ page }) => {
   await login(page)
-  await page.getByRole('link', { name: 'Site Settings' }).click()
+  await page.getByRole('navigation').getByRole('link', { name: 'Site Settings' }).click()
   await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 
   const taglineInput = page.getByLabel(/tagline/i).first()

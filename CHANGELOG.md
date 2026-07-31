@@ -101,6 +101,13 @@ under Changed) — nothing in the public contract broke.
   password as a CLI argument.
 - CI now automatically tags and publishes a GitHub Release whenever
   `package.json`'s version changes on a push to `main`.
+- Redesigned the admin Dashboard to match mature CMS conventions: live stat
+  cards (Projects, Services, Articles, Case Studies, Testimonials,
+  Certifications, Redirects, Leads) linking straight to each section, a
+  real Recent Activity feed (icon per action type, relative timestamps,
+  actor email) reading from the existing audit log, and a Quick Links
+  panel — replacing the plain text-link grid and always-empty-looking
+  activity list.
 
 ### Changed
 - `/resources` renamed to `/insights`; the old path 301-redirects, so
