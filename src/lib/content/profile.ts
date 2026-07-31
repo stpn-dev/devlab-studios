@@ -1,6 +1,17 @@
 import { getProfileContent } from '../../worker/repositories/content.js'
 import { getStaticProfileContent } from '../../data/profileContent.js'
 import { getEnv } from '../env'
+import zapierBadge from '../../assets/certificates/Zapier_Certificate.png'
+import makeBadge from '../../assets/certificates/Make_Certificate.png'
+import n8nBadge from '../../assets/certificates/N8N_Certificate.png'
+import highLevelBadge from '../../assets/certificates/HighLevelCertificate.png'
+
+const BADGE_IMAGES: Record<string, { src: string }> = {
+  'cert-zapier-no-code-automation': zapierBadge,
+  'cert-make-no-code-automation': makeBadge,
+  'cert-n8n-ai-automation': n8nBadge,
+  'cert-highlevel-crm': highLevelBadge,
+}
 
 export interface AboutData {
   name?: string
@@ -24,6 +35,16 @@ export interface ExperienceItem {
   bullets: string[]
 }
 
+export interface CertificationItem {
+  id: string
+  name: string
+  issuer: string
+  issuedDate: string
+  credentialUrl: string
+  badgeImageUrl: string
+  sortOrder: number
+}
+
 export interface ProfileContentData {
   about: AboutData
   experiences: ExperienceItem[]
@@ -31,9 +52,20 @@ export interface ProfileContentData {
   tools: unknown[]
   workflowPatterns: unknown[]
   systemCharacteristics: unknown[]
+  certifications?: CertificationItem[]
 }
 
-const staticProfileContent = getStaticProfileContent() as ProfileContentData
+function resolveBadgeImages(data: ProfileContentData): ProfileContentData {
+  return {
+    ...data,
+    certifications: (data.certifications || []).map((cert) => ({
+      ...cert,
+      badgeImageUrl: cert.badgeImageUrl || BADGE_IMAGES[cert.id]?.src || '',
+    })),
+  }
+}
+
+const staticProfileContent = resolveBadgeImages(getStaticProfileContent() as ProfileContentData)
 
 function hasContent(data: Partial<ProfileContentData> | null | undefined): boolean {
   return Boolean(
@@ -51,7 +83,7 @@ export async function loadProfileContent(): Promise<ProfileContentData> {
   try {
     const data = await getProfileContent(env.DB)
     if (!hasContent(data)) return staticProfileContent
-    return data as ProfileContentData
+    return resolveBadgeImages(data as ProfileContentData)
   } catch {
     return staticProfileContent
   }

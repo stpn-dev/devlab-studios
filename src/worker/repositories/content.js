@@ -1,4 +1,5 @@
 import { nowIso, parseJsonField } from '../utils/responses'
+import { listCertifications } from './certifications.js'
 
 function normalizeStatus(value) {
   return value === 'draft' ? 'draft' : 'published'
@@ -697,13 +698,14 @@ export async function replaceSeoContent(db, payload) {
 }
 
 export async function getProfileContent(db, { includeDrafts = false } = {}) {
-  const [about, experiences, skillItems, tools, workflowPatterns, systemCharacteristics] = await Promise.all([
+  const [about, experiences, skillItems, tools, workflowPatterns, systemCharacteristics, certifications] = await Promise.all([
     getSiteSetting(db, 'profile_about', {}),
     listExperiences(db, { includeDrafts }),
     listSkills(db, { includeDrafts }),
     listTools(db, { includeDrafts }),
     listWorkflowItems(db, 'patterns', { includeDrafts }),
     listWorkflowItems(db, 'characteristics', { includeDrafts }),
+    listCertifications(db, { includeDrafts }),
   ])
 
   return {
@@ -717,6 +719,7 @@ export async function getProfileContent(db, { includeDrafts = false } = {}) {
     tools,
     workflowPatterns,
     systemCharacteristics,
+    certifications,
   }
 }
 
