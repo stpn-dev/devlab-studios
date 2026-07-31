@@ -51,11 +51,84 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
-### Fixed
+## [1.1.0] - 2026-07-31
+
+The Astro/CMS rebuild program: rendering migration, schema-driven admin,
+leads backend, and deployment hardening. Every entry below was already a
+real commit on `feat/astro-cms-rebuild` (see `git log v1.0.0..v1.1.0` for
+the full itemized history) — consolidated here into one release because the
+`[Unreleased]` section wasn't updated commit-by-commit while the branch was
+in progress, contrary to this file's own stated policy above. Classified as
+MINOR: the rendering layer and admin were fully rewritten internally, but
+every public route and `/api/*` shape a visitor or the frontend depends on
+was ported 1:1 or kept working via redirect (see `/resources` → `/insights`
+under Changed) — nothing in the public contract broke.
+
+### Added
+- Rendering rewritten on Astro + `@astrojs/cloudflare` (replacing the Hono
+  SPA worker), querying D1 directly in frontmatter — eliminates the
+  double-render (static fallback → client fetch → swap) the previous
+  architecture had on every content page.
+- Admin rebuilt as a schema-driven headless CMS: Zod-validated content
+  types, append-only content versioning with one-click rollback, an audit
+  log, generic replace-all/per-item collection CRUD, a block-based page
+  composition editor (Home/About/Process), a media library, and real
+  D1-backed redirect management (redirects created in `/admin` now actually
+  redirect on the public site).
+- New public pages: Process, Privacy, Terms, and Work (case studies index +
+  detail) — previously scoped but never built.
+- Leads backend: submissions persist to D1 before delivery is attempted
+  (a downstream Zoho outage can no longer lose a submission), Cloudflare
+  Turnstile spam protection on the contact form, 5-minute duplicate-submission
+  detection, a `/admin/leads` screen with delivery-attempt history and manual
+  retry.
+- Real Platform Certifications content (Make/n8n/Zapier) on the Profile page.
+- Security headers (CSP, HSTS, X-Frame-Options, Permissions-Policy,
+  X-Robots-Tag) now enforced on every server-rendered response via
+  middleware — previously only reached genuinely static files.
+- An isolated preview environment (`devlab-studios-preview`: its own Worker,
+  D1 database, R2 bucket, and secrets), deployed automatically on every push
+  to `development` via `.github/workflows/deploy-preview.yml`.
+- `.github/dependabot.yml` for monthly npm and GitHub Actions dependency
+  updates.
+- A Playwright end-to-end suite (`tests/e2e/`) — the project had none before
+  this program started.
+- Five ADRs (`docs/architecture/decisions/`) and `docs/deployment.md`,
+  `docs/security.md`, `docs/testing.md`.
 - `scripts/cms/hash-admin-password.mjs` now only emits PBKDF2 hashes (removed
   the weak single-round SHA-256 default), always prompts interactively with
   masked input, and requires a confirmation entry instead of accepting the
   password as a CLI argument.
+- CI now automatically tags and publishes a GitHub Release whenever
+  `package.json`'s version changes on a push to `main`.
+
+### Changed
+- `/resources` renamed to `/insights`; the old path 301-redirects, so
+  nothing that linked to it breaks.
+- Footer legal links are now editable content (`legalLinks` array) instead
+  of a static string.
+- Maintenance mode is now a runtime D1 toggle (`site_settings.maintenance_mode`)
+  instead of a build-time flag.
+- Content Security Policy updated to allow Cloudflare Turnstile
+  (`challenges.cloudflare.com`).
+- Repo and Worker renamed to `devlab-studios`.
+
+### Removed
+- `@refinedev/core`, `@refinedev/react-router`, `@refinedev/simple-rest` —
+  the previous admin's Refine dependency, confirmed unused by any admin
+  component after the schema-driven rebuild.
+- The legacy `src/worker.js` Hono app — every route ported 1:1 to Astro API
+  endpoints (same response shapes, same validation, same rate limiting).
+- Deleted stale, superseded remote branches `cloudflare/workers-autoconfig`
+  and `copilot/fix-error-in-actions` (both one-off bot-generated branches
+  from 2026-03-10, fully absorbed into `main` already).
+
+### Fixed
+- `scripts/cms/hash-admin-password.mjs` capped at 100,000 PBKDF2 iterations
+  (was 210,000) — Cloudflare's actual deployed Worker runtime rejects
+  higher counts with `NotSupportedError`, which `wrangler dev --local` does
+  not catch, so every local/CI test passed despite the real deploy failing.
+  Discovered by deploying the new preview environment for the first time.
 - Patched 4 of 5 high-severity `react-router`/`react-router-dom` CVEs by
   bumping to 7.18.2 (within the existing `^7.11.0` range, non-breaking). The
   5th (`GHSA-qwww-vcr4-c8h2`, an RSC-mode CSRF bypass) has no fix until
@@ -65,11 +138,6 @@ decided against that surface specifically:
   `docs/CURRENT_STATE.md`.
 - Replaced the CI `npm audit` step with `audit-ci` so a single allowlisted
   advisory can't mask a future, real one.
-
-### Removed
-- Deleted stale, superseded remote branches `cloudflare/workers-autoconfig`
-  and `copilot/fix-error-in-actions` (both one-off bot-generated branches
-  from 2026-03-10, fully absorbed into `main` already).
 
 ## [1.0.0] - 2026-07-30
 
