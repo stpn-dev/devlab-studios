@@ -6,6 +6,11 @@ function SkillBadge({ skill }) {
   )
 }
 
+/**
+ * @param {object} props
+ * @param {string[]} [props.technicalSkills]
+ * @param {string[]} [props.personalSkills]
+ */
 function SkillsSection({ technicalSkills = [], personalSkills = [] }) {
   return (
     <section className="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-7">

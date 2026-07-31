@@ -1,9 +1,8 @@
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import MainLayout from './layouts/MainLayout'
 
 const Contact = lazy(() => import('./legacy-app/pages/Contact'))
-const Profile = lazy(() => import('./legacy-app/pages/Profile'))
 const LandingSampleReact = lazy(() => import('./legacy-app/pages/LandingSampleReact'))
 const LandingSampleHtml = lazy(() => import('./legacy-app/pages/LandingSampleHtml'))
 const LandingSampleFullStack = lazy(() => import('./legacy-app/pages/LandingSampleFullStack'))
@@ -36,9 +35,6 @@ const router = createBrowserRouter([
     element: <MainLayout />,
     errorElement: <MainLayout />,
     children: [
-      { path: 'experiences', element: <Navigate to="/profile" replace /> },
-      { path: 'portfolio', element: <Navigate to="/profile" replace /> },
-      { path: 'profile', element: lazyPage(Profile) },
       { path: 'landing-sample-react', element: lazyPage(LandingSampleReact) },
       { path: 'landing-sample-html', element: lazyPage(LandingSampleHtml) },
       { path: 'landing-sample-fullstack', element: lazyPage(LandingSampleFullStack) },

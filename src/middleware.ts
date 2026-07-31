@@ -7,15 +7,7 @@ import { getSiteSetting } from './worker/repositories/content.js'
 const ADMIN_API_PREFIX = '/api/admin/'
 const ADMIN_PUBLIC_ROUTES = new Set(['/api/admin/login', '/api/admin/logout'])
 const MAINTENANCE_PAGE = '/maintenance'
-const MAINTENANCE_GATED_PATHS = new Set([
-  '/',
-  '/about',
-  '/experiences',
-  '/services',
-  '/portfolio',
-  '/profile',
-  '/insights',
-])
+const MAINTENANCE_GATED_PATHS = new Set(['/', '/about', '/services', '/profile', '/insights'])
 
 function isMaintenanceGated(pathname: string): boolean {
   return MAINTENANCE_GATED_PATHS.has(pathname) || pathname.startsWith('/insights/')
