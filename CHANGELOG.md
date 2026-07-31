@@ -124,6 +124,15 @@ under Changed) — nothing in the public contract broke.
   from 2026-03-10, fully absorbed into `main` already).
 
 ### Fixed
+- `tailwind.config.js`'s `content` glob (`./src/**/*.{js,jsx,ts,tsx}`) never
+  included `.astro` files, so Tailwind silently purged every utility class
+  used only inside a `.astro` template — which by this point was most of
+  the site's page-level styling (gradients, brand colors, layout classes
+  on About/Home/Services/etc). Visually broken since whichever Phase 3
+  commit first converted a page to `.astro`, but never caught: Playwright
+  asserts on headings/text content, not computed styles, and nobody had
+  looked closely at the rendered pages until manually reviewing the first
+  preview deploy. Fixed by adding `astro,md,mdx` to the glob.
 - `.nvmrc`, `package.json`'s `engines.node`, and both GitHub Actions
   workflows bumped from Node 20 to 22 — the Astro version in use requires
   Node `>=22.12.0` and had for a while, but `ci.yml` only runs on `main`,
