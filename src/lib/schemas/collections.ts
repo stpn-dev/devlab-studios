@@ -38,7 +38,7 @@ export const caseStudySchema = baseItemSchema.extend({
   metrics: z.array(z.object({ label: z.string(), value: z.string() })).default([]),
   screenshots: z.array(z.object({ url: z.string(), caption: z.string().default('') })).default([]),
   projectIds: z.array(z.string()).default([]),
-  testimonialId: z.string().optional(),
+  testimonialId: z.string().nullable().optional(),
   coverImageUrl: z.string().optional().default(''),
   isFeatured: z.boolean().default(false),
   seo: seoSchema.optional(),
@@ -72,7 +72,7 @@ export const testimonialSchema = baseItemSchema.extend({
   authorTitle: z.string().optional().default(''),
   authorCompany: z.string().optional().default(''),
   authorPhotoUrl: z.string().optional().default(''),
-  relatedServiceId: z.string().optional(),
+  relatedServiceId: z.string().nullable().optional(),
   isFeatured: z.boolean().default(false),
 })
 export type Testimonial = z.infer<typeof testimonialSchema>

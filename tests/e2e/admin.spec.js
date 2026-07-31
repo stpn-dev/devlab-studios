@@ -29,14 +29,14 @@ test('rejects an invalid login', async ({ page }) => {
 
 test('logs in and can open Site Settings', async ({ page }) => {
   await login(page)
-  await page.getByRole('button', { name: 'Site Settings' }).click()
-  await expect(page.getByRole('heading', { name: 'Site Settings CMS' })).toBeVisible()
+  await page.getByRole('link', { name: 'Site Settings' }).click()
+  await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 })
 
 test('site settings save round-trip persists across reload', async ({ page }) => {
   await login(page)
-  await page.getByRole('button', { name: 'Site Settings' }).click()
-  await expect(page.getByRole('heading', { name: 'Site Settings CMS' })).toBeVisible()
+  await page.getByRole('link', { name: 'Site Settings' }).click()
+  await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 
   const taglineInput = page.getByLabel(/tagline/i).first()
   const marker = `Smoke test tagline ${Date.now()}`
@@ -45,6 +45,49 @@ test('site settings save round-trip persists across reload', async ({ page }) =>
   await expect(page.getByText(/saved/i)).toBeVisible({ timeout: 10_000 })
 
   await page.reload()
-  await page.getByRole('button', { name: 'Site Settings' }).click()
+  await page.getByRole('link', { name: 'Site Settings' }).click()
   await expect(page.getByLabel(/tagline/i).first()).toHaveValue(marker)
+})
+
+test('testimonials collection round-trip persists across reload', async ({ page }) => {
+  await login(page)
+  await page.getByRole('navigation').getByRole('link', { name: 'Testimonials' }).click()
+  await expect(page.getByRole('heading', { name: 'Testimonials', level: 1 })).toBeVisible()
+
+  await page.getByRole('button', { name: /^add testimonial/i }).click()
+  const marker = `Smoke test quote ${Date.now()}`
+  // sortOrder 0 guarantees this item sorts first (ASC) regardless of what
+  // other items already exist, so `.first()` reliably targets it below —
+  // `.last()` isn't safe here since ties break on most-recently-updated.
+  await page.getByLabel('Quote').last().fill(marker)
+  await page.getByLabel('Author Name').last().fill('Smoke Test Author')
+  await page.getByLabel('Sort Order').last().fill('0')
+  await page.getByRole('button', { name: /^save all/i }).click()
+  await expect(page.getByText(/^saved/i)).toBeVisible({ timeout: 10_000 })
+
+  await page.reload()
+  await expect(page.getByLabel('Quote').first()).toHaveValue(marker)
+
+  // Clean up so repeated runs don't accumulate smoke-test rows.
+  await page.getByRole('button', { name: 'Remove' }).first().click()
+  await page.getByRole('button', { name: /^save all/i }).click()
+  await expect(page.getByText(/^saved/i)).toBeVisible({ timeout: 10_000 })
+})
+
+test('redirects collection: create, verify in list, then delete', async ({ page }) => {
+  await login(page)
+  await page.getByRole('navigation').getByRole('link', { name: 'Redirects' }).click()
+  await expect(page.getByRole('heading', { name: 'Redirects', level: 1 })).toBeVisible()
+
+  await page.getByRole('button', { name: /^add new/i }).click()
+  const fromPath = `/smoke-test-${Date.now()}`
+  await page.getByLabel('From Path').fill(fromPath)
+  await page.getByLabel('To Path').fill('/profile')
+  await page.getByRole('button', { name: /^save$/i }).click()
+  await expect(page.getByText(/^saved/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('button', { name: new RegExp(fromPath.replace('/', '\\/')) })).toBeVisible()
+
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: /^delete$/i }).click()
+  await expect(page.getByRole('button', { name: new RegExp(fromPath.replace('/', '\\/')) })).not.toBeVisible()
 })

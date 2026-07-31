@@ -7,7 +7,6 @@ const LandingSampleHtml = lazy(() => import('./legacy-app/pages/LandingSampleHtm
 const LandingSampleFullStack = lazy(() => import('./legacy-app/pages/LandingSampleFullStack'))
 const LandingSampleLocalService = lazy(() => import('./legacy-app/pages/LandingSampleLocalService'))
 const LandingSampleEcommerce = lazy(() => import('./legacy-app/pages/LandingSampleEcommerce'))
-const Admin = lazy(() => import('./legacy-app/pages/Admin'))
 
 import ErrorBoundary from './components/ErrorBoundary'
 
@@ -24,10 +23,6 @@ const lazyPage = (Component) => (
 )
 
 const router = createBrowserRouter([
-  {
-    path: '/admin',
-    element: lazyPage(Admin),
-  },
   {
     path: '/',
     element: <MainLayout />,

@@ -2,13 +2,12 @@
 import LegacyAppShell from '../layouts/shells/LegacyAppShell.astro'
 
 // Paths served by the wrapped legacy React SPA. All real content pages
-// have been converted to .astro routes (see git history for that
-// migration) — what's left here is meant to stay this way: /admin until
-// its Phase 4 CMS rebuild, and the 5 landing-sample-* demo pages
-// indefinitely (they're intentionally excluded from conversion). Anything
-// not listed falls through to the real 404 page below.
+// and /admin have been converted to real .astro routes (see git history
+// for that migration) — what's left here is meant to stay this way: the 5
+// landing-sample-* demo pages, indefinitely (they're intentionally
+// excluded from conversion). Anything not listed falls through to the
+// real 404 page below.
 const LEGACY_EXACT_PATHS = new Set([
-  '/admin',
   '/landing-sample-react',
   '/landing-sample-html',
   '/landing-sample-fullstack',

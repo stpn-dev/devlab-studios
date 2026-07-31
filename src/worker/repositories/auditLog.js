@@ -1,5 +1,9 @@
 import { nowIso, parseJsonField } from '../utils/responses'
 
+/**
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {{ actorEmail?: string | null, action: string, entityType: string, entityId?: string | null, metadata?: unknown }} options
+ */
 export async function recordAuditEvent(db, { actorEmail = null, action, entityType, entityId = null, metadata = {} }) {
   await db
     .prepare(
@@ -10,6 +14,10 @@ export async function recordAuditEvent(db, { actorEmail = null, action, entityTy
     .run()
 }
 
+/**
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {{ entityType?: string | null, entityId?: string | null, limit?: number }} [options]
+ */
 export async function listAuditEvents(db, { entityType = null, entityId = null, limit = 100 } = {}) {
   const conditions = []
   const bindings = []

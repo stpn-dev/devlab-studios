@@ -8,6 +8,10 @@ import { nowIso, parseJsonField } from '../utils/responses'
  * mutates history.
  */
 
+/**
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {{ contentType: string, contentId?: string | null, status: string, snapshot: unknown, createdBy?: string | null }} options
+ */
 export async function recordVersion(db, { contentType, contentId = null, status, snapshot, createdBy = null }) {
   const latest = await db
     .prepare('SELECT MAX(version_number) as max_version FROM content_versions WHERE content_type = ? AND content_id IS ?')
@@ -27,6 +31,11 @@ export async function recordVersion(db, { contentType, contentId = null, status,
   return nextVersion
 }
 
+/**
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {string} contentType
+ * @param {string | null} [contentId]
+ */
 export async function listVersions(db, contentType, contentId = null) {
   const result = await db
     .prepare(
@@ -48,6 +57,13 @@ export async function listVersions(db, contentType, contentId = null) {
   }))
 }
 
+/**
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {string} contentType
+ * @param {string | null} contentId
+ * @param {number} versionNumber
+ * @returns {Promise<{ id: string, versionNumber: number, status: string, snapshot: unknown, createdBy: string | null, createdAt: string } | null>}
+ */
 export async function getVersion(db, contentType, contentId, versionNumber) {
   const row = await db
     .prepare(

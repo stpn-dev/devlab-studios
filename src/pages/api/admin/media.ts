@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { getEnv } from '../../../lib/env'
-import { recordMediaAsset } from '../../../worker/repositories/mediaAssets.js'
+import { recordMediaAsset, listMediaAssets } from '../../../worker/repositories/mediaAssets.js'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -8,6 +8,16 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 function nowIso(): string {
   return new Date().toISOString()
+}
+
+export const GET: APIRoute = async ({ url }) => {
+  const env = getEnv()
+  if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+
+  const folder = url.searchParams.get('folder') || null
+  const limit = Number(url.searchParams.get('limit')) || 100
+  const assets = await listMediaAssets(env.DB, { folder, limit })
+  return jsonResponse(assets)
 }
 
 export const POST: APIRoute = async ({ request }) => {

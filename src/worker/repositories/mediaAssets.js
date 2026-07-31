@@ -18,6 +18,10 @@ export async function recordMediaAsset(db, { key, url, filename, contentType, si
     .run()
 }
 
+/**
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {{ folder?: string | null, limit?: number }} [options]
+ */
 export async function listMediaAssets(db, { folder = null, limit = 100 } = {}) {
   const where = folder ? 'WHERE folder = ?' : ''
   const bindings = folder ? [folder, limit] : [limit]
