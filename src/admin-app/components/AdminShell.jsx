@@ -6,6 +6,14 @@ const NAV_GROUPS = [
     items: [{ label: 'Dashboard', to: '/admin' }],
   },
   {
+    heading: 'Pages',
+    items: [
+      { label: 'Home', to: '/admin/pages/home' },
+      { label: 'About', to: '/admin/pages/about' },
+      { label: 'Process', to: '/admin/pages/process' },
+    ],
+  },
+  {
     heading: 'Content',
     items: [
       { label: 'Projects', to: '/admin/content/projects' },

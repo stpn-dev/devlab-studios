@@ -91,3 +91,22 @@ test('redirects collection: create, verify in list, then delete', async ({ page 
   await page.getByRole('button', { name: /^delete$/i }).click()
   await expect(page.getByRole('button', { name: new RegExp(fromPath.replace('/', '\\/')) })).not.toBeVisible()
 })
+
+test('page builder: add a block, save, verify it persists, then remove it', async ({ page }) => {
+  await login(page)
+  await page.getByRole('navigation').getByRole('link', { name: 'Home' }).click()
+  await expect(page.getByRole('heading', { name: /^Page:/, level: 1 })).toBeVisible()
+
+  await page.getByRole('button', { name: /^add block/i }).click()
+  const marker = `Smoke test heading ${Date.now()}`
+  await page.getByLabel('Heading').first().fill(marker)
+  await page.getByRole('button', { name: /^save page/i }).click()
+  await expect(page.getByText(/^saved/i)).toBeVisible({ timeout: 10_000 })
+
+  await page.reload()
+  await expect(page.getByLabel('Heading').first()).toHaveValue(marker)
+
+  await page.getByRole('button', { name: 'Remove' }).first().click()
+  await page.getByRole('button', { name: /^save page/i }).click()
+  await expect(page.getByText(/^saved/i)).toBeVisible({ timeout: 10_000 })
+})

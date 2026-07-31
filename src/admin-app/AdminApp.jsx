@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ContentTypePage from './pages/ContentTypePage'
 import CollectionTypePage from './pages/CollectionTypePage'
+import PageBuilderPage from './pages/PageBuilderPage'
 import MediaLibraryPage from './pages/MediaLibraryPage'
 import AuditLogPage from './pages/AuditLogPage'
 
@@ -17,6 +18,7 @@ function buildRouter(session, onLogout) {
         { index: true, element: <DashboardPage /> },
         { path: 'content/:type', element: <ContentTypePage /> },
         { path: 'collections/:type', element: <CollectionTypePage /> },
+        { path: 'pages/:slug', element: <PageBuilderPage /> },
         { path: 'media', element: <MediaLibraryPage /> },
         { path: 'audit-log', element: <AuditLogPage /> },
       ],
