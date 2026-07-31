@@ -9,7 +9,7 @@ function PersonalInfoCard({ aboutData }) {
         <div className="flex justify-center lg:justify-center lg:self-center">
           <div className="group relative">
             <img
-              src={profilePhoto}
+              src={profilePhoto.src}
               alt="Profile photo of Stephen Rey G. Agustinez"
               className="h-28 w-28 rounded-full border-2 border-brand-orange/25 object-cover shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:border-brand-orange/45 sm:h-36 sm:w-36 lg:h-40 lg:w-40"
               loading="lazy"

@@ -19,8 +19,32 @@ interface ProjectData {
   [key: string]: unknown
 }
 
+/**
+ * Local image imports resolve to an ImageMetadata object ({src, width,
+ * height, format}) under Astro's asset pipeline, not a plain URL string —
+ * unwrap it so downstream <img src> usage doesn't render "[object Object]".
+ */
+function resolveImageSrc(value: unknown): string | undefined {
+  if (value && typeof value === 'object' && 'src' in value) {
+    return (value as { src: string }).src
+  }
+  return typeof value === 'string' ? value : undefined
+}
+
+function normalizeStaticProject(project: ProjectData): ProjectData {
+  return {
+    ...project,
+    image: resolveImageSrc(project.image),
+    galleryImages: Array.isArray(project.galleryImages)
+      ? project.galleryImages.map((image) => ({ ...image, url: resolveImageSrc(image.url) }))
+      : project.galleryImages,
+  }
+}
+
+const normalizedPortfolioItems: ProjectData[] = portfolioItems.map(normalizeStaticProject)
+
 function mergeWithStaticImages(projects: ProjectData[]): ProjectData[] {
-  const staticById = new Map(portfolioItems.map((project: ProjectData) => [project.id, project]))
+  const staticById = new Map(normalizedPortfolioItems.map((project) => [project.id, project]))
 
   return projects.map((project) => {
     const fallback = staticById.get(project.id)
@@ -45,13 +69,13 @@ function mergeWithStaticImages(projects: ProjectData[]): ProjectData[] {
  */
 export async function loadProjects(): Promise<ProjectData[]> {
   const env = getEnv()
-  if (!env.DB) return portfolioItems
+  if (!env.DB) return normalizedPortfolioItems
 
   try {
     const projects = await listProjects(env.DB)
-    if (!projects.length) return portfolioItems
+    if (!projects.length) return normalizedPortfolioItems
     return mergeWithStaticImages(projects.map((project: ProjectData) => normalizeProjectMedia(project, env)))
   } catch {
-    return portfolioItems
+    return normalizedPortfolioItems
   }
 }
