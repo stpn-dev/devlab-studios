@@ -1,5 +1,31 @@
 ---
 import LegacyAppShell from '../layouts/shells/LegacyAppShell.astro'
+
+// Paths still served by the wrapped legacy React SPA. Remove an entry here
+// in the same commit that converts its page to a real .astro route —
+// anything not listed falls through to the real 404 page below.
+const LEGACY_EXACT_PATHS = new Set([
+  '/admin',
+  '/experiences',
+  '/portfolio',
+  '/services',
+  '/profile',
+  '/resources',
+  '/contact',
+  '/landing-sample-react',
+  '/landing-sample-html',
+  '/landing-sample-fullstack',
+  '/landing-sample-local-service',
+  '/landing-sample-ecommerce',
+])
+const LEGACY_PREFIXES = ['/resources/']
+
+const pathname = Astro.url.pathname
+const isLegacyRoute = LEGACY_EXACT_PATHS.has(pathname) || LEGACY_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+
+if (!isLegacyRoute) {
+  return Astro.rewrite('/404')
+}
 ---
 
 <LegacyAppShell />

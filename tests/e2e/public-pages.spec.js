@@ -30,6 +30,7 @@ test('legacy redirects still work', async ({ page }) => {
 })
 
 test('unknown route shows 404 page', async ({ page }) => {
-  await page.goto('/this-route-does-not-exist')
+  const response = await page.goto('/this-route-does-not-exist')
+  expect(response.status()).toBe(404)
   await expect(page.getByRole('heading', { name: 'Page Not Found' })).toBeVisible()
 })
