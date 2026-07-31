@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import GlassCard from '../../../components/GlassCard'
 import PrimaryButton from '../../../components/PrimaryButton'
 import SectionHeader from '../../../components/SectionHeader'
@@ -53,7 +52,7 @@ function NotFound() {
       <div className="space-y-4">
         <h3 className="text-center text-lg font-semibold text-white">Quick Links</h3>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Link to="/about" className="block group">
+          <a href="/about" className="block group">
             <GlassCard className="h-full p-5 transition-all group-hover:border-navy-300/50">
               <div className="flex items-center gap-2">
                 <AnimatedIcon
@@ -67,8 +66,8 @@ function NotFound() {
               </div>
               <p className="mt-1 text-sm text-slate-200/85">Learn about DevLab Studios</p>
             </GlassCard>
-          </Link>
-          <Link to="/profile" className="block group">
+          </a>
+          <a href="/profile" className="block group">
             <GlassCard className="h-full p-5 transition-all group-hover:border-navy-300/50">
               <div className="flex items-center gap-2">
                 <AnimatedIcon
@@ -82,8 +81,8 @@ function NotFound() {
               </div>
               <p className="mt-1 text-sm text-slate-200/85">View founder profile and work</p>
             </GlassCard>
-          </Link>
-          <Link to="/contact" className="block group">
+          </a>
+          <a href="/contact" className="block group">
             <GlassCard className="h-full p-5 transition-all group-hover:border-navy-300/50">
               <div className="flex items-center gap-2">
                 <AnimatedIcon
@@ -97,7 +96,7 @@ function NotFound() {
               </div>
               <p className="mt-1 text-sm text-slate-200/85">Get in touch</p>
             </GlassCard>
-          </Link>
+          </a>
         </div>
       </div>
     </div>

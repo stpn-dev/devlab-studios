@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import PageSeo from '../../components/PageSeo'
 import SectionHeader from '../../components/SectionHeader'
 import PrimaryButton from '../../components/PrimaryButton'
@@ -174,18 +173,18 @@ function Services() {
         <section className="space-y-4">
           <h3 className="text-center text-lg font-semibold text-brand-ink">Quick Links</h3>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Link to="/about" className="block rounded-2xl bg-white/90 p-5 text-center shadow-[0_10px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200 transition hover:ring-brand-orange/35">
+            <a href="/about" className="block rounded-2xl bg-white/90 p-5 text-center shadow-[0_10px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200 transition hover:ring-brand-orange/35">
               <p className="text-sm font-semibold text-brand-ink">About</p>
               <p className="mt-1 text-sm text-slate-600">DevLab Studios mission and approach</p>
-            </Link>
-            <Link to="/profile" className="block rounded-2xl bg-white/90 p-5 text-center shadow-[0_10px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200 transition hover:ring-brand-orange/35">
+            </a>
+            <a href="/profile" className="block rounded-2xl bg-white/90 p-5 text-center shadow-[0_10px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200 transition hover:ring-brand-orange/35">
               <p className="text-sm font-semibold text-brand-ink">Profile</p>
               <p className="mt-1 text-sm text-slate-600">Founder background and project proof</p>
-            </Link>
-            <Link to="/contact" className="block rounded-2xl bg-white/90 p-5 text-center shadow-[0_10px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200 transition hover:ring-brand-orange/35">
+            </a>
+            <a href="/contact" className="block rounded-2xl bg-white/90 p-5 text-center shadow-[0_10px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200 transition hover:ring-brand-orange/35">
               <p className="text-sm font-semibold text-brand-ink">Contact</p>
               <p className="mt-1 text-sm text-slate-600">Discuss your project or workflow need</p>
-            </Link>
+            </a>
           </div>
         </section>
       </div>

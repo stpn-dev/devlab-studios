@@ -1,0 +1,81 @@
+---
+import '../index.css'
+import SeoHead from '../components/SeoHead.astro'
+import Navbar from '../components/Navbar.astro'
+import Footer from '../components/Footer.astro'
+import { loadSiteSettings } from '../lib/content/siteSettings'
+import type { SeoData } from '../lib/content/seo'
+
+interface Props {
+  title: string
+  seo?: SeoData | null
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[]
+}
+
+const { title, seo = null, jsonLd } = Astro.props
+const siteSettings = await loadSiteSettings()
+const currentPath = new URL(Astro.request.url).pathname
+const jsonLdBlocks = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : []
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#000a14" />
+    <meta name="robots" content="index, follow" />
+    <SeoHead fallbackTitle={title} seo={seo} />
+
+    {jsonLdBlocks.map((block) => (
+      <script type="application/ld+json" set:html={JSON.stringify(block)} />
+    ))}
+
+    <!-- Font preconnect + async load (non-render-blocking) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" /></noscript>
+    <link rel="icon" type="image/png" href="/devlabstudios-logo-only.png" />
+
+    <!-- Google tag (gtag.js), delayed so it does not compete with first render on mobile. -->
+    <script is:inline>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      window.addEventListener('load', function () {
+        var loadAnalytics = function () {
+          var script = document.createElement('script');
+          script.src = 'https://www.googletagmanager.com/gtag/js?id=G-MD3PL91M9G';
+          script.async = true;
+          document.head.appendChild(script);
+          gtag('js', new Date());
+          gtag('config', 'G-MD3PL91M9G', { client_storage: 'none', anonymize_ip: true });
+        };
+
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(loadAnalytics, { timeout: 3000 });
+        } else {
+          window.setTimeout(loadAnalytics, 1800);
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <div class="relative flex min-h-screen flex-col text-slate-900">
+      <Navbar siteSettings={siteSettings} currentPath={currentPath} />
+
+      <div class="relative z-10 flex flex-1 flex-col pt-28">
+        <main class="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 lg:px-6">
+          <slot />
+        </main>
+        <Footer siteSettings={siteSettings} />
+      </div>
+
+      <div class="pointer-events-none absolute inset-0 overflow-hidden">
+        <div class="absolute left-1/3 top-20 h-64 w-64 rounded-full bg-brand-teal/10 blur-[140px]"></div>
+        <div class="absolute right-1/4 top-48 h-80 w-80 rounded-full bg-brand-orange/10 blur-[160px]"></div>
+        <div class="absolute bottom-20 left-10 h-48 w-48 rounded-full bg-fuchsia-200/25 blur-[130px]"></div>
+      </div>
+    </div>
+  </body>
+</html>

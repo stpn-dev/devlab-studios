@@ -1,0 +1,93 @@
+---
+import Layout from '../layouts/Layout.astro'
+import GlassCard from '../components/GlassCard.jsx'
+import SectionHeader from '../components/SectionHeader.jsx'
+import AnimatedIcon from '../components/icons/AnimatedIcon.jsx'
+import { Wrench, Mail, Phone } from '../components/icons/icons.js'
+import { ERROR_MESSAGES } from '../config/errorMessages.js'
+
+const { title, message, details } = ERROR_MESSAGES.MAINTENANCE_MODE
+---
+
+<Layout title="Under Maintenance">
+  <div class="space-y-8">
+    <SectionHeader title={title} subtitle={message} align="center" />
+
+    <GlassCard className="p-8">
+      <div class="space-y-6 text-center">
+        <div class="flex justify-center">
+          <AnimatedIcon
+            icon={Wrench}
+            size={64}
+            color="text-navy-300"
+            animationType="pulse"
+            ariaLabel="Under maintenance"
+          />
+        </div>
+
+        <div class="space-y-3">
+          <p class="text-lg text-slate-200/85">{details}</p>
+          <p class="text-sm text-slate-200/70">
+            Thank you for your patience. We're making improvements to serve you better.
+          </p>
+        </div>
+
+        <div class="flex flex-col items-center justify-center gap-3 pt-4 sm:flex-row">
+          <button
+            type="button"
+            id="maintenance-refresh"
+            class="inline-flex items-center justify-center gap-2 rounded-full bg-navy-300 px-5 py-2.5 text-sm font-semibold text-brand-ink transition hover:brightness-95"
+          >
+            Refresh Page
+          </button>
+          <a
+            href="/contact"
+            class="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"
+          >
+            Contact Us
+          </a>
+        </div>
+      </div>
+    </GlassCard>
+
+    <div class="space-y-4 text-center">
+      <p class="text-sm text-slate-200/70">
+        In the meantime, you can reach out to us directly:
+      </p>
+      <div class="inline-flex gap-2">
+        <a
+          href="mailto:stpnrey.agustinez@gmail.com"
+          class="group inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 hover:border-navy-300/50"
+        >
+          <AnimatedIcon
+            icon={Mail}
+            size={16}
+            color="text-white group-hover:text-navy-300"
+            animationType="none"
+            ariaLabel={null}
+          />
+          Email
+        </a>
+        <a
+          href="tel:+639262372965"
+          class="group inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15 hover:border-navy-300/50"
+        >
+          <AnimatedIcon
+            icon={Phone}
+            size={16}
+            color="text-white group-hover:text-navy-300"
+            animationType="none"
+            ariaLabel={null}
+          />
+          Call
+        </a>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  document.getElementById('maintenance-refresh')?.addEventListener('click', () => {
+    window.location.reload()
+  })
+</script>

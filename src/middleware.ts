@@ -2,9 +2,24 @@ import { defineMiddleware } from 'astro:middleware'
 import { requireAdmin } from './worker/middleware/adminAuth.js'
 import { createHonoLikeContext } from './lib/honoShim.js'
 import { getEnv } from './lib/env'
+import { getSiteSetting } from './worker/repositories/content.js'
 
 const ADMIN_API_PREFIX = '/api/admin/'
 const ADMIN_PUBLIC_ROUTES = new Set(['/api/admin/login', '/api/admin/logout'])
+const MAINTENANCE_PAGE = '/maintenance'
+const MAINTENANCE_GATED_PATHS = new Set([
+  '/',
+  '/about',
+  '/experiences',
+  '/services',
+  '/portfolio',
+  '/profile',
+  '/resources',
+])
+
+function isMaintenanceGated(pathname: string): boolean {
+  return MAINTENANCE_GATED_PATHS.has(pathname) || pathname.startsWith('/resources/')
+}
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const url = new URL(context.request.url)
@@ -28,6 +43,14 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
     if (!didContinue) {
       return result
+    }
+  }
+
+  if (isMaintenanceGated(url.pathname) && url.pathname !== MAINTENANCE_PAGE) {
+    const env = getEnv()
+    const maintenanceMode = env.DB ? await getSiteSetting(env.DB, 'maintenance_mode', false) : false
+    if (maintenanceMode) {
+      return next(MAINTENANCE_PAGE)
     }
   }
 

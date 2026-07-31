@@ -1,5 +1,4 @@
-﻿import { Link } from 'react-router-dom'
-import { Helmet } from 'react-helmet-async'
+﻿import { Helmet } from 'react-helmet-async'
 import PrimaryButton from '../../components/PrimaryButton'
 import SectionHeader from '../../components/SectionHeader'
 import ServiceGraphic from '../../components/ServiceGraphic'
@@ -388,9 +387,9 @@ function Home() {
                     </ul>
 
                     <div>
-                      <Link to="/contact" className="text-sm font-semibold text-brand-teal transition hover:text-brand-orange">
+                      <a href="/contact" className="text-sm font-semibold text-brand-teal transition hover:text-brand-orange">
                         Ask about this service
-                      </Link>
+                      </a>
                     </div>
                   </div>
                 </div>

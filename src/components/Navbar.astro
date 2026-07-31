@@ -1,0 +1,112 @@
+---
+import PrimaryButton from './PrimaryButton.jsx'
+import AnimatedIcon from './icons/AnimatedIcon.jsx'
+import { Mail, Menu, X } from './icons/icons.js'
+import devlabStudiosLogo from '../assets/devlabstudios-logo-only.png'
+import { brandingAssets } from '../config/branding.js'
+import type { SiteSettingsData } from '../lib/content/siteSettings'
+
+interface Props {
+  siteSettings: SiteSettingsData
+  currentPath: string
+}
+
+const { siteSettings, currentPath } = Astro.props
+const navLinks = (siteSettings.navigation || []).map((item) => ({ label: item.label, href: item.href }))
+const desktopContactLabel = siteSettings.ctas?.navbarContactLabel || 'Contact Me'
+const mobileContactLabel = siteSettings.ctas?.mobileContactLabel || desktopContactLabel
+const linkBase = 'px-3 py-2 text-sm font-semibold transition hover:text-brand-ink focus-visible:outline-none'
+---
+
+<header class="fixed inset-x-0 top-0 z-40">
+  <div class="w-full px-4 mx-auto max-w-7xl sm:px-6 lg:px-6">
+    <div class="mt-4 flex items-center justify-between rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-[0_12px_34px_rgba(12,26,51,0.08)] backdrop-blur-md">
+      <a href="/" class="flex items-center gap-3 text-lg font-bold tracking-tight text-brand-teal">
+        <img
+          id="navbar-logo"
+          src={brandingAssets.logoOnlyUrl}
+          data-fallback-src={devlabStudiosLogo}
+          alt="DevLab Studios"
+          class="h-11 w-11 rounded-md object-contain"
+          loading="eager"
+          width="44"
+          height="44"
+        />
+        <span class="hidden sm:inline">DevLab Studios</span>
+      </a>
+
+      <nav class="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50/80 px-2 py-1 md:flex">
+        {navLinks.map((item) => (
+          <a
+            href={item.href}
+            class={`${linkBase} ${currentPath === item.href ? 'text-brand-ink underline decoration-2 decoration-brand-orange underline-offset-8' : 'text-slate-600'}`}
+          >
+            {item.label}
+          </a>
+        ))}
+      </nav>
+
+      <div class="hidden md:block">
+        <div class="group">
+          <PrimaryButton to="/contact" className="flex items-center gap-2 px-4 py-2">
+            <AnimatedIcon icon={Mail} size={18} animationType="hover-scale" />
+            {desktopContactLabel}
+          </PrimaryButton>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        id="mobile-nav-toggle"
+        class="group inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-950 bg-slate-950 text-white shadow-sm transition hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2 md:hidden"
+        aria-label="Open navigation"
+        aria-controls="mobile-navigation"
+        aria-expanded="false"
+      >
+        <span class="sr-only">Toggle navigation</span>
+        <span id="mobile-nav-icon-open"><AnimatedIcon icon={Menu} size={24} animationType="none" /></span>
+        <span id="mobile-nav-icon-close" class="hidden"><AnimatedIcon icon={X} size={24} animationType="none" /></span>
+      </button>
+    </div>
+
+    <div id="mobile-navigation" class="mt-2 hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_10px_25px_rgba(12,26,51,0.08)] md:hidden">
+      <nav class="flex flex-col gap-1">
+        {navLinks.map((item) => (
+          <a
+            href={item.href}
+            class={`block rounded-xl px-3 py-2 text-sm font-semibold transition ${currentPath === item.href ? 'bg-brand-mint text-brand-ink' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            {item.label}
+          </a>
+        ))}
+        <PrimaryButton to="/contact" className="flex items-center justify-center w-full gap-2">
+          <AnimatedIcon icon={Mail} size={16} animationType="none" />
+          {mobileContactLabel}
+        </PrimaryButton>
+      </nav>
+    </div>
+  </div>
+</header>
+
+<script>
+  const logo = document.getElementById('navbar-logo') as HTMLImageElement | null
+  logo?.addEventListener('error', () => {
+    if (logo.dataset.fallbackSrc) {
+      logo.onerror = null
+      logo.src = logo.dataset.fallbackSrc
+    }
+  }, { once: true })
+
+  const toggle = document.getElementById('mobile-nav-toggle')
+  const panel = document.getElementById('mobile-navigation')
+  const iconOpen = document.getElementById('mobile-nav-icon-open')
+  const iconClose = document.getElementById('mobile-nav-icon-close')
+
+  toggle?.addEventListener('click', () => {
+    const isOpen = panel?.classList.toggle('hidden') === false
+    toggle.setAttribute('aria-expanded', String(isOpen))
+    toggle.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation')
+    iconOpen?.classList.toggle('hidden', isOpen)
+    iconClose?.classList.toggle('hidden', !isOpen)
+  })
+</script>

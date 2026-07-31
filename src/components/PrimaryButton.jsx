@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import AnimatedIcon from './icons/AnimatedIcon'
 import { ArrowRight } from './icons/icons'
@@ -14,6 +13,22 @@ const styles = {
     'border border-slate-300 bg-transparent text-brand-ink hover:border-brand-teal/50 hover:text-brand-teal hover:bg-white/70',
 }
 
+/**
+ * `to` renders a plain internal `<a>`, not react-router's `<Link>` — this
+ * component is used both inside the legacy wrapped React app and in
+ * server-rendered Astro pages with no Router context, and since pages are
+ * incrementally moving from react-router routes to real Astro pages,
+ * client-side SPA navigation between them isn't reliable anyway. `href` is
+ * for genuinely external links (opens in a new tab).
+ *
+ * @param {object} props
+ * @param {import('react').ReactNode} props.children
+ * @param {string} [props.to]
+ * @param {string} [props.href]
+ * @param {'primary' | 'secondary' | 'ghost'} [props.variant]
+ * @param {string} [props.className]
+ * @param {boolean} [props.showIcon]
+ */
 function PrimaryButton({
   children,
   to,
@@ -23,8 +38,8 @@ function PrimaryButton({
   showIcon = false,
   ...props
 }) {
-  const Element = href ? 'a' : to ? Link : 'button'
-  const elementProps = href ? { href, target: '_blank', rel: 'noreferrer' } : to ? { to } : {}
+  const Element = href ? 'a' : to ? 'a' : 'button'
+  const elementProps = href ? { href, target: '_blank', rel: 'noreferrer' } : to ? { href: to } : {}
 
   return (
     <Element className={clsx(styles.base, styles[variant], className)} {...elementProps} {...props}>

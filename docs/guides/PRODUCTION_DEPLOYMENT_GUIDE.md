@@ -32,7 +32,7 @@ In the Worker's Settings → Variables and Secrets, configure:
   `ADMIN_AUTH_MODE=cloudflare-access` to use Cloudflare Access instead —
   see `src/worker/middleware/adminAuth.js`)
 - `R2_PUBLIC_BASE_URL` — public base URL for the `MEDIA_BUCKET` R2 bucket
-- `VITE_MAINTENANCE_MODE` (optional, `false` by default)
+- Maintenance mode: runtime D1 toggle (`site_settings.maintenance_mode`), not an env var — see `docs/operations.md`
 
 Bindings (`wrangler.jsonc`): D1 database `devlab-studios-cms` (binding `DB`),
 R2 bucket `devlab-studios` (binding `MEDIA_BUCKET`).

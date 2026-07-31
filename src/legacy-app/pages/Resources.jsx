@@ -1,6 +1,6 @@
 import { createElement, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import PageSeo from '../../components/PageSeo'
 import SectionHeader from '../../components/SectionHeader'
 import PrimaryButton from '../../components/PrimaryButton'
@@ -250,13 +250,13 @@ function ResourceFeedCard({ post, featured = false }) {
               ))}
             </div>
 
-            <Link
-              to={`/resources/${post.slug}`}
+            <a
+              href={`/resources/${post.slug}`}
               className="inline-flex items-center gap-2 text-sm font-semibold text-brand-teal transition hover:text-brand-tealDark"
             >
               Read more
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
+            </a>
           </div>
         </>
       )}
@@ -419,10 +419,10 @@ function ResourcesDetail({ post, relatedPosts }) {
 
       <div className="space-y-8">
         <nav className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-          <Link to="/resources" className="inline-flex items-center gap-2 font-semibold text-brand-teal transition hover:text-brand-tealDark">
+          <a href="/resources" className="inline-flex items-center gap-2 font-semibold text-brand-teal transition hover:text-brand-tealDark">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back to Resources
-          </Link>
+          </a>
           <span>/</span>
           <span>{post.title}</span>
         </nav>
@@ -514,15 +514,15 @@ function ResourcesDetail({ post, relatedPosts }) {
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">More From Resources</p>
                 <div className="mt-4 grid gap-4">
                   {relatedPosts.map((item) => (
-                    <Link
+                    <a
                       key={item.id}
-                      to={`/resources/${item.slug}`}
+                      href={`/resources/${item.slug}`}
                       className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-brand-teal/30 hover:bg-white"
                     >
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{item.category}</p>
                       <p className="mt-2 text-sm font-semibold text-brand-ink">{item.title}</p>
                       <p className="mt-2 text-xs leading-relaxed text-slate-500">{item.summary}</p>
-                    </Link>
+                    </a>
                   ))}
                 </div>
               </section>

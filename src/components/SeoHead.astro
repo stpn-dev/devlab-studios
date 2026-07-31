@@ -1,0 +1,25 @@
+---
+import type { SeoData } from '../lib/content/seo'
+
+interface Props {
+  fallbackTitle: string
+  seo: SeoData | null
+}
+
+const { fallbackTitle, seo } = Astro.props
+const title = seo?.metaTitle || fallbackTitle
+---
+
+<title>{title}</title>
+{seo?.metaDescription && <meta name="description" content={seo.metaDescription} />}
+{seo?.metaKeywords && <meta name="keywords" content={seo.metaKeywords} />}
+{seo?.canonicalUrl && <link rel="canonical" href={seo.canonicalUrl} />}
+<meta property="og:type" content="website" />
+{seo?.canonicalUrl && <meta property="og:url" content={seo.canonicalUrl} />}
+<meta property="og:title" content={seo?.ogTitle || title} />
+{seo?.ogDescription && <meta property="og:description" content={seo.ogDescription} />}
+{seo?.ogImage && <meta property="og:image" content={seo.ogImage} />}
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={seo?.twitterTitle || title} />
+{seo?.twitterDescription && <meta name="twitter:description" content={seo.twitterDescription} />}
+{seo?.twitterImage && <meta name="twitter:image" content={seo.twitterImage} />}

@@ -171,7 +171,14 @@ async function listRows(db, sql, bindings = []) {
   return result.results || []
 }
 
-export async function getSiteSetting(db, key, fallback = null) {
+/**
+ * @template T
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {string} key
+ * @param {T} [fallback]
+ * @returns {Promise<T>}
+ */
+export async function getSiteSetting(db, key, fallback) {
   const row = await db.prepare('SELECT key, value_json, updated_at FROM site_settings WHERE key = ?').bind(key).first()
   return row ? parseJsonField(row.value_json, fallback) : fallback
 }

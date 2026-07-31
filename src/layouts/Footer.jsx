@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import { brandingAssets } from '../config/branding'
 import { useSiteSettingsContent } from '../hooks/useSiteSettingsContent'
 
@@ -37,9 +36,9 @@ function Footer() {
             <ul className="space-y-1">
               {quickLinks.map((item) => (
                 <li key={`${item.label}-${item.href}`}>
-                  <Link to={item.href} className="hover:text-brand-teal hover:underline">
+                  <a href={item.href} className="hover:text-brand-teal hover:underline">
                     {item.label}
-                  </Link>
+                  </a>
                 </li>
               ))}
             </ul>

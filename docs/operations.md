@@ -32,7 +32,8 @@ Snapshot as of 2026-07-31, taken as Phase 0 of the Astro/CMS rebuild program (se
 | Variable | Purpose |
 |---|---|
 | `VITE_CONTACT_API_URL` | Overrides the contact form's submit target; defaults to `/api/contact`. |
-| `VITE_MAINTENANCE_MODE` | Baked into the client bundle at build time — gates 6 routes to the Maintenance page. **Phase 3 replaces this with a runtime check**; this variable goes away once that ships. |
+
+Maintenance mode is a runtime check (`src/middleware.ts`), not a build-time flag: it reads the `maintenance_mode` key from the `site_settings` D1 table on every request to `/`, `/about`, `/experiences`, `/services`, `/portfolio`, `/profile`, and `/resources*`, rewriting to `/maintenance` when set. Toggle it with `wrangler d1 execute` against `site_settings` (or the future admin Site Settings screen) — no redeploy required.
 
 ## Local test/dev fixtures
 

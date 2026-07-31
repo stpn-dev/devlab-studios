@@ -1,0 +1,74 @@
+---
+import { brandingAssets } from '../config/branding.js'
+import type { SiteSettingsData } from '../lib/content/siteSettings'
+
+interface Props {
+  siteSettings: SiteSettingsData
+}
+
+const { siteSettings } = Astro.props
+const footer = siteSettings.footer || {}
+const quickLinks = footer.quickLinks || []
+const socialLinks = footer.socialLinks || []
+---
+
+<footer class="mt-16 border-t border-slate-200/80 bg-white/85 backdrop-blur-sm">
+  <div class="mx-auto max-w-7xl px-4 py-8 text-sm text-slate-600 sm:px-6 lg:px-6">
+    <div class="flex flex-col gap-8 text-center md:flex-row md:items-start md:justify-between md:text-left">
+      <div class="mb-4 flex flex-1 flex-col items-center md:mb-0 md:items-start">
+        <img
+          id="footer-logo"
+          src={brandingAssets.logoSideUrl}
+          alt="DevLab Studios"
+          class="mb-3 h-12 w-auto object-contain"
+          loading="lazy"
+        />
+        <p class="mb-1 text-lg font-semibold text-brand-ink">{footer.companyName || 'DevLab Studios'}</p>
+        <p class="mb-3 whitespace-normal text-slate-500 md:whitespace-nowrap">
+          {footer.tagline || 'Your Vision, Digitally Crafted - one solution at a time, always evolving.'}
+        </p>
+        <a href={`mailto:${footer.email || 'stpnrey.agustinez@gmail.com'}`} class="mb-1 block text-slate-700 hover:text-brand-teal hover:underline">
+          {footer.email || 'stpnrey.agustinez@gmail.com'}
+        </a>
+        <span class="block text-slate-500">{footer.location || 'Lapu-Lapu City, Cebu, PH'}</span>
+      </div>
+
+      <div class="mb-4 flex flex-1 flex-col items-center md:mb-0">
+        <p class="mb-2 font-semibold text-brand-ink">Quick Links</p>
+        <ul class="space-y-1">
+          {quickLinks.map((item) => (
+            <li>
+              <a href={item.href} class="hover:text-brand-teal hover:underline">{item.label}</a>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div class="flex flex-1 flex-col items-center md:items-end">
+        <p class="mb-2 font-semibold text-brand-ink">Connect</p>
+        <div class="flex gap-4">
+          {socialLinks.map((item) => (
+            <a
+              href={item.href}
+              target={item.href.startsWith('http') ? '_blank' : undefined}
+              rel={item.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+              aria-label={item.label}
+              class="hover:text-brand-teal"
+            >
+              {item.label}
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+    <div class="mt-8 flex flex-col gap-2 border-t border-slate-200 pt-4 text-center text-xs text-slate-500 md:flex-row md:items-center md:justify-between md:text-left">
+      <span>{footer.copyright || '© 2026 DevLab Studios. All rights reserved.'}</span>
+      <span>{footer.legalText || 'Privacy Policy | Terms of Service'}</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const logo = document.getElementById('footer-logo') as HTMLImageElement | null
+  logo?.addEventListener('error', () => { logo.style.display = 'none' }, { once: true })
+</script>

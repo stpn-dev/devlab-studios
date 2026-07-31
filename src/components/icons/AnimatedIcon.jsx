@@ -1,16 +1,14 @@
 import clsx from 'clsx'
 
 /**
- * AnimatedIcon Component
- * Reusable animated icon wrapper with multiple animation types
- *
- * @param {React.ComponentType} icon - Icon component from lucide-react
- * @param {number} size - Icon size (default: 20)
- * @param {string} color - Icon color class (default: text-white)
- * @param {string} animationType - Animation type: 'hover-scale', 'hover-rotate', 'hover-slide', 'pulse', 'bounce', 'float', 'spin', 'none'
- * @param {boolean} respectMotion - Respect prefers-reduced-motion (default: true)
- * @param {string} className - Additional Tailwind classes
- * @param {string} ariaLabel - Accessibility label
+ * @param {object} props
+ * @param {import('react').ComponentType<any>} props.icon
+ * @param {number} [props.size]
+ * @param {string} [props.color]
+ * @param {'hover-scale' | 'hover-rotate' | 'hover-slide' | 'pulse' | 'bounce' | 'float' | 'spin' | 'none'} [props.animationType]
+ * @param {boolean} [props.respectMotion]
+ * @param {string} [props.className]
+ * @param {string | null} [props.ariaLabel]
  */
 function AnimatedIcon({
   icon,

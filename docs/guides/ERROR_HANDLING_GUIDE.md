@@ -12,7 +12,7 @@ current Cloudflare Worker + `react-router-dom` (BrowserRouter) deployment.
 ## Overview
 
 - 404 Page — Clean "Page Not Found" with quick links
-- Maintenance Mode — Toggle with `VITE_MAINTENANCE_MODE=true`
+- Maintenance Mode — Toggle via the `maintenance_mode` key in `site_settings` (D1)
 - Global Error Boundary — Catches UI crashes and shows fallback UI
 - Reusable Error Components — `ErrorState`, `EmptyState`
 - Configuration-driven — Error copy in `src/config/errorMessages.js`
@@ -44,16 +44,20 @@ src/
 
 ## Maintenance Mode
 
-Enable maintenance UI globally via env var (dev and prod builds):
+Enable maintenance mode via a runtime D1 toggle (no redeploy required):
 
-```env
-VITE_MAINTENANCE_MODE=true
+```sql
+-- via wrangler d1 execute, or the future admin Site Settings screen
+INSERT INTO site_settings (key, value_json, updated_at)
+VALUES ('maintenance_mode', 'true', CURRENT_TIMESTAMP)
+ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at;
 ```
 
-- Behavior: `src/App.jsx` swaps every route's element to the `Maintenance`
-  page at router-definition time when this flag is `true` (build/runtime env,
-  evaluated once — not per-request).
-- Disable by setting `VITE_MAINTENANCE_MODE=false` (default).
+- Behavior: `src/middleware.ts` checks the `maintenance_mode` key on every
+  request to `/`, `/about`, `/experiences`, `/services`, `/portfolio`,
+  `/profile`, and `/resources*`, rewriting to `/maintenance` when it's `true`
+  — evaluated per-request, not baked into the build.
+- Disable by setting the same key back to `false`.
 - Use for planned downtime, breaking changes, or dependency incidents.
 
 Guidance:
@@ -161,8 +165,9 @@ lazyPage(NotFound) }` route in `src/App.jsx`.
 
 Checklist before deploying:
 
-1. **Maintenance toggle** — `VITE_MAINTENANCE_MODE=true` shows Maintenance on
-   every route except `/contact`; `false` restores normal routing.
+1. **Maintenance toggle** — setting `site_settings.maintenance_mode` to
+   `true` shows Maintenance on every gated route except `/contact`; `false`
+   restores normal routing.
 2. **Routing/404** — `/about` renders About; `/kl` (or any unknown path)
    renders NotFound; refreshing on a deep route works (Worker SPA fallback).
 3. **Error Boundary** — intentionally throw in a child component → fallback
