@@ -15,7 +15,7 @@ continuous deployment on pushes to `main`.
 ## 1. Cloudflare Setup
 
 1. Open Cloudflare Dashboard → Workers & Pages → Create application → connect
-   the `stpn-dev/tech-va-portfolio` repository.
+   the `stpn-dev/devlab-studios` repository.
 2. Cloudflare reads build config from `wrangler.jsonc` in the repo:
    - Worker entry: `src/worker.js`
    - Static assets: `./dist` (SPA fallback via `not_found_handling`)
