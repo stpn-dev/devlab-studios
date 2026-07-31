@@ -24,5 +24,39 @@
     "R2_PUBLIC_BASE_URL": "https://pub-401ca3448c3348158cdb3e4e9a9dcb20.r2.dev"
   },
   "compatibility_date": "2026-03-10",
-  "compatibility_flags": ["nodejs_compat"]
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Preview: a fully separate Worker/D1/R2 so it can never read, write, or
+  // leak production content, leads, or secrets. `wrangler deploy --env
+  // preview` alone does NOT work here — @astrojs/cloudflare's build step
+  // bakes bindings into dist/server/wrangler.json at `astro build` time,
+  // before `wrangler deploy` ever runs, so the env flag arrives too late.
+  // The build itself must be told which environment to bake in via
+  // CLOUDFLARE_ENV=preview (confirmed by inspecting the generated
+  // dist/server/wrangler.json with and without it — only the env var
+  // changes which bindings get baked in). See docs/deployment.md
+  // ("Preview environment setup") for the full one-time setup + the
+  // exact build/deploy commands.
+  "env": {
+    "preview": {
+      "name": "devlab-studios-preview",
+      "vars": {
+        "ADMIN_AUTH_MODE": "password",
+        "R2_PUBLIC_BASE_URL": "REPLACE_WITH_PREVIEW_BUCKET_PUBLIC_URL"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "devlab-studios-cms-preview",
+          "database_id": "REPLACE_WITH_PREVIEW_DATABASE_ID"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "MEDIA_BUCKET",
+          "bucket_name": "devlab-studios-preview"
+        }
+      ]
+    }
+  }
 }

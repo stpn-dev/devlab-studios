@@ -62,3 +62,40 @@ test('footer has real links to Privacy and Terms', async ({ page }) => {
   await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy')
   await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '/terms')
 })
+
+test('security headers apply to real, server-rendered responses, not just static assets', async ({ request }) => {
+  // public/_headers only ever reaches responses served directly from the
+  // static ASSETS binding — with output:'server' almost every real
+  // response (every page, /admin, every /api/* route) is instead rendered
+  // by Astro and passes through src/middleware.ts, so this is the only
+  // way to prove the headers actually protect what visitors load.
+  const pageResponse = await request.get('/')
+  const pageHeaders = pageResponse.headers()
+  expect(pageHeaders['content-security-policy']).toContain("default-src 'self'")
+  expect(pageHeaders['x-frame-options']).toBe('DENY')
+  expect(pageHeaders['x-content-type-options']).toBe('nosniff')
+  expect(pageHeaders['strict-transport-security']).toContain('max-age=')
+  expect(pageHeaders['x-robots-tag']).toBeUndefined()
+
+  const apiResponse = await request.get('/api/health')
+  expect(apiResponse.headers()['content-security-policy']).toContain("default-src 'self'")
+
+  const adminResponse = await request.get('/admin')
+  expect(adminResponse.headers()['x-robots-tag']).toBe('noindex, nofollow')
+
+  const landingSampleResponse = await request.get('/landing-sample-react')
+  expect(landingSampleResponse.headers()['x-robots-tag']).toBe('noindex, follow')
+})
+
+test('the contact form CSP allows Turnstile to actually load', async ({ page }) => {
+  const cspViolations = []
+  page.on('console', (message) => {
+    if (message.text().toLowerCase().includes('content security policy')) {
+      cspViolations.push(message.text())
+    }
+  })
+
+  await page.goto('/contact')
+  await page.waitForFunction(() => Boolean(window.turnstile), { timeout: 10_000 })
+  expect(cspViolations).toEqual([])
+})

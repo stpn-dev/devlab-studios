@@ -4,6 +4,7 @@ import { createHonoLikeContext } from './lib/honoShim.js'
 import { getEnv } from './lib/env'
 import { getSiteSetting } from './worker/repositories/content.js'
 import { findRedirect } from './worker/repositories/redirects.js'
+import { applySecurityHeaders } from './lib/securityHeaders'
 
 const ADMIN_API_PREFIX = '/api/admin/'
 const ADMIN_PUBLIC_ROUTES = new Set(['/api/admin/login', '/api/admin/logout'])
@@ -23,7 +24,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (shouldUseWww || shouldUseHttps) {
     url.hostname = 'www.devlabstudios.com'
     url.protocol = 'https:'
-    return Response.redirect(url.toString(), 301)
+    return applySecurityHeaders(Response.redirect(url.toString(), 301), url.pathname)
   }
 
   if (url.pathname.startsWith(ADMIN_API_PREFIX) && !ADMIN_PUBLIC_ROUTES.has(url.pathname)) {
@@ -35,7 +36,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     })
 
     if (!didContinue) {
-      return result
+      return applySecurityHeaders(result, url.pathname)
     }
   }
 
@@ -43,7 +44,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     const env = getEnv()
     const maintenanceMode = env.DB ? await getSiteSetting(env.DB, 'maintenance_mode', false) : false
     if (maintenanceMode) {
-      return next(MAINTENANCE_PAGE)
+      return applySecurityHeaders(await next(MAINTENANCE_PAGE), url.pathname)
     }
   }
 
@@ -58,10 +59,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
       const redirect = await findRedirect(env.DB, url.pathname)
       if (redirect) {
         const destination = new URL(redirect.toPath, url)
-        return Response.redirect(destination.toString(), redirect.statusCode)
+        return applySecurityHeaders(Response.redirect(destination.toString(), redirect.statusCode), url.pathname)
       }
     }
   }
 
-  return response
+  return applySecurityHeaders(response, url.pathname)
 })

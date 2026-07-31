@@ -126,6 +126,27 @@ edge product, not something `wrangler dev` can simulate. Verification has
 to happen against the real deployed Worker after the Access application
 and policy are in place.
 
-## Preview/production isolation (Phase 6 target — not yet in place)
+## Preview/production isolation (Phase 6)
 
-Today there is one environment: whatever the Cloudflare dashboard's single Workers Builds project points at. Phase 6 of the rebuild plan introduces a real `local`/`preview`/`production` split, where preview must never share production's D1 database, R2 bucket, Zoho webhook, Queues, or secrets. This document should gain a second table per environment once that split exists.
+`wrangler.jsonc` now has an `env.preview` block with its own Worker name
+(`devlab-studios-preview`), D1 database, and R2 bucket — separate from
+production's `devlab-studios` in every way, so preview can never read,
+write, or leak production leads, content, or secrets.
+
+**The one-time provisioning is not done yet** — the API token available
+when this was set up couldn't create D1 databases or R2 buckets
+(`wrangler d1 create` / `wrangler r2 bucket create` both failed with a
+permissions error), so `wrangler.jsonc`'s `env.preview.d1_databases[0].database_id`
+and `env.preview.vars.R2_PUBLIC_BASE_URL` are still placeholders. See
+`docs/deployment.md`'s "Preview environment setup" for the exact commands
+to run once a sufficiently-privileged token is available, and
+`docs/architecture/decisions/0005-preview-environment-build-time-env.md`
+for why `CLOUDFLARE_ENV=preview` has to be set on the **build** command
+rather than passed as `--env preview` to `wrangler deploy` — a
+non-obvious consequence of how `@astrojs/cloudflare` bakes bindings in at
+build time.
+
+Preview needs its own values for every secret in the table above
+(`ADMIN_SESSION_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`,
+`ZOHO_WEBHOOK_URL`, `TURNSTILE_SECRET_KEY`) — set with `wrangler secret
+put <NAME> --env preview`, never copied from production.
