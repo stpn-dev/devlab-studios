@@ -51,7 +51,7 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-07-31
+## [1.1.0] - 2026-08-01
 
 The Astro/CMS rebuild program: rendering migration, schema-driven admin,
 leads backend, and deployment hardening. Every entry below was already a
