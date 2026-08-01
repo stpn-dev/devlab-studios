@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro'
 import { getSingletonContentType } from '../../../../worker/adminRegistry.js'
 import { recordVersion } from '../../../../worker/repositories/contentVersions.js'
 import { recordAuditEvent } from '../../../../worker/repositories/auditLog.js'
+import { SINGLETON_CONTENT_SCHEMAS } from '../../../../lib/schemas/legacyContentTypes'
 import { getEnv } from '../../../../lib/env'
 import { jsonResponse, readJsonBody } from '../../../../lib/http'
 
@@ -25,8 +26,12 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
   try {
-    const payload = await readJsonBody(request)
-    const data = await handlers.replace(env.DB, payload)
+    const rawPayload = await readJsonBody(request)
+    // `handlers` already confirmed `type` is one of SINGLETON_CONTENT_SCHEMAS's keys.
+    const result = SINGLETON_CONTENT_SCHEMAS[type].safeParse(rawPayload)
+    if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
+
+    const data = await handlers.replace(env.DB, result.data)
     await recordVersion(env.DB, { contentType: type, contentId: null, status: 'published', snapshot: data, createdBy: locals.adminEmail || null })
     await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'replace', entityType: type, entityId: null, metadata: {} })
     return jsonResponse(data)

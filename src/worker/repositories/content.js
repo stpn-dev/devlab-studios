@@ -209,33 +209,37 @@ export async function listServiceGroups(db, { includeDrafts = false } = {}) {
   return rows.map(toServiceGroup)
 }
 
+/** Runs as a single db.batch() transaction — see testimonials.js's replaceTestimonials for why. */
 export async function replaceServiceGroups(db, groups) {
-  await db.prepare('DELETE FROM service_groups').run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM service_groups')]
 
   for (const [index, group] of (Array.isArray(groups) ? groups : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(group.id) || crypto.randomUUID()
-    await db
-      .prepare(
-        `INSERT INTO service_groups (
-          id, eyebrow, title, description, icon, capabilities, project_ids, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        normalizeString(group.eyebrow),
-        normalizeString(group.title),
-        normalizeString(group.description),
-        normalizeString(group.icon) || 'Settings',
-        JSON.stringify(normalizeStringArray(group.capabilities)),
-        JSON.stringify(normalizeStringArray(group.projectIds)),
-        normalizeSortOrder(group.sortOrder, (index + 1) * 10),
-        normalizeStatus(group.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO service_groups (
+            id, eyebrow, title, description, icon, capabilities, project_ids, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          normalizeString(group.eyebrow),
+          normalizeString(group.title),
+          normalizeString(group.description),
+          normalizeString(group.icon) || 'Settings',
+          JSON.stringify(normalizeStringArray(group.capabilities)),
+          JSON.stringify(normalizeStringArray(group.projectIds)),
+          normalizeSortOrder(group.sortOrder, (index + 1) * 10),
+          normalizeStatus(group.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }
 
 // NOTE: these functions/exports keep their original "Resources" names since
@@ -276,42 +280,46 @@ export async function listResources(db, { includeDrafts = false } = {}) {
   return rows.map(toResource)
 }
 
+/** Runs as a single db.batch() transaction — see testimonials.js's replaceTestimonials for why. */
 export async function replaceResources(db, items) {
-  await db.prepare('DELETE FROM articles').run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM articles')]
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(item.id) || crypto.randomUUID()
-    await db
-      .prepare(
-        `INSERT INTO articles (
-          id, slug, title, summary, category, content_type, icon, points, body_markdown, cover_image_url, tags_json,
-          author_name, published_at, reading_time_minutes, is_featured, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        normalizeString(item.slug) || id,
-        normalizeString(item.title),
-        normalizeString(item.summary),
-        normalizeString(item.category),
-        normalizeString(item.contentType) || 'guide',
-        normalizeString(item.icon) || 'Lightbulb',
-        JSON.stringify(normalizeStringArray(item.points)),
-        normalizeString(item.body),
-        normalizeString(item.coverImageUrl),
-        JSON.stringify(normalizeStringArray(item.tags)),
-        normalizeString(item.authorName) || 'DevLab Studios',
-        normalizeString(item.publishedAt),
-        normalizeInteger(item.readingTimeMinutes, null),
-        item.isFeatured ? 1 : 0,
-        normalizeSortOrder(item.sortOrder, (index + 1) * 10),
-        normalizeStatus(item.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO articles (
+            id, slug, title, summary, category, content_type, icon, points, body_markdown, cover_image_url, tags_json,
+            author_name, published_at, reading_time_minutes, is_featured, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          normalizeString(item.slug) || id,
+          normalizeString(item.title),
+          normalizeString(item.summary),
+          normalizeString(item.category),
+          normalizeString(item.contentType) || 'guide',
+          normalizeString(item.icon) || 'Lightbulb',
+          JSON.stringify(normalizeStringArray(item.points)),
+          normalizeString(item.body),
+          normalizeString(item.coverImageUrl),
+          JSON.stringify(normalizeStringArray(item.tags)),
+          normalizeString(item.authorName) || 'DevLab Studios',
+          normalizeString(item.publishedAt),
+          normalizeInteger(item.readingTimeMinutes, null),
+          item.isFeatured ? 1 : 0,
+          normalizeSortOrder(item.sortOrder, (index + 1) * 10),
+          normalizeStatus(item.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }
 
 export async function listFaqs(db, pageSlug, { includeDrafts = false } = {}) {
@@ -326,30 +334,34 @@ export async function listFaqs(db, pageSlug, { includeDrafts = false } = {}) {
   return rows.map(toFaq)
 }
 
+/** Runs as a single db.batch() transaction — see testimonials.js's replaceTestimonials for why. */
 export async function replaceFaqs(db, pageSlug, items) {
-  await db.prepare('DELETE FROM faqs WHERE page_slug = ?').bind(pageSlug).run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM faqs WHERE page_slug = ?').bind(pageSlug)]
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(item.id) || crypto.randomUUID()
-    await db
-      .prepare(
-        `INSERT INTO faqs (
-          id, page_slug, question, answer, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        pageSlug,
-        normalizeString(item.question),
-        normalizeString(item.answer),
-        normalizeSortOrder(item.sortOrder, (index + 1) * 10),
-        normalizeStatus(item.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO faqs (
+            id, page_slug, question, answer, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          pageSlug,
+          normalizeString(item.question),
+          normalizeString(item.answer),
+          normalizeSortOrder(item.sortOrder, (index + 1) * 10),
+          normalizeStatus(item.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }
 
 export async function listExperiences(db, { includeDrafts = false } = {}) {
@@ -363,33 +375,37 @@ export async function listExperiences(db, { includeDrafts = false } = {}) {
   return rows.map(toExperience)
 }
 
+/** Runs as a single db.batch() transaction — see testimonials.js's replaceTestimonials for why. */
 export async function replaceExperiences(db, items) {
-  await db.prepare('DELETE FROM experiences').run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM experiences')]
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(item.id) || crypto.randomUUID()
-    await db
-      .prepare(
-        `INSERT INTO experiences (
-          id, title, role, company, dates, bullets, image_url, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        normalizeString(item.title),
-        normalizeString(item.role),
-        normalizeString(item.company),
-        normalizeString(item.dates),
-        JSON.stringify(normalizeStringArray(item.bullets)),
-        normalizeString(item.imageUrl),
-        normalizeSortOrder(item.sortOrder, (index + 1) * 10),
-        normalizeStatus(item.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO experiences (
+            id, title, role, company, dates, bullets, image_url, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          normalizeString(item.title),
+          normalizeString(item.role),
+          normalizeString(item.company),
+          normalizeString(item.dates),
+          JSON.stringify(normalizeStringArray(item.bullets)),
+          normalizeString(item.imageUrl),
+          normalizeSortOrder(item.sortOrder, (index + 1) * 10),
+          normalizeStatus(item.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }
 
 export async function listSkills(db, { includeDrafts = false } = {}) {
@@ -403,29 +419,33 @@ export async function listSkills(db, { includeDrafts = false } = {}) {
   return rows.map(toSkill)
 }
 
+/** Runs as a single db.batch() transaction — see testimonials.js's replaceTestimonials for why. */
 export async function replaceSkills(db, items) {
-  await db.prepare('DELETE FROM skills').run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM skills')]
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(item.id) || crypto.randomUUID()
-    await db
-      .prepare(
-        `INSERT INTO skills (
-          id, category, label, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        normalizeString(item.category),
-        normalizeString(item.label),
-        normalizeSortOrder(item.sortOrder, (index + 1) * 10),
-        normalizeStatus(item.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO skills (
+            id, category, label, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          normalizeString(item.category),
+          normalizeString(item.label),
+          normalizeSortOrder(item.sortOrder, (index + 1) * 10),
+          normalizeStatus(item.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }
 
 export async function listTools(db, { includeDrafts = false } = {}) {
@@ -439,29 +459,33 @@ export async function listTools(db, { includeDrafts = false } = {}) {
   return rows.map(toTool)
 }
 
+/** Runs as a single db.batch() transaction — see testimonials.js's replaceTestimonials for why. */
 export async function replaceTools(db, items) {
-  await db.prepare('DELETE FROM tools').run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM tools')]
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(item.id || item.key) || crypto.randomUUID()
-    await db
-      .prepare(
-        `INSERT INTO tools (
-          id, label, icon, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        normalizeString(item.label),
-        normalizeString(item.icon) || 'Wrench',
-        normalizeSortOrder(item.sortOrder, (index + 1) * 10),
-        normalizeStatus(item.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO tools (
+            id, label, icon, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          normalizeString(item.label),
+          normalizeString(item.icon) || 'Wrench',
+          normalizeSortOrder(item.sortOrder, (index + 1) * 10),
+          normalizeStatus(item.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }
 
 export async function listWorkflowItems(db, groupName, { includeDrafts = false } = {}) {
@@ -476,30 +500,34 @@ export async function listWorkflowItems(db, groupName, { includeDrafts = false }
   return rows.map(toWorkflowItem)
 }
 
+/** Runs as a single db.batch() transaction — see testimonials.js's replaceTestimonials for why. */
 export async function replaceWorkflowItems(db, groupName, items) {
-  await db.prepare('DELETE FROM workflow_items WHERE group_name = ?').bind(groupName).run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM workflow_items WHERE group_name = ?').bind(groupName)]
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(item.id || item.key) || crypto.randomUUID()
-    await db
-      .prepare(
-        `INSERT INTO workflow_items (
-          id, group_name, label, icon, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        groupName,
-        normalizeString(item.label),
-        normalizeString(item.icon) || 'Settings',
-        normalizeSortOrder(item.sortOrder, (index + 1) * 10),
-        normalizeStatus(item.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO workflow_items (
+            id, group_name, label, icon, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          groupName,
+          normalizeString(item.label),
+          normalizeString(item.icon) || 'Settings',
+          normalizeSortOrder(item.sortOrder, (index + 1) * 10),
+          normalizeStatus(item.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }
 
 export async function listNavigationItems(db, { includeDrafts = false } = {}) {
@@ -513,29 +541,33 @@ export async function listNavigationItems(db, { includeDrafts = false } = {}) {
   return rows.map(toNavigationItem)
 }
 
+/** Runs as a single db.batch() transaction — see testimonials.js's replaceTestimonials for why. */
 export async function replaceNavigationItems(db, items) {
-  await db.prepare('DELETE FROM navigation_items').run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM navigation_items')]
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(item.id) || crypto.randomUUID()
-    await db
-      .prepare(
-        `INSERT INTO navigation_items (
-          id, label, href, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        normalizeString(item.label),
-        normalizeString(item.href),
-        normalizeSortOrder(item.sortOrder, (index + 1) * 10),
-        normalizeStatus(item.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO navigation_items (
+            id, label, href, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          normalizeString(item.label),
+          normalizeString(item.href),
+          normalizeSortOrder(item.sortOrder, (index + 1) * 10),
+          normalizeStatus(item.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }
 
 export async function listSeoMetadata(db) {
@@ -589,51 +621,55 @@ export async function getSeoMetadata(db, pageSlug) {
   return row ? toSeoMetadata(row) : null
 }
 
+/** Runs as a single db.batch() transaction — see testimonials.js's replaceTestimonials for why. */
 export async function replaceSeoMetadata(db, items) {
-  await db.prepare('DELETE FROM seo_metadata').run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM seo_metadata')]
 
   for (const item of Array.isArray(items) ? items : []) {
-    const timestamp = nowIso()
     const pageSlug = normalizeString(item.pageSlug)
     if (!pageSlug) continue
 
-    await db
-      .prepare(
-        `INSERT INTO seo_metadata (
-          id,
-          page_slug,
-          meta_title,
-          meta_description,
-          meta_keywords,
-          canonical_url,
-          og_title,
-          og_description,
-          og_image,
-          twitter_title,
-          twitter_description,
-          twitter_image,
-          created_at,
-          updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        normalizeString(item.id) || `seo-${pageSlug}`,
-        pageSlug,
-        normalizeString(item.metaTitle),
-        normalizeString(item.metaDescription),
-        normalizeString(item.metaKeywords),
-        normalizeString(item.canonicalUrl),
-        normalizeString(item.ogTitle),
-        normalizeString(item.ogDescription),
-        normalizeString(item.ogImage),
-        normalizeString(item.twitterTitle),
-        normalizeString(item.twitterDescription),
-        normalizeString(item.twitterImage),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO seo_metadata (
+            id,
+            page_slug,
+            meta_title,
+            meta_description,
+            meta_keywords,
+            canonical_url,
+            og_title,
+            og_description,
+            og_image,
+            twitter_title,
+            twitter_description,
+            twitter_image,
+            created_at,
+            updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          normalizeString(item.id) || `seo-${pageSlug}`,
+          pageSlug,
+          normalizeString(item.metaTitle),
+          normalizeString(item.metaDescription),
+          normalizeString(item.metaKeywords),
+          normalizeString(item.canonicalUrl),
+          normalizeString(item.ogTitle),
+          normalizeString(item.ogDescription),
+          normalizeString(item.ogImage),
+          normalizeString(item.twitterTitle),
+          normalizeString(item.twitterDescription),
+          normalizeString(item.twitterImage),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }
 
 export async function getServicesContent(db, { includeDrafts = false } = {}) {

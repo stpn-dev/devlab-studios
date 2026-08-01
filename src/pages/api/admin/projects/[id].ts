@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro'
 import { deleteProject, getProject, upsertProject } from '../../../../worker/repositories/projects.js'
 import { recordVersion } from '../../../../worker/repositories/contentVersions.js'
 import { recordAuditEvent } from '../../../../worker/repositories/auditLog.js'
+import { projectRequestSchema } from '../../../../lib/schemas/collections'
 import { getEnv } from '../../../../lib/env'
 import { normalizeProjectMedia } from '../../../../lib/media'
 import { jsonResponse, readJsonBody } from '../../../../lib/http'
@@ -20,8 +21,11 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
   try {
-    const payload = await readJsonBody(request)
-    const project = await upsertProject(env.DB, { ...payload, id: params.id }) as { id?: string; status?: string } | null
+    const rawPayload = await readJsonBody(request)
+    const result = projectRequestSchema.safeParse({ ...rawPayload, id: params.id })
+    if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
+
+    const project = await upsertProject(env.DB, result.data) as { id?: string; status?: string } | null
     if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
     await recordVersion(env.DB, { contentType: 'projects', contentId: params.id as string, status: project.status || 'draft', snapshot: project, createdBy: locals.adminEmail || null })
     await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'update', entityType: 'projects', entityId: params.id as string, metadata: {} })
@@ -41,7 +45,10 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
     const existing = await getProject(env.DB, params.id as string, { includeDrafts: true })
     if (!existing) return jsonResponse({ error: 'Project not found.' }, 404)
     const payload = await readJsonBody(request)
-    const project = await upsertProject(env.DB, { ...existing, ...payload, id: params.id }) as { id?: string; status?: string } | null
+    const result = projectRequestSchema.safeParse({ ...existing, ...payload, id: params.id })
+    if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
+
+    const project = await upsertProject(env.DB, result.data) as { id?: string; status?: string } | null
     if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
     await recordVersion(env.DB, { contentType: 'projects', contentId: params.id as string, status: project.status || 'draft', snapshot: project, createdBy: locals.adminEmail || null })
     await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'update', entityType: 'projects', entityId: params.id as string, metadata: {} })

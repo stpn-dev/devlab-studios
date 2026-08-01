@@ -18,6 +18,7 @@ function LeadsPage() {
   const [selected, setSelected] = useState(null)
   const [detail, setDetail] = useState(null)
   const [isRetrying, setIsRetrying] = useState(false)
+  const [retryError, setRetryError] = useState(null)
 
   useEffect(() => {
     let ignore = false
@@ -32,6 +33,7 @@ function LeadsPage() {
   }, [filter])
 
   useEffect(() => {
+    setRetryError(null)
     if (!selected) {
       setDetail(null)
       return
@@ -45,11 +47,14 @@ function LeadsPage() {
 
   async function handleRetry() {
     if (!selected) return
+    setRetryError(null)
     setIsRetrying(true)
     try {
       const updated = await adminApi.post(`/api/admin/leads/${selected}/retry`, {})
       setDetail(updated)
       setLeads((current) => current.map((lead) => (lead.id === updated.id ? updated : lead)))
+    } catch (error) {
+      setRetryError(error.message || 'Retry failed. Please try again.')
     } finally {
       setIsRetrying(false)
     }
@@ -128,6 +133,7 @@ function LeadsPage() {
                   {isRetrying ? 'Retrying…' : 'Retry Delivery'}
                 </button>
               </div>
+              {retryError ? <p className="text-sm text-rose-600">{retryError}</p> : null}
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Delivery Attempts</p>
                 <ul className="mt-2 space-y-2">

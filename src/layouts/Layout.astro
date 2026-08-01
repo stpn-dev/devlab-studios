@@ -16,6 +16,17 @@ const { title, seo = null, jsonLd } = Astro.props
 const siteSettings = await loadSiteSettings()
 const currentPath = new URL(Astro.request.url).pathname
 const jsonLdBlocks = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : []
+
+/**
+ * JSON.stringify doesn't escape `<`, so a string value containing
+ * `</script>` would prematurely close this tag and let arbitrary HTML/JS
+ * that follows execute. Not exploitable today (only static strings feed
+ * this), but every jsonLd caller should be safe by default rather than
+ * relying on each one remembering to sanitize its own inputs.
+ */
+function safeJsonLd(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c')
+}
 ---
 
 <!doctype html>
@@ -28,7 +39,7 @@ const jsonLdBlocks = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : []
     <SeoHead fallbackTitle={title} seo={seo} />
 
     {jsonLdBlocks.map((block) => (
-      <script type="application/ld+json" set:html={JSON.stringify(block)} />
+      <script type="application/ld+json" set:html={safeJsonLd(block)} />
     ))}
 
     <!-- Font preconnect + async load (non-render-blocking) -->

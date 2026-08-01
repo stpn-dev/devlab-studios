@@ -22,6 +22,29 @@ export const projectSchema = baseItemSchema.extend({
 })
 export type Project = z.infer<typeof projectSchema>
 
+const projectGalleryImageSchema = z.object({
+  id: z.string().optional(),
+  url: z.string().optional().default(''),
+  filename: z.string().optional().default(''),
+  altText: z.string().optional().default(''),
+  sortOrder: z.union([z.number(), z.string()]).optional(),
+})
+
+/**
+ * projectSchema alone is missing imageFilename/galleryImages, which the
+ * bespoke ProjectsManager editor and src/worker/repositories/projects.js's
+ * upsertProject/syncProjectGallery both rely on — safeParse-ing a request
+ * body with the bare projectSchema would silently strip those fields
+ * (Zod's default behavior for unrecognized keys) and wipe every project's
+ * gallery on the next save. Used only by the /api/admin/projects/* routes;
+ * projectSchema itself stays as the field-descriptor/rollback-snapshot
+ * contract other callers (adminRegistry.js's PER_ITEM_COLLECTIONS) expect.
+ */
+export const projectRequestSchema = projectSchema.extend({
+  imageFilename: z.string().optional().default(''),
+  galleryImages: z.array(projectGalleryImageSchema).optional().default([]),
+})
+
 /** Ships with zero rows for now — see docs/content-model.md. */
 export const caseStudySchema = baseItemSchema.extend({
   slug: slugSchema,

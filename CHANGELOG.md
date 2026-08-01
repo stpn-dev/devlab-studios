@@ -131,6 +131,40 @@ under Changed) — nothing in the public contract broke.
   from 2026-03-10, fully absorbed into `main` already).
 
 ### Fixed
+- **Data loss risk**: every "replace all" collection save (testimonials,
+  certifications, services, articles, FAQs, experiences, skills, tools,
+  navigation, SEO metadata, page blocks, project gallery images — ~12
+  functions) deleted all existing rows and re-inserted the new ones as
+  separate, sequential `.run()` calls. D1 does not implicitly wrap
+  sequential statements in a transaction, so a failure partway through the
+  insert loop (bad row, transient error, hitting a platform limit on a
+  large save) left the delete committed and the rest of the new data never
+  written — a silent, irrecoverable loss of whatever wasn't re-inserted in
+  time. Found during a pre-release code review, verified directly against
+  `testimonials.js`. Fixed by building the delete + every insert as
+  prepared statements and running them through `db.batch()`, which D1
+  executes as one atomic transaction.
+- Version History "Restore" (`VersionHistoryPanel`, used by every content
+  type) failed completely silently on a network error or expired session —
+  no error shown, button just did nothing. Same gap in the Leads "Retry
+  Delivery" action. Both now show an error message and re-enable the
+  action instead of failing invisibly.
+- `PUT /api/admin/content/[type]` (services/resources/profile/site-settings/
+  seo) and `/api/admin/projects/*` never validated request bodies with Zod
+  before writing to D1, unlike every schema-driven collection — a
+  deliberately-deferred gap from the Phase 4 debt cleanup
+  (docs/architecture/decisions/0002-schema-driven-cms.md), closed here with
+  schemas matching the repositories' existing coercion leniency (nothing
+  newly required, just real structural validation instead of none).
+- Latent JSON-LD XSS pattern in `Layout.astro`: `JSON.stringify` doesn't
+  escape `<`, so a string containing `</script>` could prematurely close
+  the tag. Not exploitable today (only static strings feed it), but a
+  one-line escape closes the class of bug before any CMS data is ever
+  wired through the unused `getPortfolioItemSchema` helper.
+- `GET /api/admin/leads?limit=-1` (or similar) returned the entire table —
+  SQLite treats a negative `LIMIT` as "no limit". Clamped to 1–500.
+- Admin shell's sidebar header and topbar had different heights, so their
+  border lines didn't align — both now a fixed `h-16`.
 - Insights pages (`/insights` and `/insights/:slug`) rendered `[object Object]`
   wherever a post had no cover image: `{createElement(resolveIcon(...), ...)}`
   produces a raw React element object, and Astro's template interpolation

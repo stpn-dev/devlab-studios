@@ -50,34 +50,42 @@ export async function listResourceLibrary(db, { includeDrafts = false } = {}) {
   return (result.results || []).map(toResourceLibraryItem)
 }
 
+/**
+ * Runs as a single db.batch() transaction — see replaceTestimonials's
+ * comment in testimonials.js for why a bare DELETE + sequential .run()
+ * loop is unsafe on D1.
+ */
 export async function replaceResourceLibrary(db, items) {
-  await db.prepare('DELETE FROM resources').run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM resources')]
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(item.id) || crypto.randomUUID()
     const slug = normalizeString(item.slug) || id
-    await db
-      .prepare(
-        `INSERT INTO resources (
-          id, slug, title, description, resource_type, url, icon, tags_json, is_featured, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        slug,
-        normalizeString(item.title),
-        normalizeString(item.description),
-        normalizeString(item.resourceType) || 'download',
-        normalizeString(item.url),
-        normalizeString(item.icon),
-        JSON.stringify(normalizeStringArray(item.tags)),
-        item.isFeatured ? 1 : 0,
-        normalizeSortOrder(item.sortOrder, (index + 1) * 10),
-        normalizeStatus(item.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO resources (
+            id, slug, title, description, resource_type, url, icon, tags_json, is_featured, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          slug,
+          normalizeString(item.title),
+          normalizeString(item.description),
+          normalizeString(item.resourceType) || 'download',
+          normalizeString(item.url),
+          normalizeString(item.icon),
+          JSON.stringify(normalizeStringArray(item.tags)),
+          item.isFeatured ? 1 : 0,
+          normalizeSortOrder(item.sortOrder, (index + 1) * 10),
+          normalizeStatus(item.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }

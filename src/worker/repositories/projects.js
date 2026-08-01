@@ -136,32 +136,40 @@ export async function getProject(db, id, { includeDrafts = false } = {}) {
   return toProject(row, galleryImages)
 }
 
+/**
+ * Runs the delete + every insert as a single db.batch() transaction —
+ * see repositories/testimonials.js's replaceTestimonials for why a bare
+ * DELETE followed by a sequential .run() loop is unsafe on D1.
+ */
 async function syncProjectGallery(db, projectId, galleryImages) {
   const normalizedImages = normalizeGalleryImages(galleryImages)
 
   try {
-    await db.prepare('DELETE FROM project_gallery_images WHERE project_id = ?').bind(projectId).run()
+    const timestamp = nowIso()
+    const statements = [db.prepare('DELETE FROM project_gallery_images WHERE project_id = ?').bind(projectId)]
 
     for (const image of normalizedImages) {
-      const timestamp = nowIso()
-      await db
-        .prepare(
-          `INSERT INTO project_gallery_images (
-            id, project_id, url, filename, alt_text, sort_order, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .bind(
-          image.id,
-          projectId,
-          image.url,
-          image.filename,
-          image.altText,
-          image.sortOrder,
-          timestamp,
-          timestamp,
-        )
-        .run()
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO project_gallery_images (
+              id, project_id, url, filename, alt_text, sort_order, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .bind(
+            image.id,
+            projectId,
+            image.url,
+            image.filename,
+            image.altText,
+            image.sortOrder,
+            timestamp,
+            timestamp,
+          ),
+      )
     }
+
+    await db.batch(statements)
   } catch (error) {
     if (isMissingGalleryTableError(error) && normalizedImages.length === 0) return
     if (isMissingGalleryTableError(error)) {

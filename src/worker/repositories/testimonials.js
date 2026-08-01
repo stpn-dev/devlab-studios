@@ -43,32 +43,41 @@ export async function listTestimonials(db, { includeDrafts = false } = {}) {
   return (result.results || []).map(toTestimonial)
 }
 
+/**
+ * Runs as a single db.batch() transaction (delete + every insert), not
+ * sequential .run() calls — D1 does not implicitly wrap sequential
+ * statements in a transaction, so a mid-loop failure after a bare
+ * DELETE would otherwise leave the table permanently emptied.
+ */
 export async function replaceTestimonials(db, items) {
-  await db.prepare('DELETE FROM testimonials').run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM testimonials')]
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(item.id) || crypto.randomUUID()
-    await db
-      .prepare(
-        `INSERT INTO testimonials (
-          id, quote, author_name, author_title, author_company, author_photo_url, related_service_id, is_featured, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        normalizeString(item.quote),
-        normalizeString(item.authorName),
-        normalizeString(item.authorTitle),
-        normalizeString(item.authorCompany),
-        normalizeString(item.authorPhotoUrl),
-        normalizeString(item.relatedServiceId) || null,
-        item.isFeatured ? 1 : 0,
-        normalizeSortOrder(item.sortOrder, (index + 1) * 10),
-        normalizeStatus(item.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO testimonials (
+            id, quote, author_name, author_title, author_company, author_photo_url, related_service_id, is_featured, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          normalizeString(item.quote),
+          normalizeString(item.authorName),
+          normalizeString(item.authorTitle),
+          normalizeString(item.authorCompany),
+          normalizeString(item.authorPhotoUrl),
+          normalizeString(item.relatedServiceId) || null,
+          item.isFeatured ? 1 : 0,
+          normalizeSortOrder(item.sortOrder, (index + 1) * 10),
+          normalizeStatus(item.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }

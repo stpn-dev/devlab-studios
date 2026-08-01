@@ -41,30 +41,38 @@ export async function listCertifications(db, { includeDrafts = false } = {}) {
   return (result.results || []).map(toCertification)
 }
 
+/**
+ * Runs as a single db.batch() transaction — see replaceTestimonials's
+ * comment in testimonials.js for why a bare DELETE + sequential .run()
+ * loop is unsafe on D1.
+ */
 export async function replaceCertifications(db, items) {
-  await db.prepare('DELETE FROM certifications').run()
+  const timestamp = nowIso()
+  const statements = [db.prepare('DELETE FROM certifications')]
 
   for (const [index, item] of (Array.isArray(items) ? items : []).entries()) {
-    const timestamp = nowIso()
     const id = normalizeString(item.id) || crypto.randomUUID()
-    await db
-      .prepare(
-        `INSERT INTO certifications (
-          id, name, issuer, issued_date, credential_url, badge_image_url, sort_order, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .bind(
-        id,
-        normalizeString(item.name),
-        normalizeString(item.issuer),
-        normalizeString(item.issuedDate),
-        normalizeString(item.credentialUrl),
-        normalizeString(item.badgeImageUrl),
-        normalizeSortOrder(item.sortOrder, (index + 1) * 10),
-        normalizeStatus(item.status),
-        timestamp,
-        timestamp,
-      )
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO certifications (
+            id, name, issuer, issued_date, credential_url, badge_image_url, sort_order, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          normalizeString(item.name),
+          normalizeString(item.issuer),
+          normalizeString(item.issuedDate),
+          normalizeString(item.credentialUrl),
+          normalizeString(item.badgeImageUrl),
+          normalizeSortOrder(item.sortOrder, (index + 1) * 10),
+          normalizeStatus(item.status),
+          timestamp,
+          timestamp,
+        ),
+    )
   }
+
+  await db.batch(statements)
 }
