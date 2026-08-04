@@ -12,6 +12,8 @@ import { ArrowRight, BadgeCheck, Briefcase, Calendar, GraduationCap, Trophy } fr
 import { loadPageSeo } from '../lib/content/seo'
 import { loadProfileContent } from '../lib/content/profile'
 import { loadProjects } from '../lib/content/projects'
+import { optimizeImage } from '../lib/images/optimizeImage'
+import profilePhoto from '../assets/recent-photo.png'
 
 const seo = await loadPageSeo('profile')
 const profileContent = await loadProfileContent()
@@ -19,6 +21,7 @@ const projects = await loadProjects()
 const aboutData = profileContent.about || {}
 const experiences = profileContent.experiences || []
 const certifications = profileContent.certifications || []
+const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 320, fit: 'cover', sizes: '160px' })
 ---
 
 <Layout title="Profile — DevLab Studios" seo={seo}>
@@ -28,7 +31,7 @@ const certifications = profileContent.certifications || []
       subtitle="Founder background, technical experience, and selected website and automation projects."
     />
 
-    <PersonalInfoCard aboutData={aboutData} />
+    <PersonalInfoCard aboutData={aboutData} photo={optimizedPhoto} />
 
     <div class="grid gap-6 lg:grid-cols-2">
       <section class="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-7">

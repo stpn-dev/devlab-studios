@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test'
 // for the pre-fix reference numbers (Home: 583 KiB total, Profile: 862 KiB total).
 const IMAGE_BUDGETS_KB = {
   '/': 150,
-  '/profile': 2132,
+  '/profile': 1663,
 }
 
 async function measureImageBytes(page, path) {
