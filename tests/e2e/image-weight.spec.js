@@ -11,15 +11,20 @@ const IMAGE_BUDGETS_KB = {
 
 async function measureImageBytes(page, path) {
   let totalBytes = 0
+  const pending = []
 
-  page.on('response', async (response) => {
+  page.on('response', (response) => {
     const contentType = response.headers()['content-type'] || ''
     if (!contentType.startsWith('image/')) return
-    const body = await response.body().catch(() => null)
-    if (body) totalBytes += body.length
+    pending.push(
+      response.body().then((body) => {
+        totalBytes += body.length
+      }).catch(() => {}),
+    )
   })
 
   await page.goto(path, { waitUntil: 'networkidle' })
+  await Promise.all(pending)
   return totalBytes
 }
 
