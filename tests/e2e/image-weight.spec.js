@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test'
 
-// Budgets are for total image bytes transferred on first load, not full
-// page weight. Tightened once the optimization pipeline (Tasks 2-6) lands;
-// see docs/performance/baseline-2026-07-31/README.md for the pre-fix
-// reference numbers (Home: 583 KiB total, Profile: 862 KiB total).
+// Budgets are for total image bytes transferred once the page has been
+// scrolled through, which is what triggers loading="lazy" image fetches
+// and client:visible island hydration below the fold — not a strict
+// "first paint, no scroll" measurement. Tightened once the optimization
+// pipeline (Tasks 2-6) lands; see docs/performance/baseline-2026-07-31/README.md
+// for the pre-fix reference numbers (Home: 583 KiB total, Profile: 862 KiB total).
 const IMAGE_BUDGETS_KB = {
   '/': 150,
   '/profile': 700,
