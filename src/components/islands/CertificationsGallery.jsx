@@ -44,7 +44,7 @@ function CertificationsGallery({ certifications }) {
       </div>
 
       <ImageModal
-        image={selectedCert?.badgeImage || null}
+        image={selectedCert?.badgeImageFull || selectedCert?.badgeImage || null}
         alt={selectedCert ? `${selectedCert.name} certificate` : ''}
         caption={selectedCert ? `${selectedCert.name} — ${selectedCert.issuer}` : ''}
         isOpen={Boolean(selectedCert)}

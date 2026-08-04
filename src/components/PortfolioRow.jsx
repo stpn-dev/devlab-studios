@@ -18,13 +18,14 @@ function PortfolioRow({ project, onImageClick }) {
         {
           id: `${project.id}-cover`,
           url: project.image,
+          optimized: project.optimizedImage,
           altText: `${project.title} cover`,
           sortOrder: 1,
         },
       ]
     }
     return []
-  }, [project.galleryImages, project.id, project.image, project.title])
+  }, [project.galleryImages, project.id, project.image, project.optimizedImage, project.title])
 
   const activeGalleryImage = galleryImages[activeGalleryIndex] || galleryImages[0] || null
 

@@ -46,6 +46,7 @@ export interface CertificationItem {
   badgeImageUrl: string
   badgeSource?: ImageMetadata | string
   badgeImage?: OptimizedPicture | null
+  badgeImageFull?: OptimizedPicture | null
   sortOrder: number
 }
 
@@ -60,6 +61,7 @@ export interface ProfileContentData {
 }
 
 const BADGE_IMAGE_SIZE = { width: 240, height: 240, fit: 'contain' as const, sizes: '160px' }
+const BADGE_IMAGE_FULL_SIZE = { width: 1400, height: 1400, fit: 'contain' as const, sizes: '90vw' }
 
 function resolveBadgeImages(data: ProfileContentData): ProfileContentData {
   return {
@@ -82,6 +84,7 @@ async function attachOptimizedBadges(data: ProfileContentData): Promise<ProfileC
       (data.certifications || []).map(async (cert) => ({
         ...cert,
         badgeImage: await optimizeImage(cert.badgeSource, BADGE_IMAGE_SIZE),
+        badgeImageFull: await optimizeImage(cert.badgeSource, BADGE_IMAGE_FULL_SIZE),
       })),
     ),
   }
