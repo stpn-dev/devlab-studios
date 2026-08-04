@@ -24,6 +24,17 @@ async function measureImageBytes(page, path) {
   })
 
   await page.goto(path, { waitUntil: 'networkidle' })
+
+  await page.evaluate(async () => {
+    const step = window.innerHeight
+    for (let y = 0; y < document.body.scrollHeight; y += step) {
+      window.scrollTo(0, y)
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+    window.scrollTo(0, 0)
+  })
+  await page.waitForLoadState('networkidle')
+
   await Promise.all(pending)
   return totalBytes
 }
