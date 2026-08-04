@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import PrimaryButton from './PrimaryButton'
 import GlassCard from './GlassCard'
 import AnimatedIcon from './icons/AnimatedIcon'
+import ResponsivePicture from './ResponsivePicture'
 import { ExternalLink, Code2, Zap, Maximize2, ChevronLeft, ChevronRight, Image as ImageIcon } from './icons/icons'
 
 function PortfolioRow({ project, onImageClick }) {
@@ -77,11 +78,10 @@ function PortfolioRow({ project, onImageClick }) {
             }
           }}
         >
-          <img
-            src={project.image}
+          <ResponsivePicture
+            image={project.optimizedImage}
             alt={`${project.title} cover`}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            loading="lazy"
           />
           {/* Hover Overlay with Icon */}
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-300 group-hover:bg-black/40">
@@ -180,8 +180,8 @@ function PortfolioRow({ project, onImageClick }) {
                     onClick={() => onImageClick(activeGalleryImage)}
                     className="block w-full"
                   >
-                    <img
-                      src={activeGalleryImage.url}
+                    <ResponsivePicture
+                      image={activeGalleryImage.optimized}
                       alt={activeGalleryImage.altText || `${project.title} gallery image ${activeGalleryIndex + 1}`}
                       className="h-[260px] w-full object-cover sm:h-[360px]"
                     />
@@ -233,8 +233,8 @@ function PortfolioRow({ project, onImageClick }) {
                           : 'border-white/10 hover:border-white/25'
                       }`}
                     >
-                      <img
-                        src={image.url}
+                      <ResponsivePicture
+                        image={image.optimized}
                         alt={image.altText || `${project.title} thumbnail ${index + 1}`}
                         className="h-20 w-full object-cover"
                       />

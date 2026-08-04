@@ -39,7 +39,7 @@ function PortfolioGallery({ projects }) {
       </div>
 
       <ImageModal
-        src={selectedImage?.url || ''}
+        image={selectedImage?.optimized || null}
         alt={selectedImage?.altText || 'Portfolio project screenshot'}
         isOpen={Boolean(selectedImage)}
         onClose={() => setSelectedImage(null)}

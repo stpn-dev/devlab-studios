@@ -2,15 +2,21 @@ import { listProjects } from '../../worker/repositories/projects.js'
 import { normalizeProjectMedia } from '../media'
 import { portfolioItems } from '../../data/portfolio.js'
 import { getEnv } from '../env'
+import { optimizeImage, type OptimizedPicture } from '../images/optimizeImage'
+import type { ImageMetadata } from 'astro'
+
+type ImageSource = ImageMetadata | string | undefined
 
 interface GalleryImage {
-  url?: string
+  url?: ImageSource
+  optimized?: OptimizedPicture | null
   [key: string]: unknown
 }
 
 interface ProjectData {
   id: string
-  image?: string
+  image?: ImageSource
+  optimizedImage?: OptimizedPicture | null
   imageUrl?: string
   galleryImages?: GalleryImage[]
   liveUrl?: string
@@ -20,28 +26,20 @@ interface ProjectData {
 }
 
 /**
- * Local image imports resolve to an ImageMetadata object ({src, width,
- * height, format}) under Astro's asset pipeline, not a plain URL string —
- * unwrap it so downstream <img src> usage doesn't render "[object Object]".
+ * D1 rows, before merging with the static fallback, only ever carry string
+ * URLs (never local ImageMetadata) — normalizeProjectMedia relies on that.
+ * Kept distinct from ProjectData (whose `image`/`galleryImages[].url` widen
+ * to ImageMetadata post-merge) so the generic constraint on
+ * normalizeProjectMedia<T extends ProjectMedia> below is satisfied.
  */
-function resolveImageSrc(value: unknown): string | undefined {
-  if (value && typeof value === 'object' && 'src' in value) {
-    return (value as { src: string }).src
-  }
-  return typeof value === 'string' ? value : undefined
+interface RawProjectRow {
+  id: string
+  imageUrl?: string
+  galleryImages?: { url?: string; [key: string]: unknown }[]
+  [key: string]: unknown
 }
 
-function normalizeStaticProject(project: ProjectData): ProjectData {
-  return {
-    ...project,
-    image: resolveImageSrc(project.image),
-    galleryImages: Array.isArray(project.galleryImages)
-      ? project.galleryImages.map((image) => ({ ...image, url: resolveImageSrc(image.url) }))
-      : project.galleryImages,
-  }
-}
-
-const normalizedPortfolioItems: ProjectData[] = portfolioItems.map(normalizeStaticProject)
+const normalizedPortfolioItems: ProjectData[] = portfolioItems
 
 function mergeWithStaticImages(projects: ProjectData[]): ProjectData[] {
   const staticById = new Map(normalizedPortfolioItems.map((project) => [project.id, project]))
@@ -62,6 +60,24 @@ function mergeWithStaticImages(projects: ProjectData[]): ProjectData[] {
   })
 }
 
+const COVER_IMAGE_SIZE = { width: 640, height: 480, fit: 'cover' as const, sizes: '(min-width: 1024px) 480px, 90vw' }
+const GALLERY_IMAGE_SIZE = { width: 1200, height: 675, fit: 'cover' as const, sizes: '(min-width: 1024px) 900px, 95vw' }
+
+async function attachOptimizedImages(projects: ProjectData[]): Promise<ProjectData[]> {
+  return Promise.all(
+    projects.map(async (project) => ({
+      ...project,
+      optimizedImage: await optimizeImage(project.image, COVER_IMAGE_SIZE),
+      galleryImages: await Promise.all(
+        (project.galleryImages || []).map(async (image) => ({
+          ...image,
+          optimized: await optimizeImage(image.url, GALLERY_IMAGE_SIZE),
+        })),
+      ),
+    })),
+  )
+}
+
 /**
  * Server-side equivalent of the old useProjects() client hook — queries D1
  * directly during render and merges in the static bundled screenshots that
@@ -69,13 +85,15 @@ function mergeWithStaticImages(projects: ProjectData[]): ProjectData[] {
  */
 export async function loadProjects(): Promise<ProjectData[]> {
   const env = getEnv()
-  if (!env.DB) return normalizedPortfolioItems
+  if (!env.DB) return attachOptimizedImages(normalizedPortfolioItems)
 
   try {
     const projects = await listProjects(env.DB)
-    if (!projects.length) return normalizedPortfolioItems
-    return mergeWithStaticImages(projects.map((project: ProjectData) => normalizeProjectMedia(project, env)))
+    if (!projects.length) return attachOptimizedImages(normalizedPortfolioItems)
+    return attachOptimizedImages(
+      mergeWithStaticImages(projects.map((project: RawProjectRow) => normalizeProjectMedia(project, env))),
+    )
   } catch {
-    return normalizedPortfolioItems
+    return attachOptimizedImages(normalizedPortfolioItems)
   }
 }
