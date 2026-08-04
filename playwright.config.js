@@ -27,7 +27,7 @@ export default defineConfig({
   projects: [
     {
       name: 'static',
-      testMatch: /(public-pages|contact-form)\.spec\.js/,
+      testMatch: /(public-pages|contact-form|image-weight)\.spec\.js/,
       use: { baseURL: 'http://localhost:4173' },
     },
     {
