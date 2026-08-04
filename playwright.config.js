@@ -35,5 +35,15 @@ export default defineConfig({
       testMatch: /admin\.spec\.js/,
       use: { baseURL: 'http://localhost:8787' },
     },
+    {
+      name: 'desktop-safari',
+      testMatch: /(public-pages|contact-form|image-weight)\.spec\.js/,
+      use: { baseURL: 'http://localhost:4173', ...devices['Desktop Safari'] },
+    },
+    {
+      name: 'mobile-safari',
+      testMatch: /(public-pages|contact-form|image-weight)\.spec\.js/,
+      use: { baseURL: 'http://localhost:4173', ...devices['iPhone 14'] },
+    },
   ],
 })
