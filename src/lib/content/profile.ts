@@ -1,6 +1,7 @@
 import { getProfileContent } from '../../worker/repositories/content.js'
 import { getStaticProfileContent } from '../../data/profileContent.js'
 import { getEnv } from '../env'
+import { optimizeImage, type OptimizedPicture } from '../images/optimizeImage'
 import zapierBadge from '../../assets/certificates/Zapier_Certificate.png'
 import makeBadge from '../../assets/certificates/Make_Certificate.png'
 import n8nBadge from '../../assets/certificates/N8N_Certificate.png'
@@ -42,6 +43,7 @@ export interface CertificationItem {
   issuedDate: string
   credentialUrl: string
   badgeImageUrl: string
+  badgeImage?: OptimizedPicture | null
   sortOrder: number
 }
 
@@ -55,6 +57,8 @@ export interface ProfileContentData {
   certifications?: CertificationItem[]
 }
 
+const BADGE_IMAGE_SIZE = { width: 240, height: 240, fit: 'contain' as const, sizes: '160px' }
+
 function resolveBadgeImages(data: ProfileContentData): ProfileContentData {
   return {
     ...data,
@@ -62,6 +66,18 @@ function resolveBadgeImages(data: ProfileContentData): ProfileContentData {
       ...cert,
       badgeImageUrl: cert.badgeImageUrl || BADGE_IMAGES[cert.id]?.src || '',
     })),
+  }
+}
+
+async function attachOptimizedBadges(data: ProfileContentData): Promise<ProfileContentData> {
+  return {
+    ...data,
+    certifications: await Promise.all(
+      (data.certifications || []).map(async (cert) => ({
+        ...cert,
+        badgeImage: await optimizeImage(cert.badgeImageUrl, BADGE_IMAGE_SIZE),
+      })),
+    ),
   }
 }
 
@@ -78,13 +94,13 @@ function hasContent(data: Partial<ProfileContentData> | null | undefined): boole
 /** Server-side equivalent of the old useProfileContent() client hook. */
 export async function loadProfileContent(): Promise<ProfileContentData> {
   const env = getEnv()
-  if (!env.DB) return staticProfileContent
+  if (!env.DB) return attachOptimizedBadges(staticProfileContent)
 
   try {
     const data = await getProfileContent(env.DB)
-    if (!hasContent(data)) return staticProfileContent
-    return resolveBadgeImages(data as ProfileContentData)
+    if (!hasContent(data)) return attachOptimizedBadges(staticProfileContent)
+    return attachOptimizedBadges(resolveBadgeImages(data as ProfileContentData))
   } catch {
-    return staticProfileContent
+    return attachOptimizedBadges(staticProfileContent)
   }
 }
