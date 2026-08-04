@@ -1,20 +1,22 @@
 import { useEffect, useRef } from 'react'
 import AnimatedIcon from './icons/AnimatedIcon'
 import { X } from './icons/icons'
+import ResponsivePicture from './ResponsivePicture'
 
 /**
  * ImageModal Component
  * Accessible lightbox/modal for displaying enlarged images
  *
- * @param {string} src - Image source URL
- * @param {string} alt - Image alt text
- * @param {boolean} isOpen - Whether modal is open
- * @param {function} onClose - Callback to close modal
- * @param {string} caption - Optional image caption
+ * @param {{
+ *   image: import('../lib/images/optimizeImage').OptimizedPicture | null,
+ *   alt: string,
+ *   isOpen: boolean,
+ *   onClose: () => void,
+ *   caption?: string,
+ * }} props
  */
-function ImageModal({ src, alt, isOpen, onClose, caption }) {
+function ImageModal({ image, alt, isOpen, onClose, caption }) {
   const modalRef = useRef(null)
-  const imageRef = useRef(null)
 
   // Handle ESC key to close
   useEffect(() => {
@@ -70,14 +72,11 @@ function ImageModal({ src, alt, isOpen, onClose, caption }) {
           />
         </button>
 
-        {/* Image Container with Glassmorphism */}
         <div className="rounded-2xl border border-white/20 bg-white/10 p-3 shadow-xl backdrop-blur-lg sm:p-4">
-          <img
-            ref={imageRef}
-            src={src}
+          <ResponsivePicture
+            image={image}
             alt={alt}
             className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain"
-            onClick={(e) => e.stopPropagation()}
           />
 
           {/* Caption (optional) */}
