@@ -43,10 +43,10 @@ const legalLinks = footer.legalLinks?.length
 
       <div class="mb-4 flex flex-1 flex-col items-center md:mb-0">
         <p class="mb-2 font-semibold text-brand-ink">Quick Links</p>
-        <ul class="space-y-1">
+        <ul>
           {quickLinks.map((item) => (
             <li>
-              <a href={item.href} class="hover:text-brand-teal hover:underline">{item.label}</a>
+              <a href={item.href} class="inline-block py-2 hover:text-brand-teal hover:underline">{item.label}</a>
             </li>
           ))}
         </ul>
@@ -61,7 +61,7 @@ const legalLinks = footer.legalLinks?.length
               target={item.href.startsWith('http') ? '_blank' : undefined}
               rel={item.href.startsWith('http') ? 'noopener noreferrer' : undefined}
               aria-label={item.label}
-              class="hover:text-brand-teal"
+              class="inline-block py-2 hover:text-brand-teal"
             >
               {item.label}
             </a>
@@ -74,8 +74,8 @@ const legalLinks = footer.legalLinks?.length
       <span class="flex flex-wrap justify-center gap-x-2 md:justify-end">
         {legalLinks.map((link, index) => (
           <>
-            <a href={link.href} class="hover:text-brand-teal hover:underline">{link.label}</a>
-            {index < legalLinks.length - 1 ? <span aria-hidden="true">|</span> : null}
+            <a href={link.href} class="inline-block py-2 hover:text-brand-teal hover:underline">{link.label}</a>
+            {index < legalLinks.length - 1 ? <span aria-hidden="true" class="self-center">|</span> : null}
           </>
         ))}
       </span>

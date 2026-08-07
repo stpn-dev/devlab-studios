@@ -60,7 +60,7 @@ function ImageModal({ image, alt, isOpen, onClose, caption }) {
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 rounded-lg bg-white/15 p-2 backdrop-blur-lg transition-all hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-300 focus-visible:ring-offset-2"
+          className="absolute right-4 top-4 z-10 rounded-lg bg-white/15 p-3 backdrop-blur-lg transition-all hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy-300 focus-visible:ring-offset-2"
           aria-label="Close image modal"
         >
           <AnimatedIcon

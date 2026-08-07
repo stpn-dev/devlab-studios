@@ -18,7 +18,7 @@ const mobileContactLabel = siteSettings.ctas?.mobileContactLabel || desktopConta
 const linkBase = 'px-3 py-2 text-sm font-semibold transition hover:text-brand-ink focus-visible:outline-none'
 ---
 
-<header class="fixed inset-x-0 top-0 z-40">
+<header class="fixed inset-x-0 top-0 z-40 pt-[env(safe-area-inset-top,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
   <div class="w-full px-4 mx-auto max-w-7xl sm:px-6 lg:px-6">
     <div class="mt-4 flex items-center justify-between rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-[0_12px_34px_rgba(12,26,51,0.08)] backdrop-blur-md">
       <a href="/" class="flex items-center gap-3 text-lg font-bold tracking-tight text-brand-teal">
@@ -58,7 +58,7 @@ const linkBase = 'px-3 py-2 text-sm font-semibold transition hover:text-brand-in
       <button
         type="button"
         id="mobile-nav-toggle"
-        class="group inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-950 bg-slate-950 text-white shadow-sm transition hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2 md:hidden"
+        class="group inline-flex h-11 w-11 items-center justify-center rounded-lg border border-brand-orange bg-brand-orange text-white shadow-sm transition hover:bg-brand-orangeDark hover:border-brand-orangeDark focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2 md:hidden"
         aria-label="Open navigation"
         aria-controls="mobile-navigation"
         aria-expanded="false"
@@ -74,7 +74,7 @@ const linkBase = 'px-3 py-2 text-sm font-semibold transition hover:text-brand-in
         {navLinks.map((item) => (
           <a
             href={item.href}
-            class={`block rounded-xl px-3 py-2 text-sm font-semibold transition ${currentPath === item.href ? 'bg-brand-mint text-brand-ink' : 'text-slate-600 hover:bg-slate-100'}`}
+            class={`block rounded-xl px-3 py-3 text-sm font-semibold transition ${currentPath === item.href ? 'bg-brand-mint text-brand-ink' : 'text-slate-600 hover:bg-slate-100'}`}
           >
             {item.label}
           </a>
