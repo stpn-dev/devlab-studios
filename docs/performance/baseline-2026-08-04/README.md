@@ -2,11 +2,13 @@
 
 Captured the same way as `../baseline-2026-07-31/README.md`, after enabling the Cloudflare Images binding, wiring optimized `<picture>` markup through the portfolio/certification islands, and reducing Safari compositing cost (see `docs/superpowers/plans/2026-08-04-cross-platform-performance.md`).
 
+**Update (same day, post-Task 10.5):** the certification-badge bug described below was fixed later the same day (Task 10.5) and further tightened afterward (the badge transform now uses the badges' real ~1.414:1 aspect ratio instead of a forced square). `/profile`'s image-only weight (Task 1's Playwright-measured metric, not this Lighthouse total) dropped to 153.54 KiB post-fix, not the 1,788 KiB Lighthouse total shown here — this table is left as originally captured (a point-in-time snapshot) rather than rewritten; see the ledger/final-review history for the corrected numbers.
+
 | Page | Performance (before → after) | LCP (before → after) | CLS (before → after) | Total weight (before → after) |
 |---|---|---|---|---|
 | `/` (Home) | 73 → 73 | 3.7s → 3.2s | 0.237 → 0.057 | 583 KiB → 488 KiB |
 | `/profile` | 57 → 71 | 5.4s → 3.3s | 0.236 → 0.025 | 862 KiB → 1,788 KiB |
-| `/resources` | 77 → 79 | 2.9s → 2.7s | 0.236 → 0.044 | 382 KiB → 360 KiB |
+| `/resources` (redirects to `/insights` — the page actually measured) | 77 → 79 | 2.9s → 2.7s | 0.236 → 0.044 | 382 KiB → 360 KiB |
 
 Raw reports: `home.report.{html,json}`, `profile.report.{html,json}`, `resources.report.{html,json}`.
 

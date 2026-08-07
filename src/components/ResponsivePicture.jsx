@@ -11,9 +11,9 @@ function ResponsivePicture({ image, alt, className, loading = 'lazy', onClick })
   if (!image) return null
 
   return (
-    <picture>
-      <source type="image/avif" srcSet={image.avifSrcSet} sizes={image.sizes} />
-      <source type="image/webp" srcSet={image.webpSrcSet} sizes={image.sizes} />
+    <picture className="block">
+      <source type="image/avif" srcSet={image.avifSrcSet} />
+      <source type="image/webp" srcSet={image.webpSrcSet} />
       <img
         src={image.src}
         width={image.width}

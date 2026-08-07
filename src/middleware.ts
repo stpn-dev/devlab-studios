@@ -24,7 +24,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (shouldUseWww || shouldUseHttps) {
     url.hostname = 'www.devlabstudios.com'
     url.protocol = 'https:'
-    return applySecurityHeaders(Response.redirect(url.toString(), 301), url.pathname)
+    return applySecurityHeaders(Response.redirect(url.toString(), 301), url.pathname, url.hostname)
   }
 
   if (url.pathname.startsWith(ADMIN_API_PREFIX) && !ADMIN_PUBLIC_ROUTES.has(url.pathname)) {
@@ -36,7 +36,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     })
 
     if (!didContinue) {
-      return applySecurityHeaders(result, url.pathname)
+      return applySecurityHeaders(result, url.pathname, url.hostname)
     }
   }
 
@@ -44,7 +44,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     const env = getEnv()
     const maintenanceMode = env.DB ? await getSiteSetting(env.DB, 'maintenance_mode', false) : false
     if (maintenanceMode) {
-      return applySecurityHeaders(await next(MAINTENANCE_PAGE), url.pathname)
+      return applySecurityHeaders(await next(MAINTENANCE_PAGE), url.pathname, url.hostname)
     }
   }
 
@@ -59,10 +59,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
       const redirect = await findRedirect(env.DB, url.pathname)
       if (redirect) {
         const destination = new URL(redirect.toPath, url)
-        return applySecurityHeaders(Response.redirect(destination.toString(), redirect.statusCode), url.pathname)
+        return applySecurityHeaders(Response.redirect(destination.toString(), redirect.statusCode), url.pathname, url.hostname)
       }
     }
   }
 
-  return applySecurityHeaders(response, url.pathname)
+  return applySecurityHeaders(response, url.pathname, url.hostname)
 })

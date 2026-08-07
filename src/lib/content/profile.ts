@@ -60,8 +60,11 @@ export interface ProfileContentData {
   certifications?: CertificationItem[]
 }
 
-const BADGE_IMAGE_SIZE = { width: 240, height: 240, fit: 'contain' as const, sizes: '160px' }
-const BADGE_IMAGE_FULL_SIZE = { width: 1400, height: 1400, fit: 'contain' as const, sizes: '90vw' }
+// All four local certificate badges share a ~1.414:1 (document/ISO-216)
+// aspect ratio — matching it here means `fit: 'contain'` needs no
+// letterboxing, so the declared width/height match what's actually visible.
+const BADGE_IMAGE_SIZE = { width: 240, height: 170, fit: 'contain' as const }
+const BADGE_IMAGE_FULL_SIZE = { width: 1400, height: 990, fit: 'contain' as const }
 
 function resolveBadgeImages(data: ProfileContentData): ProfileContentData {
   return {
@@ -107,8 +110,8 @@ export async function loadProfileContent(): Promise<ProfileContentData> {
 
   try {
     const data = await getProfileContent(env.DB)
-    if (!hasContent(data)) return attachOptimizedBadges(staticProfileContent)
-    return attachOptimizedBadges(resolveBadgeImages(data as ProfileContentData))
+    if (!hasContent(data)) return await attachOptimizedBadges(staticProfileContent)
+    return await attachOptimizedBadges(resolveBadgeImages(data as ProfileContentData))
   } catch {
     return attachOptimizedBadges(staticProfileContent)
   }

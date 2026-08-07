@@ -60,8 +60,12 @@ function mergeWithStaticImages(projects: ProjectData[]): ProjectData[] {
   })
 }
 
-const COVER_IMAGE_SIZE = { width: 640, height: 480, fit: 'cover' as const, sizes: '(min-width: 1024px) 480px, 90vw' }
-const GALLERY_IMAGE_SIZE = { width: 1200, height: 675, fit: 'cover' as const, sizes: '(min-width: 1024px) 900px, 95vw' }
+const COVER_IMAGE_SIZE = { width: 640, height: 480, fit: 'cover' as const }
+// Capped at 960 (so the 2x density variant requests 1920) rather than 1200
+// (which would request 2400 at 2x) — project screenshots are typically
+// ~1920px wide at most, so a wider target just upscales past the source
+// with no visual gain.
+const GALLERY_IMAGE_SIZE = { width: 960, height: 540, fit: 'cover' as const }
 
 async function attachOptimizedImages(projects: ProjectData[]): Promise<ProjectData[]> {
   return Promise.all(
@@ -89,8 +93,8 @@ export async function loadProjects(): Promise<ProjectData[]> {
 
   try {
     const projects = await listProjects(env.DB)
-    if (!projects.length) return attachOptimizedImages(normalizedPortfolioItems)
-    return attachOptimizedImages(
+    if (!projects.length) return await attachOptimizedImages(normalizedPortfolioItems)
+    return await attachOptimizedImages(
       mergeWithStaticImages(projects.map((project: RawProjectRow) => normalizeProjectMedia(project, env))),
     )
   } catch {

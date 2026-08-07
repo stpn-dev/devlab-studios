@@ -22,6 +22,10 @@ const legalLinks = footer.legalLinks?.length
   <div class="mx-auto max-w-7xl px-4 py-8 text-sm text-slate-600 sm:px-6 lg:px-6">
     <div class="flex flex-col gap-8 text-center md:flex-row md:items-start md:justify-between md:text-left">
       <div class="mb-4 flex flex-1 flex-col items-center md:mb-0 md:items-start">
+        {/* width/height assume logoSideUrl's current ~10:3 aspect ratio for CLS purposes only —
+            it's a remote, CMS-swappable SVG, so these can go stale if the asset is replaced with
+            a differently-proportioned logo; `object-contain` means a mismatch letterboxes rather
+            than distorts. */}
         <img
           id="footer-logo"
           src={brandingAssets.logoSideUrl}

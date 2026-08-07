@@ -7,14 +7,12 @@ export interface OptimizedPicture {
   height: number
   avifSrcSet: string
   webpSrcSet: string
-  sizes: string
 }
 
 export interface OptimizeImageOptions {
   width: number
   height: number
   fit?: 'cover' | 'contain'
-  sizes?: string
 }
 
 /**
@@ -28,7 +26,7 @@ export interface OptimizeImageOptions {
  */
 export async function optimizeImage(
   source: ImageMetadata | string | undefined,
-  { width, height, fit = 'cover', sizes = `${width}px` }: OptimizeImageOptions,
+  { width, height, fit = 'cover' }: OptimizeImageOptions,
 ): Promise<OptimizedPicture | null> {
   if (!source) return null
 
@@ -52,6 +50,5 @@ export async function optimizeImage(
     height: webp.attributes.height as number,
     avifSrcSet: avif.srcSet.attribute,
     webpSrcSet: webp.srcSet.attribute,
-    sizes,
   }
 }

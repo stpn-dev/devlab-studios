@@ -21,7 +21,7 @@ const projects = await loadProjects()
 const aboutData = profileContent.about || {}
 const experiences = profileContent.experiences || []
 const certifications = profileContent.certifications || []
-const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 320, fit: 'cover', sizes: '160px' })
+const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 320, fit: 'cover' })
 ---
 
 <Layout title="Profile — DevLab Studios" seo={seo}>
