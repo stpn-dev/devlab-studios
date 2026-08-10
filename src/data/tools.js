@@ -1,19 +1,22 @@
 // Structured data: Core tools in use
-import reactLogo from '../assets/tool-logos/react.svg'
-import tailwindLogo from '../assets/tool-logos/tailwind.svg'
-import viteLogo from '../assets/tool-logos/vite.svg'
-import routerLogo from '../assets/tool-logos/router.svg'
-import githubLogo from '../assets/tool-logos/github.svg'
-import cloudflareLogo from '../assets/tool-logos/cloudflare.svg'
-import zapierLogo from '../assets/tool-logos/zapier.svg'
-import makeLogo from '../assets/tool-logos/make.svg'
-import n8nLogo from '../assets/tool-logos/n8n.svg'
-import googleLogo from '../assets/tool-logos/google.svg'
-import notionLogo from '../assets/tool-logos/notion.svg'
-import airtableLogo from '../assets/tool-logos/airtable.svg'
-import astroLogo from '../assets/tool-logos/astro.svg'
-import openaiLogo from '../assets/tool-logos/openai.svg'
-import highlevelLogo from '../assets/tool-logos/highlevel.svg'
+// Logos are imported with the `?url` suffix so Vite/Astro's asset pipeline
+// resolves them to plain URL strings instead of ImageMetadata objects,
+// matching the `logo?: string` shape consumed by ToolsMarquee.
+import reactLogo from '../assets/tool-logos/react.svg?url'
+import tailwindLogo from '../assets/tool-logos/tailwind.svg?url'
+import viteLogo from '../assets/tool-logos/vite.svg?url'
+import routerLogo from '../assets/tool-logos/router.svg?url'
+import githubLogo from '../assets/tool-logos/github.svg?url'
+import cloudflareLogo from '../assets/tool-logos/cloudflare.svg?url'
+import zapierLogo from '../assets/tool-logos/zapier.svg?url'
+import makeLogo from '../assets/tool-logos/make.svg?url'
+import n8nLogo from '../assets/tool-logos/n8n.svg?url'
+import googleLogo from '../assets/tool-logos/google.svg?url'
+import notionLogo from '../assets/tool-logos/notion.svg?url'
+import airtableLogo from '../assets/tool-logos/airtable.svg?url'
+import astroLogo from '../assets/tool-logos/astro.svg?url'
+import openaiLogo from '../assets/tool-logos/openai.svg?url'
+import highlevelLogo from '../assets/tool-logos/highlevel.svg?url'
 
 export const coreTools = [
   { key: 'react', label: 'React', icon: 'Code2', logo: reactLogo },

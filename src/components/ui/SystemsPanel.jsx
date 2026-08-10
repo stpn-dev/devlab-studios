@@ -1,6 +1,5 @@
 import AnimatedIcon from '../icons/AnimatedIcon'
 import * as Icons from '../icons/icons'
-import * as Tools from '../../data/tools'
 import * as Data from '../../data/workflows'
 
 function resolveIcon(name) {
@@ -8,23 +7,18 @@ function resolveIcon(name) {
 }
 
 function SystemsPanel({
-  tools: providedTools,
   workflowPatterns: providedPatterns,
   systemCharacteristics: providedCharacteristics,
 }) {
-  const staticTools = Tools.coreTools || (Tools.default ? Tools.default.coreTools : [])
   const staticPatterns = Data.workflowPatterns || (Data.default ? Data.default.workflowPatterns : [])
   const staticCharacteristics = Data.systemCharacteristics || (Data.default ? Data.default.systemCharacteristics : [])
 
-  const tools = Array.isArray(providedTools) && providedTools.length ? providedTools : staticTools
   const patterns = Array.isArray(providedPatterns) && providedPatterns.length ? providedPatterns : staticPatterns
   const characteristics =
     Array.isArray(providedCharacteristics) && providedCharacteristics.length
       ? providedCharacteristics
       : staticCharacteristics
 
-  const featuredTools = tools.slice(0, 10)
-  const moreToolsCount = Math.max(tools.length - featuredTools.length, 0)
   const featuredPatterns = patterns.slice(0, 4)
   const morePatternsCount = Math.max(patterns.length - featuredPatterns.length, 0)
   const featuredCharacteristics = characteristics.slice(0, 4)
@@ -38,25 +32,6 @@ function SystemsPanel({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2 xl:gap-5">
-        {/* Core Tools */}
-        <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-          <p className="mb-3 text-xs uppercase tracking-[0.16em] text-brand-teal">Core Tools In Use</p>
-          <div className="grid grid-cols-1 gap-2">
-            {featuredTools.map((tool) => {
-              const Icon = resolveIcon(tool.icon)
-              return (
-                <div key={tool.key} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 transition-colors hover:border-brand-teal/30 hover:bg-brand-mint/35">
-                  <AnimatedIcon icon={Icon} size={16} color="text-brand-ink" animationType="hover-scale" ariaLabel={tool.label} />
-                  <span className="text-xs font-medium text-slate-700">{tool.label}</span>
-                </div>
-              )
-            })}
-          </div>
-          {moreToolsCount > 0 && (
-            <p className="mt-3 text-xs text-slate-500">+{moreToolsCount} additional tool(s)</p>
-          )}
-        </section>
-
         {/* Right Column: Workflow + Characteristics */}
         <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
           <p className="mb-3 text-xs uppercase tracking-[0.16em] text-brand-teal">Workflow Patterns</p>

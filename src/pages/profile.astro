@@ -4,6 +4,7 @@ import SectionHeader from '../components/SectionHeader.jsx'
 import PersonalInfoCard from '../components/PersonalInfoCard.jsx'
 import SkillsSection from '../components/ui/SkillsSection.jsx'
 import SystemsPanel from '../components/ui/SystemsPanel.jsx'
+import ToolsMarquee from '../components/ui/ToolsMarquee.jsx'
 import ListItemWithIcon from '../components/ui/ListItemWithIcon.jsx'
 import AnimatedIcon from '../components/icons/AnimatedIcon.jsx'
 import PortfolioGallery from '../components/islands/PortfolioGallery.jsx'
@@ -13,6 +14,7 @@ import { loadPageSeo } from '../lib/content/seo'
 import { loadProfileContent } from '../lib/content/profile'
 import { loadProjects } from '../lib/content/projects'
 import { optimizeImage } from '../lib/images/optimizeImage'
+import { coreTools } from '../data/tools.js'
 import profilePhoto from '../assets/recent-photo.png'
 
 const seo = await loadPageSeo('profile')
@@ -137,11 +139,18 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
 
     <section class="space-y-4">
       <SectionHeader
+        title="Tools & Platforms"
+        subtitle="Technologies and platforms used across delivery, at a glance."
+      />
+      <ToolsMarquee tools={coreTools} />
+    </section>
+
+    <section class="space-y-4">
+      <SectionHeader
         title="Systems & Workflows"
         subtitle="Core tools, repeatable workflow patterns, and operating characteristics used across delivery."
       />
       <SystemsPanel
-        tools={profileContent.tools || []}
         workflowPatterns={profileContent.workflowPatterns || []}
         systemCharacteristics={profileContent.systemCharacteristics || []}
       />
