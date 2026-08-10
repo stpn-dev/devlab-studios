@@ -1,5 +1,8 @@
-import { useState } from 'react'
-import PortfolioRow from '../PortfolioRow'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import useEmblaCarousel from 'embla-carousel-react'
+import Autoplay from 'embla-carousel-autoplay'
+import PortfolioCard from '../PortfolioCard'
+import ProjectDetailModal from '../ProjectDetailModal'
 import ImageModal from '../ImageModal'
 
 const CATEGORIES = [
@@ -8,12 +11,55 @@ const CATEGORIES = [
 ]
 
 function PortfolioGallery({ projects }) {
-  const [selectedImage, setSelectedImage] = useState(null)
   const [category, setCategory] = useState('Automation')
+  const [selectedProject, setSelectedProject] = useState(null)
+  const [selectedImage, setSelectedImage] = useState(null)
+  const autoplayRef = useRef(
+    Autoplay({ delay: 3000, stopOnMouseEnter: true, stopOnInteraction: false }),
+  )
+
+  const prefersReducedMotion =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  const [emblaRef, emblaApi] = useEmblaCarousel(
+    { loop: true, align: 'center' },
+    prefersReducedMotion ? [] : [autoplayRef.current],
+  )
 
   const filteredItems = projects.filter((item) =>
     category === 'Website' ? item.type === 'Website' : item.type === 'Automation',
   )
+
+  const applyCenterFocus = useCallback(() => {
+    if (!emblaApi) return
+    const rootRect = emblaApi.rootNode().getBoundingClientRect()
+    const centerX = rootRect.left + rootRect.width / 2
+
+    emblaApi.slideNodes().forEach((slideNode) => {
+      const slideRect = slideNode.getBoundingClientRect()
+      const slideCenter = slideRect.left + slideRect.width / 2
+      const distance = Math.abs(slideCenter - centerX)
+      const normalized = Math.min(distance / (rootRect.width / 2), 1)
+      slideNode.style.opacity = String(1 - normalized * 0.6)
+      slideNode.style.filter = `blur(${(normalized * 3).toFixed(2)}px)`
+      slideNode.style.transform = `scale(${(1 - normalized * 0.1).toFixed(3)})`
+    })
+  }, [emblaApi])
+
+  useEffect(() => {
+    if (!emblaApi) return undefined
+    applyCenterFocus()
+    emblaApi.on('scroll', applyCenterFocus)
+    emblaApi.on('reInit', applyCenterFocus)
+    return () => {
+      emblaApi.off('scroll', applyCenterFocus)
+      emblaApi.off('reInit', applyCenterFocus)
+    }
+  }, [emblaApi, applyCenterFocus])
+
+  useEffect(() => {
+    emblaApi?.reInit()
+  }, [emblaApi, category])
 
   return (
     <>
@@ -32,11 +78,38 @@ function PortfolioGallery({ projects }) {
         ))}
       </div>
 
-      <div className="mt-6 space-y-6">
-        {filteredItems.map((project) => (
-          <PortfolioRow key={project.id} project={project} onImageClick={(image) => setSelectedImage(image)} />
-        ))}
+      <div className="portfolio-carousel-wrap relative mt-6 max-w-[900px] overflow-hidden rounded-2xl bg-slate-950/20 py-6" ref={emblaRef}>
+        <div className="flex gap-5 px-10">
+          {filteredItems.map((project) => (
+            <div key={project.id} className="min-w-[340px] flex-shrink-0 transition-[opacity,filter,transform] duration-150">
+              <PortfolioCard project={project} onClick={() => setSelectedProject(project)} />
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => emblaApi?.scrollPrev()}
+          className="portfolio-carousel-arrow absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white p-3 text-brand-teal shadow-lg"
+          aria-label="Previous project"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          onClick={() => emblaApi?.scrollNext()}
+          className="portfolio-carousel-arrow absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white p-3 text-brand-teal shadow-lg"
+          aria-label="Next project"
+        >
+          ›
+        </button>
       </div>
+
+      <ProjectDetailModal
+        project={selectedProject}
+        isOpen={Boolean(selectedProject)}
+        onClose={() => setSelectedProject(null)}
+        onImageClick={(image) => setSelectedImage(image)}
+      />
 
       <ImageModal
         image={selectedImage?.optimized || null}

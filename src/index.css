@@ -188,3 +188,12 @@ a {
   transform: translateX(100%);
   transition: transform 0.8s ease;
 }
+
+.portfolio-carousel-arrow {
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.portfolio-carousel-wrap:hover .portfolio-carousel-arrow {
+  opacity: 1;
+}
