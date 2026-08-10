@@ -10,14 +10,22 @@ import ResponsivePicture from './ResponsivePicture'
  */
 function PersonalInfoCard({ aboutData, photo }) {
   return (
-    <section className="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-8">
+    <section
+      data-reveal
+      className="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-8"
+    >
       <div className="mx-auto flex max-w-4xl flex-col items-center justify-center gap-8 text-center lg:flex-row lg:text-left">
         <div className="flex justify-center lg:justify-center lg:self-center">
           <div className="group relative">
+            <div
+              className="absolute -inset-2 rounded-full bg-gradient-to-br from-brand-teal/40 to-brand-orange/40 blur-md"
+              style={{ animation: 'pulse-soft 3.5s ease-in-out infinite' }}
+              aria-hidden="true"
+            />
             <ResponsivePicture
               image={photo}
               alt="Profile photo of Stephen Rey G. Agustinez"
-              className="h-28 w-28 rounded-full border-2 border-brand-orange/25 object-cover shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:border-brand-orange/45 sm:h-36 sm:w-36 lg:h-40 lg:w-40"
+              className="relative h-28 w-28 rounded-full border-2 border-brand-orange/25 object-cover shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:border-brand-orange/45 sm:h-36 sm:w-36 lg:h-40 lg:w-40"
             />
             <div className="absolute inset-0 rounded-full bg-brand-teal/0 transition-all duration-300 group-hover:bg-brand-teal/10 group-hover:blur-xl" />
           </div>
@@ -29,6 +37,7 @@ function PersonalInfoCard({ aboutData, photo }) {
               <p className="text-xs uppercase tracking-[0.16em] text-slate-600">Name</p>
               <h2 className="text-2xl font-semibold text-brand-ink sm:text-3xl">{aboutData.name}</h2>
               {aboutData.role ? <p className="text-sm text-brand-teal">{aboutData.role}</p> : null}
+              <span className="badge-pill inline-block">Available for part-time and full-time engagements</span>
             </div>
 
             <div className="space-y-4">
