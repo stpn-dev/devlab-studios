@@ -13,8 +13,11 @@ interface GalleryImage {
   [key: string]: unknown
 }
 
-interface ProjectData {
+export interface ProjectData {
   id: string
+  title: string
+  description: string
+  type: string
   image?: ImageSource
   optimizedImage?: OptimizedPicture | null
   imageUrl?: string
