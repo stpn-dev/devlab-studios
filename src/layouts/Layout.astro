@@ -91,10 +91,8 @@ function safeJsonLd(value: unknown): string {
     </div>
 
     <script>
-      (async () => {
-        const { initScrollReveal } = await import('../lib/scrollReveal')
-        initScrollReveal()
-      })()
+      import { initScrollReveal } from '../lib/scrollReveal'
+      initScrollReveal()
     </script>
   </body>
 </html>
