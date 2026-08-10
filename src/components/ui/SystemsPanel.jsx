@@ -33,7 +33,7 @@ function SystemsPanel({
 
       <div className="grid gap-4 xl:grid-cols-2 xl:gap-5">
         {/* Right Column: Workflow + Characteristics */}
-        <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+        <section className="xl:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
           <p className="mb-3 text-xs uppercase tracking-[0.16em] text-brand-teal">Workflow Patterns</p>
           <div className="space-y-2">
             {featuredPatterns.map((item) => {

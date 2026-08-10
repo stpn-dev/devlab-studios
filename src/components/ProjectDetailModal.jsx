@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import PrimaryButton from './PrimaryButton'
 import AnimatedIcon from './icons/AnimatedIcon'
 import ResponsivePicture from './ResponsivePicture'
@@ -41,6 +41,26 @@ function ProjectDetailModal({ project, isOpen, onClose, onImageClick }) {
     onClose()
   }
 
+  // Handle ESC key to close
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        handleClose()
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = 'hidden'
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = 'unset'
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
+
   if (!isOpen || !project) return null
 
   return (
@@ -51,10 +71,11 @@ function ProjectDetailModal({ project, isOpen, onClose, onImageClick }) {
       }}
       role="dialog"
       aria-modal="true"
+      aria-labelledby="project-detail-title"
     >
       <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/95 p-6">
         <div className="flex items-start justify-between gap-4">
-          <h3 className="text-2xl font-semibold text-white">{project.title}</h3>
+          <h3 id="project-detail-title" className="text-2xl font-semibold text-white">{project.title}</h3>
           <button
             type="button"
             onClick={handleClose}
@@ -118,9 +139,9 @@ function ProjectDetailModal({ project, isOpen, onClose, onImageClick }) {
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <p className="text-sm leading-relaxed text-slate-200/80">{project.description}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {project.techStack.map((tech) => (
+              {project.techStack?.map((tech) => (
                 <span key={tech} className="badge-pill">{tech}</span>
-              ))}
+              )) ?? null}
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
               {project.liveUrl && project.liveUrl !== '#' ? (

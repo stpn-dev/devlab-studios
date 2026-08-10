@@ -19,7 +19,7 @@ function CertificationsGallery({ certifications }) {
         {certifications.map((cert) => (
           <div
             key={cert.id}
-            className="group relative overflow-hidden rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-5 text-center shadow-[0_18px_45px_rgba(60,28,120,0.14)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_rgba(60,28,120,0.20)]"
+            className="group cert-card relative overflow-hidden rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-5 text-center shadow-[0_18px_45px_rgba(60,28,120,0.14)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_rgba(60,28,120,0.20)]"
           >
             <div className="cert-shine" aria-hidden="true" />
             {cert.badgeImage ? (

@@ -40,9 +40,17 @@ function PortfolioGallery({ projects }) {
       const slideCenter = slideRect.left + slideRect.width / 2
       const distance = Math.abs(slideCenter - centerX)
       const normalized = Math.min(distance / (rootRect.width / 2), 1)
+      // Never write `transform` on slideNode itself: Embla's `loop: true` mode
+      // writes `translate3d(...)` directly onto each slide node's own
+      // style.transform to reposition wrap-around slides at the loop seam.
+      // Overwriting it here would clobber that positioning. `opacity` and
+      // `filter` are untouched by Embla, so they stay on the slide node; the
+      // scale effect moves to the inner child instead.
       slideNode.style.opacity = String(1 - normalized * 0.6)
       slideNode.style.filter = `blur(${(normalized * 3).toFixed(2)}px)`
-      slideNode.style.transform = `scale(${(1 - normalized * 0.1).toFixed(3)})`
+      if (slideNode.firstElementChild) {
+        slideNode.firstElementChild.style.transform = `scale(${(1 - normalized * 0.1).toFixed(3)})`
+      }
     })
   }, [emblaApi])
 
@@ -78,10 +86,10 @@ function PortfolioGallery({ projects }) {
         ))}
       </div>
 
-      <div className="portfolio-carousel-wrap relative mt-6 max-w-[900px] overflow-hidden rounded-2xl bg-slate-950/20 py-6" ref={emblaRef}>
+      <div className="portfolio-carousel-wrap relative mx-auto mt-6 max-w-[900px] overflow-hidden rounded-2xl bg-slate-950/20 py-6" ref={emblaRef}>
         <div className="flex gap-5 px-10">
           {filteredItems.map((project) => (
-            <div key={project.id} className="min-w-[340px] flex-shrink-0 transition-[opacity,filter,transform] duration-150">
+            <div key={project.id} className="min-w-[340px] flex-shrink-0 transition-[opacity,filter] duration-150">
               <PortfolioCard project={project} onClick={() => setSelectedProject(project)} />
             </div>
           ))}

@@ -94,5 +94,14 @@ function safeJsonLd(value: unknown): string {
       import { initScrollReveal } from '../lib/scrollReveal'
       initScrollReveal()
     </script>
+
+    <noscript>
+      <style>
+        [data-reveal] {
+          opacity: 1;
+          transform: none;
+        }
+      </style>
+    </noscript>
   </body>
 </html>

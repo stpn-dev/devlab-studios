@@ -184,9 +184,13 @@ a {
   pointer-events: none;
 }
 
-.group:hover .cert-shine {
+.cert-card:hover .cert-shine {
   transform: translateX(100%);
   transition: transform 0.8s ease;
+}
+
+.portfolio-card-slide {
+  transition: transform 150ms ease;
 }
 
 .portfolio-carousel-arrow {
@@ -196,4 +200,14 @@ a {
 
 .portfolio-carousel-wrap:hover .portfolio-carousel-arrow {
   opacity: 1;
+}
+
+.portfolio-carousel-arrow:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .portfolio-carousel-arrow {
+    opacity: 1;
+  }
 }

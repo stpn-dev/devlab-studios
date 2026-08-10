@@ -15,8 +15,6 @@ import googleLogo from '../assets/tool-logos/google.svg?url'
 import notionLogo from '../assets/tool-logos/notion.svg?url'
 import airtableLogo from '../assets/tool-logos/airtable.svg?url'
 import astroLogo from '../assets/tool-logos/astro.svg?url'
-import openaiLogo from '../assets/tool-logos/openai.svg?url'
-import highlevelLogo from '../assets/tool-logos/highlevel.svg?url'
 
 export const coreTools = [
   { key: 'react', label: 'React', icon: 'Code2', logo: reactLogo },
@@ -32,8 +30,8 @@ export const coreTools = [
   { key: 'notion', label: 'Notion', icon: 'Lightbulb', logo: notionLogo },
   { key: 'airtable', label: 'Airtable', icon: 'Lightbulb', logo: airtableLogo },
   { key: 'apis', label: 'API Integrations', icon: 'Code2' },
-  { key: 'openai', label: 'OpenAI / AI Tools', icon: 'Robot', logo: openaiLogo },
-  { key: 'highlevel', label: 'GoHighLevel', icon: 'Briefcase', logo: highlevelLogo },
+  { key: 'openai', label: 'OpenAI / AI Tools', icon: 'Robot' },
+  { key: 'highlevel', label: 'GoHighLevel', icon: 'Briefcase' },
   { key: 'astro', label: 'Astro', icon: 'Code2', logo: astroLogo },
 ]
 
