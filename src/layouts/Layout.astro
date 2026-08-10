@@ -89,5 +89,12 @@ function safeJsonLd(value: unknown): string {
         <div class="absolute right-1/4 top-48 h-80 w-80 rounded-full bg-brand-orange/10 blur-[90px]"></div>
       </div>
     </div>
+
+    <script>
+      (async () => {
+        const { initScrollReveal } = await import('../lib/scrollReveal')
+        initScrollReveal()
+      })()
+    </script>
   </body>
 </html>
