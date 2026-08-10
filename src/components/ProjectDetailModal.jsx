@@ -10,9 +10,10 @@ import { ExternalLink, Code2, ChevronLeft, ChevronRight } from './icons/icons'
  *   isOpen: boolean,
  *   onClose: () => void,
  *   onImageClick: (image: { optimized: unknown, altText?: string }) => void,
+ *   suppressEscape?: boolean,
  * }} props
  */
-function ProjectDetailModal({ project, isOpen, onClose, onImageClick }) {
+function ProjectDetailModal({ project, isOpen, onClose, onImageClick, suppressEscape = false }) {
   const [activeIndex, setActiveIndex] = useState(0)
   const isInternalLiveLink = project?.liveUrl?.startsWith('/')
 
@@ -41,10 +42,12 @@ function ProjectDetailModal({ project, isOpen, onClose, onImageClick }) {
     onClose()
   }
 
-  // Handle ESC key to close
+  // Handle ESC key to close. Suppressed while a nested ImageModal is open on
+  // top of this one, so a single Escape press closes only the topmost modal
+  // instead of both at once.
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && isOpen && !suppressEscape) {
         handleClose()
       }
     }
@@ -59,7 +62,7 @@ function ProjectDetailModal({ project, isOpen, onClose, onImageClick }) {
       document.body.style.overflow = 'unset'
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen])
+  }, [isOpen, suppressEscape])
 
   if (!isOpen || !project) return null
 

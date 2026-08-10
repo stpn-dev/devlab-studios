@@ -49,7 +49,12 @@ function PortfolioGallery({ projects }) {
       slideNode.style.opacity = String(1 - normalized * 0.6)
       slideNode.style.filter = `blur(${(normalized * 3).toFixed(2)}px)`
       if (slideNode.firstElementChild) {
-        slideNode.firstElementChild.style.transform = `scale(${(1 - normalized * 0.1).toFixed(3)})`
+        // A CSS custom property, not `transform` itself: writing `transform`
+        // directly here would permanently win over the card's own `:hover`
+        // lift rule (inline styles always beat stylesheet rules). The actual
+        // `transform` is computed in CSS from this variable, so `:hover` can
+        // still compose with it.
+        slideNode.firstElementChild.style.setProperty('--center-scale', (1 - normalized * 0.1).toFixed(3))
       }
     })
   }, [emblaApi])
@@ -117,6 +122,7 @@ function PortfolioGallery({ projects }) {
         isOpen={Boolean(selectedProject)}
         onClose={() => setSelectedProject(null)}
         onImageClick={(image) => setSelectedImage(image)}
+        suppressEscape={Boolean(selectedImage)}
       />
 
       <ImageModal
@@ -125,6 +131,7 @@ function PortfolioGallery({ projects }) {
         isOpen={Boolean(selectedImage)}
         onClose={() => setSelectedImage(null)}
         caption={selectedImage?.altText || ''}
+        lockScroll={false}
       />
     </>
   )

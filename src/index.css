@@ -190,7 +190,12 @@ a {
 }
 
 .portfolio-card-slide {
+  transform: scale(var(--center-scale, 1));
   transition: transform 150ms ease;
+}
+
+.portfolio-card-slide:hover {
+  transform: scale(var(--center-scale, 1)) translateY(-4px);
 }
 
 .portfolio-carousel-arrow {

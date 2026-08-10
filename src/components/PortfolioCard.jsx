@@ -11,7 +11,7 @@ function PortfolioCard({ project, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="portfolio-card-slide block w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 text-left shadow-[0_14px_32px_rgba(60,28,120,0.16)] transition-transform hover:-translate-y-1"
+      className="portfolio-card-slide block w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40 text-left shadow-[0_14px_32px_rgba(60,28,120,0.16)]"
       aria-label={`View ${project.title} project details`}
     >
       <ResponsivePicture

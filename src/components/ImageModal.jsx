@@ -13,9 +13,10 @@ import ResponsivePicture from './ResponsivePicture'
  *   isOpen: boolean,
  *   onClose: () => void,
  *   caption?: string,
+ *   lockScroll?: boolean,
  * }} props
  */
-function ImageModal({ image, alt, isOpen, onClose, caption }) {
+function ImageModal({ image, alt, isOpen, onClose, caption, lockScroll = true }) {
   const modalRef = useRef(null)
 
   // Handle ESC key to close
@@ -28,14 +29,17 @@ function ImageModal({ image, alt, isOpen, onClose, caption }) {
 
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = 'hidden'
+      // Skippable: when this modal opens nested inside another modal that
+      // already owns the scroll lock (e.g. ProjectDetailModal), locking here
+      // too would unlock the page behind that still-open parent on close.
+      if (lockScroll) document.body.style.overflow = 'hidden'
     }
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = 'unset'
+      if (lockScroll) document.body.style.overflow = 'unset'
     }
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, lockScroll])
 
   // Handle click outside image to close
   const handleBackdropClick = (e) => {
