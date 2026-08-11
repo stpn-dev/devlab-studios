@@ -20,6 +20,8 @@ const LOGO_SLUGS = {
   notion: 'notion',
   airtable: 'airtable',
   astro: 'astro',
+  cisco: 'cisco',
+  owasp: 'owasp',
 }
 
 // simple-icons ships each SVG with no `fill` attribute on its <path>, so the
@@ -41,6 +43,8 @@ const LOGO_COLORS = {
   notion: '#000000',
   airtable: '#18BFFF',
   astro: '#BC52EE',
+  cisco: '#1BA0D7',
+  owasp: '#000000',
 }
 
 mkdirSync(DEST_DIR, { recursive: true })

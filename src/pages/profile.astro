@@ -5,11 +5,11 @@ import PersonalInfoCard from '../components/PersonalInfoCard.jsx'
 import SkillsSection from '../components/ui/SkillsSection.jsx'
 import SystemsPanel from '../components/ui/SystemsPanel.jsx'
 import ToolsMarquee from '../components/ui/ToolsMarquee.jsx'
-import ListItemWithIcon from '../components/ui/ListItemWithIcon.jsx'
 import AnimatedIcon from '../components/icons/AnimatedIcon.jsx'
 import PortfolioGallery from '../components/islands/PortfolioGallery.jsx'
 import CertificationsGallery from '../components/islands/CertificationsGallery.jsx'
-import { ArrowRight, BadgeCheck, Briefcase, GraduationCap, Trophy } from '../components/icons/icons.js'
+import CertificationLogo from '../components/ui/CertificationLogo.jsx'
+import { ArrowRight, Briefcase } from '../components/icons/icons.js'
 import { loadPageSeo } from '../lib/content/seo'
 import { loadProfileContent } from '../lib/content/profile'
 import { loadProjects } from '../lib/content/projects'
@@ -33,57 +33,57 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
       subtitle="Founder background, technical experience, and selected website and automation projects."
     />
 
-    <PersonalInfoCard aboutData={aboutData} photo={optimizedPhoto} />
+    <div class="grid gap-10 lg:grid-cols-[280px_1fr] lg:items-start">
+      <div class="lg:sticky lg:top-24">
+        <PersonalInfoCard aboutData={aboutData} photo={optimizedPhoto} />
+      </div>
 
-    <div class="grid gap-6 lg:grid-cols-2">
-      <section class="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-7">
-        <h3 class="text-xl font-semibold text-brand-ink">Career Objectives</h3>
-        <p class="mt-3 text-slate-700">{aboutData.careerObjectives}</p>
-      </section>
-      <section class="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-7">
-        <h3 class="text-xl font-semibold text-brand-ink">Short Bio</h3>
-        <p class="mt-3 text-slate-700">{aboutData.shortBio}</p>
-      </section>
-    </div>
+      <div class="space-y-8 lg:border-l lg:border-slate-200 lg:pl-10">
+        <section>
+          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">About</h3>
+          <p class="mt-3 text-slate-700">{aboutData.about}</p>
+        </section>
 
-    <div class="grid gap-6 lg:grid-cols-3">
-      <section class="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-7">
-        <h3 class="text-xl font-semibold text-brand-ink">Education</h3>
-        <ul class="mt-3 space-y-3 text-slate-700">
-          {(aboutData.education || []).map((item) => (
-            <ListItemWithIcon icon={GraduationCap}>
-              <span class="font-bold text-brand-ink">{item.school}</span><br />
-              <span>{item.program}</span><br />
-              <span class="text-sm text-slate-500">{item.years}</span>
-            </ListItemWithIcon>
-          ))}
-        </ul>
-      </section>
+        <section class="border-t border-slate-200 pt-8">
+          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Education</h3>
+          <ul class="mt-4 space-y-4">
+            {(aboutData.education || []).map((item) => (
+              <li>
+                <p class="font-semibold text-brand-ink">{item.program}</p>
+                <p class="text-slate-700">{item.school}</p>
+                <p class="text-sm text-slate-500">{item.years}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-      <section class="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-7 lg:col-span-2">
-        <div class="grid gap-6 md:grid-cols-2">
-          <div>
-            <h3 class="text-xl font-semibold text-brand-ink">Achievements & Responsibilities</h3>
-            <ul class="mt-3 space-y-3 text-slate-700">
-              {(aboutData.achievementsAndResponsibilities || []).map((item) => (
-                <ListItemWithIcon icon={Trophy}>
-                  <span class="font-semibold">{item.title}:</span> {item.details}
-                </ListItemWithIcon>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h3 class="text-xl font-semibold text-brand-ink">Certificates & Licenses</h3>
-            <ul class="mt-3 space-y-3 text-slate-700">
-              {(aboutData.certificatesAndLicenses || []).map((cert) => (
-                <ListItemWithIcon icon={BadgeCheck}>
-                  {cert}
-                </ListItemWithIcon>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
+        <section class="border-t border-slate-200 pt-8">
+          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Certifications</h3>
+          <ul class="mt-4 space-y-4">
+            {(aboutData.certificatesAndLicenses || []).map((cert) => (
+              <li class="flex items-start gap-3">
+                <CertificationLogo issuer={cert.issuer} />
+                <div>
+                  <p class="text-sm text-brand-ink">{cert.name}</p>
+                  {cert.date ? <p class="text-xs text-slate-500">{cert.date}</p> : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section class="border-t border-slate-200 pt-8">
+          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Achievements & Responsibilities</h3>
+          <ul class="mt-4 space-y-4">
+            {(aboutData.achievementsAndResponsibilities || []).map((item) => (
+              <li>
+                <p class="font-semibold text-brand-ink">{item.title}</p>
+                <p class="text-slate-700">{item.details}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
     </div>
 
     {certifications.length > 0 ? (
