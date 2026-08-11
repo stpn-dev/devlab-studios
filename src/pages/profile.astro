@@ -106,12 +106,12 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
         <div class="space-y-10">
           {experiences.map((item, index) => (
             <div
-              class="grid grid-cols-[72px_20px_1fr] items-center gap-3"
+              class="grid grid-cols-[110px_20px_1fr] items-center gap-3"
               data-reveal
               data-reveal-delay={index * 90}
             >
               <div class="flex flex-col items-end justify-center rounded-xl bg-gradient-to-br from-brand-teal to-brand-orange px-2.5 py-2 text-right text-white shadow-[0_8px_18px_rgba(122,0,255,0.28)]">
-                <span class="text-sm font-bold leading-none">{item.dates}</span>
+                <span class="text-sm font-bold leading-none whitespace-nowrap">{item.dates}</span>
               </div>
               <div class="flex justify-center">
                 <div class="h-3.5 w-3.5 rounded-full border-[3px] border-white bg-brand-orange shadow-[0_0_0_3px_rgba(122,0,255,0.25)]"></div>
