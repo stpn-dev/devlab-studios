@@ -3,16 +3,14 @@
 
 const aboutData = {
   name: "Stephen Rey G. Agustinez",
-  role: "Software Engineer & AI Automation Specialist",
+  role: "AI Automation Architect & Software Engineer",
   location: "Pusok, Lapu-Lapu City, Cebu, 6015",
   email: "stpnrey.agustinez@gmail.com",
   phone: "+63 926 237 2965",
   dateOfBirth: "December 4, 2000",
   resumeLink: "https://stpn120400.github.io/stpn-resume/",
-  careerObjectives:
-    "Software Engineer and AI Automation Specialist with experience building backend systems, API integrations, workflow automation, and data-driven business solutions across web and operations environments. My background includes Java, Spring Boot, Laravel, SQL, REST APIs, React-based interfaces, and automation platforms such as n8n, Make.com, Zapier, and HighLevel. I work with a systems-oriented approach focused on structured data flow, process reliability, and scalable solution design.",
-  shortBio:
-    "Software engineer and AI automation specialist with hands-on experience across Java/Spring Boot backend work, Laravel and React web delivery, API integrations, and business process automation. I build maintainable systems that connect product, operations, and data workflows, with additional experience in TypeScript, Next.js, and PostgreSQL-style data modeling for production-ready applications.",
+  about:
+    "AI Automation Architect and full-stack developer specializing in n8n workflow architecture, AI agents, and REST API integrations. I build end-to-end systems that validate data, apply business rules, connect third-party platforms, and route high-value cases for human review — with a full-stack foundation in React, Java, Spring Boot, and SQL.",
   education: [
     {
       program: "Bachelor of Science in Computer Engineering",
@@ -40,13 +38,13 @@ const aboutData = {
     },
   ],
   certificatesAndLicenses: [
-    "CCNA: Enterprise Networking, Security, and Automation - Cisco (June 2022)",
-    "Google Technical Support Fundamentals (February 2023)",
-    "Introduction to Cybersecurity Tools & Cyber Attacks (September 2020)",
-    "Using Google Forms to Analyze User Research Data (2020)",
-    "OWASP Top 10: Securing Web Applications (2025)",
-    "CCSP 2019: Identity & Access Management (June 2025)",
-    "CCSP 2019: Application Development & Security (June 2025)",
+    { name: "CCNA: Enterprise Networking, Security, and Automation", issuer: "Cisco", date: "June 2022" },
+    { name: "Google Technical Support Fundamentals", issuer: "Google", date: "February 2023" },
+    { name: "Introduction to Cybersecurity Tools & Cyber Attacks", issuer: null, date: "September 2020" },
+    { name: "Using Google Forms to Analyze User Research Data", issuer: null, date: "2020" },
+    { name: "OWASP Top 10: Securing Web Applications", issuer: "OWASP", date: "2025" },
+    { name: "CCSP 2019: Identity & Access Management", issuer: null, date: "June 2025" },
+    { name: "CCSP 2019: Application Development & Security", issuer: null, date: "June 2025" },
   ],
 };
 

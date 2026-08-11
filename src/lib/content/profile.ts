@@ -20,11 +20,10 @@ export interface AboutData {
   role?: string
   location?: string
   email?: string
-  careerObjectives?: string
-  shortBio?: string
+  about?: string
   education?: Array<{ school: string; program: string; years: string }>
   achievementsAndResponsibilities?: Array<{ title: string; details: string }>
-  certificatesAndLicenses?: string[]
+  certificatesAndLicenses?: Array<{ name: string; issuer: string | null; date: string | null }>
   [key: string]: unknown
 }
 

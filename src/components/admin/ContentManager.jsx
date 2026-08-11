@@ -1290,21 +1290,11 @@ function ProfileEditor({ value, onChange }) {
           </div>
 
           <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
-            Career Objectives
+            About
             <textarea
               rows={5}
-              value={about.careerObjectives || ''}
-              onChange={(event) => onChange({ ...value, about: { ...about, careerObjectives: event.target.value } })}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800 outline-none transition focus:border-slate-500"
-            />
-          </label>
-
-          <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
-            Short Bio
-            <textarea
-              rows={4}
-              value={about.shortBio || ''}
-              onChange={(event) => onChange({ ...value, about: { ...about, shortBio: event.target.value } })}
+              value={about.about || ''}
+              onChange={(event) => onChange({ ...value, about: { ...about, about: event.target.value } })}
               className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800 outline-none transition focus:border-slate-500"
             />
           </label>
@@ -1344,15 +1334,18 @@ function ProfileEditor({ value, onChange }) {
             />
             <ArrayTextArea
               label="Certificates & Licenses"
-              value={about.certificatesAndLicenses || []}
-              onChange={(certificatesAndLicenses) => onChange({
+              value={(about.certificatesAndLicenses || []).map((item) => `${item.name} | ${item.issuer || ''} | ${item.date || ''}`)}
+              onChange={(items) => onChange({
                 ...value,
                 about: {
                   ...about,
-                  certificatesAndLicenses,
+                  certificatesAndLicenses: items.map((item) => {
+                    const [name = '', issuer = '', date = ''] = item.split('|').map((part) => part.trim())
+                    return { name, issuer: issuer || null, date: date || null }
+                  }),
                 },
               })}
-              placeholder="One certificate per line"
+              placeholder="Name | Issuer | Date"
               rows={5}
             />
           </div>
