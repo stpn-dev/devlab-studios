@@ -10,10 +10,24 @@ const CATEGORIES = [
   { label: 'Website Buildouts', value: 'Website' },
 ]
 
+// How many slides on each side of the currently-selected one get a real
+// cover image. A category can hold far more projects than the ~3 visible
+// at once; without this, every slide's image would sit in the DOM
+// simultaneously and native `loading="lazy"` doesn't reliably defer ones
+// clipped by this carousel's `overflow: hidden` track, so most of them
+// load regardless of visibility.
+const NEAR_WINDOW = 2
+
+function circularDistance(a, b, length) {
+  const diff = Math.abs(a - b)
+  return Math.min(diff, length - diff)
+}
+
 function PortfolioGallery({ projects }) {
   const [category, setCategory] = useState('Automation')
   const [selectedProject, setSelectedProject] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
+  const [selectedIndex, setSelectedIndex] = useState(0)
   const autoplayRef = useRef(
     Autoplay({ delay: 3000, stopOnMouseEnter: true, stopOnInteraction: false }),
   )
@@ -59,18 +73,29 @@ function PortfolioGallery({ projects }) {
     })
   }, [emblaApi])
 
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return
+    setSelectedIndex(emblaApi.selectedScrollSnap())
+  }, [emblaApi])
+
   useEffect(() => {
     if (!emblaApi) return undefined
     applyCenterFocus()
+    onSelect()
     emblaApi.on('scroll', applyCenterFocus)
     emblaApi.on('reInit', applyCenterFocus)
+    emblaApi.on('select', onSelect)
+    emblaApi.on('reInit', onSelect)
     return () => {
       emblaApi.off('scroll', applyCenterFocus)
       emblaApi.off('reInit', applyCenterFocus)
+      emblaApi.off('select', onSelect)
+      emblaApi.off('reInit', onSelect)
     }
-  }, [emblaApi, applyCenterFocus])
+  }, [emblaApi, applyCenterFocus, onSelect])
 
   useEffect(() => {
+    setSelectedIndex(0)
     emblaApi?.reInit()
   }, [emblaApi, category])
 
@@ -93,11 +118,19 @@ function PortfolioGallery({ projects }) {
 
       <div className="portfolio-carousel-wrap relative mx-auto mt-6 max-w-[900px] overflow-hidden rounded-2xl bg-slate-950/20 py-6" ref={emblaRef}>
         <div className="flex gap-5 px-10">
-          {filteredItems.map((project) => (
-            <div key={project.id} className="min-w-[340px] flex-shrink-0 transition-[opacity,filter] duration-150">
-              <PortfolioCard project={project} onClick={() => setSelectedProject(project)} />
-            </div>
-          ))}
+          {filteredItems.map((project, index) => {
+            const shouldLoadImage =
+              circularDistance(index, selectedIndex, filteredItems.length) <= NEAR_WINDOW
+            return (
+              <div key={project.id} className="min-w-[340px] flex-shrink-0 transition-[opacity,filter] duration-150">
+                <PortfolioCard
+                  project={project}
+                  onClick={() => setSelectedProject(project)}
+                  shouldLoadImage={shouldLoadImage}
+                />
+              </div>
+            )
+          })}
         </div>
         <button
           type="button"
