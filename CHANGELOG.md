@@ -51,6 +51,61 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-11
+
+Profile page redesign: an animated tools/platforms marquee with real
+vendored brand logos, hero card polish, certification hover effects, a
+left-rail experience timeline, and an auto-rotating portfolio carousel
+replacing the old expandable rows. Classified as MINOR: purely new,
+backward-compatible presentation on one existing page — no route, `/api/*`
+shape, or D1 schema changed.
+
+### Added
+- "Tools & Platforms" marquee: two-row, alternating-direction,
+  auto-scrolling display of real brand logos (via `simple-icons`, vendored
+  as local SVG assets — no runtime dependency on the package or a CDN),
+  grayscale at rest with brand color and pause on hover. Two logos
+  (OpenAI, GoHighLevel) fall back to a generic icon pending real
+  brand-kit assets, since neither has a `simple-icons` entry.
+- Hero card: entrance animation on load, a pulsing gradient glow behind
+  the profile photo, an "available for work" status pill.
+- Certification cards: lift + shadow and a diagonal shine sweep on hover;
+  issuer and date reveal on hover instead of always showing.
+- Experience section rewritten as a left-rail timeline (year badge →
+  dot-on-line → card) with a staggered scroll-reveal animation.
+- Portfolio section rewritten as an auto-rotating carousel (Embla
+  Carousel): seamless infinite loop, pause-on-hover with manual arrow
+  controls, a center-focus effect (sharp center card, progressively
+  blurred/faded toward the edges), and a dedicated project detail modal
+  (`ProjectDetailModal`) replacing the old expandable rows (`PortfolioRow`,
+  removed).
+- A shared `[data-reveal]` scroll-reveal utility (`src/lib/scrollReveal.ts`),
+  used site-wide for entrance animations, with a `<noscript>` fallback so
+  content stays visible without JavaScript.
+
+### Changed
+- Portfolio carousel only loads a project's cover image once it's within
+  a small window of the currently-selected slide (tracked via Embla's own
+  position API), instead of every project in a category loading its
+  image regardless of visibility — bounds real page weight and avoids
+  downloading cover art a visitor will never scroll to.
+- `ProjectData` (`src/lib/content/projects.ts`) is now an exported,
+  explicitly-typed interface instead of an internal, loosely-typed one.
+- `/profile`'s image-weight budget and its underlying Playwright
+  measurement (`tests/e2e/image-weight.spec.js`) were corrected: the old
+  fixed-timing scroll+settle logic could race past a `client:visible`
+  island's hydration and silently undercount real page weight; it now
+  waits for the DOM's own image count to stabilize before measuring.
+
+### Fixed
+- `ProjectDetailModal` now matches this repo's existing modal conventions
+  (Escape-to-close, background scroll lock, `aria-labelledby`) and
+  correctly coordinates with the nested image lightbox so a single Escape
+  press or scroll-lock release only affects the topmost modal.
+- Carousel arrow controls are now visible on keyboard focus and on touch
+  devices (previously only revealed on mouse hover, making them
+  invisible-but-tappable/focusable).
+
 ## [1.1.0] - 2026-08-01
 
 The Astro/CMS rebuild program: rendering migration, schema-driven admin,
