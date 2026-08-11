@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import AnimatedIcon from '../icons/AnimatedIcon'
 import * as Icons from '../icons/icons'
 import * as Data from '../../data/workflows'
@@ -10,6 +11,9 @@ function SystemsPanel({
   workflowPatterns: providedPatterns,
   systemCharacteristics: providedCharacteristics,
 }) {
+  const [patternsExpanded, setPatternsExpanded] = useState(false)
+  const [characteristicsExpanded, setCharacteristicsExpanded] = useState(false)
+
   const staticPatterns = Data.workflowPatterns || (Data.default ? Data.default.workflowPatterns : [])
   const staticCharacteristics = Data.systemCharacteristics || (Data.default ? Data.default.systemCharacteristics : [])
 
@@ -19,10 +23,10 @@ function SystemsPanel({
       ? providedCharacteristics
       : staticCharacteristics
 
-  const featuredPatterns = patterns.slice(0, 4)
-  const morePatternsCount = Math.max(patterns.length - featuredPatterns.length, 0)
-  const featuredCharacteristics = characteristics.slice(0, 4)
-  const moreCharacteristicsCount = Math.max(characteristics.length - featuredCharacteristics.length, 0)
+  const displayPatterns = patternsExpanded ? patterns : patterns.slice(0, 4)
+  const morePatternsCount = Math.max(patterns.length - 4, 0)
+  const displayCharacteristics = characteristicsExpanded ? characteristics : characteristics.slice(0, 4)
+  const moreCharacteristicsCount = Math.max(characteristics.length - 4, 0)
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-[0_16px_36px_rgba(11,24,50,0.08)] sm:p-6">
@@ -35,7 +39,7 @@ function SystemsPanel({
         <section className="xl:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
           <p className="mb-3 text-xs uppercase tracking-[0.16em] text-brand-teal">Workflow Patterns</p>
           <div className="space-y-2">
-            {featuredPatterns.map((item) => {
+            {displayPatterns.map((item) => {
               const Icon = resolveIcon(item.icon)
               return (
                 <div key={item.key} className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
@@ -46,14 +50,20 @@ function SystemsPanel({
             })}
           </div>
           {morePatternsCount > 0 && (
-            <p className="mt-3 text-xs text-slate-500">+{morePatternsCount} additional workflow pattern(s)</p>
+            <button
+              type="button"
+              onClick={() => setPatternsExpanded(!patternsExpanded)}
+              className="mt-3 text-xs text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              {patternsExpanded ? 'Show less' : `+${morePatternsCount} more`}
+            </button>
           )}
         </section>
 
         <section className="xl:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
           <p className="mb-3 text-xs uppercase tracking-[0.16em] text-brand-teal">System Characteristics</p>
           <div className="flex flex-wrap gap-2">
-            {featuredCharacteristics.map((item) => {
+            {displayCharacteristics.map((item) => {
               const Icon = resolveIcon(item.icon)
               return (
                 <div key={item.key} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2">
@@ -64,7 +74,13 @@ function SystemsPanel({
             })}
           </div>
           {moreCharacteristicsCount > 0 && (
-            <p className="mt-3 text-xs text-slate-500">+{moreCharacteristicsCount} additional characteristic(s)</p>
+            <button
+              type="button"
+              onClick={() => setCharacteristicsExpanded(!characteristicsExpanded)}
+              className="mt-3 text-xs text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              {characteristicsExpanded ? 'Show less' : `+${moreCharacteristicsCount} more`}
+            </button>
           )}
         </section>
       </div>
