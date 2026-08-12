@@ -112,21 +112,23 @@ function PortfolioGallery({ projects }) {
         ))}
       </div>
 
-      <div className="portfolio-carousel-wrap relative mx-auto mt-6 max-w-[900px] overflow-hidden rounded-2xl py-6" ref={emblaRef}>
-        <div className="flex gap-5 px-10">
-          {filteredItems.map((project, index) => {
-            const shouldLoadImage =
-              circularDistance(index, selectedIndex, filteredItems.length) <= NEAR_WINDOW
-            return (
-              <div key={project.id} className="min-w-[340px] flex-shrink-0 transition-[opacity,filter] duration-150">
-                <PortfolioCard
-                  project={project}
-                  onClick={() => setSelectedProject(project)}
-                  shouldLoadImage={shouldLoadImage}
-                />
-              </div>
-            )
-          })}
+      <div className="portfolio-carousel-outer relative mx-auto mt-6 max-w-[900px]">
+        <div className="portfolio-carousel-wrap overflow-hidden rounded-2xl py-6" ref={emblaRef}>
+          <div className="flex gap-5 px-10">
+            {filteredItems.map((project, index) => {
+              const shouldLoadImage =
+                circularDistance(index, selectedIndex, filteredItems.length) <= NEAR_WINDOW
+              return (
+                <div key={project.id} className="min-w-[340px] flex-shrink-0 transition-[opacity,filter] duration-150">
+                  <PortfolioCard
+                    project={project}
+                    onClick={() => setSelectedProject(project)}
+                    shouldLoadImage={shouldLoadImage}
+                  />
+                </div>
+              )
+            })}
+          </div>
         </div>
         <button
           type="button"
