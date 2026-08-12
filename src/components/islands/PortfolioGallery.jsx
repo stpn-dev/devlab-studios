@@ -148,6 +148,21 @@ function PortfolioGallery({ projects }) {
         </button>
       </div>
 
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+        {filteredItems.map((project, index) => (
+          <button
+            key={project.id}
+            type="button"
+            onClick={() => emblaApi?.scrollTo(index)}
+            aria-label={`Go to ${project.title}`}
+            aria-current={index === selectedIndex}
+            className={`h-2 rounded-full transition-all duration-300 ${
+              index === selectedIndex ? 'w-6 bg-brand-teal' : 'w-2 bg-slate-300 hover:bg-slate-400'
+            }`}
+          />
+        ))}
+      </div>
+
       <ProjectDetailModal
         project={selectedProject}
         isOpen={Boolean(selectedProject)}
