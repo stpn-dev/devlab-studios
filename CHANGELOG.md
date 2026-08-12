@@ -51,6 +51,86 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-12
+
+Profile page content refresh and structural rebuild: merged the About/
+Certifications content into one document flow with real experience data,
+then rebuilt the whole page into a single sidebar + document-flow layout
+with a scrollspy and cursor-glow navigation, a restyled Portfolio carousel,
+and a wide set of layout/alignment fixes found during verification.
+Classified as MINOR: new, backward-compatible presentation and navigation
+on the existing `/profile` route — no route, `/api/*` shape, or D1 table
+schema changed (the `profile_about` JSON blob's internal shape changed
+together with its one reader/writer, the same kind of change 1.2.0 itself
+made).
+
+### Added
+- Left sidebar navigation (About/Education/Certifications/Experience/
+  Tools & Platforms/Portfolio) with scrollspy (highlights the section
+  currently in view) and a cursor-following spotlight glow across the
+  whole page. Vanilla-JS, matching the existing scroll-reveal pattern —
+  no new client-hydrated island.
+- Experience entries: a full-detail modal opened via "View details",
+  matching the existing modal convention elsewhere on the page.
+- Portfolio carousel: dot pagination with an active-pill indicator, and a
+  seamless edge fade (no bounding box) replacing the previous hard clip.
+- Certifications: issuer logos (Cisco, Google, OWASP) resolved from the
+  existing `issuer` field, with a generic fallback icon otherwise.
+- Tools & Platforms marquee: 13 additional tools (Claude, Postman, Spring
+  Boot, Next.js, TypeScript, JavaScript, Git, Vercel, PHP, Java, Retell AI,
+  Twilio, SQL/Databases), widened from 2 to 4 slower rows.
+- "DevLab Studios" wordmark now shows in the navbar at every screen width,
+  not just `sm` and up.
+
+### Changed
+- About and Certificates & Licenses merged into a single `about` field and
+  a structured `{ name, issuer, date }` array (previously two separate
+  fields and a plain string array) — the admin CMS form and every reader
+  updated together.
+- Experience section now shows the already-correct 4-entry history
+  (previously only 1 entry was live, a data-sync gap, not a content gap).
+- Platform Training certifications and the Professional certifications
+  list both now render as flat, two-column lists instead of a boxed card
+  grid and a single column respectively, for visual consistency with each
+  other.
+- Portfolio's "Automated Lead Qualification" project: enriched
+  description, and its title/tech-stack synced to match what was already
+  live in production (a pre-existing divergence between the static
+  fallback data and production's D1, found while verifying this release —
+  renamed to "Automated Real Estate Lead Qualification & Outbound Calling
+  System", added the missing "n8n" tag).
+- Per-section headings (About, Education, Certifications, Experience,
+  Tools & Platforms, Portfolio) removed at desktop width, where the new
+  sidebar nav labels them instead; restored as small inline labels below
+  the breakpoint where the nav is hidden.
+
+### Removed
+- "Skills" section (always rendered blank — no data source has ever
+  populated it).
+- "Systems & Workflows" section.
+
+### Fixed
+- Several layout bugs surfaced by direct browser verification during this
+  release, not just visual inspection: the sidebar's right-hand grid
+  column used a bare `1fr` track, which per the CSS Grid spec defaults to
+  `minmax(auto, 1fr)` — once Tools & Platforms and Portfolio moved inside
+  this grid, their unwrapped content pushed the whole column (and the
+  page) wider than the viewport; Portfolio carousel cards varied in both
+  height and width because a title's `line-clamp`-ed line count and
+  natural (unwrapped) text width still affected flex-item sizing even
+  though the clamp only clipped visually; the Experience connector line
+  was positioned at a grid column's edge instead of the dot's actual
+  rendered center; Experience date text overflowed into the connector
+  line at realistic date-range lengths after an earlier column-width
+  change; the Portfolio carousel's own prev/next arrows were being faded
+  into near-invisibility by its new edge-mask, since they were descendants
+  of the masked element; the profile photo's decorative glow read as
+  uneven from two separate causes (an asymmetric two-blob gradient, then a
+  parent `overflow-y-auto` — added to fix sidebar overflow on short
+  viewports — clipping the glow's box-shadow at its own edges); anchor
+  jumps from the sidebar nav landed under the fixed navbar (missing
+  `scroll-padding-top`).
+
 ## [1.2.0] - 2026-08-11
 
 Profile page redesign: an animated tools/platforms marquee with real
