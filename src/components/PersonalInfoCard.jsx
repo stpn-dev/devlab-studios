@@ -16,10 +16,10 @@ function PersonalInfoCard({ aboutData, photo }) {
     <section data-reveal className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
       <div className="group relative">
         <div
-          className="absolute -inset-3 rounded-full blur-lg"
+          className="absolute -inset-6 rounded-full blur-lg"
           style={{
             background:
-              'radial-gradient(circle at 30% 30%, rgba(122,0,255,0.45), transparent 65%), radial-gradient(circle at 70% 70%, rgba(26,22,255,0.45), transparent 65%)',
+              'radial-gradient(circle, rgba(122,0,255,0.45) 0%, rgba(26,22,255,0.35) 45%, transparent 75%)',
             animation: 'pulse-soft 3.5s ease-in-out infinite',
           }}
           aria-hidden="true"

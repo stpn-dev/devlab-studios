@@ -19,7 +19,7 @@ function CertificationsGallery({ certifications }) {
         {certifications.map((cert) => (
           <li
             key={cert.id}
-            className="flex items-center gap-4 rounded-2xl bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-3 shadow-[0_10px_28px_rgba(60,28,120,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(60,28,120,0.18)]"
+            className="flex items-center gap-4 rounded-2xl bg-white/0 p-3 shadow-none transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-[0_16px_36px_rgba(60,28,120,0.18)]"
           >
             {cert.badgeImage ? (
               <button

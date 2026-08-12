@@ -22,13 +22,13 @@ function ExperienceTimeline({ experiences }) {
             data-reveal
             data-reveal-delay={index * 90}
           >
-            <div className="flex flex-col items-end justify-center rounded-xl bg-gradient-to-br from-brand-teal to-brand-orange px-2.5 py-2 text-right text-white shadow-[0_8px_18px_rgba(122,0,255,0.28)]">
-              <span className="text-xs sm:text-sm font-bold leading-tight sm:leading-none whitespace-normal sm:whitespace-nowrap">{item.dates}</span>
+            <div className="flex flex-col items-end justify-center px-1 text-right">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 sm:whitespace-nowrap sm:text-sm">{item.dates}</span>
             </div>
             <div className="flex justify-center">
               <div className="h-3.5 w-3.5 rounded-full border-[3px] border-white bg-brand-orange shadow-[0_0_0_3px_rgba(122,0,255,0.25)]"></div>
             </div>
-            <section className="rounded-2xl bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-4 shadow-[0_10px_28px_rgba(60,28,120,0.12)]">
+            <section className="rounded-2xl bg-white/0 p-4 shadow-none transition-all duration-300 hover:bg-white/90 hover:shadow-[0_16px_36px_rgba(60,28,120,0.14)]">
               <div className="mb-1.5 flex items-center gap-2">
                 <AnimatedIcon icon={Briefcase} size={14} color="text-brand-teal" animationType="none" ariaLabel="Role type" />
                 <p className="text-xs uppercase tracking-[0.14em] text-slate-500">{item.title}</p>
