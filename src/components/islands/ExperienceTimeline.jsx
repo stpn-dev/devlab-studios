@@ -13,7 +13,7 @@ function ExperienceTimeline({ experiences }) {
 
   return (
     <div className="relative mx-auto max-w-3xl">
-      <div className="absolute left-[72px] sm:left-[152px] top-1 bottom-1 w-0.5 bg-gradient-to-b from-brand-teal to-brand-orange" aria-hidden="true"></div>
+      <div className="absolute left-[80px] sm:left-[160px] top-1 bottom-1 w-0.5 bg-gradient-to-b from-brand-teal to-brand-orange" aria-hidden="true"></div>
       <div className="space-y-10">
         {experiences.map((item, index) => (
           <div

@@ -64,7 +64,7 @@ function PersonalInfoCard({ aboutData, photo }) {
       <nav
         data-profile-side-nav
         aria-label="Profile sections"
-        className="profile-side-nav relative hidden w-full lg:block"
+        className="profile-side-nav relative hidden max-h-[45vh] w-full overflow-y-auto lg:block"
       >
         <a href="#about" className="profile-side-nav-link is-active text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">About</a>
         <a href="#education" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Education</a>

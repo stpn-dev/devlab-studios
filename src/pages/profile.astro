@@ -33,7 +33,7 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
     <div class="page-spotlight" data-page-spotlight aria-hidden="true"></div>
 
     <div class="grid gap-10 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
-      <div class="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+      <div class="lg:sticky lg:top-24">
         <PersonalInfoCard aboutData={aboutData} photo={optimizedPhoto} />
       </div>
 
@@ -105,8 +105,8 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
           <ToolsMarquee tools={coreTools} />
         </section>
 
-        <section id="portfolio" class="space-y-6 border-t border-slate-200 pt-8">
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Portfolio</h3>
+        <section id="portfolio" class="border-t border-slate-200 pt-8">
+          <h3 class="mb-6 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Portfolio</h3>
           <PortfolioGallery client:visible projects={projects} />
         </section>
       </div>
