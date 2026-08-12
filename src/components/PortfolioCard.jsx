@@ -25,7 +25,7 @@ function PortfolioCard({ project, onClick, shouldLoadImage = true }) {
         <div className="h-[150px] w-full bg-slate-200/60" aria-hidden="true" />
       )}
       <div className="p-4">
-        <h3 className="text-base font-semibold text-brand-ink">{project.title}</h3>
+        <h3 className="line-clamp-2 text-base font-semibold text-brand-ink">{project.title}</h3>
       </div>
     </button>
   )

@@ -152,9 +152,9 @@ INSERT INTO projects (
   id, title, description, tech_stack, live_url, source_url, image_url, image_filename, type, sort_order, status, created_at, updated_at
 ) VALUES (
   'p10-automated-lead-qualification',
-  'Automated Lead Qualification',
+  'Automated Real Estate Lead Qualification & Outbound Calling System',
   'A three-workflow closed-loop system for real estate lead qualification: scheduled intake normalizes and deduplicates leads before dispatching authenticated outbound AI voice calls via Retell, inbound caller lookup matches phone numbers back to lead records, and post-call webhook processing analyzes transcripts, updates records, and routes qualified opportunities to human acquisitions handoff — with API response validation, failure routing, and monitoring throughout.',
-  '["Retell AI","Claude/OpenAI","Google Sheets","Google Docs","Google Drive","Webhook"]',
+  '["Retell AI","Claude/OpenAI","Google Sheets","Google Docs","Google Drive","Webhook","n8n"]',
   '#',
   '#',
   'https://pub-401ca3448c3348158cdb3e4e9a9dcb20.r2.dev/projects/Automated_Lead_Qualification.webp',
