@@ -119,7 +119,7 @@ function PortfolioGallery({ projects }) {
               const shouldLoadImage =
                 circularDistance(index, selectedIndex, filteredItems.length) <= NEAR_WINDOW
               return (
-                <div key={project.id} className="min-w-[340px] flex-shrink-0 transition-[opacity,filter] duration-150">
+                <div key={project.id} className="min-w-[300px] flex-shrink-0 transition-[opacity,filter] duration-150">
                   <PortfolioCard
                     project={project}
                     onClick={() => setSelectedProject(project)}

@@ -30,19 +30,21 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
       subtitle="Founder background, technical experience, and selected website and automation projects."
     />
 
-    <div class="grid gap-10 lg:grid-cols-[280px_1fr] lg:items-start">
+    <div class="page-spotlight" data-page-spotlight aria-hidden="true"></div>
+
+    <div class="grid gap-10 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
       <div class="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
         <PersonalInfoCard aboutData={aboutData} photo={optimizedPhoto} />
       </div>
 
-      <div class="space-y-12 lg:border-l lg:border-slate-200 lg:pl-10">
+      <div class="min-w-0 space-y-12 lg:border-l lg:border-slate-200 lg:pl-10">
         <section id="about">
-          <h3 class="lg:hidden text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">About</h3>
+          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">About</h3>
           <p class="text-base leading-relaxed text-slate-700 sm:text-lg">{aboutData.about}</p>
         </section>
 
         <section id="education" class="border-t border-slate-200 pt-8">
-          <h3 class="lg:hidden text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Education</h3>
+          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Education</h3>
           <ul class="space-y-4">
             {(aboutData.education || []).map((item) => (
               <li>
@@ -69,7 +71,7 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
         </section>
 
         <section id="certifications" class="border-t border-slate-200 pt-8">
-          <h3 class="lg:hidden text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Certifications</h3>
+          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Certifications</h3>
           <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Professional</p>
           <ul class="mt-3 space-y-4">
             {(aboutData.certificatesAndLicenses || []).map((cert) => (
@@ -94,12 +96,12 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
         </section>
 
         <section id="experience" class="border-t border-slate-200 pt-8">
-          <h3 class="lg:hidden text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Experience</h3>
+          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Experience</h3>
           <ExperienceTimeline client:visible experiences={experiences} />
         </section>
 
         <section id="tools" class="border-t border-slate-200 pt-8">
-          <h3 class="lg:hidden text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tools &amp; Platforms</h3>
+          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tools &amp; Platforms</h3>
           <ToolsMarquee tools={coreTools} />
         </section>
 

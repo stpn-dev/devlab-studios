@@ -195,16 +195,16 @@ a {
 
 .profile-side-nav {
   position: relative;
-  overflow: hidden;
   border-radius: 12px;
   padding: 4px 0;
 }
 
-.profile-side-nav-glow {
-  position: absolute;
+.page-spotlight {
+  position: fixed;
   inset: 0;
+  z-index: 30;
   pointer-events: none;
-  background: radial-gradient(160px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(122, 0, 255, 0.12), transparent 70%);
+  background: radial-gradient(240px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(122, 0, 255, 0.1), transparent 70%);
   opacity: var(--spot-opacity, 0);
   transition: opacity 0.3s ease;
 }

@@ -19,10 +19,10 @@ function PortfolioCard({ project, onClick, shouldLoadImage = true }) {
         <ResponsivePicture
           image={project.optimizedImage}
           alt={`${project.title} cover`}
-          className="h-[200px] w-full object-cover"
+          className="h-[150px] w-full object-cover"
         />
       ) : (
-        <div className="h-[200px] w-full bg-slate-200/60" aria-hidden="true" />
+        <div className="h-[150px] w-full bg-slate-200/60" aria-hidden="true" />
       )}
       <div className="p-4">
         <h3 className="text-base font-semibold text-brand-ink">{project.title}</h3>
