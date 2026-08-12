@@ -61,14 +61,18 @@ function PersonalInfoCard({ aboutData, photo }) {
         </div>
       </div>
 
-      <nav data-profile-side-nav className="profile-side-nav relative mt-6 hidden w-full lg:block">
+      <nav
+        data-profile-side-nav
+        aria-label="Profile sections"
+        className="profile-side-nav relative hidden w-full lg:block"
+      >
         <div className="profile-side-nav-glow" aria-hidden="true" />
-        <a href="#about" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">About</a>
-        <a href="#education" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Education</a>
-        <a href="#certifications" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Certifications</a>
-        <a href="#experience" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Experience</a>
-        <a href="#tools" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tools &amp; Platforms</a>
-        <a href="#portfolio" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Portfolio</a>
+        <a href="#about" className="profile-side-nav-link is-active text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">About</a>
+        <a href="#education" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Education</a>
+        <a href="#certifications" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Certifications</a>
+        <a href="#experience" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Experience</a>
+        <a href="#tools" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Tools &amp; Platforms</a>
+        <a href="#portfolio" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Portfolio</a>
       </nav>
     </section>
   )

@@ -156,10 +156,15 @@ function PortfolioGallery({ projects }) {
             onClick={() => emblaApi?.scrollTo(index)}
             aria-label={`Go to ${project.title}`}
             aria-current={index === selectedIndex}
-            className={`h-2 rounded-full transition-all duration-300 ${
-              index === selectedIndex ? 'w-6 bg-brand-teal' : 'w-2 bg-slate-300 hover:bg-slate-400'
-            }`}
-          />
+            className="p-2"
+          >
+            <span
+              aria-hidden="true"
+              className={`block h-2 rounded-full transition-all duration-300 ${
+                index === selectedIndex ? 'w-6 bg-brand-teal' : 'w-2 bg-slate-300 hover:bg-slate-400'
+              }`}
+            />
+          </button>
         ))}
       </div>
 

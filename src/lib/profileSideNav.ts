@@ -27,7 +27,13 @@ export function initProfileSideNav(): void {
           if (!entry.isIntersecting) return
           const activeId = entry.target.id
           links.forEach((link) => {
-            link.classList.toggle('is-active', link.getAttribute('href') === `#${activeId}`)
+            const isActive = link.getAttribute('href') === `#${activeId}`
+            link.classList.toggle('is-active', isActive)
+            if (isActive) {
+              link.setAttribute('aria-current', 'true')
+            } else {
+              link.removeAttribute('aria-current')
+            }
           })
         })
       },
