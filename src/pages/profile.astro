@@ -158,6 +158,7 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
         subtitle="Repeatable workflow patterns and operating characteristics used across delivery."
       />
       <SystemsPanel
+        client:visible
         workflowPatterns={profileContent.workflowPatterns || []}
         systemCharacteristics={profileContent.systemCharacteristics || []}
       />
