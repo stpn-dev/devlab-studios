@@ -23,7 +23,7 @@ function ExperienceTimeline({ experiences }) {
             data-reveal-delay={index * 90}
           >
             <div className="flex flex-col items-end justify-center px-1 text-right">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 sm:whitespace-nowrap sm:text-sm">{item.dates}</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 sm:text-sm">{item.dates}</span>
             </div>
             <div className="flex justify-center">
               <div className="h-3.5 w-3.5 rounded-full border-[3px] border-white bg-brand-orange shadow-[0_0_0_3px_rgba(122,0,255,0.25)]"></div>
