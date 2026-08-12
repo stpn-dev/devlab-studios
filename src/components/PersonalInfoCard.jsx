@@ -60,6 +60,16 @@ function PersonalInfoCard({ aboutData, photo }) {
           </a>
         </div>
       </div>
+
+      <nav data-profile-side-nav className="profile-side-nav relative mt-6 hidden w-full lg:block">
+        <div className="profile-side-nav-glow" aria-hidden="true" />
+        <a href="#about" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">About</a>
+        <a href="#education" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Education</a>
+        <a href="#certifications" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Certifications</a>
+        <a href="#experience" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Experience</a>
+        <a href="#tools" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tools &amp; Platforms</a>
+        <a href="#portfolio" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Portfolio</a>
+      </nav>
     </section>
   )
 }

@@ -189,6 +189,50 @@ a {
   transition: transform 0.8s ease;
 }
 
+.profile-side-nav {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  padding: 4px 0;
+}
+
+.profile-side-nav-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(160px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(122, 0, 255, 0.12), transparent 70%);
+  opacity: var(--spot-opacity, 0);
+  transition: opacity 0.3s ease;
+}
+
+.profile-side-nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  transition: color 0.25s ease;
+}
+
+.profile-side-nav-link::before {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.5;
+  flex-shrink: 0;
+  transition: width 0.25s ease, opacity 0.25s ease;
+}
+
+.profile-side-nav-link.is-active {
+  color: #7a00ff;
+}
+
+.profile-side-nav-link.is-active::before {
+  width: 40px;
+  opacity: 1;
+}
+
 .portfolio-card-slide {
   transform: scale(var(--center-scale, 1));
   transition: transform 150ms ease;
