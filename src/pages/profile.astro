@@ -2,8 +2,6 @@
 import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PersonalInfoCard from '../components/PersonalInfoCard.jsx'
-import SkillsSection from '../components/ui/SkillsSection.jsx'
-import SystemsPanel from '../components/ui/SystemsPanel.jsx'
 import ToolsMarquee from '../components/ui/ToolsMarquee.jsx'
 import AnimatedIcon from '../components/icons/AnimatedIcon.jsx'
 import PortfolioGallery from '../components/islands/PortfolioGallery.jsx'
@@ -139,29 +137,12 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
       </div>
     </section>
 
-    <SkillsSection
-      technicalSkills={profileContent.skills?.technical || []}
-      personalSkills={profileContent.skills?.personal || []}
-    />
-
     <section class="space-y-4">
       <SectionHeader
         title="Tools & Platforms"
         subtitle="Technologies and platforms used across delivery, at a glance."
       />
       <ToolsMarquee tools={coreTools} />
-    </section>
-
-    <section class="space-y-4">
-      <SectionHeader
-        title="Systems & Workflows"
-        subtitle="Repeatable workflow patterns and operating characteristics used across delivery."
-      />
-      <SystemsPanel
-        client:visible
-        workflowPatterns={profileContent.workflowPatterns || []}
-        systemCharacteristics={profileContent.systemCharacteristics || []}
-      />
     </section>
 
     <section class="space-y-6">
