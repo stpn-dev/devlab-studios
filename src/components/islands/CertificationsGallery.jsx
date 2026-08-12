@@ -15,7 +15,7 @@ function CertificationsGallery({ certifications }) {
 
   return (
     <>
-      <ul className="space-y-3">
+      <ul className="grid gap-3 sm:grid-cols-2">
         {certifications.map((cert) => (
           <li
             key={cert.id}

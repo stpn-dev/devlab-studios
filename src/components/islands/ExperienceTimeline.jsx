@@ -13,12 +13,12 @@ function ExperienceTimeline({ experiences }) {
 
   return (
     <div className="relative mx-auto max-w-3xl">
-      <div className="absolute left-[112px] sm:left-[242px] top-1 bottom-1 w-0.5 bg-gradient-to-b from-brand-teal to-brand-orange" aria-hidden="true"></div>
+      <div className="absolute left-[72px] sm:left-[152px] top-1 bottom-1 w-0.5 bg-gradient-to-b from-brand-teal to-brand-orange" aria-hidden="true"></div>
       <div className="space-y-10">
         {experiences.map((item, index) => (
           <div
             key={item.id || index}
-            className="grid grid-cols-[90px_20px_1fr] sm:grid-cols-[220px_20px_1fr] items-center gap-3"
+            className="grid grid-cols-[60px_16px_1fr] sm:grid-cols-[140px_16px_1fr] items-center gap-3"
             data-reveal
             data-reveal-delay={index * 90}
           >
@@ -37,7 +37,7 @@ function ExperienceTimeline({ experiences }) {
               <p className="text-sm text-slate-700">{item.company}</p>
 
               {item.bullets?.[0] ? (
-                <p className="mt-2 line-clamp-1 text-sm text-slate-700">{item.bullets[0]}</p>
+                <p className="mt-2 line-clamp-3 text-sm text-slate-700">{item.bullets[0]}</p>
               ) : null}
 
               <button
