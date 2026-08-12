@@ -112,7 +112,7 @@ function PortfolioGallery({ projects }) {
         ))}
       </div>
 
-      <div className="portfolio-carousel-outer relative mx-auto mt-6 max-w-[900px]">
+      <div className="portfolio-carousel-outer relative mt-6">
         <div className="portfolio-carousel-wrap overflow-hidden rounded-2xl py-6" ref={emblaRef}>
           <div className="flex gap-5 px-10">
             {filteredItems.map((project, index) => {
