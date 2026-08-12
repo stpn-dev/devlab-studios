@@ -81,4 +81,8 @@ export {
   Plus,
   Save,
   Trash2,
+  Leaf,
+  GitBranch,
+  Triangle,
+  Coffee,
 } from 'lucide-react'

@@ -22,6 +22,16 @@ const LOGO_SLUGS = {
   astro: 'astro',
   cisco: 'cisco',
   owasp: 'owasp',
+  claude: 'claude',
+  postman: 'postman',
+  springboot: 'springboot',
+  nextjs: 'nextdotjs',
+  typescript: 'typescript',
+  javascript: 'javascript',
+  git: 'git',
+  vercel: 'vercel',
+  php: 'php',
+  java: 'openjdk',
 }
 
 // simple-icons ships each SVG with no `fill` attribute on its <path>, so the
@@ -45,6 +55,16 @@ const LOGO_COLORS = {
   astro: '#BC52EE',
   cisco: '#1BA0D7',
   owasp: '#000000',
+  claude: '#D97757',
+  postman: '#FF6C37',
+  springboot: '#6DB33F',
+  nextjs: '#000000',
+  typescript: '#3178C6',
+  javascript: '#F7DF1E',
+  git: '#F03C2E',
+  vercel: '#000000',
+  php: '#777BB4',
+  java: '#000000',
 }
 
 mkdirSync(DEST_DIR, { recursive: true })

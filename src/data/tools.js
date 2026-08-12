@@ -15,6 +15,16 @@ import googleLogo from '../assets/tool-logos/google.svg?url'
 import notionLogo from '../assets/tool-logos/notion.svg?url'
 import airtableLogo from '../assets/tool-logos/airtable.svg?url'
 import astroLogo from '../assets/tool-logos/astro.svg?url'
+import claudeLogo from '../assets/tool-logos/claude.svg?url'
+import postmanLogo from '../assets/tool-logos/postman.svg?url'
+import springbootLogo from '../assets/tool-logos/springboot.svg?url'
+import nextjsLogo from '../assets/tool-logos/nextjs.svg?url'
+import typescriptLogo from '../assets/tool-logos/typescript.svg?url'
+import javascriptLogo from '../assets/tool-logos/javascript.svg?url'
+import gitLogo from '../assets/tool-logos/git.svg?url'
+import vercelLogo from '../assets/tool-logos/vercel.svg?url'
+import phpLogo from '../assets/tool-logos/php.svg?url'
+import javaLogo from '../assets/tool-logos/java.svg?url'
 
 export const coreTools = [
   { key: 'react', label: 'React', icon: 'Code2', logo: reactLogo },
@@ -33,6 +43,19 @@ export const coreTools = [
   { key: 'openai', label: 'OpenAI / AI Tools', icon: 'Robot' },
   { key: 'highlevel', label: 'GoHighLevel', icon: 'Briefcase' },
   { key: 'astro', label: 'Astro', icon: 'Code2', logo: astroLogo },
+  { key: 'claude', label: 'Claude', icon: 'Sparkles', logo: claudeLogo },
+  { key: 'postman', label: 'Postman', icon: 'Send', logo: postmanLogo },
+  { key: 'springboot', label: 'Spring Boot', icon: 'Leaf', logo: springbootLogo },
+  { key: 'nextjs', label: 'Next.js', icon: 'Code2', logo: nextjsLogo },
+  { key: 'typescript', label: 'TypeScript', icon: 'Code2', logo: typescriptLogo },
+  { key: 'javascript', label: 'JavaScript', icon: 'Code2', logo: javascriptLogo },
+  { key: 'git', label: 'Git', icon: 'GitBranch', logo: gitLogo },
+  { key: 'vercel', label: 'Vercel', icon: 'Triangle', logo: vercelLogo },
+  { key: 'php', label: 'PHP', icon: 'Code2', logo: phpLogo },
+  { key: 'java', label: 'Java', icon: 'Coffee', logo: javaLogo },
+  { key: 'retellai', label: 'Retell AI', icon: 'Phone' },
+  { key: 'twilio', label: 'Twilio', icon: 'MessageSquare' },
+  { key: 'sql', label: 'SQL / Databases', icon: 'Database' },
 ]
 
 // Provide a default export for resilience in dev/preview environments
