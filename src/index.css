@@ -198,6 +198,11 @@ a {
   transform: scale(var(--center-scale, 1)) translateY(-4px);
 }
 
+.portfolio-carousel-wrap {
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 15%, black 85%, transparent);
+  mask-image: linear-gradient(90deg, transparent, black 15%, black 85%, transparent);
+}
+
 .portfolio-carousel-arrow {
   opacity: 0;
   transition: opacity 0.25s;
