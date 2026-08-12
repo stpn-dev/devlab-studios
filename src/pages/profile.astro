@@ -35,15 +35,13 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
         <PersonalInfoCard aboutData={aboutData} photo={optimizedPhoto} />
       </div>
 
-      <div class="space-y-8 lg:border-l lg:border-slate-200 lg:pl-10">
-        <section>
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">About</h3>
-          <p class="mt-3 text-slate-700">{aboutData.about}</p>
+      <div class="space-y-12 lg:border-l lg:border-slate-200 lg:pl-10">
+        <section id="about">
+          <p class="text-base leading-relaxed text-slate-700 sm:text-lg">{aboutData.about}</p>
         </section>
 
-        <section class="border-t border-slate-200 pt-8">
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Education</h3>
-          <ul class="mt-4 space-y-4">
+        <section id="education" class="border-t border-slate-200 pt-8">
+          <ul class="space-y-4">
             {(aboutData.education || []).map((item) => (
               <li>
                 <p class="font-semibold text-brand-ink">{item.program}</p>
@@ -52,12 +50,24 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
               </li>
             ))}
           </ul>
+
+          {(aboutData.achievementsAndResponsibilities || []).length > 0 ? (
+            <div class="mt-6">
+              <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Achievements & Responsibilities</p>
+              <ul class="mt-3 space-y-4">
+                {(aboutData.achievementsAndResponsibilities || []).map((item) => (
+                  <li>
+                    <p class="font-semibold text-brand-ink">{item.title}</p>
+                    <p class="text-slate-700">{item.details}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
 
-        <section class="border-t border-slate-200 pt-8">
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Certifications</h3>
-
-          <p class="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Professional</p>
+        <section id="certifications" class="border-t border-slate-200 pt-8">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Professional</p>
           <ul class="mt-3 space-y-4">
             {(aboutData.certificatesAndLicenses || []).map((cert) => (
               <li class="flex items-start gap-3">
@@ -80,42 +90,23 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
           ) : null}
         </section>
 
-        <section class="border-t border-slate-200 pt-8">
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Achievements & Responsibilities</h3>
-          <ul class="mt-4 space-y-4">
-            {(aboutData.achievementsAndResponsibilities || []).map((item) => (
-              <li>
-                <p class="font-semibold text-brand-ink">{item.title}</p>
-                <p class="text-slate-700">{item.details}</p>
-              </li>
-            ))}
-          </ul>
+        <section id="experience" class="border-t border-slate-200 pt-8">
+          <ExperienceTimeline client:visible experiences={experiences} />
+        </section>
+
+        <section id="tools" class="border-t border-slate-200 pt-8">
+          <ToolsMarquee tools={coreTools} />
+        </section>
+
+        <section id="portfolio" class="space-y-6 border-t border-slate-200 pt-8">
+          <PortfolioGallery client:visible projects={projects} />
         </section>
       </div>
     </div>
-
-    <section class="space-y-4">
-      <SectionHeader
-        title="Experience"
-        subtitle="Roles and work history that shaped my software, automation, and operations background."
-      />
-      <ExperienceTimeline client:visible experiences={experiences} />
-    </section>
-
-    <section class="space-y-4">
-      <SectionHeader
-        title="Tools & Platforms"
-        subtitle="Technologies and platforms used across delivery, at a glance."
-      />
-      <ToolsMarquee tools={coreTools} />
-    </section>
-
-    <section class="space-y-6">
-      <SectionHeader
-        title="Portfolio"
-        subtitle="Selected website buildouts, automation workflows, and interface samples."
-      />
-      <PortfolioGallery client:visible projects={projects} />
-    </section>
   </div>
+
+  <script>
+    import { initProfileSideNav } from '../lib/profileSideNav'
+    initProfileSideNav()
+  </script>
 </Layout>
