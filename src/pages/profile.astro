@@ -3,11 +3,10 @@ import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PersonalInfoCard from '../components/PersonalInfoCard.jsx'
 import ToolsMarquee from '../components/ui/ToolsMarquee.jsx'
-import AnimatedIcon from '../components/icons/AnimatedIcon.jsx'
 import PortfolioGallery from '../components/islands/PortfolioGallery.jsx'
 import CertificationsGallery from '../components/islands/CertificationsGallery.jsx'
 import CertificationLogo from '../components/ui/CertificationLogo.jsx'
-import { ArrowRight, Briefcase } from '../components/icons/icons.js'
+import ExperienceTimeline from '../components/islands/ExperienceTimeline.jsx'
 import { loadPageSeo } from '../lib/content/seo'
 import { loadProfileContent } from '../lib/content/profile'
 import { loadProjects } from '../lib/content/projects'
@@ -100,42 +99,7 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
         title="Experience"
         subtitle="Roles and work history that shaped my software, automation, and operations background."
       />
-      <div class="relative mx-auto max-w-3xl">
-        <div class="absolute left-[112px] sm:left-[242px] top-1 bottom-1 w-0.5 bg-gradient-to-b from-brand-teal to-brand-orange" aria-hidden="true"></div>
-        <div class="space-y-10">
-          {experiences.map((item, index) => (
-            <div
-              class="grid grid-cols-[90px_20px_1fr] sm:grid-cols-[220px_20px_1fr] items-center gap-3"
-              data-reveal
-              data-reveal-delay={index * 90}
-            >
-              <div class="flex flex-col items-end justify-center rounded-xl bg-gradient-to-br from-brand-teal to-brand-orange px-2.5 py-2 text-right text-white shadow-[0_8px_18px_rgba(122,0,255,0.28)]">
-                <span class="text-xs sm:text-sm font-bold leading-tight sm:leading-none whitespace-normal sm:whitespace-nowrap">{item.dates}</span>
-              </div>
-              <div class="flex justify-center">
-                <div class="h-3.5 w-3.5 rounded-full border-[3px] border-white bg-brand-orange shadow-[0_0_0_3px_rgba(122,0,255,0.25)]"></div>
-              </div>
-              <section class="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-4 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-7">
-                <div class="mb-2 flex items-center gap-2">
-                  <AnimatedIcon icon={Briefcase} size={16} color="text-brand-teal" animationType="none" ariaLabel="Role type" />
-                  <p class="text-sm uppercase tracking-[0.14em] text-slate-500">{item.title}</p>
-                </div>
-                <h3 class="text-2xl font-semibold text-brand-ink break-words">{item.role}</h3>
-                <p class="text-slate-700">{item.company}</p>
-
-                <ul class="mt-4 space-y-2 text-slate-700">
-                  {item.bullets.map((bullet) => (
-                    <li class="flex gap-3 leading-relaxed">
-                      <AnimatedIcon icon={ArrowRight} size={16} color="text-brand-teal" animationType="none" className="mt-0.5 flex-shrink-0" />
-                      <span class="break-words">{bullet}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </div>
-          ))}
-        </div>
-      </div>
+      <ExperienceTimeline client:visible experiences={experiences} />
     </section>
 
     <section class="space-y-4">
