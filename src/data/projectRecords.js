@@ -71,7 +71,7 @@ export const projectRecords = [
     id: "p10-automated-lead-qualification",
     title: "Automated Lead Qualification",
     description:
-      "Retell webhook workflow that receives AI voice call callbacks, analyzes transcripts, matches callers to existing lead rows, archives call records, updates monitoring, and feeds qualified opportunities into an acquisitions follow-up pipeline.",
+      "A three-workflow closed-loop system for real estate lead qualification: scheduled intake normalizes and deduplicates leads before dispatching authenticated outbound AI voice calls via Retell, inbound caller lookup matches phone numbers back to lead records, and post-call webhook processing analyzes transcripts, updates records, and routes qualified opportunities to human acquisitions handoff — with API response validation, failure routing, and monitoring throughout.",
     techStack: ["Retell AI", "Claude/OpenAI", "Google Sheets", "Google Docs", "Google Drive", "Webhook"],
     liveUrl: "#",
     sourceUrl: "#",
