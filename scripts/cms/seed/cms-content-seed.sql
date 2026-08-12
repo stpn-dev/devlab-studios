@@ -13,7 +13,7 @@
 DELETE FROM page_sections;
 DELETE FROM pages;
 DELETE FROM service_groups;
-DELETE FROM resources;
+DELETE FROM articles;
 DELETE FROM faqs WHERE page_slug = 'services';
 DELETE FROM experiences;
 DELETE FROM skills;
@@ -99,7 +99,7 @@ INSERT INTO service_groups (
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   );
 
-INSERT INTO resources (
+INSERT INTO articles (
   id, slug, title, summary, category, content_type, icon, points, body_markdown, cover_image_url, tags_json,
   author_name, published_at, reading_time_minutes, is_featured, sort_order, status, created_at, updated_at
 ) VALUES
@@ -552,7 +552,8 @@ INSERT INTO navigation_items (
 ) VALUES
   ('nav-about', 'About', '/about', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('nav-services', 'Services', '/services', 20, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('nav-resources', 'Resources', '/resources', 30, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('nav-process', 'Process', '/process', 25, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('nav-resources', 'Resources', '/insights', 30, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('nav-profile', 'Profile', '/profile', 40, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT INTO seo_metadata (
@@ -607,12 +608,12 @@ INSERT INTO seo_metadata (
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   ),
   (
-    'seo-resources',
-    'resources',
+    'seo-insights',
+    'insights',
     'Resources - AI, Automation & Web Systems Feed | DevLab Studios',
     'Read DevLab Studios resources covering practical automation guides, AI updates, website systems, operations insights, and implementation notes for modern business workflows.',
     'AI automation resources, workflow guides, automation news, website systems insights, operations playbook, DevLab Studios resources',
-    'https://www.devlabstudios.com/resources',
+    'https://www.devlabstudios.com/insights',
     'Resources - AI, Automation & Web Systems Feed | DevLab Studios',
     'A feed of practical guides, AI updates, web systems notes, and operational implementation insights.',
     'https://www.devlabstudios.com/devlabstudios-logo-only.png',
@@ -678,7 +679,7 @@ INSERT INTO site_settings (key, value_json, updated_at) VALUES
   ),
   (
     'site_footer',
-    '{"companyName":"DevLab Studios","tagline":"Your Vision, Digitally Crafted - one solution at a time, always evolving.","email":"stpnrey.agustinez@gmail.com","location":"Lapu-Lapu City, Cebu, PH","quickLinks":[{"label":"Home","href":"/"},{"label":"About","href":"/about"},{"label":"Services","href":"/services"},{"label":"Resources","href":"/resources"},{"label":"Profile","href":"/profile"},{"label":"Contact","href":"/contact"}],"socialLinks":[{"label":"LinkedIn","href":"https://www.linkedin.com/in/stephen-rey-agustinez-8b86041b3"},{"label":"GitHub","href":"https://github.com/stpn-dev"},{"label":"Email","href":"mailto:stpnrey.agustinez@gmail.com"}],"legalText":"Privacy Policy | Terms of Service","copyright":"(c) 2026 DevLab Studios. All rights reserved."}',
+    '{"companyName":"DevLab Studios","tagline":"Your Vision, Digitally Crafted - one solution at a time, always evolving.","email":"stpnrey.agustinez@gmail.com","location":"Lapu-Lapu City, Cebu, PH","quickLinks":[{"label":"Home","href":"/"},{"label":"About","href":"/about"},{"label":"Services","href":"/services"},{"label":"Resources","href":"/insights"},{"label":"Profile","href":"/profile"},{"label":"Contact","href":"/contact"}],"socialLinks":[{"label":"LinkedIn","href":"https://www.linkedin.com/in/stephen-rey-agustinez-8b86041b3"},{"label":"GitHub","href":"https://github.com/stpn-dev"},{"label":"Email","href":"mailto:stpnrey.agustinez@gmail.com"}],"legalLinks":[{"label":"Privacy Policy","href":"/privacy"},{"label":"Terms of Service","href":"/terms"}],"copyright":"(c) 2026 DevLab Studios. All rights reserved."}',
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   )
 ON CONFLICT(key) DO UPDATE SET

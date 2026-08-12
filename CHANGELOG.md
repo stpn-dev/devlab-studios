@@ -51,6 +51,46 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-12
+
+CMS seed and navigation infrastructure fixes, surfaced by a whole-site audit
+done right after 1.3.0 shipped. Classified as PATCH: bug fixes and cleanup
+only — no new capability, and every redirect/route behaves the same from a
+visitor's perspective, just served by the mechanism the CMS was actually
+built for instead of a duplicate hardcoded shortcut.
+
+### Fixed
+- `scripts/cms/seed/cms-content-seed.sql` targeted the pre-migration-0004
+  `resources` table for article content; that table was renamed to
+  `articles` in `0004`, so this seed would fail outright if run today. Its
+  column list already matched the current `articles` schema exactly — the
+  fix was the table name, not the data.
+- The seed's `site_footer` JSON stored `legalText` as a plain string; the
+  real footer and admin editor both expect `legalLinks` as an array of
+  `{label, href}` links to `/privacy` and `/terms`.
+- The seed's navigation and footer both pointed "Resources" at `/resources`
+  instead of the real `/insights` route, and never had a "Process" nav
+  entry at all (the seed predates that page). A `seo_metadata` row also
+  used `page_slug: 'resources'`, which the Insights page never looks up
+  (it requests `'insights'`) — an orphaned row from the same root cause.
+- Production's live database had every one of the above: `profile_about`
+  still stored the pre-1.3.0 field names and a plain-string certificates
+  list (blanking the About paragraph and every certification's text on
+  the live site since 1.3.0 deployed), the nav had no Process entry, and
+  Resources still pointed at `/resources`. Fixed directly in production's
+  D1 via a targeted, minimal update — no code change was needed for this
+  part, since the deployed code already expected the correct shape.
+- Removed `src/pages/experiences.astro` and `src/pages/portfolio.astro`,
+  two hardcoded redirect pages that duplicated (and always intercepted
+  before) the equivalent rows already sitting unused in the D1 `redirects`
+  table since migration `0004`. `middleware.ts`'s D1-backed redirect
+  lookup was already fully wired up — completes the cleanup that
+  migration's own comment deferred to "Phase 3." Verified directly (not
+  assumed): the "legacy redirects still work" e2e test previously passed
+  entirely through the hardcoded pages for all three legacy routes; after
+  removing these two, it was re-run and confirmed the D1 + middleware path
+  genuinely serves both redirects correctly on its own.
+
 ## [1.3.0] - 2026-08-12
 
 Profile page content refresh and structural rebuild: merged the About/
