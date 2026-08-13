@@ -75,6 +75,7 @@ export {
   User,
   Maximize2,
   GraduationCap,
+  HardDrive,
   Trophy,
   BadgeCheck,
   Image,

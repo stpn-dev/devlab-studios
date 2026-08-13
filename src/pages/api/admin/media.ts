@@ -10,14 +10,69 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
+function inferContentType(key: string): string {
+  const extension = key.split('.').pop()?.toLowerCase()
+  const types: Record<string, string> = {
+    avif: 'image/avif', gif: 'image/gif', jpeg: 'image/jpeg', jpg: 'image/jpeg',
+    png: 'image/png', svg: 'image/svg+xml', webp: 'image/webp',
+  }
+  return extension ? types[extension] || 'application/octet-stream' : 'application/octet-stream'
+}
+
+function filenameFromKey(key: string): string {
+  const filename = key.split('/').pop() || key
+  try { return decodeURIComponent(filename) } catch { return filename }
+}
+
 export const GET: APIRoute = async ({ url }) => {
   const env = getEnv()
-  if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+  if (!env.MEDIA_BUCKET) return jsonResponse({ error: 'R2 MEDIA_BUCKET binding is not configured.' }, 503)
 
-  const folder = url.searchParams.get('folder') || null
-  const limit = Number(url.searchParams.get('limit')) || 100
-  const assets = await listMediaAssets(env.DB, { folder, limit })
-  return jsonResponse(assets)
+  const prefix = String(url.searchParams.get('prefix') || '').replace(/^\/+/, '')
+  const cursor = url.searchParams.get('cursor') || undefined
+  const requestedLimit = Number(url.searchParams.get('limit')) || 250
+  const limit = Math.min(Math.max(requestedLimit, 1), 500)
+  const publicBaseUrl = String(env.R2_PUBLIC_BASE_URL || '').replace(/\/$/, '')
+  const listed = await env.MEDIA_BUCKET.list({
+    prefix: prefix || undefined,
+    cursor,
+    limit,
+    include: ['httpMetadata', 'customMetadata'],
+  })
+
+  const trackedAssets = env.DB ? await listMediaAssets(env.DB, { limit: 1000 }).catch(() => []) : []
+  const trackedByKey = new Map(trackedAssets.map((asset) => [asset.key, asset]))
+  const assets = listed.objects.map((object) => {
+    const tracked = trackedByKey.get(object.key)
+    const contentType = String(object.httpMetadata?.contentType || tracked?.contentType || inferContentType(object.key))
+    const folder = object.key.includes('/') ? object.key.slice(0, object.key.lastIndexOf('/')) : 'root'
+    return {
+      id: tracked?.id || object.key,
+      key: object.key,
+      url: publicBaseUrl ? `${publicBaseUrl}/${object.key.split('/').map(encodeURIComponent).join('/')}` : tracked?.url || '',
+      filename: tracked?.filename || filenameFromKey(object.key),
+      contentType,
+      size: object.size,
+      altText: tracked?.altText || '',
+      folder,
+      uploadedAt: object.uploaded.toISOString(),
+      etag: object.httpEtag,
+      trackedInD1: Boolean(tracked),
+    }
+  })
+
+  return jsonResponse({
+    assets,
+    summary: {
+      objectCount: assets.length,
+      totalBytes: assets.reduce((total, asset) => total + asset.size, 0),
+      trackedCount: assets.filter((asset) => asset.trackedInD1).length,
+      imageCount: assets.filter((asset) => asset.contentType.startsWith('image/')).length,
+      prefix,
+      isComplete: !listed.truncated,
+    },
+    cursor: listed.truncated ? listed.cursor : null,
+  })
 }
 
 export const POST: APIRoute = async ({ request }) => {

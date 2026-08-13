@@ -33,6 +33,22 @@ test('logs in and can open Site Settings', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 })
 
+test('media library inventories the bound R2 bucket and explains its purpose', async ({ page, baseURL }) => {
+  await login(page)
+
+  const response = await page.request.get(`${baseURL}/api/admin/media`)
+  expect(response.ok()).toBeTruthy()
+  const body = await response.json()
+  expect(Array.isArray(body.assets)).toBeTruthy()
+  expect(typeof body.summary?.objectCount).toBe('number')
+  expect(typeof body.summary?.totalBytes).toBe('number')
+
+  await page.getByRole('navigation').getByRole('link', { name: 'Media' }).click()
+  await expect(page.getByRole('heading', { name: 'Media Library', level: 1 })).toBeVisible()
+  await expect(page.getByText(/inventory of files stored in the current environment's R2 bucket/i)).toBeVisible()
+  await expect(page.getByText('R2 objects')).toBeVisible()
+})
+
 test('site settings save round-trip persists across reload', async ({ page }) => {
   await login(page)
   await page.getByRole('navigation').getByRole('link', { name: 'Site Settings' }).click()

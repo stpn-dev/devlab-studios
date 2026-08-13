@@ -51,6 +51,9 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Fixed
+- Made the CMS Media Library inventory the bound Cloudflare R2 bucket directly instead of relying on an empty D1 tracking table, with storage summaries, object paths, previews, and clear editor-upload guidance.
+
 ## [1.4.3] - 2026-08-13
 
 ### Changed
