@@ -9,7 +9,7 @@ const seo = await loadPageSeo('contact')
 const env = getEnv()
 const requestHostname = new URL(Astro.request.url).hostname
 const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1'
-const turnstileSiteKey = env.TURNSTILE_SITE_KEY || (isLocalRequest ? '1x00000000000000000000AA' : '')
+const turnstileSiteKey = isLocalRequest ? '1x00000000000000000000AA' : env.TURNSTILE_SITE_KEY || ''
 ---
 
 <Layout title="Contact — DevLab Studios" seo={seo}>
