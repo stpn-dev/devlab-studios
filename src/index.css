@@ -5,15 +5,49 @@
 @tailwind utilities;
 
 :root {
-  color: #121739;
-  background: #060816;
-  --brand-ink: #0b1026;
-  --brand-panel: #111735;
-  --brand-purple: #2f3cff;
-  --brand-indigo: #2f3cff;
-  --brand-cyan: #55d8ff;
-  --brand-paper: #f7f8fc;
-  --brand-line: rgba(131, 148, 201, 0.22);
+  color: #11142a;
+  background: #f7f7ff;
+
+  --brand-blue: #0000ff;
+  --brand-indigo: #4500ff;
+  --brand-violet: #6800ff;
+  --brand-purple: #8800ff;
+  --brand-magenta: #c000ff;
+  --brand-cyan: #7d8dff;
+  --brand-gradient: linear-gradient(135deg, #c000ff 0%, #8800ff 35%, #4500ff 68%, #0000ff 100%);
+
+  --surface-nav: #0a0d21;
+  --surface-dark: #0d112b;
+  --surface-dark-elevated: #141936;
+  --surface-dark-soft: #191f42;
+  --surface-page: #f7f7ff;
+  --surface-subtle: #f3f4ff;
+  --surface-alt: #f1f2ff;
+  --surface-brand-soft: #eeefff;
+  --surface-card: #fcfcff;
+
+  --text-primary: #11142a;
+  --text-secondary: #505a76;
+  --text-muted: #727a94;
+  --text-on-dark: #f8f9ff;
+  --text-on-dark-secondary: #bec5da;
+
+  --border-subtle: #dee1f2;
+  --border-medium: #cdd2ea;
+  --border-brand-soft: #cfd1ff;
+  --mesh-dot: rgba(69, 0, 255, 0.15);
+
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.5rem;
+  --radius-xl: 2rem;
+  --shadow-sm: 0 8px 24px rgba(17, 20, 42, 0.06);
+  --shadow-md: 0 16px 42px rgba(17, 20, 42, 0.09);
+  --shadow-elevated: 0 30px 72px rgba(10, 13, 33, 0.2);
+  --container-wide: 80rem;
+  --container-content: 70rem;
+  --section-space: clamp(3rem, 6vw, 5.5rem);
+  --transition-fast: 180ms ease;
 }
 
 html {
@@ -30,10 +64,10 @@ body {
   min-height: 100vh;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   background:
-    radial-gradient(circle at 12% 4%, rgba(47, 60, 255, 0.08), transparent 28%),
-    radial-gradient(circle at 88% 10%, rgba(85, 216, 255, 0.07), transparent 26%),
-    #f5f7fb;
-  color: #0f1b35;
+    radial-gradient(circle at 18% 12%, rgba(192, 0, 255, 0.045), transparent 28rem),
+    radial-gradient(circle at 82% 35%, rgba(0, 0, 255, 0.055), transparent 32rem),
+    var(--surface-page);
+  color: var(--text-primary);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -45,13 +79,13 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(47, 60, 255, 0.18) 1px, transparent 1.25px);
-  background-size: 24px 24px;
-  opacity: 0.42;
+  background-image: radial-gradient(circle, var(--mesh-dot) 1.15px, transparent 1.4px);
+  background-size: 22px 22px;
+  opacity: 0.72;
   pointer-events: none;
   z-index: 0;
-  -webkit-mask-image: linear-gradient(to bottom, black 0%, rgba(0, 0, 0, 0.72) 70%, transparent 100%);
-  mask-image: linear-gradient(to bottom, black 0%, rgba(0, 0, 0, 0.72) 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, rgba(0, 0, 0, 0.76) 72%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, rgba(0, 0, 0, 0.76) 72%, transparent 100%);
 }
 
 a {
@@ -60,7 +94,7 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid #2f3cff;
+  outline: 2px solid var(--brand-violet);
   outline-offset: 3px;
   border-radius: 10px;
 }
@@ -74,9 +108,9 @@ a {
 }
 
 .badge-pill {
-  background: rgba(47, 60, 255, 0.08);
-  border: 1px solid rgba(47, 60, 255, 0.2);
-  color: #2f3cc7;
+  background: var(--surface-brand-soft);
+  border: 1px solid var(--border-brand-soft);
+  color: var(--brand-indigo);
   padding: 0.35rem 0.8rem;
   border-radius: 9999px;
   font-size: 0.9rem;
@@ -84,7 +118,7 @@ a {
 }
 
 .site-container {
-  width: min(100% - 2rem, 80rem);
+  width: min(100% - 2rem, var(--container-wide));
   margin-inline: auto;
 }
 
@@ -93,16 +127,54 @@ a {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
   background:
-    radial-gradient(circle at 78% 18%, rgba(47, 60, 255, 0.18), transparent 32%),
-    radial-gradient(circle at 12% 82%, rgba(85, 216, 255, 0.08), transparent 34%),
-    linear-gradient(145deg, #080c1f 0%, #101735 58%, #111a3c 100%);
-  box-shadow: 0 30px 80px rgba(9, 12, 35, 0.24);
+    radial-gradient(circle at 78% 18%, rgba(69, 0, 255, 0.16), transparent 32%),
+    radial-gradient(circle at 12% 82%, rgba(192, 0, 255, 0.07), transparent 34%),
+    linear-gradient(145deg, var(--surface-nav) 0%, var(--surface-dark) 58%, var(--surface-dark-elevated) 100%);
+  box-shadow: var(--shadow-elevated);
 }
 
 .light-panel {
-  border: 1px solid rgba(123, 137, 181, 0.18);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(246, 247, 253, 0.92));
-  box-shadow: 0 20px 54px rgba(30, 36, 79, 0.1);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-md);
+}
+
+.surface-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-surface {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-md);
+}
+
+.form-control {
+  width: 100%;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.form-control:hover { border-color: #b8bedc; }
+.form-control:focus {
+  border-color: var(--brand-indigo);
+  box-shadow: 0 0 0 3px rgba(69, 0, 255, 0.12);
+  outline: none;
+}
+
+.turnstile-shell {
+  width: min(100%, 26rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  padding: 0.85rem;
 }
 
 .tech-kicker {
@@ -120,12 +192,12 @@ a {
   content: '';
   width: 1.8rem;
   height: 1px;
-  background: linear-gradient(90deg, #2f3cff, #55d8ff);
+  background: var(--brand-gradient);
 }
 
 .site-navbar {
   border: 1px solid rgba(146, 168, 236, 0.2);
-  background: rgba(8, 13, 33, 0.96);
+  background: rgba(10, 13, 33, 0.97);
   color: #f8fbff;
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
@@ -134,6 +206,11 @@ a {
 .site-navbar__links {
   border: 1px solid rgba(166, 184, 238, 0.16);
   background: rgba(255, 255, 255, 0.045);
+}
+
+::selection {
+  background: rgba(104, 0, 255, 0.2);
+  color: var(--text-primary);
 }
 
 .vector-field {

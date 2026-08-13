@@ -16,13 +16,14 @@ Snapshot as of 2026-07-31, taken as Phase 0 of the Astro/CMS rebuild program (se
 |---|---|
 | `ADMIN_AUTH_MODE` | `password` \| `cloudflare-access` \| `disabled` — selects the admin auth strategy in `src/worker/middleware/adminAuth.js`. Currently `password`. |
 | `R2_PUBLIC_BASE_URL` | Public base URL used to build absolute links to R2-hosted media. |
+| `TURNSTILE_SITE_KEY` | Public runtime sitekey for the environment-specific contact-form widget. Preview and production use different keys. |
 
 ## Secrets (set via Cloudflare dashboard or `wrangler secret put` — never in the repo)
 
 | Secret | Used by | Purpose |
 |---|---|---|
 | `ZOHO_WEBHOOK_URL` | `POST /api/contact` (background delivery, see below) | Upstream contact-form delivery target. |
-| `TURNSTILE_SECRET_KEY` | `POST /api/contact` | Cloudflare Turnstile server-side verification. Verification is skipped entirely (not rejected) when unset — see "Turnstile setup" below. |
+| `TURNSTILE_SECRET_KEY` | `POST /api/contact` | Environment-specific server-side verification secret. Deployed requests fail closed when it is unset. |
 | `ADMIN_SESSION_SECRET` | `adminAuth.js` | HMAC key signing the admin session cookie. |
 | `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` | `adminAuth.js` | Single-admin credential pair (PBKDF2 hash format — see `scripts/cms/hash-admin-password.mjs`). |
 | `ADMIN_USERS` | `adminAuth.js` | Alternative to the pair above — a JSON array of `{email, passwordHash, role}` for multiple admins. Only one of this or the pair above is needed. |
@@ -33,7 +34,6 @@ Snapshot as of 2026-07-31, taken as Phase 0 of the Astro/CMS rebuild program (se
 | Variable | Purpose |
 |---|---|
 | `VITE_CONTACT_API_URL` | Overrides the contact form's submit target; defaults to `/api/contact`. |
-| `VITE_TURNSTILE_SITE_KEY` | Turnstile widget sitekey (public, safe to expose client-side). Defaults to Cloudflare's published "always passes" testing key (`1x00000000000000000000AA`) — see "Turnstile setup" below. |
 
 ## Leads backend (Phase 5)
 
@@ -61,22 +61,24 @@ spam Zoho or the admin Leads list.
 
 ### Turnstile setup
 
-The contact form always renders a Turnstile widget, but server-side
-verification (`src/worker/turnstile.js`) is skipped entirely — not
-rejected — until `TURNSTILE_SECRET_KEY` is set, matching this
-codebase's established pattern for not-yet-configured optional
-integrations (see `adminAuth.js`'s auth-mode fallback). To turn on real
-spam protection:
+The contact form uses explicit widget rendering with the action
+`contact_form`. The backend validates every deployed token through
+Siteverify and also verifies its hostname and action. Tokens are treated as
+single-use, widget expiration and failures reset cleanly, and a short
+Siteverify timeout prevents an upstream outage from hanging the form.
 
-1. Create a Turnstile widget in the Cloudflare dashboard (**Turnstile**
-   → **Add site**) for the production domain.
-2. Set `VITE_TURNSTILE_SITE_KEY` (build-time, public) to the new
-   sitekey.
-3. Set `TURNSTILE_SECRET_KEY` (runtime secret) to the matching secret.
+Provision two Managed widgets:
 
-Until both are set, the widget uses Cloudflare's published testing
-keys, which always pass verification — safe for local dev, but not
-real spam protection.
+1. Preview: allow only `devlab-studios-preview.stpnrey-agustinez.workers.dev`.
+2. Production: allow only the canonical production hostname(s).
+3. Put each public sitekey in that environment's `wrangler.jsonc` `vars` as
+   `TURNSTILE_SITE_KEY`.
+4. Set each matching secret with `wrangler secret put TURNSTILE_SECRET_KEY`
+   (add `--env preview` for Preview).
+
+Deployed environments fail closed when either value is missing. Localhost
+alone uses Cloudflare's published always-pass test sitekey and may omit the
+secret so browser tests can run without production credentials.
 
 Maintenance mode is a runtime check (`src/middleware.ts`), not a build-time flag: it reads the `maintenance_mode` key from the `site_settings` D1 table on every request to `/`, `/about`, `/experiences`, `/services`, `/portfolio`, `/profile`, and `/resources*`, rewriting to `/maintenance` when set. Toggle it with `wrangler d1 execute` against `site_settings` (or the future admin Site Settings screen) — no redeploy required.
 
@@ -149,4 +151,5 @@ build time.
 Preview needs its own values for every secret in the table above
 (`ADMIN_SESSION_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`,
 `ZOHO_WEBHOOK_URL`, `TURNSTILE_SECRET_KEY`) — set with `wrangler secret
-put <NAME> --env preview`, never copied from production.
+put <NAME> --env preview`, never copied from production. Turnstile must use a
+separate Preview widget and secret, not the Production pair.

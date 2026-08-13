@@ -8,12 +8,12 @@ export default {
       },
       colors: {
         brand: {
-          ink: '#121739',
-          teal: '#2f3cff',
-          mint: '#eef1ff',
-          orange: '#2f3cff',
-          orangeDark: '#202cc2',
-          shell: '#f5f7fa',
+          ink: '#11142a',
+          teal: '#4500ff',
+          mint: '#eeefff',
+          orange: '#0000ff',
+          orangeDark: '#0000cc',
+          shell: '#f7f7ff',
         },
         navy: {
           50: '#e8edff',
@@ -32,7 +32,9 @@ export default {
         mist: '#b5c4e1',
       },
       boxShadow: {
-        glass: '0 20px 50px rgba(10, 22, 53, 0.35)',
+        glass: '0 20px 50px rgba(10, 13, 33, 0.22)',
+        card: '0 14px 36px rgba(17, 20, 42, 0.08)',
+        elevated: '0 28px 70px rgba(10, 13, 33, 0.20)',
       },
       backdropBlur: {
         18: '18px',

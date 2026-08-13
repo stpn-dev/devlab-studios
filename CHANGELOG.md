@@ -66,6 +66,11 @@ decided against that surface specifically:
 - Made partial CMS project collections merge with repository fallbacks so selected public proof cannot silently disappear when D1 is incomplete.
 - Restored About to the primary navigation, moved Process out of the primary tab set, strengthened navbar contrast, consolidated shared colors into a navy–indigo–cyan palette, and moved the dot mesh from cards to the global site background.
 - Expanded Work with selected automation project screenshots and structured write-ups covering each challenge, system architecture, and delivery value.
+- Rebuilt the public color architecture around the canonical electric blue–violet–magenta logo palette, cool pearl canvas, shared surface/card/form primitives, stronger technical mesh, and matching midnight navbar/footer treatments.
+- Refined the About page into one authoritative studio-overview hero, with balanced metadata and a consistent card hierarchy instead of a duplicated page introduction.
+
+### Security
+- Replaced the deployed Turnstile test-key fallback with environment-specific runtime keys and fail-closed server validation, including hostname/action checks, Siteverify timeout and idempotency, duplicate/expired-token recovery, and safe structured form errors.
 
 ## [1.3.1] - 2026-08-12
 

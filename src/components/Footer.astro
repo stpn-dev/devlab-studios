@@ -18,41 +18,30 @@ const legalLinks = footer.legalLinks?.length
     ]
 ---
 
-<footer class="relative mt-20 overflow-hidden border-t border-white/10 bg-[#070b1c] text-white">
-  <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(122,0,255,0.18),transparent_32%),radial-gradient(circle_at_85%_80%,rgba(47,60,255,0.14),transparent_30%)]" aria-hidden="true"></div>
+<footer class="relative mt-20 overflow-hidden border-t border-white/10 bg-[#0a0d21] text-white">
+  <div class="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,#c000ff_28%,#4500ff_65%,#0000ff,transparent)]" aria-hidden="true"></div>
+  <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(104,0,255,0.10),transparent_32%),radial-gradient(circle_at_85%_80%,rgba(0,0,255,0.08),transparent_30%)]" aria-hidden="true"></div>
   <div class="relative mx-auto max-w-7xl px-4 py-12 text-sm text-slate-300 sm:px-6 lg:px-6">
     <div class="flex flex-col gap-8 text-center md:flex-row md:items-start md:justify-between md:text-left">
-      <div class="mb-4 flex flex-1 flex-col items-center md:mb-0 md:items-start">
-        {/* width/height assume logoSideUrl's current ~10:3 aspect ratio for CLS purposes only —
-            it's a remote, CMS-swappable SVG, so these can go stale if the asset is replaced with
-            a differently-proportioned logo; `object-contain` means a mismatch letterboxes rather
-            than distorts. */}
-        <img
-          id="footer-logo"
-          src={brandingAssets.logoSideUrl}
-          alt="DevLab Studios"
-          class="mb-3 h-12 w-auto object-contain"
-          loading="lazy"
-          width="160"
-          height="48"
-        />
-        <p class="mb-1 text-lg font-semibold text-white">{footer.companyName || 'DevLab Studios'}</p>
-        <p class="mb-3 whitespace-normal text-slate-400 md:whitespace-nowrap">
+      <div class="flex flex-1 flex-col items-center md:items-start">
+        <div class="mb-4 flex items-center gap-3">
+          <img id="footer-logo" src={brandingAssets.logoOnlyUrl} alt="" class="h-10 w-10 object-contain" loading="lazy" width="40" height="40" />
+          <p class="text-lg font-semibold tracking-tight text-white">{footer.companyName || 'DevLab Studios'}</p>
+        </div>
+        <p class="mb-3 max-w-md text-slate-400">
           {footer.tagline || 'Your Vision, Digitally Crafted - one solution at a time, always evolving.'}
         </p>
-        <a href={`mailto:${footer.email || 'stpnrey.agustinez@gmail.com'}`} class="mb-1 block text-slate-200 hover:text-violet-300 hover:underline">
+        <a href={`mailto:${footer.email || 'stpnrey.agustinez@gmail.com'}`} class="mb-1 block text-slate-200 transition hover:text-white hover:underline">
           {footer.email || 'stpnrey.agustinez@gmail.com'}
         </a>
         <span class="block text-slate-400">{footer.location || 'Lapu-Lapu City, Cebu, PH'}</span>
       </div>
 
-      <div class="mb-4 flex flex-1 flex-col items-center md:mb-0">
+      <div class="flex flex-1 flex-col items-center">
         <p class="mb-2 font-semibold text-white">Explore</p>
         <ul>
           {quickLinks.map((item) => (
-            <li>
-              <a href={item.href} class="inline-block py-2 hover:text-violet-300 hover:underline">{item.label}</a>
-            </li>
+            <li><a href={item.href} class="inline-block py-2 transition hover:text-white hover:underline">{item.label}</a></li>
           ))}
         </ul>
       </div>
@@ -66,7 +55,7 @@ const legalLinks = footer.legalLinks?.length
               target={item.href.startsWith('http') ? '_blank' : undefined}
               rel={item.href.startsWith('http') ? 'noopener noreferrer' : undefined}
               aria-label={item.label}
-              class="inline-block py-2 hover:text-violet-300"
+              class="inline-block py-2 transition hover:text-white"
             >
               {item.label}
             </a>
@@ -79,7 +68,7 @@ const legalLinks = footer.legalLinks?.length
       <span class="flex flex-wrap justify-center gap-x-2 md:justify-end">
         {legalLinks.map((link, index) => (
           <>
-            <a href={link.href} class="inline-block py-2 hover:text-violet-300 hover:underline">{link.label}</a>
+            <a href={link.href} class="inline-block py-2 transition hover:text-white hover:underline">{link.label}</a>
             {index < legalLinks.length - 1 ? <span aria-hidden="true" class="self-center">|</span> : null}
           </>
         ))}

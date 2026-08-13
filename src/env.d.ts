@@ -11,6 +11,7 @@ interface Env {
   ADMIN_PASSWORD_HASH?: string
   ADMIN_SESSION_SECRET?: string
   ADMIN_USERS?: string
+  TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
 }
 

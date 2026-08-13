@@ -3,8 +3,13 @@ import Layout from '../layouts/Layout.astro'
 import ContactForm from '../components/islands/ContactForm.jsx'
 import VectorField from '../components/VectorField.astro'
 import { loadPageSeo } from '../lib/content/seo'
+import { getEnv } from '../lib/env'
 
 const seo = await loadPageSeo('contact')
+const env = getEnv()
+const requestHostname = new URL(Astro.request.url).hostname
+const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1'
+const turnstileSiteKey = env.TURNSTILE_SITE_KEY || (isLocalRequest ? '1x00000000000000000000AA' : '')
 ---
 
 <Layout title="Contact — DevLab Studios" seo={seo}>
@@ -20,6 +25,6 @@ const seo = await loadPageSeo('contact')
       </div>
     </section>
 
-    <ContactForm client:load />
+    <ContactForm client:load siteKey={turnstileSiteKey} />
   </div>
 </Layout>

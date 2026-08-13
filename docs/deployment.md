@@ -54,8 +54,10 @@ This has already been provisioned once (2026-07-31):
    `wrangler secret put <NAME> --env preview`: `ADMIN_EMAIL`,
    `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET`, `ZOHO_WEBHOOK_URL`
    (a placeholder — preview leads still persist to D1 even though delivery
-   fails). `TURNSTILE_SECRET_KEY` intentionally left unset (degrades
-   gracefully, safe for preview).
+   fails). Turnstile now requires a dedicated Preview widget; its public
+   `TURNSTILE_SITE_KEY` belongs in Preview vars and its matching
+   `TURNSTILE_SECRET_KEY` in Preview secrets. Missing deployed configuration
+   fails closed and never falls back to Cloudflare's test widget.
 4. **Verified end to end** against the live deployed Worker: homepage,
    `/api/health`, `/admin` login, and security headers all confirmed
    working at `https://devlab-studios-preview.<subdomain>.workers.dev`.

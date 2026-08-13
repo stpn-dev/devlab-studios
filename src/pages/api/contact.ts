@@ -90,10 +90,27 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return jsonResponse({ error: validationError }, 400)
   }
 
-  const turnstileResult = await verifyTurnstileToken(env.TURNSTILE_SECRET_KEY, payload.turnstileToken, getClientIp(request))
+  const requestHostname = new URL(request.url).hostname
+  const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1'
+  const turnstileResult = await verifyTurnstileToken(
+    env.TURNSTILE_SECRET_KEY,
+    payload.turnstileToken,
+    getClientIp(request),
+    {
+      expectedHostname: requestHostname,
+      expectedAction: 'contact_form',
+      allowMissingSecret: isLocalRequest,
+    },
+  )
   if (!turnstileResult.ok) {
     console.log(JSON.stringify({ event: 'contact_submission', outcome: 'turnstile_rejected', reason: turnstileResult.reason }))
-    return jsonResponse({ error: 'Verification failed. Please try again.' }, 400)
+    if (turnstileResult.reason === 'configuration-missing' || turnstileResult.reason === 'verification-request-failed') {
+      return jsonResponse({ code: 'verification_unavailable', error: 'Verification is temporarily unavailable. Please try again later.' }, 503)
+    }
+    if (turnstileResult.reason === 'timeout-or-duplicate') {
+      return jsonResponse({ code: 'verification_expired', error: 'Verification expired. Please try again.' }, 400)
+    }
+    return jsonResponse({ code: 'verification_failed', error: "We couldn't verify the request. Please retry." }, 400)
   }
 
   // Durability guarantee starts here: once this insert succeeds, the lead

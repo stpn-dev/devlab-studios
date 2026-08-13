@@ -2,85 +2,116 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import PrimaryButton from '../PrimaryButton'
 import AnimatedIcon from '../icons/AnimatedIcon'
 import { ERROR_MESSAGES } from '../../config/errorMessages'
-import { User, Mail, MessageSquare, Send, Check, AlertCircle, Loader2 } from '../icons/icons'
+import { User, Mail, MessageSquare, Send, Check, AlertCircle, Loader2, ShieldCheck } from '../icons/icons'
 
-const initialForm = {
-  name: '',
-  email: '',
-  subject: '',
-  message: '',
-}
+const initialForm = { name: '', email: '', subject: '', message: '' }
+const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+const TURNSTILE_ACTION = 'contact_form'
 
-// Cloudflare's published "always passes" testing sitekey — safe as a
-// default so the widget renders in dev/preview before a real one is
-// configured. Server-side verification is skipped entirely until
-// TURNSTILE_SECRET_KEY is set (see src/worker/turnstile.js), so this
-// default has no security implication either way.
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA'
-const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
-
-function useTurnstile() {
+function useTurnstile(siteKey) {
   const containerRef = useRef(null)
   const widgetIdRef = useRef(null)
   const [token, setToken] = useState('')
+  const [state, setState] = useState(siteKey ? 'loading' : 'configuration-error')
 
   useEffect(() => {
+    if (!siteKey) return undefined
     let cancelled = false
+    let script = document.querySelector(`script[src="${TURNSTILE_SCRIPT_SRC}"]`)
 
     function renderWidget() {
-      if (cancelled || !containerRef.current || !window.turnstile) return
-      widgetIdRef.current = window.turnstile.render(containerRef.current, {
-        sitekey: TURNSTILE_SITE_KEY,
-        callback: (nextToken) => setToken(nextToken),
-        'expired-callback': () => setToken(''),
-        'error-callback': () => setToken(''),
-      })
+      if (cancelled || !containerRef.current || !window.turnstile || widgetIdRef.current !== null) return
+      try {
+        widgetIdRef.current = window.turnstile.render(containerRef.current, {
+          sitekey: siteKey,
+          action: TURNSTILE_ACTION,
+          theme: 'light',
+          size: 'flexible',
+          appearance: 'always',
+          retry: 'auto',
+          'refresh-expired': 'auto',
+          callback: (nextToken) => {
+            setToken(nextToken)
+            setState('verified')
+          },
+          'expired-callback': () => {
+            setToken('')
+            setState('expired')
+          },
+          'timeout-callback': () => {
+            setToken('')
+            setState('timeout')
+          },
+          'unsupported-callback': () => {
+            setToken('')
+            setState('unsupported')
+          },
+          'error-callback': () => {
+            setToken('')
+            setState('error')
+          },
+        })
+      } catch {
+        setState('error')
+      }
+    }
+
+    function handleScriptError() {
+      if (!cancelled) setState('error')
     }
 
     if (window.turnstile) {
       renderWidget()
-    } else if (!document.querySelector(`script[src="${TURNSTILE_SCRIPT_SRC}"]`)) {
-      const script = document.createElement('script')
+    } else if (!script) {
+      script = document.createElement('script')
       script.src = TURNSTILE_SCRIPT_SRC
       script.async = true
       script.defer = true
-      script.onload = renderWidget
+      script.addEventListener('load', renderWidget, { once: true })
+      script.addEventListener('error', handleScriptError, { once: true })
       document.head.appendChild(script)
     } else {
-      document.querySelector(`script[src="${TURNSTILE_SCRIPT_SRC}"]`)?.addEventListener('load', renderWidget)
+      script.addEventListener('load', renderWidget, { once: true })
+      script.addEventListener('error', handleScriptError, { once: true })
     }
 
     return () => {
       cancelled = true
+      script?.removeEventListener('load', renderWidget)
+      script?.removeEventListener('error', handleScriptError)
       if (window.turnstile && widgetIdRef.current !== null) {
         window.turnstile.remove(widgetIdRef.current)
+        widgetIdRef.current = null
       }
     }
-  }, [])
+  }, [siteKey])
 
   function reset() {
     setToken('')
-    if (window.turnstile && widgetIdRef.current !== null) {
-      window.turnstile.reset(widgetIdRef.current)
-    }
+    setState('loading')
+    if (window.turnstile && widgetIdRef.current !== null) window.turnstile.reset(widgetIdRef.current)
   }
 
-  return { containerRef, token, reset }
+  return { containerRef, token, state, reset }
 }
 
-function ContactForm() {
+const verificationMessages = {
+  loading: 'Completing secure verification…',
+  verified: 'Secure verification complete.',
+  expired: 'Verification expired. Please try again.',
+  timeout: 'Verification timed out. Please retry.',
+  unsupported: 'This browser cannot complete verification. Try another browser.',
+  error: 'Verification could not load. Please retry.',
+  'configuration-error': 'Verification is temporarily unavailable. Please try again later.',
+}
+
+function ContactForm({ siteKey = '' }) {
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const turnstile = useTurnstile()
-
-  const config = useMemo(
-    () => ({
-      apiUrl: import.meta.env.VITE_CONTACT_API_URL || '/api/contact',
-    }),
-    [],
-  )
+  const turnstile = useTurnstile(siteKey)
+  const config = useMemo(() => ({ apiUrl: import.meta.env.VITE_CONTACT_API_URL || '/api/contact' }), [])
 
   const validate = () => {
     const nextErrors = {}
@@ -92,31 +123,23 @@ function ContactForm() {
     return nextErrors
   }
 
-  const handleChange = (e) => {
-    const { name, value } = e.target
-    setForm((prev) => ({ ...prev, [name]: value }))
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: undefined }))
-    }
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    setForm((previous) => ({ ...previous, [name]: value }))
+    if (errors[name]) setErrors((previous) => ({ ...previous, [name]: undefined }))
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (event) => {
+    event.preventDefault()
     const validation = validate()
     if (Object.keys(validation).length > 0) {
       setErrors(validation)
-      setStatus({
-        type: 'error',
-        message: ERROR_MESSAGES.CONTACT_VALIDATION_ERROR.message,
-      })
+      setStatus({ type: 'error', message: ERROR_MESSAGES.CONTACT_VALIDATION_ERROR.message })
       return
     }
 
-    if (!config.apiUrl) {
-      setStatus({
-        type: 'error',
-        message: 'Contact endpoint is missing. Check your .env settings.',
-      })
+    if (!turnstile.token) {
+      setStatus({ type: 'error', message: verificationMessages[turnstile.state] || verificationMessages.error })
       return
     }
 
@@ -124,156 +147,90 @@ function ContactForm() {
     setStatus(null)
 
     try {
-      const payload = {
-        name: form.name,
-        email: form.email,
-        subject: form.subject,
-        message: form.message,
-        source: 'devlabstudios-contact-form',
-        turnstileToken: turnstile.token,
-      }
-
-      const requestInit = {
+      const response = await fetch(config.apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      }
-
-      const response = await fetch(config.apiUrl, requestInit)
-      if (!response.ok) {
-        throw new Error(`Form submission failed with status ${response.status}`)
-      }
-
-      setStatus({
-        type: 'success',
-        message: 'Message sent successfully. You should receive a confirmation email shortly.',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, source: 'devlabstudios-contact-form', turnstileToken: turnstile.token }),
       })
+      const responseBody = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        const messages = {
+          verification_expired: 'Verification expired. Please try again.',
+          verification_failed: "We couldn't verify the request. Please retry.",
+          verification_unavailable: 'Verification is temporarily unavailable. Please try again later.',
+        }
+        setStatus({ type: 'error', message: messages[responseBody.code] || ERROR_MESSAGES.CONTACT_SEND_ERROR.message })
+        turnstile.reset()
+        return
+      }
+
+      setStatus({ type: 'success', message: 'Message sent successfully. You should receive a confirmation email shortly.' })
       setForm(initialForm)
       setErrors({})
-    } catch (err) {
-      // User-safe error message
-      setStatus({
-        type: 'error',
-        message: ERROR_MESSAGES.CONTACT_SEND_ERROR.message,
-      })
-      if (import.meta.env.DEV) {
-        console.error('[Contact Form Error]', err)
-      }
+      turnstile.reset()
+    } catch (error) {
+      setStatus({ type: 'error', message: ERROR_MESSAGES.CONTACT_SEND_ERROR.message })
+      turnstile.reset()
+      if (import.meta.env.DEV) console.error('[Contact Form Error]', error)
     } finally {
       setIsSubmitting(false)
-      turnstile.reset()
     }
   }
 
+  const fieldClass = 'form-control min-h-12 px-4 py-3 placeholder:text-slate-500'
+  const errorProps = (name) => ({
+    'aria-invalid': Boolean(errors[name]),
+    'aria-describedby': errors[name] ? `${name}-error` : undefined,
+  })
+
   return (
-    <section className="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)] sm:p-8">
+    <section className="form-surface p-6 sm:p-8">
       <form className="space-y-5" onSubmit={handleSubmit} noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="name">
-              <AnimatedIcon icon={User} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />
-              Full Name
-            </label>
-            <input
-              id="name"
-              name="name"
-              type="text"
-              value={form.name}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-200/70 bg-white/90 px-4 py-3 text-brand-ink placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 transition"
-              placeholder="Your name"
-            />
-            {errors.name ? <p className="text-sm text-rose-700">{errors.name}</p> : null}
+            <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="name"><AnimatedIcon icon={User} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Full Name</label>
+            <input id="name" name="name" type="text" value={form.name} onChange={handleChange} className={fieldClass} placeholder="Your name" {...errorProps('name')} />
+            {errors.name ? <p id="name-error" className="text-sm text-rose-700">{errors.name}</p> : null}
           </div>
-
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="email">
-              <AnimatedIcon icon={Mail} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-slate-200/70 bg-white/90 px-4 py-3 text-brand-ink placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 transition"
-              placeholder="name@email.com"
-            />
-            {errors.email ? <p className="text-sm text-rose-700">{errors.email}</p> : null}
+            <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="email"><AnimatedIcon icon={Mail} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Email</label>
+            <input id="email" name="email" type="email" value={form.email} onChange={handleChange} className={fieldClass} placeholder="name@email.com" {...errorProps('email')} />
+            {errors.email ? <p id="email-error" className="text-sm text-rose-700">{errors.email}</p> : null}
           </div>
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="subject">
-            <AnimatedIcon icon={MessageSquare} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />
-            Subject
-          </label>
-          <input
-            id="subject"
-            name="subject"
-            type="text"
-            value={form.subject}
-            onChange={handleChange}
-            className="w-full rounded-xl border border-slate-200/70 bg-white/90 px-4 py-3 text-brand-ink placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 transition"
-            placeholder="Project inquiry, support, collaboration"
-          />
-          {errors.subject ? <p className="text-sm text-rose-700">{errors.subject}</p> : null}
+          <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="subject"><AnimatedIcon icon={MessageSquare} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Subject</label>
+          <input id="subject" name="subject" type="text" value={form.subject} onChange={handleChange} className={fieldClass} placeholder="Project inquiry, support, collaboration" {...errorProps('subject')} />
+          {errors.subject ? <p id="subject-error" className="text-sm text-rose-700">{errors.subject}</p> : null}
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="message">
-            <AnimatedIcon icon={MessageSquare} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />
-            Message
-          </label>
-          <textarea
-            id="message"
-            name="message"
-            rows="5"
-            value={form.message}
-            onChange={handleChange}
-            className="w-full rounded-xl border border-slate-200/70 bg-white/90 px-4 py-3 text-brand-ink placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 transition"
-            placeholder="Share context, goals, timelines, and success criteria."
-          />
-          {errors.message ? <p className="text-sm text-rose-700">{errors.message}</p> : null}
+          <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="message"><AnimatedIcon icon={MessageSquare} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Message</label>
+          <textarea id="message" name="message" rows="5" value={form.message} onChange={handleChange} className={fieldClass} placeholder="Share context, goals, timelines, and success criteria." {...errorProps('message')} />
+          {errors.message ? <p id="message-error" className="text-sm text-rose-700">{errors.message}</p> : null}
         </div>
 
-        <div ref={turnstile.containerRef} />
+        <div className="turnstile-shell">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-brand-ink"><ShieldCheck className="h-4 w-4 text-brand-teal" aria-hidden="true" />Secure verification</div>
+          <div ref={turnstile.containerRef} />
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-slate-600" aria-live="polite">{verificationMessages[turnstile.state]}</p>
+            {['expired', 'timeout', 'error'].includes(turnstile.state) ? <button type="button" onClick={turnstile.reset} className="text-xs font-semibold text-brand-teal underline-offset-2 hover:underline">Retry verification</button> : null}
+          </div>
+        </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <PrimaryButton type="submit" disabled={isSubmitting} className="px-6 py-3">
-            {isSubmitting ? (
-              <>
-                <span>Sending…</span>
-                <AnimatedIcon icon={Loader2} size={16} color="inherit" animationType="spin" ariaLabel={null} />
-              </>
-            ) : (
-              <>
-                <span>Send Message</span>
-                <AnimatedIcon icon={Send} size={16} color="inherit" animationType="hover-slide" ariaLabel={null} />
-              </>
-            )}
+          <PrimaryButton type="submit" disabled={isSubmitting || !siteKey} className="px-6">
+            {isSubmitting ? <><span>Sending…</span><AnimatedIcon icon={Loader2} size={16} color="inherit" animationType="spin" ariaLabel={null} /></> : <><span>Send Message</span><AnimatedIcon icon={Send} size={16} color="inherit" animationType="hover-slide" ariaLabel={null} /></>}
           </PrimaryButton>
-          <span className="text-sm text-slate-600">Responses will be routed via Zoho.</span>
+          <span className="text-sm text-slate-600">Responses are securely routed via Zoho.</span>
         </div>
 
         {status ? (
-          <div
-            className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold ${
-              status.type === 'success' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-700'
-            }`}
-            role="status"
-            aria-live="polite"
-          >
-            <AnimatedIcon
-              icon={status.type === 'success' ? Check : AlertCircle}
-              size={18}
-              color="inherit"
-              animationType={status.type === 'success' ? 'pulse' : 'none'}
-              ariaLabel={null}
-            />
+          <div className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold ${status.type === 'success' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`} role="status" aria-live="polite">
+            <AnimatedIcon icon={status.type === 'success' ? Check : AlertCircle} size={18} color="inherit" animationType={status.type === 'success' ? 'pulse' : 'none'} ariaLabel={null} />
             <span>{status.message}</span>
           </div>
         ) : null}

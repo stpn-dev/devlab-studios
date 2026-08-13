@@ -61,17 +61,12 @@ const faqs = [
 
 <Layout title="About DevLab Studios" seo={seo}>
   <div class="space-y-10">
-    <SectionHeader
-      title="About DevLab Studios"
-      subtitle="A software engineering and AI automation studio focused on real business workflows, reliable systems, and practical delivery."
-    />
-
-    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
+    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-12">
       <VectorField motif="fullstack" />
       <div class="relative z-10 grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div class="space-y-5">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Founded March 2, 2026</p>
-          <h1 class="text-4xl font-semibold leading-tight sm:text-5xl">
+          <p class="tech-kicker text-white/70">Studio Overview · Founded March 2, 2026</p>
+          <h1 class="max-w-3xl text-4xl font-semibold leading-[1.08] tracking-[-0.035em] sm:text-5xl">
             {heroHeading}
           </h1>
           <p class="max-w-2xl text-base leading-relaxed text-white/75 sm:text-lg">
@@ -89,19 +84,19 @@ const faqs = [
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2">
+        <dl class="grid gap-3 sm:grid-cols-2">
           {[
             { label: 'Focus', value: 'Full-stack + AI automation' },
             { label: 'Approach', value: 'Workflow-first delivery' },
             { label: 'Founder', value: 'Stephen Rey Agustinez' },
             { label: 'Availability', value: 'Remote-first worldwide' },
           ].map((item) => (
-            <div class="rounded-2xl border border-white/10 bg-white/10 p-5 backdrop-blur-sm">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-white/60">{item.label}</p>
-              <p class="mt-2 text-lg font-semibold">{item.value}</p>
+            <div class="rounded-2xl border border-white/10 bg-white/[0.07] p-5">
+              <dt class="text-xs font-semibold uppercase tracking-[0.14em] text-white/60">{item.label}</dt>
+              <dd class="mt-2 text-base font-semibold leading-snug sm:text-lg">{item.value}</dd>
             </div>
           ))}
-        </div>
+        </dl>
       </div>
     </section>
 
@@ -118,7 +113,7 @@ const faqs = [
 
       <div class="grid gap-4 sm:grid-cols-2">
         {principles.map((principle) => (
-          <div class="rounded-2xl bg-white/90 p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
+          <div class="surface-card p-5">
             <CheckCircle2 className="h-5 w-5 text-brand-teal" aria-hidden="true" />
             <p class="mt-3 text-sm font-semibold leading-relaxed text-brand-ink">{principle}</p>
           </div>
@@ -133,7 +128,7 @@ const faqs = [
       />
       <div class="grid gap-5 lg:grid-cols-3">
         {buildAreas.map((area) => (
-          <article class="rounded-[28px] bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.14)]">
+          <article class="surface-card p-6">
             <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
               <area.icon className="h-5 w-5" aria-hidden="true" />
             </div>
@@ -144,7 +139,7 @@ const faqs = [
       </div>
     </section>
 
-    <section class="rounded-[28px] bg-white/90 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)] ring-1 ring-slate-200 sm:p-8">
+    <section class="surface-card p-6 sm:p-8">
       <div class="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Founder Note</p>
@@ -160,7 +155,7 @@ const faqs = [
       <SectionHeader title="FAQ" subtitle="Common questions about how DevLab Studios works." />
       <div class="grid gap-4 lg:grid-cols-2">
         {faqs.map((faq) => (
-          <article class="rounded-2xl bg-white/92 p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
+          <article class="surface-card p-5">
             <div class="flex items-start gap-3">
               <Lightbulb className="mt-1 h-5 w-5 flex-shrink-0 text-brand-teal" aria-hidden="true" />
               <div>
@@ -173,7 +168,7 @@ const faqs = [
       </div>
     </section>
 
-    <section class="rounded-[28px] bg-gradient-to-r from-brand-mint/50 via-white to-[#f3efff] p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)] sm:p-8">
+    <section class="surface-card bg-[linear-gradient(120deg,#eeefff_0%,#fcfcff_62%)] p-6 sm:p-8">
       <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Next Step</p>
