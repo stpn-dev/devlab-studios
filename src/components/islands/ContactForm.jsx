@@ -106,12 +106,17 @@ const verificationMessages = {
 }
 
 function ContactForm({ siteKey = '' }) {
+  const [isHydrated, setIsHydrated] = useState(false)
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const turnstile = useTurnstile(siteKey)
   const config = useMemo(() => ({ apiUrl: import.meta.env.VITE_CONTACT_API_URL || '/api/contact' }), [])
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   const validate = () => {
     const nextErrors = {}
@@ -186,29 +191,29 @@ function ContactForm({ siteKey = '' }) {
 
   return (
     <section className="form-surface p-6 sm:p-8">
-      <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+      <form className="contact-form-flow" onSubmit={handleSubmit} noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="name"><AnimatedIcon icon={User} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Full Name</label>
-            <input id="name" name="name" type="text" value={form.name} onChange={handleChange} className={fieldClass} placeholder="Your name" {...errorProps('name')} />
+            <input id="name" name="name" type="text" value={form.name} onChange={handleChange} className={fieldClass} placeholder="Your name" disabled={!isHydrated} {...errorProps('name')} />
             {errors.name ? <p id="name-error" className="text-sm text-rose-700">{errors.name}</p> : null}
           </div>
           <div className="flex flex-col gap-2">
             <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="email"><AnimatedIcon icon={Mail} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Email</label>
-            <input id="email" name="email" type="email" value={form.email} onChange={handleChange} className={fieldClass} placeholder="name@email.com" {...errorProps('email')} />
+            <input id="email" name="email" type="email" value={form.email} onChange={handleChange} className={fieldClass} placeholder="name@email.com" disabled={!isHydrated} {...errorProps('email')} />
             {errors.email ? <p id="email-error" className="text-sm text-rose-700">{errors.email}</p> : null}
           </div>
         </div>
 
         <div className="flex flex-col gap-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="subject"><AnimatedIcon icon={MessageSquare} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Subject</label>
-          <input id="subject" name="subject" type="text" value={form.subject} onChange={handleChange} className={fieldClass} placeholder="Project inquiry, support, collaboration" {...errorProps('subject')} />
+          <input id="subject" name="subject" type="text" value={form.subject} onChange={handleChange} className={fieldClass} placeholder="Project inquiry, support, collaboration" disabled={!isHydrated} {...errorProps('subject')} />
           {errors.subject ? <p id="subject-error" className="text-sm text-rose-700">{errors.subject}</p> : null}
         </div>
 
         <div className="flex flex-col gap-2">
           <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="message"><AnimatedIcon icon={MessageSquare} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Message</label>
-          <textarea id="message" name="message" rows="5" value={form.message} onChange={handleChange} className={fieldClass} placeholder="Share context, goals, timelines, and success criteria." {...errorProps('message')} />
+          <textarea id="message" name="message" rows="5" value={form.message} onChange={handleChange} className={fieldClass} placeholder="Share context, goals, timelines, and success criteria." disabled={!isHydrated} {...errorProps('message')} />
           {errors.message ? <p id="message-error" className="text-sm text-rose-700">{errors.message}</p> : null}
         </div>
 
@@ -222,7 +227,7 @@ function ContactForm({ siteKey = '' }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <PrimaryButton type="submit" disabled={isSubmitting || !siteKey} className="px-6">
+          <PrimaryButton type="submit" disabled={!isHydrated || isSubmitting || !siteKey || !turnstile.token} className="px-6">
             {isSubmitting ? <><span>Sending…</span><AnimatedIcon icon={Loader2} size={16} color="inherit" animationType="spin" ariaLabel={null} /></> : <><span>Send Message</span><AnimatedIcon icon={Send} size={16} color="inherit" animationType="hover-slide" ariaLabel={null} /></>}
           </PrimaryButton>
           <span className="text-sm text-slate-600">Responses are securely routed via Zoho.</span>

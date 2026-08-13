@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 
+test.describe.configure({ timeout: 60_000 })
+
 const validForm = {
   name: 'Test User',
   email: 'test@example.com',
@@ -24,6 +26,7 @@ async function fillForm(page) {
 // attached its handler yet.
 async function gotoContact(page) {
   await page.goto('/contact')
+  await expect(page.getByText(/secure verification complete/i)).toBeVisible({ timeout: 30_000 })
 }
 
 test('submits successfully and shows a success message', async ({ page }) => {

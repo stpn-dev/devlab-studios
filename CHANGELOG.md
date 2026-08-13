@@ -51,6 +51,9 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Changed
+- Strengthened the lightweight static site-wide wavy dot mesh, carried a quieter mesh texture into shared card surfaces, added branded icons to footer connection links, improved spacing throughout the contact form flow, and prevented form interaction before React hydration and secure verification are ready.
+
 ## [1.4.0] - 2026-08-13
 
 ### Added
