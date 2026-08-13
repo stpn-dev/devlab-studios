@@ -61,7 +61,7 @@ function PersonalInfoCard({ aboutData, photo }) {
         </div>
 
         <a
-          href={aboutData.resumeLink || '/resume.pdf'}
+          href="/resume.pdf"
           target="_blank"
           rel="noreferrer"
           className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-brand-teal/20 bg-brand-mint/65 px-4 py-2.5 text-sm font-semibold text-brand-teal transition hover:border-brand-teal/35 hover:bg-brand-mint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50"

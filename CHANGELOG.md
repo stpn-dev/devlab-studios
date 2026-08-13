@@ -51,6 +51,11 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-08-13
+
+### Fixed
+- Enforced the canonical inline `/resume.pdf` destination on the Profile action so stale CMS content cannot restore the retired external résumé link.
+
 ## [1.4.1] - 2026-08-13
 
 ### Changed
