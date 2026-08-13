@@ -62,6 +62,7 @@ decided against that surface specifically:
 ### Changed
 - Repositioned Stephen consistently as a Full-Stack Developer & AI Automation Specialist across primary public copy, SEO, structured data, and CMS fallbacks.
 - Aligned the public shell, core route heroes, footer, CMS login/dashboard, and editor surfaces with the new visual system.
+- Made site settings merge partial CMS records with safe structural defaults so missing footer fields cannot remove navigation or social links.
 
 ## [1.3.1] - 2026-08-12
 

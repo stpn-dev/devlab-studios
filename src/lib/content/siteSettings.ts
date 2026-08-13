@@ -29,8 +29,20 @@ export async function loadSiteSettings(): Promise<SiteSettingsData> {
 
   try {
     const data = await getSiteSettingsContent(env.DB)
-    if (!data?.navigation?.length) return siteSettingsContent
-    return data
+    if (!data) return siteSettingsContent
+
+    const footer = (data.footer || {}) as SiteSettingsData['footer']
+    return {
+      navigation: data.navigation?.length ? data.navigation : siteSettingsContent.navigation,
+      ctas: { ...siteSettingsContent.ctas, ...(data.ctas || {}) },
+      footer: {
+        ...siteSettingsContent.footer,
+        ...footer,
+        quickLinks: footer.quickLinks?.length ? footer.quickLinks : siteSettingsContent.footer.quickLinks,
+        socialLinks: footer.socialLinks?.length ? footer.socialLinks : siteSettingsContent.footer.socialLinks,
+        legalLinks: footer.legalLinks?.length ? footer.legalLinks : siteSettingsContent.footer.legalLinks,
+      },
+    }
   } catch {
     return siteSettingsContent
   }
