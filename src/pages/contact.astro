@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro'
-import SectionHeader from '../components/SectionHeader.jsx'
 import ContactForm from '../components/islands/ContactForm.jsx'
+import VectorField from '../components/VectorField.astro'
 import { loadPageSeo } from '../lib/content/seo'
 
 const seo = await loadPageSeo('contact')
@@ -9,10 +9,16 @@ const seo = await loadPageSeo('contact')
 
 <Layout title="Contact — DevLab Studios" seo={seo}>
   <div class="space-y-8">
-    <SectionHeader
-      title="Contact Me"
-      subtitle="Share a software, website, integration, or automation need. I'll get back to you as soon as possible."
-    />
+    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
+      <VectorField motif="automation" />
+      <div class="relative z-10 max-w-3xl space-y-4">
+        <p class="tech-kicker">Start a Project</p>
+        <h1 class="text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Tell us where the workflow slows down.</h1>
+        <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
+          Share the interface, integration, data, or automation problem. DevLab Studios will respond with the clearest next step for the full system.
+        </p>
+      </div>
+    </section>
 
     <ContactForm client:load />
   </div>

@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PrimaryButton from '../components/PrimaryButton.jsx'
+import VectorField from '../components/VectorField.astro'
 import { MessageSquare, Briefcase } from '../components/icons/icons.js'
 import { loadPageSeo } from '../lib/content/seo'
 import { loadCaseStudies } from '../lib/content/caseStudies'
@@ -12,11 +13,12 @@ const caseStudies = await loadCaseStudies()
 
 <Layout title="Work — DevLab Studios" seo={seo}>
   <div class="space-y-10">
-    <section class="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10">
-      <div class="space-y-5">
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Work</p>
-        <h1 class="text-4xl font-semibold leading-tight text-brand-ink sm:text-5xl">In-depth case studies of real project work.</h1>
-        <p class="max-w-3xl text-base leading-relaxed text-slate-700 sm:text-lg">
+    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
+      <VectorField motif="data" />
+      <div class="relative z-10 space-y-5">
+        <p class="tech-kicker">Selected Work</p>
+        <h1 class="text-4xl font-semibold leading-tight text-white sm:text-5xl">Full-stack builds and automation systems, explained end to end.</h1>
+        <p class="max-w-3xl text-base leading-relaxed text-slate-300 sm:text-lg">
           Deeper write-ups of specific engagements — the problem, constraints, architecture, and outcomes — alongside the project screenshots already shown on the Profile page.
         </p>
         <div class="flex flex-wrap gap-3">

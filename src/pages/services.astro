@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PrimaryButton from '../components/PrimaryButton.jsx'
+import VectorField from '../components/VectorField.astro'
 import * as Icons from '../components/icons/icons.js'
 import { ArrowRight, Briefcase, MessageSquare, Shield } from '../components/icons/icons.js'
 import { loadPageSeo } from '../lib/content/seo'
@@ -25,20 +26,21 @@ const projectItems = await loadProjects()
 
 <Layout title="Services — DevLab Studios" seo={seo}>
   <div class="space-y-10">
-    <section class="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10">
-      <div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
+      <VectorField motif="automation" />
+      <div class="relative z-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <div class="space-y-5">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Services as solutions</p>
-          <h1 class="text-4xl font-semibold leading-tight text-brand-ink sm:text-5xl">
-            Business automation, AI agents, and web systems built around real operations.
+          <p class="tech-kicker">Services as systems</p>
+          <h1 class="text-4xl font-semibold leading-tight text-white sm:text-5xl">
+            Full-stack products and AI automation built around real operations.
           </h1>
-          <p class="max-w-3xl text-base leading-relaxed text-slate-700 sm:text-lg">
-            DevLab Studios groups services by business problem: missed responses, messy intake, manual operations, repeated content work, and websites that need clearer conversion paths.
+          <p class="max-w-3xl text-base leading-relaxed text-slate-300 sm:text-lg">
+            From the interface customers see to the APIs, data, and automated workflows behind it, every layer is designed as one maintainable system.
           </p>
           <div class="flex flex-wrap gap-3">
             <PrimaryButton to="/contact">
               <MessageSquare size={16} />
-              Book a Consultation
+              Start a Project
             </PrimaryButton>
             <PrimaryButton to="/profile" variant="secondary">
               <Briefcase size={16} />
@@ -52,15 +54,15 @@ const projectItems = await loadProjects()
             const Icon = resolveIcon(step.icon)
 
             return (
-              <article class="rounded-2xl bg-white/92 p-5 shadow-[0_12px_28px_rgba(48,28,114,0.10)] ring-1 ring-slate-200/70">
+              <article class="rounded-2xl border border-white/10 bg-white/[0.07] p-5 shadow-[0_12px_28px_rgba(4,8,24,0.18)] backdrop-blur-md">
                 <div class="flex items-start gap-4">
                   <div class="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </div>
                   <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Step {String(index + 1).padStart(2, '0')}</p>
-                    <h3 class="mt-1 font-semibold text-brand-ink">{step.title}</h3>
-                    <p class="mt-1 text-sm leading-relaxed text-slate-600">{step.description}</p>
+                    <h3 class="mt-1 font-semibold text-white">{step.title}</h3>
+                    <p class="mt-1 text-sm leading-relaxed text-slate-300">{step.description}</p>
                   </div>
                 </div>
               </article>

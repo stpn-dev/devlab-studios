@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+export const iconMotifSchema = z.enum(['fullstack', 'automation', 'data', 'editorial'])
+export const ICON_MOTIFS = iconMotifSchema.options
+
 /**
  * The constrained set of page-composition blocks approved for use on
  * block-composed singleton pages (Home, About, Process). Editors can
@@ -16,6 +19,9 @@ const heroBlockSchema = z.object({
     primaryCta: z.object({ label: z.string(), href: z.string() }).optional(),
     secondaryCta: z.object({ label: z.string(), href: z.string() }).optional(),
     imageUrl: z.string().optional().default(''),
+    variant: z.enum(['system', 'editorial', 'compact']).optional().default('editorial'),
+    iconMotif: iconMotifSchema.optional().default('fullstack'),
+    signals: z.array(z.string()).optional().default([]),
   }),
 })
 

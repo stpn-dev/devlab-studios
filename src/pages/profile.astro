@@ -1,6 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro'
-import SectionHeader from '../components/SectionHeader.jsx'
+import VectorField from '../components/VectorField.astro'
 import PersonalInfoCard from '../components/PersonalInfoCard.jsx'
 import ToolsMarquee from '../components/ui/ToolsMarquee.jsx'
 import PortfolioGallery from '../components/islands/PortfolioGallery.jsx'
@@ -25,10 +25,16 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
 
 <Layout title="Profile — DevLab Studios" seo={seo}>
   <div class="space-y-10">
-    <SectionHeader
-      title="Profile"
-      subtitle="Founder background, technical experience, and selected website and automation projects."
-    />
+    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8">
+      <VectorField motif="fullstack" />
+      <div class="relative z-10 max-w-3xl space-y-3">
+        <p class="tech-kicker">Founder Profile</p>
+        <h1 class="text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Full-stack engineering with an automation mindset.</h1>
+        <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
+          Stephen Rey Agustinez builds across interfaces, services, APIs, data, and AI-enabled workflows—then connects every layer into a system people can actually operate.
+        </p>
+      </div>
+    </section>
 
     <div class="page-spotlight" data-page-spotlight aria-hidden="true"></div>
 

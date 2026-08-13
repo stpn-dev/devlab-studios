@@ -13,15 +13,15 @@ interface Props {
 
 const { siteSettings, currentPath } = Astro.props
 const navLinks = (siteSettings.navigation || []).map((item) => ({ label: item.label, href: item.href }))
-const desktopContactLabel = siteSettings.ctas?.navbarContactLabel || 'Contact Me'
+const desktopContactLabel = siteSettings.ctas?.navbarContactLabel || 'Start a Project'
 const mobileContactLabel = siteSettings.ctas?.mobileContactLabel || desktopContactLabel
-const linkBase = 'px-3 py-2 text-sm font-semibold transition hover:text-brand-ink focus-visible:outline-none'
+const linkBase = 'px-3 py-2 text-sm font-semibold transition hover:text-white focus-visible:outline-none'
 ---
 
 <header class="fixed inset-x-0 top-0 z-40 pt-[env(safe-area-inset-top,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
   <div class="w-full px-4 mx-auto max-w-7xl sm:px-6 lg:px-6">
-    <div class="mt-4 flex items-center justify-between rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-[0_12px_34px_rgba(12,26,51,0.08)] backdrop-blur-md">
-      <a href="/" class="flex items-center gap-3 text-lg font-bold tracking-tight text-brand-teal">
+    <div class="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-[#080d21]/92 px-4 py-3 text-white shadow-[0_18px_44px_rgba(4,8,24,0.28)] backdrop-blur-xl">
+      <a href="/" class="flex items-center gap-3 text-lg font-bold tracking-tight text-white">
         <img
           id="navbar-logo"
           src={brandingAssets.logoOnlyUrl}
@@ -35,11 +35,11 @@ const linkBase = 'px-3 py-2 text-sm font-semibold transition hover:text-brand-in
         <span>DevLab Studios</span>
       </a>
 
-      <nav class="hidden items-center gap-2 rounded-full border border-slate-200 bg-slate-50/80 px-2 py-1 md:flex">
+      <nav class="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 md:flex">
         {navLinks.map((item) => (
           <a
             href={item.href}
-            class={`${linkBase} ${currentPath === item.href ? 'text-brand-ink underline decoration-2 decoration-brand-orange underline-offset-8' : 'text-slate-600'}`}
+            class={`${linkBase} ${currentPath === item.href ? 'text-white underline decoration-2 decoration-[#8d69ff] underline-offset-8' : 'text-slate-300'}`}
           >
             {item.label}
           </a>
@@ -69,12 +69,12 @@ const linkBase = 'px-3 py-2 text-sm font-semibold transition hover:text-brand-in
       </button>
     </div>
 
-    <div id="mobile-navigation" class="mt-2 hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_10px_25px_rgba(12,26,51,0.08)] md:hidden">
+    <div id="mobile-navigation" class="mt-2 hidden rounded-2xl border border-white/10 bg-[#080d21]/98 p-3 text-white shadow-[0_18px_44px_rgba(4,8,24,0.28)] md:hidden">
       <nav class="flex flex-col gap-1">
         {navLinks.map((item) => (
           <a
             href={item.href}
-            class={`block rounded-xl px-3 py-3 text-sm font-semibold transition ${currentPath === item.href ? 'bg-brand-mint text-brand-ink' : 'text-slate-600 hover:bg-slate-100'}`}
+            class={`block rounded-xl px-3 py-3 text-sm font-semibold transition ${currentPath === item.href ? 'bg-white/10 text-white' : 'text-slate-300 hover:bg-white/[0.06]'}`}
           >
             {item.label}
           </a>

@@ -27,9 +27,12 @@ export const BLOCK_FIELDS = {
     { name: 'eyebrow', label: 'Eyebrow', type: 'text' },
     { name: 'heading', label: 'Heading', type: 'text', required: true },
     { name: 'subheading', label: 'Subheading', type: 'textarea' },
+    { name: 'variant', label: 'Hero Variant', type: 'select', options: [{ value: 'system', label: 'Living System' }, { value: 'editorial', label: 'Editorial' }, { value: 'compact', label: 'Compact' }] },
+    { name: 'iconMotif', label: 'Vector Motif', type: 'select', options: [{ value: 'fullstack', label: 'Full-Stack' }, { value: 'automation', label: 'Automation' }, { value: 'data', label: 'Data & Cloud' }, { value: 'editorial', label: 'Editorial' }] },
+    { name: 'signals', label: 'System Signals', type: 'stringList' },
     { name: 'imageUrl', label: 'Image URL', type: 'url' },
-    { name: 'primaryCta', label: 'Primary CTA', type: 'json', help: '{ "label": "...", "href": "..." }' },
-    { name: 'secondaryCta', label: 'Secondary CTA', type: 'json', help: '{ "label": "...", "href": "..." }' },
+    { name: 'primaryCta', label: 'Primary CTA', type: 'cta' },
+    { name: 'secondaryCta', label: 'Secondary CTA', type: 'cta' },
   ],
   richText: [
     { name: 'heading', label: 'Heading', type: 'text' },
@@ -48,7 +51,7 @@ export const BLOCK_FIELDS = {
   ],
   servicesGrid: [
     { name: 'heading', label: 'Heading', type: 'text' },
-    { name: 'serviceIds', label: 'Service IDs', type: 'json', help: '["service-id-1", "service-id-2"]' },
+    { name: 'serviceIds', label: 'Service IDs', type: 'stringList' },
   ],
   featuredProjects: [
     { name: 'heading', label: 'Heading', type: 'text' },
@@ -77,7 +80,7 @@ export const BLOCK_FIELDS = {
   cta: [
     { name: 'heading', label: 'Heading', type: 'text', required: true },
     { name: 'body', label: 'Body', type: 'textarea' },
-    { name: 'primaryCta', label: 'Primary CTA', type: 'json', required: true, help: '{ "label": "...", "href": "..." }' },
+    { name: 'primaryCta', label: 'Primary CTA', type: 'cta', required: true },
   ],
 }
 
@@ -86,8 +89,10 @@ export const PAGE_BLOCK_TYPES = Object.keys(BLOCK_LABELS)
 export function createEmptyBlockProps(type) {
   const empty = {}
   for (const field of BLOCK_FIELDS[type] || []) {
-    if (field.type === 'json') empty[field.name] = field.name.endsWith('Cta') ? { label: '', href: '' } : []
+    if (field.type === 'json' || field.type === 'stringList') empty[field.name] = []
+    else if (field.type === 'cta') empty[field.name] = { label: '', href: '' }
     else if (field.type === 'number') empty[field.name] = 3
+    else if (field.type === 'select') empty[field.name] = field.options?.[0]?.value || ''
     else empty[field.name] = ''
   }
   return empty

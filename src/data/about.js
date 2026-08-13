@@ -3,14 +3,14 @@
 
 const aboutData = {
   name: "Stephen Rey G. Agustinez",
-  role: "AI Automation Architect & Software Engineer",
+  role: "Full-Stack Developer & AI Automation Specialist",
   location: "Pusok, Lapu-Lapu City, Cebu, 6015",
   email: "stpnrey.agustinez@gmail.com",
   phone: "+63 926 237 2965",
   dateOfBirth: "December 4, 2000",
-  resumeLink: "https://stpn120400.github.io/stpn-resume/",
+  resumeLink: "/resume.pdf",
   about:
-    "AI Automation Architect and full-stack developer specializing in n8n workflow architecture, AI agents, and REST API integrations. I build end-to-end systems that validate data, apply business rules, connect third-party platforms, and route high-value cases for human review — with a full-stack foundation in React, Java, Spring Boot, and SQL.",
+    "Full-stack developer and AI automation specialist building end-to-end systems across React and Astro interfaces, Java and Laravel services, REST APIs, SQL-backed data flows, n8n workflows, and AI agents. I connect every layer from customer experience to operational handoff so systems remain useful, reliable, and maintainable.",
   education: [
     {
       program: "Bachelor of Science in Computer Engineering",

@@ -94,9 +94,14 @@ function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-500">An overview of your content, collections, and recent activity.</p>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#080d21] via-[#111735] to-[#251665] p-6 text-white shadow-xl">
+        <div className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full border border-white/10" aria-hidden="true" />
+        <div className="pointer-events-none absolute right-16 top-8 h-24 w-24 rounded-full bg-violet-500/20 blur-3xl" aria-hidden="true" />
+        <div className="relative">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-200">Content operations</p>
+          <h1 className="mt-2 text-2xl font-semibold">Dashboard</h1>
+          <p className="mt-1 text-sm text-slate-300">An overview of your content, collections, and recent activity.</p>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

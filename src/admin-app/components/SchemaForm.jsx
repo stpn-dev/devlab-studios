@@ -2,6 +2,30 @@ import { useState } from 'react'
 
 const inputClass = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500'
 
+function StringListField({ fieldId, value = [], onChange }) {
+  const items = Array.isArray(value) ? value : []
+  return (
+    <div className="space-y-2">
+      {items.map((item, index) => (
+        <div key={`${fieldId}-${index}`} className="flex gap-2">
+          <input className={inputClass} value={item} onChange={(e) => onChange(items.map((current, i) => i === index ? e.target.value : current))} />
+          <button type="button" onClick={() => onChange(items.filter((_, i) => i !== index))} className="rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-600 hover:bg-rose-50">Remove</button>
+        </div>
+      ))}
+      <button type="button" onClick={() => onChange([...items, ''])} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Add item</button>
+    </div>
+  )
+}
+
+function CtaField({ fieldId, value = {}, onChange }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      <input id={`${fieldId}-label`} aria-label="CTA label" className={inputClass} placeholder="Button label" value={value?.label || ''} onChange={(e) => onChange({ ...value, label: e.target.value })} />
+      <input id={`${fieldId}-href`} aria-label="CTA destination" className={inputClass} placeholder="/destination" value={value?.href || ''} onChange={(e) => onChange({ ...value, href: e.target.value })} />
+    </div>
+  )
+}
+
 /**
  * Escape hatch for nested array/object props (e.g. a block's stats.items
  * or imageGallery.images) that don't have a dedicated widget yet — edits
@@ -93,6 +117,14 @@ function Field({ field, fieldId, value, onChange }) {
     return <JsonField fieldId={fieldId} value={value} onChange={onChange} />
   }
 
+  if (field.type === 'stringList') {
+    return <StringListField fieldId={fieldId} value={value} onChange={onChange} />
+  }
+
+  if (field.type === 'cta') {
+    return <CtaField fieldId={fieldId} value={value} onChange={onChange} />
+  }
+
   return <input {...commonProps} type={field.type === 'url' ? 'url' : 'text'} value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
 }
 
@@ -118,7 +150,7 @@ function SchemaForm({ fields, value, onChange, idPrefix = 'form' }) {
       {fields.map((field) => {
         const fieldId = `${idPrefix}-${field.name}`
         return (
-          <div key={field.name} className={field.type === 'textarea' || field.type === 'json' ? 'flex flex-col gap-1.5 sm:col-span-2' : 'flex flex-col gap-1.5'}>
+          <div key={field.name} className={field.type === 'textarea' || field.type === 'json' || field.type === 'stringList' || field.type === 'cta' ? 'flex flex-col gap-1.5 sm:col-span-2' : 'flex flex-col gap-1.5'}>
             <label htmlFor={fieldId} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               {field.label}
               {field.required ? <span className="text-rose-600">*</span> : null}

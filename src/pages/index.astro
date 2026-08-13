@@ -4,15 +4,24 @@ import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PrimaryButton from '../components/PrimaryButton.jsx'
 import ServiceGraphic from '../components/ServiceGraphic.jsx'
-import { ArrowRight, Briefcase, CheckCircle2, Clock, Code2, Download, Lightbulb, MessageSquare, Search, Settings, TrendingUp, Wrench, Zap } from '../components/icons/icons.js'
-import resumePdf from '../assets/documents/Stephen_Rey_Agustinez_Resume.pdf'
-import dataVectorPng from '../assets/vectors/free/data.png'
+import VectorField from '../components/VectorField.astro'
+import LivingSystems from '../components/LivingSystems.astro'
+import BlockRenderer from '../components/blocks/BlockRenderer.astro'
+import { ArrowRight, Briefcase, CheckCircle2, Clock, Code2, Lightbulb, MessageSquare, Search, Settings, TrendingUp, Wrench, Zap } from '../components/icons/icons.js'
 import chatVectorPng from '../assets/vectors/free/chat.png'
 import syncVectorPng from '../assets/vectors/free/sync.png'
 import { getPersonSchema, getWebsiteSchema } from '../config/schema.js'
 import { loadPageSeo } from '../lib/content/seo'
+import { loadPage } from '../lib/content/pages'
 
 const seo = await loadPageSeo('home')
+const homePage = await loadPage('home')
+const cmsHero = homePage?.blocks.find((block) => block.type === 'hero')?.props || {}
+const heroEyebrow = String(cmsHero.eyebrow || 'Full-Stack Developer & AI Automation Specialist')
+const heroHeading = String(cmsHero.heading || 'From first click to final handoff, build the whole system to move.')
+const heroSubheading = String(cmsHero.subheading || 'DevLab Studios connects polished web experiences, dependable APIs, structured data, and AI-powered automation into one clear operating flow.')
+const heroPrimary = (cmsHero.primaryCta as { label?: string; href?: string } | undefined) || { label: 'Start a Project', href: '/contact' }
+const heroSecondary = (cmsHero.secondaryCta as { label?: string; href?: string } | undefined) || { label: 'View Profile', href: '/profile' }
 
 const workAreas = [
   {
@@ -31,8 +40,8 @@ const workAreas = [
     icon: Settings,
   },
   {
-    title: 'Backend and full-stack delivery',
-    description: 'Java, Spring Boot, Laravel, REST APIs, SQL-backed systems, and React or Next.js interfaces that connect product logic with operations.',
+    title: 'Full-stack product delivery',
+    description: 'React and Astro interfaces connected to Java, Spring Boot, Laravel, REST APIs, and SQL-backed systems.',
     icon: ArrowRight,
   },
 ]
@@ -79,9 +88,9 @@ const services = [
     visualNote: 'Custom interfaces built around team actions and operational needs.',
   },
   {
-    title: 'Backend API Support',
-    summary: 'Backend implementation support for business applications that need secure data flow, integrations, and maintainable services.',
-    deliverables: ['Java or Laravel service work', 'REST API integration and structured payload handling', 'Data modeling and handoff-ready documentation'],
+    title: 'Full-Stack & API Systems',
+    summary: 'End-to-end applications that connect clear interfaces with secure services, structured data, and maintainable integrations.',
+    deliverables: ['React or Astro interface delivery', 'Java, Spring Boot, or Laravel services', 'REST APIs, SQL data models, and deployment support'],
     icon: ArrowRight,
     imageLabel: 'Backend services and API delivery',
     variant: 'backend',
@@ -156,67 +165,54 @@ const processSteps = [
 const jsonLd = [getPersonSchema(), getWebsiteSchema()]
 ---
 
-<Layout title="DevLab Studios — Software, Automation, and Web Systems" seo={seo} jsonLd={jsonLd}>
+<Layout title="DevLab Studios — Full-Stack Development & AI Automation" seo={seo} jsonLd={jsonLd}>
   <div class="space-y-12">
-    <section class="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-brand-mint/55 via-white to-indigo-50/70 p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-10 lg:min-h-[34rem]">
-      <div class="absolute inset-0 bg-gradient-to-br from-brand-mint/60 via-white to-indigo-50/65" aria-hidden="true"></div>
-      <div class="absolute left-8 top-10 h-28 w-32 bg-[radial-gradient(circle,rgba(122,0,255,0.25)_1px,transparent_1px)] bg-[length:12px_12px] opacity-25" aria-hidden="true"></div>
-      <div class="absolute bottom-8 right-8 h-32 w-36 bg-[radial-gradient(circle,rgba(26,22,255,0.25)_1px,transparent_1px)] bg-[length:12px_12px] opacity-20" aria-hidden="true"></div>
-      <div class="grid items-center gap-8 lg:min-h-[29rem] lg:grid-cols-12">
-        <div class="relative z-10 space-y-6 lg:col-span-7 lg:self-center xl:col-span-7">
-          <div class="inline-flex items-center gap-2 rounded-full border border-brand-teal/25 bg-brand-mint px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-brand-teal">
-            Software, Automation, and Web Systems
-          </div>
-          <div class="space-y-3">
-            <h1 class="text-4xl font-semibold leading-tight text-brand-ink sm:text-5xl">
-              Build the systems behind faster operations, cleaner data, and better customer flow.
+    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-9 lg:min-h-[39rem] lg:p-12">
+      <VectorField motif="fullstack" />
+      <div class="relative z-10 grid items-center gap-9 lg:min-h-[33rem] lg:grid-cols-[1.02fr_0.98fr]">
+        <div class="space-y-7">
+          <p class="tech-kicker">{heroEyebrow}</p>
+          <div class="space-y-4">
+            <h1 class="max-w-3xl text-4xl font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl lg:text-[3.65rem]">
+              {heroHeading}
             </h1>
-            <p class="text-lg text-slate-600 sm:text-xl">
-              We help businesses launch conversion-focused websites, backend integrations, and automation systems that answer faster, capture better data, and keep teams focused on revenue-driving work.
+            <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
+              {heroSubheading}
             </p>
           </div>
 
           <div class="flex flex-wrap gap-3">
-            <a
-              href={resumePdf}
-              download="Stephen-Rey-Agustinez-Resume.pdf"
-              class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-brand-ink transition duration-200 hover:border-brand-teal/50 hover:text-brand-teal hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-              aria-label="Download resume as PDF"
-            >
-              <Download className="w-4 h-4" aria-hidden="true" />
-              Download Resume
-            </a>
-            <PrimaryButton to="/contact" variant="primary">
-              Book a Consultation
+            <PrimaryButton to={heroPrimary.href || '/contact'} variant="primary" showIcon>
+              {heroPrimary.label || 'Start a Project'}
+            </PrimaryButton>
+            <PrimaryButton to={heroSecondary.href || '/profile'} variant="secondary">
+              {heroSecondary.label || 'View Profile'}
             </PrimaryButton>
           </div>
 
-          <div class="flex flex-wrap gap-3 text-sm text-slate-600">
-            <span class="badge-pill">Available for part-time and full-time engagements</span>
-            <span class="badge-pill">Based in Asia/Manila (GMT+8) - Remote-first</span>
+          <div class="grid gap-3 border-t border-white/10 pt-5 sm:grid-cols-3">
+            {[
+              ['Interface', 'React + Astro'],
+              ['Engineering', 'Java + Laravel'],
+              ['Automation', 'n8n + Make'],
+            ].map(([label, value]) => (
+              <div>
+                <p class="text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+                <p class="mt-1 text-sm font-semibold text-slate-200">{value}</p>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div class="relative z-10 lg:col-span-5 lg:self-center xl:col-span-5 xl:pl-2">
-          <div class="overflow-hidden rounded-2xl bg-white/88 p-2 shadow-[0_14px_32px_rgba(47,28,110,0.14)]">
-            <Image
-              src={dataVectorPng}
-              alt="Data systems workflow illustration"
-              class="h-auto w-full rounded-xl object-contain"
-              loading="eager"
-              fetchpriority="high"
-              decoding="async"
-            />
-          </div>
-        </div>
+        <LivingSystems />
       </div>
     </section>
 
     <section class="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
       <div class="space-y-6">
         <SectionHeader
-          title="What we work on"
-          subtitle="Built from real delivery experience across websites, lead systems, and business process automation."
+          title="One system, every layer"
+          subtitle="Full-stack delivery across customer experience, application logic, data, and the automation that keeps work moving."
         />
         <div class="grid gap-4">
           {workAreas.map((item) => (
@@ -418,5 +414,9 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
         </div>
       </div>
     </section>
+
+    {homePage?.blocks?.some((block) => block.type !== 'hero') ? (
+      <BlockRenderer blocks={homePage.blocks.filter((block) => block.type !== 'hero')} />
+    ) : null}
   </div>
 </Layout>

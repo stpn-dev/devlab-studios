@@ -51,6 +51,18 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-13
+
+### Added
+- Added a cinematic dark/light public design system with reusable full-stack, data, editorial, and automation vector motifs.
+- Added a living-systems homepage hero that maps the customer journey across interface, API, data, AI, automation, and human handoff layers.
+- Added backward-compatible CMS hero presentation fields, complete page-block rendering, repeatable CTA/signal controls, and a mobile admin navigation drawer.
+- Added the stable `/resume.pdf` route and Profile-only `View Resume` action while preserving the approved ATS resume byte-for-byte.
+
+### Changed
+- Repositioned Stephen consistently as a Full-Stack Developer & AI Automation Specialist across primary public copy, SEO, structured data, and CMS fallbacks.
+- Aligned the public shell, core route heroes, footer, CMS login/dashboard, and editor surfaces with the new visual system.
+
 ## [1.3.1] - 2026-08-12
 
 CMS seed and navigation infrastructure fixes, surfaced by a whole-site audit

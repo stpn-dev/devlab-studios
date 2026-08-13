@@ -1,16 +1,16 @@
 import { test, expect } from '@playwright/test'
 
 const pages = [
-  { path: '/', heading: 'Build the systems behind faster operations' },
+  { path: '/', heading: 'From first click to final handoff' },
   { path: '/about', heading: 'Systems for clearer offers' },
-  { path: '/services', heading: 'Business automation, AI agents, and web systems' },
-  { path: '/profile', heading: 'Profile' },
+  { path: '/services', heading: 'Full-stack products and AI automation' },
+  { path: '/profile', heading: 'Full-stack engineering with an automation mindset' },
   { path: '/insights', heading: 'Guides, AI updates, and operational notes' },
   { path: '/process', heading: 'A four-phase delivery model' },
   { path: '/privacy', heading: 'Privacy Policy' },
   { path: '/terms', heading: 'Terms of Service' },
-  { path: '/work', heading: 'In-depth case studies' },
-  { path: '/contact', heading: 'Contact Me' },
+  { path: '/work', heading: 'Full-stack builds and automation systems' },
+  { path: '/contact', heading: 'Tell us where the workflow slows down' },
   { path: '/landing-sample-react', heading: 'A Different Look' },
   { path: '/landing-sample-html', heading: 'Editorial Minimal Landing Page' },
   { path: '/landing-sample-fullstack', heading: 'Operations Dashboard Website' },
@@ -61,6 +61,28 @@ test('footer has real links to Privacy and Terms', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy')
   await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '/terms')
+})
+
+test('resume is available from Profile only and opens inline', async ({ page, request }) => {
+  await page.goto('/')
+  await expect(page.getByRole('link', { name: /resume/i })).toHaveCount(0)
+
+  await page.goto('/profile')
+  const resumeLink = page.getByRole('link', { name: 'View Resume' })
+  await expect(resumeLink).toHaveAttribute('href', '/resume.pdf')
+  await expect(resumeLink).toHaveAttribute('target', '_blank')
+  await expect(resumeLink).not.toHaveAttribute('download', /.*/)
+
+  const response = await request.get('/resume.pdf')
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-type']).toContain('application/pdf')
+  expect(response.headers()['content-disposition'] || '').not.toContain('attachment')
+})
+
+test('decorative vector motifs stay out of the accessibility tree', async ({ page }) => {
+  await page.goto('/')
+  const fields = page.locator('.vector-field')
+  await expect(fields.first()).toHaveAttribute('aria-hidden', 'true')
 })
 
 test('security headers apply to real, server-rendered responses, not just static assets', async ({ request }) => {

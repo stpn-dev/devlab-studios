@@ -30,6 +30,10 @@ INSERT INTO pages (id, slug, title, status, created_at, updated_at) VALUES
   ('page-profile', 'profile', 'Profile', 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('page-contact', 'contact', 'Contact', 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
+INSERT INTO page_sections (id, page_id, section_key, section_type, title, content_json, sort_order, status, created_at, updated_at) VALUES
+  ('ui-home-hero', 'page-home', 'hero', 'hero', 'Home hero', '{"eyebrow":"Full-Stack Developer & AI Automation Specialist","heading":"From first click to final handoff, build the whole system to move.","subheading":"DevLab Studios connects polished web experiences, dependable APIs, structured data, and AI-powered automation into one clear operating flow.","variant":"system","iconMotif":"fullstack","signals":["React + Astro","Java + Laravel","n8n + Make"],"primaryCta":{"label":"Start a Project","href":"/contact"},"secondaryCta":{"label":"View Profile","href":"/profile"}}', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('ui-about-hero', 'page-about', 'hero', 'hero', 'About hero', '{"eyebrow":"Founded March 2, 2026","heading":"Systems for clearer offers, faster operations, and cleaner handoffs.","subheading":"DevLab Studios helps businesses turn messy workflows into complete digital systems—customer-facing interfaces, dependable services, structured data, and automation that keeps work moving.","variant":"editorial","iconMotif":"fullstack","signals":[],"primaryCta":{"label":"View Services","href":"/services"},"secondaryCta":{"label":"Founder Profile","href":"/profile"}}', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+
 INSERT INTO service_groups (
   id, eyebrow, title, description, icon, capabilities, project_ids, sort_order, status, created_at, updated_at
 ) VALUES
@@ -550,11 +554,11 @@ INSERT INTO workflow_items (
 INSERT INTO navigation_items (
   id, label, href, sort_order, status, created_at, updated_at
 ) VALUES
-  ('nav-about', 'About', '/about', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('nav-services', 'Services', '/services', 20, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('nav-process', 'Process', '/process', 25, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('nav-resources', 'Resources', '/insights', 30, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('nav-profile', 'Profile', '/profile', 40, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+  ('nav-services', 'Services', '/services', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('nav-work', 'Work', '/work', 20, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('nav-process', 'Process', '/process', 30, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('nav-resources', 'Insights', '/insights', 40, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('nav-profile', 'Profile', '/profile', 50, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT INTO seo_metadata (
   id, page_slug, meta_title, meta_description, meta_keywords, canonical_url, og_title, og_description, og_image, twitter_title, twitter_description, twitter_image, created_at, updated_at
@@ -562,16 +566,16 @@ INSERT INTO seo_metadata (
   (
     'seo-home',
     'home',
-    'Devlab Studios - Software Engineer & AI Automation Specialist',
-    'Devlab Studios by Stephen Rey Agustinez - software engineer and AI automation specialist building backend systems, conversion-focused websites, API integrations, and workflow automation for modern businesses worldwide.',
+    'DevLab Studios - Full-Stack Developer & AI Automation Specialist',
+    'DevLab Studios by Stephen Rey Agustinez - full-stack development, conversion-focused web experiences, APIs, data systems, and AI automation for modern businesses worldwide.',
     'Stephen Agustinez, Stephen Rey Agustinez, Devlab Studios, software engineer, AI automation specialist, backend developer, workflow automation, Spring Boot, Laravel, React developer, Next.js developer, API integrations, business automation',
     'https://www.devlabstudios.com/',
-    'Devlab Studios - Software Engineer & AI Automation Specialist',
-    'Devlab Studios - software engineering, conversion-focused websites, backend systems, and workflow automation for modern businesses.',
-    'https://www.devlabstudios.com/devlabstudios-logo-only.png',
-    'Devlab Studios - Software Engineer & AI Automation Specialist',
+    'DevLab Studios - Full-Stack Development & AI Automation',
+    'DevLab Studios connects web interfaces, backend services, structured data, and AI automation into complete business systems.',
+    'https://www.devlabstudios.com/og.png',
+    'DevLab Studios - Full-Stack Development & AI Automation',
     'Devlab Studios - software engineering, websites, backend integrations, and workflow automation for modern businesses.',
-    'https://www.devlabstudios.com/devlabstudios-logo-only.png',
+    'https://www.devlabstudios.com/og.png',
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   ),
@@ -669,12 +673,12 @@ INSERT INTO site_settings (key, value_json, updated_at) VALUES
   ),
   (
     'profile_about',
-    '{"name":"Stephen Rey G. Agustinez","role":"AI Automation Architect & Software Engineer","location":"Pusok, Lapu-Lapu City, Cebu, 6015","email":"stpnrey.agustinez@gmail.com","phone":"+63 926 237 2965","dateOfBirth":"December 4, 2000","resumeLink":"https://stpn120400.github.io/stpn-resume/","about":"AI Automation Architect and full-stack developer specializing in n8n workflow architecture, AI agents, and REST API integrations. I build end-to-end systems that validate data, apply business rules, connect third-party platforms, and route high-value cases for human review — with a full-stack foundation in React, Java, Spring Boot, and SQL.","education":[{"program":"Bachelor of Science in Computer Engineering","school":"University of Science and Technology of Southern Philippines, Lapasan, Cagayan de Oro City","years":"2019 - 2023"},{"program":"STEM Strand","school":"Liceo de Cagayan University - Senior High School, R.N.P. Blvd., Kauswagan, Cagayan de Oro City","years":"2017 - 2019"}],"achievementsAndResponsibilities":[{"title":"System Integrator / Programmer, Design 2 - Thesis","details":"Design and Development of Air Pollution Monitoring System in University of Science and Technology of Southern Philippines (2023)."},{"title":"Front-end Developer, Capstone Project","details":"Fishing Ban Report App for Lanao del Norte (2021-2022)."}],"certificatesAndLicenses":[{"name":"CCNA: Enterprise Networking, Security, and Automation","issuer":"Cisco","date":"June 2022"},{"name":"Google Technical Support Fundamentals","issuer":"Google","date":"February 2023"},{"name":"Introduction to Cybersecurity Tools & Cyber Attacks","issuer":null,"date":"September 2020"},{"name":"Using Google Forms to Analyze User Research Data","issuer":null,"date":"2020"},{"name":"OWASP Top 10: Securing Web Applications","issuer":"OWASP","date":"2025"},{"name":"CCSP 2019: Identity & Access Management","issuer":null,"date":"June 2025"},{"name":"CCSP 2019: Application Development & Security","issuer":null,"date":"June 2025"}]}',
+    '{"name":"Stephen Rey G. Agustinez","role":"Full-Stack Developer & AI Automation Specialist","location":"Pusok, Lapu-Lapu City, Cebu, 6015","email":"stpnrey.agustinez@gmail.com","phone":"+63 926 237 2965","dateOfBirth":"December 4, 2000","resumeLink":"/resume.pdf","about":"Full-stack developer and AI automation specialist building end-to-end systems across React and Astro interfaces, Java and Laravel services, REST APIs, SQL-backed data flows, n8n workflows, and AI agents. I connect every layer from customer experience to operational handoff so systems remain useful, reliable, and maintainable.","education":[{"program":"Bachelor of Science in Computer Engineering","school":"University of Science and Technology of Southern Philippines, Lapasan, Cagayan de Oro City","years":"2019 - 2023"},{"program":"STEM Strand","school":"Liceo de Cagayan University - Senior High School, R.N.P. Blvd., Kauswagan, Cagayan de Oro City","years":"2017 - 2019"}],"achievementsAndResponsibilities":[{"title":"System Integrator / Programmer, Design 2 - Thesis","details":"Design and Development of Air Pollution Monitoring System in University of Science and Technology of Southern Philippines (2023)."},{"title":"Front-end Developer, Capstone Project","details":"Fishing Ban Report App for Lanao del Norte (2021-2022)."}],"certificatesAndLicenses":[{"name":"CCNA: Enterprise Networking, Security, and Automation","issuer":"Cisco","date":"June 2022"},{"name":"Google Technical Support Fundamentals","issuer":"Google","date":"February 2023"},{"name":"Introduction to Cybersecurity Tools & Cyber Attacks","issuer":null,"date":"September 2020"},{"name":"Using Google Forms to Analyze User Research Data","issuer":null,"date":"2020"},{"name":"OWASP Top 10: Securing Web Applications","issuer":"OWASP","date":"2025"},{"name":"CCSP 2019: Identity & Access Management","issuer":null,"date":"June 2025"},{"name":"CCSP 2019: Application Development & Security","issuer":null,"date":"June 2025"}]}',
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   ),
   (
     'site_ctas',
-    '{"navbarContactLabel":"Contact Me","mobileContactLabel":"Contact Me"}',
+    '{"navbarContactLabel":"Start a Project","mobileContactLabel":"Start a Project"}',
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   ),
   (

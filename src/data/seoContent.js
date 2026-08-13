@@ -3,20 +3,20 @@ export const seoContent = {
     {
       id: 'seo-home',
       pageSlug: 'home',
-      metaTitle: 'Devlab Studios - Software Engineer & AI Automation Specialist',
+      metaTitle: 'DevLab Studios - Full-Stack Developer & AI Automation Specialist',
       metaDescription:
-        'Devlab Studios by Stephen Rey Agustinez - software engineer and AI automation specialist building backend systems, conversion-focused websites, API integrations, and workflow automation for modern businesses worldwide.',
+        'DevLab Studios by Stephen Rey Agustinez - full-stack development, conversion-focused web experiences, APIs, data systems, and AI automation for modern businesses worldwide.',
       metaKeywords:
         'Stephen Agustinez, Stephen Rey Agustinez, Devlab Studios, software engineer, AI automation specialist, backend developer, workflow automation, Spring Boot, Laravel, React developer, Next.js developer, API integrations, business automation',
       canonicalUrl: 'https://www.devlabstudios.com/',
-      ogTitle: 'Devlab Studios - Software Engineer & AI Automation Specialist',
+      ogTitle: 'DevLab Studios - Full-Stack Development & AI Automation',
       ogDescription:
-        'Devlab Studios - software engineering, conversion-focused websites, backend systems, and workflow automation for modern businesses.',
-      ogImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
-      twitterTitle: 'Devlab Studios - Software Engineer & AI Automation Specialist',
+        'DevLab Studios connects web interfaces, backend services, structured data, and AI automation into complete business systems.',
+      ogImage: 'https://www.devlabstudios.com/og.png',
+      twitterTitle: 'DevLab Studios - Full-Stack Development & AI Automation',
       twitterDescription:
         'Devlab Studios - software engineering, websites, backend integrations, and workflow automation for modern businesses.',
-      twitterImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
+      twitterImage: 'https://www.devlabstudios.com/og.png',
     },
     {
       id: 'seo-about',
@@ -76,7 +76,7 @@ export const seoContent = {
       pageSlug: 'profile',
       metaTitle: 'Profile - Stephen Rey Agustinez | DevLab Studios',
       metaDescription:
-        'Profile of Stephen Rey Agustinez, founder of DevLab Studios, software engineer and AI automation specialist building websites, backend integrations, and business automation systems.',
+        'Profile of Stephen Rey Agustinez, founder of DevLab Studios, full-stack developer and AI automation specialist building complete web and workflow systems.',
       metaKeywords:
         'Stephen Rey Agustinez profile, DevLab Studios founder, software engineer portfolio, AI automation specialist, React Laravel automation portfolio',
       canonicalUrl: 'https://www.devlabstudios.com/profile',
@@ -92,17 +92,17 @@ export const seoContent = {
     {
       id: 'seo-contact',
       pageSlug: 'contact',
-      metaTitle: 'Hire a Software Engineer & AI Automation Specialist | Contact Devlab Studios',
+      metaTitle: 'Hire a Full-Stack Developer & AI Automation Specialist | DevLab Studios',
       metaDescription:
         'Get in touch with Devlab Studios for software engineering, website builds, backend integrations, or AI automation projects. Available for remote work worldwide across Java, Laravel, React, Next.js, and workflow systems.',
       metaKeywords:
         'hire software engineer, hire AI automation specialist, backend developer for hire, Java Spring Boot developer, Laravel developer, API integration specialist, remote developer hire, business automation consultant',
       canonicalUrl: 'https://www.devlabstudios.com/contact',
-      ogTitle: 'Hire a Software Engineer & AI Automation Specialist | Contact Devlab Studios',
+      ogTitle: 'Hire a Full-Stack Developer & AI Automation Specialist | DevLab Studios',
       ogDescription:
         'Hire Devlab Studios for software engineering, websites, backend integrations, or AI automation projects. Remote-first, available worldwide.',
       ogImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
-      twitterTitle: 'Hire a Software Engineer & AI Automation Specialist | Contact Devlab Studios',
+      twitterTitle: 'Hire a Full-Stack Developer & AI Automation Specialist | DevLab Studios',
       twitterDescription:
         'Hire Devlab Studios for software engineering, backend integrations, websites, or AI automation. Remote-first, available worldwide.',
       twitterImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',

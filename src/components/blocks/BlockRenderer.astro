@@ -1,7 +1,13 @@
 ---
 import PrimaryButton from '../PrimaryButton.jsx'
-import { MessageSquare, CheckCircle2 } from '../icons/icons.js'
+import VectorField from '../VectorField.astro'
+import LivingSystems from '../LivingSystems.astro'
+import { MessageSquare, CheckCircle2, ArrowRight, Briefcase, Clock, Code2 } from '../icons/icons.js'
 import { parseLiteMarkdown } from '../../lib/content/liteMarkdown'
+import { loadServicesContent } from '../../lib/content/services'
+import { loadProjects } from '../../lib/content/projects'
+import { loadCaseStudies } from '../../lib/content/caseStudies'
+import { loadArticlesContent } from '../../lib/content/articles'
 
 interface CtaLink {
   label: string
@@ -13,10 +19,18 @@ interface BlockProps {
   heading?: string
   subheading?: string
   imageUrl?: string
+  variant?: 'system' | 'editorial' | 'compact'
+  iconMotif?: 'fullstack' | 'automation' | 'data' | 'editorial'
+  signals?: string[]
   primaryCta?: CtaLink
   secondaryCta?: CtaLink
   body?: string
+  items?: Array<{ label: string; value: string }>
   steps?: Array<{ title: string; description: string; icon?: string }>
+  serviceIds?: string[]
+  limit?: number
+  context?: string
+  images?: Array<{ url: string; alt: string }>
 }
 
 interface Block {
@@ -29,33 +43,43 @@ interface Props {
 }
 
 const { blocks } = Astro.props as Props
+const blockTypes = new Set(blocks.map((block) => block.type))
+const servicesContent = blockTypes.has('servicesGrid') || blockTypes.has('faq') ? await loadServicesContent() : null
+const projects = blockTypes.has('featuredProjects') ? await loadProjects() : []
+const caseStudies = blockTypes.has('featuredCaseStudies') ? await loadCaseStudies() : []
+const articles = blockTypes.has('resourceCards') ? (await loadArticlesContent()).posts : []
 ---
 
 <div class="space-y-10">
   {blocks.map((block) => {
     if (block.type === 'hero') {
-      const { eyebrow, heading, subheading, primaryCta, secondaryCta } = block.props
+      const { eyebrow, heading, subheading, primaryCta, secondaryCta, variant = 'editorial', iconMotif = 'fullstack', signals = [] } = block.props
       return (
-        <section class="overflow-hidden rounded-[28px] bg-gradient-to-br from-brand-ink via-[#241963] to-[#3320a3] p-6 text-white shadow-[0_24px_54px_rgba(20,13,64,0.24)] sm:p-8 lg:p-10">
-          <div class="space-y-5">
-            {eyebrow ? <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">{eyebrow}</p> : null}
-            <h1 class="text-4xl font-semibold leading-tight sm:text-5xl">{heading}</h1>
-            {subheading ? <p class="max-w-2xl text-base leading-relaxed text-white/75 sm:text-lg">{subheading}</p> : null}
-            {primaryCta || secondaryCta ? (
-              <div class="flex flex-wrap gap-3">
-                {primaryCta ? (
-                  <PrimaryButton to={primaryCta.href}>
-                    <MessageSquare size={16} />
-                    {primaryCta.label}
-                  </PrimaryButton>
-                ) : null}
-                {secondaryCta ? (
-                  <PrimaryButton to={secondaryCta.href} variant="secondary">
-                    {secondaryCta.label}
-                  </PrimaryButton>
-                ) : null}
-              </div>
-            ) : null}
+        <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
+          <VectorField motif={iconMotif as 'fullstack' | 'automation' | 'data' | 'editorial'} />
+          <div class:list={["relative z-10 grid gap-8", variant === 'system' ? 'lg:grid-cols-[1.05fr_0.95fr] lg:items-center' : '']}>
+            <div class="space-y-5">
+              {eyebrow ? <p class="tech-kicker">{eyebrow}</p> : null}
+              <h1 class="text-4xl font-semibold leading-tight tracking-[-0.03em] sm:text-5xl">{heading}</h1>
+              {subheading ? <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">{subheading}</p> : null}
+              {primaryCta || secondaryCta ? (
+                <div class="flex flex-wrap gap-3">
+                  {primaryCta ? (
+                    <PrimaryButton to={primaryCta.href}>
+                      <MessageSquare size={16} />
+                      {primaryCta.label}
+                    </PrimaryButton>
+                  ) : null}
+                  {secondaryCta ? <PrimaryButton to={secondaryCta.href} variant="secondary">{secondaryCta.label}</PrimaryButton> : null}
+                </div>
+              ) : null}
+              {Array.isArray(signals) && signals.length ? (
+                <div class="flex flex-wrap gap-2 border-t border-white/10 pt-5">
+                  {signals.map((signal) => <span class="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-slate-300">{signal}</span>)}
+                </div>
+              ) : null}
+            </div>
+            {variant === 'system' ? <LivingSystems /> : null}
           </div>
         </section>
       )
@@ -87,6 +111,148 @@ const { blocks } = Astro.props as Props
               return <p class="mt-3 leading-relaxed text-slate-700 first:mt-0">{textBlock.text}</p>
             })}
           </div>
+        </section>
+      )
+    }
+
+    if (block.type === 'stats') {
+      const { heading, items = [] } = block.props
+      return (
+        <section class="space-y-5">
+          {heading ? <h2 class="text-2xl font-semibold text-brand-ink sm:text-3xl">{heading}</h2> : null}
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {items.map((item) => (
+              <article class="light-panel rounded-2xl p-5">
+                <p class="text-2xl font-semibold text-brand-ink">{item.value}</p>
+                <p class="mt-1 text-sm text-slate-600">{item.label}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    if (block.type === 'servicesGrid') {
+      const { heading, serviceIds = [] } = block.props
+      const services = (servicesContent?.solutionGroups || []).filter((service) => !serviceIds.length || serviceIds.includes(service.id))
+      return (
+        <section class="space-y-5">
+          {heading ? <h2 class="text-2xl font-semibold text-brand-ink sm:text-3xl">{heading}</h2> : null}
+          <div class="grid gap-5 md:grid-cols-2">
+            {services.map((service) => (
+              <article class="light-panel rounded-[1.5rem] p-6">
+                <Code2 className="h-5 w-5 text-brand-teal" aria-hidden="true" />
+                <h3 class="mt-4 text-xl font-semibold text-brand-ink">{service.title}</h3>
+                <p class="mt-2 text-sm leading-relaxed text-slate-600">{service.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    if (block.type === 'featuredProjects') {
+      const { heading, limit = 3 } = block.props
+      return (
+        <section class="space-y-5">
+          {heading ? <h2 class="text-2xl font-semibold text-brand-ink sm:text-3xl">{heading}</h2> : null}
+          <div class="grid gap-5 md:grid-cols-3">
+            {projects.slice(0, limit).map((project) => (
+              <article class="light-panel rounded-[1.5rem] p-5">
+                <Briefcase className="h-5 w-5 text-brand-teal" aria-hidden="true" />
+                <h3 class="mt-4 font-semibold text-brand-ink">{project.title}</h3>
+                <p class="mt-2 line-clamp-3 text-sm text-slate-600">{project.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    if (block.type === 'featuredCaseStudies') {
+      const { heading, limit = 3 } = block.props
+      return (
+        <section class="space-y-5">
+          {heading ? <h2 class="text-2xl font-semibold text-brand-ink sm:text-3xl">{heading}</h2> : null}
+          <div class="grid gap-5 md:grid-cols-3">
+            {caseStudies.slice(0, limit).map((item) => (
+              <a href={`/work/${item.slug}`} class="light-panel group rounded-[1.5rem] p-5">
+                <p class="text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">{item.industry || 'Case Study'}</p>
+                <h3 class="mt-3 font-semibold text-brand-ink">{item.title}</h3>
+                <p class="mt-2 text-sm text-slate-600">{item.summary}</p>
+              </a>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    if (block.type === 'resourceCards') {
+      const { heading, limit = 3 } = block.props
+      return (
+        <section class="space-y-5">
+          {heading ? <h2 class="text-2xl font-semibold text-brand-ink sm:text-3xl">{heading}</h2> : null}
+          <div class="grid gap-5 md:grid-cols-3">
+            {articles.filter((item) => item.status !== 'draft').slice(0, limit).map((item) => (
+              <a href={`/insights/${item.slug}`} class="light-panel rounded-[1.5rem] p-5">
+                <p class="text-xs font-semibold uppercase tracking-[0.14em] text-brand-teal">{item.category}</p>
+                <h3 class="mt-3 font-semibold text-brand-ink">{item.title}</h3>
+                <p class="mt-2 line-clamp-3 text-sm text-slate-600">{item.summary}</p>
+              </a>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    if (block.type === 'faq') {
+      const { heading } = block.props
+      return (
+        <section class="space-y-5">
+          {heading ? <h2 class="text-2xl font-semibold text-brand-ink sm:text-3xl">{heading}</h2> : null}
+          <div class="grid gap-4 md:grid-cols-2">
+            {(servicesContent?.faqs || []).map((item) => (
+              <article class="light-panel rounded-2xl p-5">
+                <h3 class="font-semibold text-brand-ink">{item.question}</h3>
+                <p class="mt-2 text-sm leading-relaxed text-slate-600">{item.answer}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    if (block.type === 'imageGallery') {
+      const { heading, images = [] } = block.props
+      return (
+        <section class="space-y-5">
+          {heading ? <h2 class="text-2xl font-semibold text-brand-ink sm:text-3xl">{heading}</h2> : null}
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {images.map((image) => <img src={image.url} alt={image.alt} loading="lazy" class="h-56 w-full rounded-2xl object-cover shadow-lg" />)}
+          </div>
+        </section>
+      )
+    }
+
+    if (block.type === 'experienceTimeline') {
+      const { heading } = block.props
+      return (
+        <section class="light-panel rounded-[1.75rem] p-6 sm:p-8">
+          <Clock className="h-6 w-6 text-brand-teal" aria-hidden="true" />
+          <h2 class="mt-4 text-2xl font-semibold text-brand-ink">{heading || 'Experience'}</h2>
+          <p class="mt-2 text-slate-600">Professional experience is maintained on the Profile page.</p>
+          <a href="/profile#experience" class="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-teal">View experience <ArrowRight className="h-4 w-4" /></a>
+        </section>
+      )
+    }
+
+    if (block.type === 'testimonials') {
+      const { heading } = block.props
+      return (
+        <section class="light-panel rounded-[1.75rem] p-6 sm:p-8">
+          <MessageSquare className="h-6 w-6 text-brand-teal" aria-hidden="true" />
+          <h2 class="mt-4 text-2xl font-semibold text-brand-ink">{heading || 'Client feedback'}</h2>
+          <p class="mt-2 text-slate-600">Published testimonials will appear here when they are available.</p>
         </section>
       )
     }

@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PrimaryButton from '../components/PrimaryButton.jsx'
+import VectorField from '../components/VectorField.astro'
 import * as Icons from '../components/icons/icons.js'
 import { ArrowRight, Calendar, CheckCircle2, Clock, Code2, MessageSquare } from '../components/icons/icons.js'
 import { loadPageSeo } from '../lib/content/seo'
@@ -36,14 +37,15 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
 
 <Layout title="Resources — DevLab Studios" seo={seo}>
   <div class="space-y-10">
-    <section class="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10">
-      <div class="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
+      <VectorField motif="editorial" />
+      <div class="relative z-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <div class="space-y-5">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Resources</p>
-          <h1 class="text-4xl font-semibold leading-tight text-brand-ink sm:text-5xl">
+          <p class="tech-kicker">Engineering Notes</p>
+          <h1 class="text-4xl font-semibold leading-tight text-white sm:text-5xl">
             Guides, AI updates, and operational notes for modern workflows.
           </h1>
-          <p class="max-w-3xl text-base leading-relaxed text-slate-700 sm:text-lg">
+          <p class="max-w-3xl text-base leading-relaxed text-slate-300 sm:text-lg">
             A CMS-managed feed of practical implementation notes across AI automation, websites, systems design, delivery workflows, and business operations.
           </p>
           <div class="flex flex-wrap gap-3">
@@ -58,10 +60,10 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
           </div>
         </div>
 
-        <div class="rounded-[24px] bg-white/90 p-6 shadow-[0_16px_34px_rgba(48,28,114,0.10)] ring-1 ring-slate-200">
+        <div class="rounded-[24px] border border-white/10 bg-white/[0.07] p-6 shadow-[0_16px_34px_rgba(4,8,24,0.18)] backdrop-blur-md">
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Automation Readiness</p>
-          <h2 class="mt-2 text-2xl font-semibold text-brand-ink">Start with workflow clarity.</h2>
-          <ul class="mt-4 space-y-3 text-sm text-slate-700">
+          <h2 class="mt-2 text-2xl font-semibold text-white">Start with workflow clarity.</h2>
+          <ul class="mt-4 space-y-3 text-sm text-slate-300">
             {playbook.map((item) => (
               <li class="flex gap-3 leading-relaxed">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />

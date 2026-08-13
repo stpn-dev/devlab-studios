@@ -7,7 +7,7 @@ export const getPersonSchema = () => ({
   url: 'https://www.devlabstudios.com',
   description:
     'Software engineer and AI automation specialist building backend systems, API integrations, websites, and workflow automations for modern businesses worldwide.',
-  jobTitle: 'Software Engineer & AI Automation Specialist',
+  jobTitle: 'Full-Stack Developer & AI Automation Specialist',
   knowsAbout: [
     'Website Development',
     'Software Engineering',
@@ -34,7 +34,7 @@ export const getPersonSchema = () => ({
   ],
   hasOccupation: {
     '@type': 'Occupation',
-    name: 'Software Engineer & AI Automation Specialist',
+    name: 'Full-Stack Developer & AI Automation Specialist',
     description:
       'Builds backend systems, websites, API integrations, and AI-driven automation systems for businesses, enabling reliable delivery, process efficiency, and operational scaling.',
     skills:
@@ -96,7 +96,7 @@ export const getPortfolioItemSchema = (project) => ({
   author: {
     '@type': 'Person',
     name: 'Stephen Rey G. Agustinez',
-    jobTitle: 'Software Engineer & AI Automation Specialist',
+    jobTitle: 'Full-Stack Developer & AI Automation Specialist',
   },
   datePublished: project.datePublished || '2026-03-11',
 })
@@ -112,7 +112,7 @@ export const getOrganizationSchema = () => ({
   founder: {
     '@type': 'Person',
     name: 'Stephen Rey G. Agustinez',
-    jobTitle: 'Software Engineer & AI Automation Specialist',
+    jobTitle: 'Full-Stack Developer & AI Automation Specialist',
   },
   knowsAbout: [
     'Website Development',

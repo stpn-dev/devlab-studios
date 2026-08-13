@@ -2,10 +2,17 @@
 import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PrimaryButton from '../components/PrimaryButton.jsx'
+import VectorField from '../components/VectorField.astro'
+import BlockRenderer from '../components/blocks/BlockRenderer.astro'
 import { ArrowRight, BadgeCheck, Briefcase, CheckCircle2, Code2, Lightbulb, Settings, Zap } from '../components/icons/icons.js'
 import { loadPageSeo } from '../lib/content/seo'
+import { loadPage } from '../lib/content/pages'
 
 const seo = await loadPageSeo('about')
+const aboutPage = await loadPage('about')
+const cmsHero = aboutPage?.blocks.find((block) => block.type === 'hero')?.props || {}
+const heroHeading = String(cmsHero.heading || 'Systems for clearer offers, faster operations, and cleaner handoffs.')
+const heroSubheading = String(cmsHero.subheading || 'DevLab Studios helps businesses turn messy workflows into complete digital systems—customer-facing interfaces, dependable services, structured data, and automation that keeps work moving.')
 
 const buildAreas = [
   {
@@ -19,8 +26,8 @@ const buildAreas = [
     icon: Zap,
   },
   {
-    title: 'Backend and integration support',
-    description: 'API-connected services, structured payload handling, SQL-backed workflows, and handoff-ready technical implementation.',
+    title: 'Full-stack product systems',
+    description: 'Customer-facing interfaces connected to API services, structured data, integrations, and deployment-ready implementation.',
     icon: Settings,
   },
 ]
@@ -59,15 +66,16 @@ const faqs = [
       subtitle="A software engineering and AI automation studio focused on real business workflows, reliable systems, and practical delivery."
     />
 
-    <section class="overflow-hidden rounded-[28px] bg-gradient-to-br from-brand-ink via-[#241963] to-[#3320a3] p-6 text-white shadow-[0_24px_54px_rgba(20,13,64,0.24)] sm:p-8 lg:p-10">
-      <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
+      <VectorField motif="fullstack" />
+      <div class="relative z-10 grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div class="space-y-5">
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Founded March 2, 2026</p>
           <h1 class="text-4xl font-semibold leading-tight sm:text-5xl">
-            Systems for clearer offers, faster operations, and cleaner handoffs.
+            {heroHeading}
           </h1>
           <p class="max-w-2xl text-base leading-relaxed text-white/75 sm:text-lg">
-            DevLab Studios helps businesses turn messy manual workflows into usable web systems, automation flows, backend integrations, and customer-facing experiences.
+            {heroSubheading}
           </p>
           <div class="flex flex-wrap gap-3">
             <PrimaryButton to="/services">
@@ -83,7 +91,7 @@ const faqs = [
 
         <div class="grid gap-4 sm:grid-cols-2">
           {[
-            { label: 'Focus', value: 'Web + automation + backend' },
+            { label: 'Focus', value: 'Full-stack + AI automation' },
             { label: 'Approach', value: 'Workflow-first delivery' },
             { label: 'Founder', value: 'Stephen Rey Agustinez' },
             { label: 'Availability', value: 'Remote-first worldwide' },
@@ -143,7 +151,7 @@ const faqs = [
           <h2 class="mt-2 text-3xl font-semibold text-brand-ink">Built from hands-on software and operations experience.</h2>
         </div>
         <p class="text-slate-700">
-          DevLab Studios is led by Stephen Rey Agustinez, a software engineer and AI automation specialist with experience across Java, Spring Boot, Laravel, React, REST APIs, SQL, Zapier, Make, n8n, and operational process improvement. The studio is designed for clients who need implementation that understands both code and the workflow around it.
+          DevLab Studios is led by Stephen Rey Agustinez, a full-stack developer and AI automation specialist with experience across React, Astro, Java, Spring Boot, Laravel, REST APIs, SQL, Zapier, Make, n8n, and operational process improvement. The studio is designed for clients who need implementation that understands every layer and the workflow around it.
         </p>
       </div>
     </section>
@@ -177,5 +185,9 @@ const faqs = [
         </a>
       </div>
     </section>
+
+    {aboutPage?.blocks?.some((block) => block.type !== 'hero') ? (
+      <BlockRenderer blocks={aboutPage.blocks.filter((block) => block.type !== 'hero')} />
+    ) : null}
   </div>
 </Layout>

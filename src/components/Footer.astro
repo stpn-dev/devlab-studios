@@ -18,8 +18,9 @@ const legalLinks = footer.legalLinks?.length
     ]
 ---
 
-<footer class="mt-16 border-t border-slate-200/80 bg-white/85 backdrop-blur-sm">
-  <div class="mx-auto max-w-7xl px-4 py-8 text-sm text-slate-600 sm:px-6 lg:px-6">
+<footer class="relative mt-20 overflow-hidden border-t border-white/10 bg-[#070b1c] text-white">
+  <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(122,0,255,0.18),transparent_32%),radial-gradient(circle_at_85%_80%,rgba(47,60,255,0.14),transparent_30%)]" aria-hidden="true"></div>
+  <div class="relative mx-auto max-w-7xl px-4 py-12 text-sm text-slate-300 sm:px-6 lg:px-6">
     <div class="flex flex-col gap-8 text-center md:flex-row md:items-start md:justify-between md:text-left">
       <div class="mb-4 flex flex-1 flex-col items-center md:mb-0 md:items-start">
         {/* width/height assume logoSideUrl's current ~10:3 aspect ratio for CLS purposes only —
@@ -35,29 +36,29 @@ const legalLinks = footer.legalLinks?.length
           width="160"
           height="48"
         />
-        <p class="mb-1 text-lg font-semibold text-brand-ink">{footer.companyName || 'DevLab Studios'}</p>
-        <p class="mb-3 whitespace-normal text-slate-500 md:whitespace-nowrap">
+        <p class="mb-1 text-lg font-semibold text-white">{footer.companyName || 'DevLab Studios'}</p>
+        <p class="mb-3 whitespace-normal text-slate-400 md:whitespace-nowrap">
           {footer.tagline || 'Your Vision, Digitally Crafted - one solution at a time, always evolving.'}
         </p>
-        <a href={`mailto:${footer.email || 'stpnrey.agustinez@gmail.com'}`} class="mb-1 block text-slate-700 hover:text-brand-teal hover:underline">
+        <a href={`mailto:${footer.email || 'stpnrey.agustinez@gmail.com'}`} class="mb-1 block text-slate-200 hover:text-violet-300 hover:underline">
           {footer.email || 'stpnrey.agustinez@gmail.com'}
         </a>
-        <span class="block text-slate-500">{footer.location || 'Lapu-Lapu City, Cebu, PH'}</span>
+        <span class="block text-slate-400">{footer.location || 'Lapu-Lapu City, Cebu, PH'}</span>
       </div>
 
       <div class="mb-4 flex flex-1 flex-col items-center md:mb-0">
-        <p class="mb-2 font-semibold text-brand-ink">Quick Links</p>
+        <p class="mb-2 font-semibold text-white">Explore</p>
         <ul>
           {quickLinks.map((item) => (
             <li>
-              <a href={item.href} class="inline-block py-2 hover:text-brand-teal hover:underline">{item.label}</a>
+              <a href={item.href} class="inline-block py-2 hover:text-violet-300 hover:underline">{item.label}</a>
             </li>
           ))}
         </ul>
       </div>
 
       <div class="flex flex-1 flex-col items-center md:items-end">
-        <p class="mb-2 font-semibold text-brand-ink">Connect</p>
+        <p class="mb-2 font-semibold text-white">Connect</p>
         <div class="flex gap-4">
           {socialLinks.map((item) => (
             <a
@@ -65,7 +66,7 @@ const legalLinks = footer.legalLinks?.length
               target={item.href.startsWith('http') ? '_blank' : undefined}
               rel={item.href.startsWith('http') ? 'noopener noreferrer' : undefined}
               aria-label={item.label}
-              class="inline-block py-2 hover:text-brand-teal"
+              class="inline-block py-2 hover:text-violet-300"
             >
               {item.label}
             </a>
@@ -73,12 +74,12 @@ const legalLinks = footer.legalLinks?.length
         </div>
       </div>
     </div>
-    <div class="mt-8 flex flex-col gap-2 border-t border-slate-200 pt-4 text-center text-xs text-slate-500 md:flex-row md:items-center md:justify-between md:text-left">
+    <div class="mt-8 flex flex-col gap-2 border-t border-white/10 pt-4 text-center text-xs text-slate-500 md:flex-row md:items-center md:justify-between md:text-left">
       <span>{footer.copyright || '© 2026 DevLab Studios. All rights reserved.'}</span>
       <span class="flex flex-wrap justify-center gap-x-2 md:justify-end">
         {legalLinks.map((link, index) => (
           <>
-            <a href={link.href} class="inline-block py-2 hover:text-brand-teal hover:underline">{link.label}</a>
+            <a href={link.href} class="inline-block py-2 hover:text-violet-300 hover:underline">{link.label}</a>
             {index < legalLinks.length - 1 ? <span aria-hidden="true" class="self-center">|</span> : null}
           </>
         ))}

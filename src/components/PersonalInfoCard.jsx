@@ -1,5 +1,5 @@
 import AnimatedIcon from './icons/AnimatedIcon'
-import { MapPin, Mail } from './icons/icons'
+import { ExternalLink, MapPin, Mail } from './icons/icons'
 import ResponsivePicture from './ResponsivePicture'
 
 /**
@@ -59,6 +59,16 @@ function PersonalInfoCard({ aboutData, photo }) {
             {aboutData.email}
           </a>
         </div>
+
+        <a
+          href={aboutData.resumeLink || '/resume.pdf'}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-brand-teal/20 bg-brand-mint/65 px-4 py-2.5 text-sm font-semibold text-brand-teal transition hover:border-brand-teal/35 hover:bg-brand-mint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50"
+        >
+          View Resume
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </a>
       </div>
 
       <nav
