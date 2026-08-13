@@ -71,6 +71,7 @@ decided against that surface specifically:
 
 ### Security
 - Replaced the deployed Turnstile test-key fallback with environment-specific runtime keys and fail-closed server validation, including hostname/action checks, Siteverify timeout and idempotency, duplicate/expired-token recovery, and safe structured form errors.
+- Provisioned a dedicated Managed Turnstile widget for the isolated Preview hostname and connected its public runtime key and encrypted Worker secret.
 
 ## [1.3.1] - 2026-08-12
 

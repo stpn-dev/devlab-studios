@@ -45,7 +45,8 @@
       "name": "devlab-studios-preview",
       "vars": {
         "ADMIN_AUTH_MODE": "password",
-        "R2_PUBLIC_BASE_URL": "https://pub-2450236b7cbf4d68aa4bc07f9b606e29.r2.dev"
+        "R2_PUBLIC_BASE_URL": "https://pub-2450236b7cbf4d68aa4bc07f9b606e29.r2.dev",
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAEO0gy1ZeS8AbYUC"
       },
       "d1_databases": [
         {
