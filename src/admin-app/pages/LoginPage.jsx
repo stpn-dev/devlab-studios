@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react'
 import { brandingAssets } from '../../config/branding'
 import devlabStudiosLogo from '../../assets/devlabstudios-logo-only.png'
 import siteSettingsContent from '../../data/siteSettingsContent'
+import { Code2, Database, FileText, Network } from '../../components/icons/icons'
+
+const CMS_CAPABILITIES = [
+  { icon: FileText, label: 'Content', detail: 'Pages, articles, and SEO' },
+  { icon: Code2, label: 'Project proof', detail: 'Work, services, and case studies' },
+  { icon: Database, label: 'Structured data', detail: 'Collections, media, and settings' },
+  { icon: Network, label: 'Operations', detail: 'Leads, redirects, and audit history' },
+]
 
 function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('')
@@ -77,9 +85,24 @@ function LoginPage({ onLogin }) {
           <span className="text-lg font-semibold tracking-tight">DevLab Studios</span>
         </div>
 
-        <div className="relative z-10 space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Content Management System</p>
-          <h1 className="max-w-md text-3xl font-semibold leading-tight sm:text-4xl">{tagline}</h1>
+        <div className="relative z-10 space-y-7">
+          <div className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Content Management System</p>
+            <h1 className="max-w-md text-3xl font-semibold leading-tight sm:text-4xl">{tagline}</h1>
+            <p className="max-w-lg text-sm leading-6 text-white/65">One quiet workspace for publishing the public experience and keeping every operational handoff current.</p>
+          </div>
+
+          <div className="grid max-w-xl grid-cols-2 gap-3" aria-label="CMS capabilities">
+            {CMS_CAPABILITIES.map(({ icon: Icon, label, detail }) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.065] p-4 shadow-[0_16px_34px_rgba(5,8,30,0.16)] backdrop-blur-sm">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-violet-300/15 bg-violet-300/10 text-violet-200">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <p className="mt-3 text-sm font-semibold text-white">{label}</p>
+                <p className="mt-1 text-xs leading-5 text-white/55">{detail}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         <p className="relative z-10 text-xs text-white/40">{siteSettingsContent.footer.copyright}</p>

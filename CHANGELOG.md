@@ -51,6 +51,9 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Changed
+- Quieted and spaced out the public mesh texture, removed decorative dots from admin workspaces and forms, and enriched the CMS login introduction with restrained icon-led capability cards.
+
 ## [1.4.2] - 2026-08-13
 
 ### Fixed
