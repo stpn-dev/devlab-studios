@@ -51,8 +51,11 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-08-13
+
 ### Fixed
 - Made the CMS Media Library inventory the bound Cloudflare R2 bucket directly instead of relying on an empty D1 tracking table, with storage summaries, object paths, previews, and clear editor-upload guidance.
+- Synchronized Production navigation, calls to action, Home and About hero blocks, Profile positioning, canonical resume URL, and Home SEO with the validated Development content through the targeted idempotent update.
 
 ## [1.4.3] - 2026-08-13
 
