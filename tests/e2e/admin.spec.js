@@ -141,14 +141,15 @@ test('page builder: add a block, save, verify it persists, then remove it', asyn
 
   await page.getByRole('button', { name: /^add block/i }).click()
   const marker = `Smoke test heading ${Date.now()}`
-  await page.getByLabel('Heading').first().fill(marker)
+  const addedHeading = page.locator('input[id^="block-"][id$="-heading"]').last()
+  await addedHeading.fill(marker)
   await page.getByRole('button', { name: /^save page/i }).click()
   await expect(page.getByText(/^saved/i)).toBeVisible({ timeout: 10_000 })
 
   await page.reload()
-  await expect(page.getByLabel('Heading').first()).toHaveValue(marker)
+  await expect(page.locator('input[id^="block-"][id$="-heading"]').last()).toHaveValue(marker)
 
-  await page.getByRole('button', { name: 'Remove' }).first().click()
+  await page.getByRole('button', { name: 'Remove' }).last().click()
   await page.getByRole('button', { name: /^save page/i }).click()
   await expect(page.getByText(/^saved/i)).toBeVisible({ timeout: 10_000 })
 })

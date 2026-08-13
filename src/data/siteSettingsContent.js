@@ -1,8 +1,8 @@
 export const siteSettingsContent = {
   navigation: [
-    { id: 'nav-services', label: 'Services', href: '/services', sortOrder: 10, status: 'published' },
-    { id: 'nav-work', label: 'Work', href: '/work', sortOrder: 20, status: 'published' },
-    { id: 'nav-process', label: 'Process', href: '/process', sortOrder: 30, status: 'published' },
+    { id: 'nav-about', label: 'About', href: '/about', sortOrder: 10, status: 'published' },
+    { id: 'nav-services', label: 'Services', href: '/services', sortOrder: 20, status: 'published' },
+    { id: 'nav-work', label: 'Work', href: '/work', sortOrder: 30, status: 'published' },
     { id: 'nav-resources', label: 'Insights', href: '/insights', sortOrder: 40, status: 'published' },
     { id: 'nav-profile', label: 'Profile', href: '/profile', sortOrder: 50, status: 'published' },
   ],

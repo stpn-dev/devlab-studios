@@ -30,9 +30,9 @@ body {
   min-height: 100vh;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   background:
-    radial-gradient(circle at 12% 6%, rgba(122, 0, 255, 0.18), transparent 28%),
-    radial-gradient(circle at 90% 8%, rgba(47, 60, 255, 0.14), transparent 25%),
-    linear-gradient(180deg, #f9faff 0%, #f2f4fb 58%, #f8f9fd 100%);
+    radial-gradient(circle at 12% 4%, rgba(47, 60, 255, 0.08), transparent 28%),
+    radial-gradient(circle at 88% 10%, rgba(85, 216, 255, 0.07), transparent 26%),
+    #f5f7fb;
   color: #0f1b35;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -41,27 +41,17 @@ body {
   overflow-x: hidden;
 }
 
-body::before,
-body::after {
+body::before {
   content: '';
-  position: absolute;
-  width: 320px;
-  height: 360px;
-  background-image: radial-gradient(circle, rgba(15, 27, 53, 0.12) 1px, transparent 1px);
-  background-size: 14px 14px;
-  opacity: 0.25;
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(47, 60, 255, 0.18) 1px, transparent 1.25px);
+  background-size: 24px 24px;
+  opacity: 0.42;
   pointer-events: none;
   z-index: 0;
-}
-
-body::before {
-  top: 140px;
-  left: max(12px, calc(50% - 730px));
-}
-
-body::after {
-  top: 140px;
-  right: max(12px, calc(50% - 730px));
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, rgba(0, 0, 0, 0.72) 70%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, rgba(0, 0, 0, 0.72) 70%, transparent 100%);
 }
 
 a {
@@ -103,9 +93,9 @@ a {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
   background:
-    radial-gradient(circle at 78% 18%, rgba(86, 63, 255, 0.22), transparent 32%),
-    radial-gradient(circle at 12% 82%, rgba(122, 0, 255, 0.2), transparent 34%),
-    linear-gradient(145deg, #080c1f 0%, #111735 58%, #16124a 100%);
+    radial-gradient(circle at 78% 18%, rgba(47, 60, 255, 0.18), transparent 32%),
+    radial-gradient(circle at 12% 82%, rgba(85, 216, 255, 0.08), transparent 34%),
+    linear-gradient(145deg, #080c1f 0%, #101735 58%, #111a3c 100%);
   box-shadow: 0 30px 80px rgba(9, 12, 35, 0.24);
 }
 
@@ -130,7 +120,20 @@ a {
   content: '';
   width: 1.8rem;
   height: 1px;
-  background: linear-gradient(90deg, #8b5cff, #55d8ff);
+  background: linear-gradient(90deg, #2f3cff, #55d8ff);
+}
+
+.site-navbar {
+  border: 1px solid rgba(146, 168, 236, 0.2);
+  background: rgba(8, 13, 33, 0.96);
+  color: #f8fbff;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.site-navbar__links {
+  border: 1px solid rgba(166, 184, 238, 0.16);
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .vector-field {
@@ -142,15 +145,7 @@ a {
 }
 
 .vector-field__grid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.5;
-  background-image:
-    linear-gradient(rgba(160, 176, 230, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(160, 176, 230, 0.06) 1px, transparent 1px);
-  background-size: 42px 42px;
-  -webkit-mask-image: radial-gradient(circle at 65% 50%, black, transparent 72%);
-  mask-image: radial-gradient(circle at 65% 50%, black, transparent 72%);
+  display: none;
 }
 
 .vector-field__orbit {
@@ -218,11 +213,7 @@ a {
   content: '';
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(169, 188, 255, 0.2) 1px, transparent 1px);
-  background-size: 20px 20px;
-  opacity: 0.24;
-  -webkit-mask-image: radial-gradient(circle at center, black, transparent 82%);
-  mask-image: radial-gradient(circle at center, black, transparent 82%);
+  background: radial-gradient(circle at center, rgba(47, 60, 255, 0.08), transparent 68%);
 }
 
 .living-system__ambient {

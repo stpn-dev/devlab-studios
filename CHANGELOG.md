@@ -63,6 +63,9 @@ decided against that surface specifically:
 - Repositioned Stephen consistently as a Full-Stack Developer & AI Automation Specialist across primary public copy, SEO, structured data, and CMS fallbacks.
 - Aligned the public shell, core route heroes, footer, CMS login/dashboard, and editor surfaces with the new visual system.
 - Made site settings merge partial CMS records with safe structural defaults so missing footer fields cannot remove navigation or social links.
+- Made partial CMS project collections merge with repository fallbacks so selected public proof cannot silently disappear when D1 is incomplete.
+- Restored About to the primary navigation, moved Process out of the primary tab set, strengthened navbar contrast, unified the page palette, and moved the dot mesh from cards to the global site background.
+- Expanded Work with selected automation project screenshots and structured write-ups covering each challenge, system architecture, and delivery value.
 
 ## [1.3.1] - 2026-08-12
 

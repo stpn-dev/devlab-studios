@@ -46,8 +46,9 @@ const normalizedPortfolioItems: ProjectData[] = portfolioItems
 
 function mergeWithStaticImages(projects: ProjectData[]): ProjectData[] {
   const staticById = new Map(normalizedPortfolioItems.map((project) => [project.id, project]))
+  const cmsIds = new Set(projects.map((project) => project.id))
 
-  return projects.map((project) => {
+  const mergedProjects = projects.map((project) => {
     const fallback = staticById.get(project.id)
     const apiGallery = Array.isArray(project.galleryImages) ? project.galleryImages.filter((image) => image?.url) : []
     const fallbackGallery = Array.isArray(fallback?.galleryImages) ? fallback.galleryImages : []
@@ -61,6 +62,11 @@ function mergeWithStaticImages(projects: ProjectData[]): ProjectData[] {
       galleryImages: apiGallery.length > 0 ? apiGallery : fallbackGallery,
     }
   })
+
+  return [
+    ...mergedProjects,
+    ...normalizedPortfolioItems.filter((project) => !cmsIds.has(project.id)),
+  ]
 }
 
 const COVER_IMAGE_SIZE = { width: 640, height: 480, fit: 'cover' as const }

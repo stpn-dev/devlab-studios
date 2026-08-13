@@ -15,12 +15,12 @@ const { siteSettings, currentPath } = Astro.props
 const navLinks = (siteSettings.navigation || []).map((item) => ({ label: item.label, href: item.href }))
 const desktopContactLabel = siteSettings.ctas?.navbarContactLabel || 'Start a Project'
 const mobileContactLabel = siteSettings.ctas?.mobileContactLabel || desktopContactLabel
-const linkBase = 'px-3 py-2 text-sm font-semibold transition hover:text-white focus-visible:outline-none'
+const linkBase = 'rounded-full px-3 py-2 text-sm font-semibold transition focus-visible:outline-none'
 ---
 
 <header class="fixed inset-x-0 top-0 z-40 pt-[env(safe-area-inset-top,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]">
   <div class="w-full px-4 mx-auto max-w-7xl sm:px-6 lg:px-6">
-    <div class="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-[#080d21]/92 px-4 py-3 text-white shadow-[0_18px_44px_rgba(4,8,24,0.28)] backdrop-blur-xl">
+    <div class="site-navbar mt-4 flex items-center justify-between rounded-2xl px-4 py-3 shadow-[0_18px_44px_rgba(4,8,24,0.28)]">
       <a href="/" class="flex items-center gap-3 text-lg font-bold tracking-tight text-white">
         <img
           id="navbar-logo"
@@ -32,14 +32,14 @@ const linkBase = 'px-3 py-2 text-sm font-semibold transition hover:text-white fo
           width="44"
           height="44"
         />
-        <span>DevLab Studios</span>
+        <span class="text-[#f8fbff]">DevLab Studios</span>
       </a>
 
-      <nav class="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 md:flex">
+      <nav class="site-navbar__links hidden items-center gap-1 rounded-full px-2 py-1 md:flex">
         {navLinks.map((item) => (
           <a
             href={item.href}
-            class={`${linkBase} ${currentPath === item.href ? 'text-white underline decoration-2 decoration-[#8d69ff] underline-offset-8' : 'text-slate-300'}`}
+            class={`${linkBase} ${currentPath === item.href ? 'bg-white/10 text-white' : 'text-slate-200 hover:bg-white/[0.06] hover:text-white'}`}
           >
             {item.label}
           </a>

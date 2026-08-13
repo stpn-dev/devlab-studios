@@ -4,12 +4,12 @@ const pages = [
   { path: '/', heading: 'From first click to final handoff' },
   { path: '/about', heading: 'Systems for clearer offers' },
   { path: '/services', heading: 'Full-stack products and AI automation' },
-  { path: '/profile', heading: 'Full-stack engineering with an automation mindset' },
+  { path: '/profile', heading: 'Full-stack development with an automation mindset' },
   { path: '/insights', heading: 'Guides, AI updates, and operational notes' },
   { path: '/process', heading: 'A four-phase delivery model' },
   { path: '/privacy', heading: 'Privacy Policy' },
   { path: '/terms', heading: 'Terms of Service' },
-  { path: '/work', heading: 'Full-stack builds and automation systems' },
+  { path: '/work', heading: 'Automation systems with the decisions' },
   { path: '/contact', heading: 'Tell us where the workflow slows down' },
   { path: '/landing-sample-react', heading: 'A Different Look' },
   { path: '/landing-sample-html', heading: 'Editorial Minimal Landing Page' },
@@ -61,6 +61,21 @@ test('footer has real links to Privacy and Terms', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy')
   await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '/terms')
+})
+
+test('primary navigation keeps About and Work visible without promoting Process', async ({ page }) => {
+  await page.goto('/')
+  const navigation = page.getByRole('banner').getByRole('navigation')
+  await expect(navigation.getByRole('link')).toHaveText(['About', 'Services', 'Work', 'Insights', 'Profile'])
+  await expect(navigation.getByRole('link', { name: 'Process' })).toHaveCount(0)
+})
+
+test('Work publishes selected automation project write-ups', async ({ page }) => {
+  await page.goto('/work')
+  await expect(page.getByRole('heading', { name: 'Selected automation projects' })).toBeVisible()
+  await expect(page.getByText('Challenge', { exact: true })).toHaveCount(3)
+  await expect(page.getByText('System architecture', { exact: true })).toHaveCount(3)
+  await expect(page.getByText('Delivery value', { exact: true })).toHaveCount(3)
 })
 
 test('resume is available from Profile only and opens inline', async ({ page, request }) => {
