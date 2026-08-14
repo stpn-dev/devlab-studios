@@ -12,7 +12,7 @@ function PortfolioCard({ project, onClick, shouldLoadImage = true }) {
     <button
       type="button"
       onClick={onClick}
-      className="portfolio-card-slide block w-full overflow-hidden rounded-2xl bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/88 text-left shadow-[0_18px_45px_rgba(60,28,120,0.14)]"
+      className="portfolio-card-slide block w-full overflow-hidden rounded-2xl bg-gradient-to-b from-[#fff9ff]/95 via-[#f8f6ff]/90 to-[#f2f0ff]/90 text-left shadow-[0_18px_45px_rgba(60,28,120,0.14)]"
       aria-label={`View ${project.title} project details`}
     >
       {shouldLoadImage ? (

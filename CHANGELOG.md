@@ -51,6 +51,9 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Fixed
+- Fixed the mobile navigation panel rendering with no background at all instead of a near-opaque dark surface, letting page content bleed through behind its links. The cause: Tailwind's opacity modifier (`/NN`) only resolves values on its opacity scale (multiples of 5); `bg-[#080d21]/98` used an unsupported value and silently compiled to nothing. Corrected this and two other same-shape instances (light gradient card treatments using `/92` and `/88`) to valid scale values.
+
 ## [1.6.0] - 2026-08-14
 
 ### Added
