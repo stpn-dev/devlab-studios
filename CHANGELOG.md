@@ -51,6 +51,8 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-14
+
 ### Added
 - Added a dedicated CMS-managed Work page that features existing Project records, keeps Work-specific description, Challenge, System Architecture, and Delivery Value copy independently editable, renders each Project's ordered multi-image gallery, and prevents deletion while a Project remains featured.
 
