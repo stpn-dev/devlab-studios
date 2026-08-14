@@ -53,14 +53,14 @@ function ImageModal({ image, alt, isOpen, onClose, caption, lockScroll = true })
   return (
     <div
       ref={modalRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 px-4 pb-4 pt-[calc(6.75rem+env(safe-area-inset-top,0px))] backdrop-blur-sm"
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
       aria-labelledby="image-modal-title"
     >
       {/* Modal Container */}
-      <div className="relative max-h-[90vh] max-w-[95vw] animate-[fadeInScale_0.3s_ease-out]">
+      <div className="modal-viewport-panel relative max-h-full max-w-[95vw] animate-[fadeInScale_0.3s_ease-out]">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -80,7 +80,7 @@ function ImageModal({ image, alt, isOpen, onClose, caption, lockScroll = true })
           <ResponsivePicture
             image={image}
             alt={alt}
-            className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain"
+            className="max-h-[calc(100dvh-12rem)] max-w-[90vw] rounded-xl object-contain"
           />
 
           {/* Caption (optional) */}

@@ -148,7 +148,7 @@ function PortfolioGallery({ projects }) {
         </button>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
         {filteredItems.map((project, index) => (
           <button
             key={project.id}
@@ -156,7 +156,7 @@ function PortfolioGallery({ projects }) {
             onClick={() => emblaApi?.scrollTo(index)}
             aria-label={`Go to ${project.title}`}
             aria-current={index === selectedIndex}
-            className="p-2"
+            className="rounded-full p-0 focus-visible:ring-2 focus-visible:ring-brand-teal focus-visible:ring-offset-4 focus-visible:ring-offset-[#080a18]"
           >
             <span
               aria-hidden="true"

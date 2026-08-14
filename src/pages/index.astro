@@ -1,5 +1,4 @@
 ---
-import { Image } from 'astro:assets'
 import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PrimaryButton from '../components/PrimaryButton.jsx'
@@ -8,8 +7,6 @@ import VectorField from '../components/VectorField.astro'
 import LivingSystems from '../components/LivingSystems.astro'
 import BlockRenderer from '../components/blocks/BlockRenderer.astro'
 import { ArrowRight, Briefcase, CheckCircle2, Clock, Code2, Lightbulb, MessageSquare, Search, Settings, TrendingUp, Wrench, Zap } from '../components/icons/icons.js'
-import chatVectorPng from '../assets/vectors/free/chat.png'
-import syncVectorPng from '../assets/vectors/free/sync.png'
 import { getPersonSchema, getWebsiteSchema } from '../config/schema.js'
 import { loadPageSeo } from '../lib/content/seo'
 import { loadPage } from '../lib/content/pages'
@@ -17,11 +14,10 @@ import { loadPage } from '../lib/content/pages'
 const seo = await loadPageSeo('home')
 const homePage = await loadPage('home')
 const cmsHero = homePage?.blocks.find((block) => block.type === 'hero')?.props || {}
-const heroEyebrow = String(cmsHero.eyebrow || 'Full-Stack Developer & AI Automation Specialist')
 const heroHeading = String(cmsHero.heading || 'From first click to final handoff, build the whole system to move.')
 const heroSubheading = String(cmsHero.subheading || 'DevLab Studios connects polished web experiences, dependable APIs, structured data, and AI-powered automation into one clear operating flow.')
 const heroPrimary = (cmsHero.primaryCta as { label?: string; href?: string } | undefined) || { label: 'Start a Project', href: '/contact' }
-const heroSecondary = (cmsHero.secondaryCta as { label?: string; href?: string } | undefined) || { label: 'View Profile', href: '/profile' }
+const canonicalTagline = 'Your Vision, Digitally Crafted — one solution at a time, always evolving.'
 
 const workAreas = [
   {
@@ -166,39 +162,38 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
 ---
 
 <Layout title="DevLab Studios — Full-Stack Development & AI Automation" seo={seo} jsonLd={jsonLd}>
-  <div class="space-y-12">
-    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-9 lg:min-h-[39rem] lg:p-12">
+  <div>
+    <section class="home-landing cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-9 lg:p-12">
       <VectorField motif="fullstack" />
-      <div class="relative z-10 grid items-center gap-9 lg:min-h-[33rem] lg:grid-cols-[1.02fr_0.98fr]">
-        <div class="space-y-7">
-          <p class="tech-kicker">{heroEyebrow}</p>
-          <div class="space-y-4">
-            <h1 class="max-w-3xl text-4xl font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl lg:text-[3.65rem]">
-              {heroHeading}
-            </h1>
-            <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-              {heroSubheading}
-            </p>
+      <div class="home-landing__grid relative z-10 grid items-center gap-10 lg:grid-cols-[1.04fr_0.96fr]">
+        <div class="home-landing__copy space-y-7 lg:py-8">
+          <p class="tech-kicker">Full-stack Development + AI Automation</p>
+          <div class="space-y-6">
+            <h1 class="home-landing__tagline text-white">{canonicalTagline}</h1>
+            <div class="home-landing__context space-y-2">
+              <p class="text-base font-semibold leading-snug text-white sm:text-lg">{heroHeading}</p>
+              <p class="text-sm leading-relaxed text-slate-300 sm:text-base">{heroSubheading}</p>
+            </div>
           </div>
 
           <div class="flex flex-wrap gap-3">
             <PrimaryButton to={heroPrimary.href || '/contact'} variant="primary" showIcon>
               {heroPrimary.label || 'Start a Project'}
             </PrimaryButton>
-            <PrimaryButton to={heroSecondary.href || '/profile'} variant="secondary">
-              {heroSecondary.label || 'View Profile'}
+            <PrimaryButton to="/work" variant="secondary">
+              View Work
             </PrimaryButton>
           </div>
 
-          <div class="grid gap-3 border-t border-white/10 pt-5 sm:grid-cols-3">
+          <div class="home-landing__capabilities">
             {[
-              ['Interface', 'React + Astro'],
-              ['Engineering', 'Java + Laravel'],
-              ['Automation', 'n8n + Make'],
+              ['01 / Build', 'Full-stack Development'],
+              ['02 / Orchestrate', 'AI Automation'],
+              ['03 / Connect', 'Systems Integration'],
             ].map(([label, value]) => (
               <div>
-                <p class="text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
-                <p class="mt-1 text-sm font-semibold text-slate-200">{value}</p>
+                <p>{label}</p>
+                <p>{value}</p>
               </div>
             ))}
           </div>
@@ -208,51 +203,42 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
       </div>
     </section>
 
-    <section class="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+    <section class="chapter grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
       <div class="space-y-6">
         <SectionHeader
           title="One system, every layer"
           subtitle="Full-stack delivery across customer experience, application logic, data, and the automation that keeps work moving."
         />
-        <div class="grid gap-4">
-          {workAreas.map((item) => (
-            <article class="rounded-2xl bg-gradient-to-b from-[#fff8ff] to-[#f8f6ff] p-5 shadow-[0_14px_30px_rgba(48,28,114,0.12)]">
-              <div class="flex items-start gap-4">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
-                  <item.icon className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div class="space-y-2">
-                  <h3 class="text-xl font-semibold text-brand-ink">{item.title}</h3>
-                  <p class="text-slate-600">{item.description}</p>
-                </div>
-              </div>
+        <div class="capability-list">
+          {workAreas.map((item, index) => (
+            <article class="capability-row">
+              <span class="capability-row__index">{String(index + 1).padStart(2, '0')}</span>
+              <h3 class="text-lg font-semibold text-brand-ink">{item.title}</h3>
+              <p class="text-sm leading-relaxed text-slate-600">{item.description}</p>
             </article>
           ))}
         </div>
       </div>
 
-      <aside class="rounded-[1.75rem] bg-gradient-to-br from-white to-brand-mint/40 p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8">
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div class="rounded-2xl bg-white/90 p-4 shadow-[0_12px_24px_rgba(46,34,98,0.08)]">
-            <Image src={syncVectorPng} alt="Workflow sync illustration" class="h-auto w-full object-contain" loading="lazy" />
+      <aside class="system-brief lg:sticky lg:top-28">
+        <div class="relative z-10">
+          <p class="tech-kicker">System architecture</p>
+          <h3 class="mt-6 max-w-lg text-3xl font-semibold leading-tight">Every layer has a purpose. Every handoff stays visible.</h3>
+          <div class="mt-8 grid gap-3" aria-label="DevLab delivery architecture">
+            {['Interface / customer intent', 'Application / business logic', 'API / integrations', 'Data / operational state', 'Automation / routed action', 'Human / accountable handoff'].map((layer, index) => (
+              <div class="flex items-center gap-4 border-b border-white/10 py-3 last:border-0">
+                <span class="text-[0.65rem] font-bold tracking-[0.15em] text-violet-300">0{index + 1}</span>
+                <span class="text-sm font-medium text-slate-200">{layer}</span>
+                <span class="ml-auto h-1.5 w-1.5 rounded-full bg-violet-400" aria-hidden="true"></span>
+              </div>
+            ))}
           </div>
-          <div class="rounded-2xl bg-white/90 p-4 shadow-[0_12px_24px_rgba(46,34,98,0.08)]">
-            <Image src={chatVectorPng} alt="Client communication illustration" class="h-auto w-full object-contain" loading="lazy" />
-          </div>
-        </div>
-        <div class="mt-6 space-y-3">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Typical outcomes</p>
-          <div class="flex flex-wrap gap-3 text-sm text-slate-600">
-            <span class="badge-pill">Faster lead response</span>
-            <span class="badge-pill">Cleaner intake and routing</span>
-            <span class="badge-pill">Fewer manual follow-ups</span>
-            <span class="badge-pill">More reliable delivery systems</span>
-          </div>
+          <p class="mt-8 max-w-lg text-sm leading-relaxed text-slate-400">The result is not a collection of disconnected tools. It is one maintainable operating flow with clear failure paths and ownership.</p>
         </div>
       </aside>
     </section>
 
-    <section class="space-y-6">
+    <section class="chapter space-y-6">
       <SectionHeader
         title="Services we offer"
         subtitle="The offers below are grounded in the work already shown in the portfolio, resume history, and technical stack."
@@ -262,7 +248,7 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
           const isImageFirst = index % 2 === 1
 
           return (
-            <article class="overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#fff9ff] via-[#fbf9ff] to-[#f2efff] shadow-[0_18px_38px_rgba(48,28,114,0.12)]">
+            <article class="light-artifact overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#fff9ff] via-[#fbf9ff] to-[#f2efff] shadow-[0_18px_38px_rgba(48,28,114,0.12)]">
               <div class="grid items-center gap-0 lg:grid-cols-2">
                 <div class={['flex justify-center p-6 sm:p-8 lg:p-10', isImageFirst ? 'lg:order-1' : 'lg:order-2'].join(' ')}>
                   <ServiceGraphic service={service} />
@@ -299,14 +285,14 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
       </div>
     </section>
 
-    <section class="space-y-6">
+    <section class="chapter space-y-6">
       <SectionHeader
         title="Problem To Solution Approach"
         subtitle="A four-phase delivery model: diagnose the problem, define the approach, build in structured phases, and deliver with full handoff support."
       />
-      <div class="rounded-[1.75rem] bg-gradient-to-br from-white via-[#fbf9ff] to-brand-mint/30 p-6 shadow-[0_18px_40px_rgba(48,28,114,0.12)] sm:p-8 lg:p-10">
+      <div class="chapter-dark p-6 sm:p-8 lg:p-10">
         <div class="relative">
-          <div class="absolute bottom-0 left-5 top-0 w-[2px] bg-gradient-to-b from-brand-teal/10 via-brand-teal/45 to-brand-orange/15 lg:left-1/2 lg:-translate-x-1/2" aria-hidden="true"></div>
+          <div class="process-timeline absolute bottom-0 left-5 top-0 z-0 w-[2px] bg-gradient-to-b from-violet-300/35 via-brand-teal/90 to-cyan-200/40 shadow-[0_0_18px_rgba(139,92,246,0.32)] lg:left-1/2 lg:-translate-x-1/2" aria-hidden="true"></div>
 
           <div class="space-y-6 lg:space-y-8">
             {processSteps.map((item, index) => {
@@ -315,7 +301,7 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
               return (
                 <div class="relative lg:grid lg:grid-cols-2 lg:items-center lg:gap-10">
                   <div class={['pl-16 lg:pl-0', isRight ? 'lg:order-2 lg:pl-10' : 'lg:order-1 lg:pr-10'].join(' ')}>
-                    <div class="rounded-[1.5rem] bg-white/92 p-5 shadow-[0_14px_30px_rgba(48,28,114,0.10)] ring-1 ring-slate-200/70 sm:p-6">
+                    <div class="light-artifact rounded-[1.5rem] bg-white/[0.92] p-5 shadow-[0_14px_30px_rgba(48,28,114,0.10)] ring-1 ring-slate-200/70 sm:p-6">
                       <div class="space-y-4">
                         <div class="flex items-center gap-3">
                           <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
@@ -344,12 +330,13 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
                   <div class={['mt-4 pl-16 lg:mt-0 lg:pl-0', isRight ? 'lg:order-1 lg:pr-10' : 'lg:order-2 lg:pl-10'].join(' ')}>
                     <div class="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#f7fbff] via-white to-[#f3edff] p-5 shadow-[0_14px_30px_rgba(48,28,114,0.08)] ring-1 ring-slate-200/70 sm:p-6">
                       <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(122,0,255,0.10),transparent_34%)]" aria-hidden="true"></div>
-                      <div class="absolute left-6 top-10 right-6 h-[2px] bg-gradient-to-r from-brand-teal/20 via-brand-teal/55 to-brand-orange/25" aria-hidden="true"></div>
-
                       <div class="relative z-10 grid gap-4">
                         <div class="flex items-center justify-between gap-3">
-                          <div>
-                            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">{item.visualTitle}</p>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-3">
+                              <p class="flex-none text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">{item.visualTitle}</p>
+                              <span class="h-px min-w-8 flex-1 bg-gradient-to-r from-brand-teal/55 to-brand-orange/20" aria-hidden="true"></span>
+                            </div>
                             <p class="mt-1 text-sm text-slate-600">{item.visualNote}</p>
                           </div>
                           <div class="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal shadow-[0_10px_22px_rgba(48,28,114,0.10)]" style="animation: float 5.4s ease-in-out infinite" aria-hidden="true">
@@ -359,7 +346,7 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
 
                         <div class="grid gap-3 sm:grid-cols-3">
                           {item.visualChips.map((chip, chipIndex) => (
-                            <div class="rounded-2xl bg-white/92 px-3 py-3 text-center shadow-sm ring-1 ring-slate-200/70" style={`animation: fadeInScale ${0.45 + chipIndex * 0.12}s ease-out, pulse-soft ${4.2 + chipIndex * 0.35}s ease-in-out infinite`}>
+                            <div class="rounded-2xl bg-white/[0.92] px-3 py-3 text-center shadow-sm ring-1 ring-slate-200/70" style={`animation: fadeInScale ${0.45 + chipIndex * 0.12}s ease-out, pulse-soft ${4.2 + chipIndex * 0.35}s ease-in-out infinite`}>
                               <div class="mx-auto mb-2 h-2.5 w-2.5 rounded-full bg-brand-teal/80" aria-hidden="true"></div>
                               <p class="text-sm font-semibold text-brand-ink">{chip}</p>
                             </div>
@@ -380,11 +367,11 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
                     </div>
                   </div>
 
-                  <div class="absolute left-5 top-8 flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full border-4 border-white bg-brand-teal text-sm font-semibold text-white shadow-[0_10px_22px_rgba(48,28,114,0.18)] lg:left-1/2 lg:top-10" aria-hidden="true">
+                  <div class="process-timeline__node absolute left-5 top-8 z-10 flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full border-4 border-white bg-brand-teal text-sm font-semibold text-white shadow-[0_10px_22px_rgba(48,28,114,0.18)] lg:left-1/2 lg:top-10" aria-hidden="true">
                     {item.step}
                   </div>
 
-                  <div class={['absolute top-[3.25rem] hidden h-[2px] bg-brand-teal/30 lg:block', isRight ? 'left-1/2 w-10' : 'right-1/2 w-10'].join(' ')} aria-hidden="true"></div>
+                  <div class={['process-timeline__connector absolute top-[3.25rem] z-0 hidden h-[2px] bg-gradient-to-r from-violet-300/80 to-brand-teal/60 shadow-[0_0_12px_rgba(139,92,246,0.28)] lg:block', isRight ? 'left-1/2 w-10' : 'right-1/2 w-10'].join(' ')} aria-hidden="true"></div>
                 </div>
               )
             })}
@@ -393,23 +380,23 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
       </div>
     </section>
 
-    <section class="rounded-[1.75rem] bg-gradient-to-r from-brand-ink via-[#22185a] to-[#3120a3] p-6 text-white shadow-[0_22px_50px_rgba(20,13,64,0.22)] sm:p-8">
+    <section class="chapter-dark mb-0 p-6 sm:p-8">
       <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <div class="space-y-3">
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Why clients hire DevLab Studios</p>
-          <h2 class="text-3xl font-semibold leading-tight">A practical mix of front-end delivery, automation logic, and operations thinking.</h2>
+          <h2 class="text-3xl font-semibold leading-tight">Full-stack Development + AI Automation, connected from interface to handoff.</h2>
           <p class="text-white/75">
-            The work spans landing pages, business websites, AI-assisted workflows, CRM integrations, backend services, dashboards, and internal tools, so projects can move from offer presentation to operational execution without handing off to multiple freelancers.
+            The work spans customer-facing websites, backend services, structured data, AI-assisted workflows, CRM integrations, dashboards, and internal tools—so projects move from polished experience to reliable operations without fragmented handoffs.
           </p>
         </div>
         <div class="grid gap-3 sm:grid-cols-2">
           <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-            <p class="text-2xl font-semibold">Web + backend + automation</p>
-            <p class="mt-1 text-sm text-white/70">One workflow from first click to service delivery and handoff.</p>
+            <p class="text-2xl font-semibold">Full-stack Development</p>
+            <p class="mt-1 text-sm text-white/70">Interfaces, APIs, backend services, and data designed as one maintainable product.</p>
           </div>
           <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-            <p class="text-2xl font-semibold">Systems-oriented</p>
-            <p class="mt-1 text-sm text-white/70">Built around structured data flow, reliability, and maintainable delivery.</p>
+            <p class="text-2xl font-semibold">AI Automation</p>
+            <p class="mt-1 text-sm text-white/70">Connected workflows, intelligent routing, and operational handoffs built for reliable delivery.</p>
           </div>
         </div>
       </div>

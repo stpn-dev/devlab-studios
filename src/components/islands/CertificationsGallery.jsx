@@ -19,7 +19,7 @@ function CertificationsGallery({ certifications }) {
         {certifications.map((cert) => (
           <li
             key={cert.id}
-            className="flex items-center gap-4 rounded-2xl bg-white/0 p-3 shadow-none transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-[0_16px_36px_rgba(60,28,120,0.18)]"
+            className="flex items-center gap-4 rounded-2xl border border-transparent bg-transparent p-3 shadow-none transition-all duration-300 hover:-translate-y-0.5 hover:border-white/10 hover:bg-white/[0.05] hover:shadow-[0_16px_36px_rgba(0,0,0,0.22)]"
           >
             {cert.badgeImage ? (
               <button

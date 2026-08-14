@@ -3,6 +3,7 @@ import { brandingAssets } from '../../config/branding'
 import devlabStudiosLogo from '../../assets/devlabstudios-logo-only.png'
 import siteSettingsContent from '../../data/siteSettingsContent'
 import { Code2, Database, FileText, Network } from '../../components/icons/icons'
+import AdminVectorField from '../components/AdminVectorField'
 
 const CMS_CAPABILITIES = [
   { icon: FileText, label: 'Content', detail: 'Pages, articles, and SEO' },
@@ -25,7 +26,8 @@ function LoginPage({ onLogin }) {
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (!ignore && data?.footer?.tagline) {
-          setTagline(data.footer.tagline)
+          const value = String(data.footer.tagline).trim()
+          setTagline(/^(?:smoke test|version history) tagline\b/i.test(value) ? siteSettingsContent.footer.tagline : value.replace(' - ', ' — '))
         }
       })
       .catch(() => {})
@@ -64,10 +66,11 @@ function LoginPage({ onLogin }) {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <div className="relative hidden overflow-hidden bg-gradient-to-br from-brand-ink via-[#241963] to-[#3320a3] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+      <div className="relative hidden overflow-hidden bg-gradient-to-br from-[#060711] via-[#0d1020] to-[#17113f] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        <AdminVectorField tone="dark" />
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -left-16 top-10 h-72 w-72 rounded-full bg-brand-teal/20 blur-[120px]" />
-          <div className="absolute bottom-10 right-0 h-80 w-80 rounded-full bg-fuchsia-400/15 blur-[140px]" />
+          <div className="absolute -left-16 top-10 h-72 w-72 rounded-full bg-brand-teal/10 blur-[120px]" />
+          <div className="absolute bottom-10 right-0 h-80 w-80 rounded-full bg-fuchsia-400/[0.08] blur-[140px]" />
         </div>
 
         <div className="relative z-10 flex items-center gap-3">

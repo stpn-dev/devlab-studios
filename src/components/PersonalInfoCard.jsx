@@ -30,7 +30,7 @@ function PersonalInfoCard({ aboutData, photo }) {
 
       <div className="space-y-2">
         <h2 className="text-2xl font-semibold text-brand-ink sm:text-[1.75rem]">{aboutData.name}</h2>
-        {aboutData.role ? <p className="text-sm text-brand-teal">{aboutData.role}</p> : null}
+        {aboutData.role ? <p className="text-sm text-slate-300">{aboutData.role}</p> : null}
         <span className="badge-pill inline-block">Available for part-time and full-time engagements</span>
       </div>
 

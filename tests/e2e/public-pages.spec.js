@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 const pages = [
-  { path: '/', heading: 'From first click to final handoff' },
+  { path: '/', heading: 'Your Vision, Digitally Crafted' },
   { path: '/about', heading: 'Systems for clearer offers' },
   { path: '/services', heading: 'Full-stack products and AI automation' },
   { path: '/profile', heading: 'Full-stack development with an automation mindset' },
@@ -59,8 +59,11 @@ test('unknown case study slug returns a real 404 status', async ({ page }) => {
 
 test('footer has real links to Privacy and Terms', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy')
-  await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '/terms')
+  const footer = page.getByRole('contentinfo')
+  await expect(footer.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy')
+  await expect(footer.getByRole('link', { name: 'Terms of Service' })).toHaveAttribute('href', '/terms')
+  await expect(footer).toContainText('Your Vision, Digitally Crafted — one solution at a time, always evolving.')
+  await expect(footer).not.toContainText(/(?:version history|smoke test) tagline/i)
 })
 
 test('primary navigation keeps About and Work visible without promoting Process', async ({ page }) => {
@@ -68,6 +71,63 @@ test('primary navigation keeps About and Work visible without promoting Process'
   const navigation = page.getByRole('banner').getByRole('navigation')
   await expect(navigation.getByRole('link')).toHaveText(['About', 'Services', 'Work', 'Insights', 'Profile'])
   await expect(navigation.getByRole('link', { name: 'Process' })).toHaveCount(0)
+})
+
+test('homepage preserves the canonical brand hierarchy and routes visitors to Work', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Your Vision, Digitally Crafted — one solution at a time, always evolving.' })).toBeVisible()
+  await expect(page.getByText('Full-stack Development + AI Automation', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Full-stack Development + AI Automation, connected from interface to handoff.' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View Work' })).toHaveAttribute('href', '/work')
+  await expect(page.getByText('Systems Integration', { exact: true })).toBeVisible()
+  await expect(page.locator('.process-timeline')).toHaveClass(/via-brand-teal\/90/)
+  await expect(page.locator('.process-timeline__connector').first()).toHaveClass(/from-violet-300\/80/)
+  await expect(page.locator('.process-timeline__connector').first()).toHaveCSS('z-index', '0')
+  await expect(page.locator('.process-timeline__node').first()).toHaveCSS('z-index', '10')
+  const heroBox = await page.locator('.home-landing').boundingBox()
+  expect(heroBox.height).toBeGreaterThanOrEqual(760)
+  expect(Math.abs(heroBox.x)).toBeLessThanOrEqual(1)
+  expect(Math.abs(heroBox.width - 1440)).toBeLessThanOrEqual(1)
+})
+
+test('public pages use one document backdrop and an integrated sticky navbar', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/')
+
+  const geometry = await page.evaluate(() => {
+    const shell = document.querySelector('.public-shell')?.getBoundingClientRect()
+    const backdrop = document.querySelector('.public-backdrop')?.getBoundingClientRect()
+    const hero = document.querySelector('.home-landing')
+    const navbar = document.querySelector('.site-navbar')
+    return {
+      shellHeight: shell?.height || 0,
+      backdropTop: backdrop?.top || 0,
+      backdropHeight: backdrop?.height || 0,
+      heroBackground: hero ? getComputedStyle(hero).backgroundColor : '',
+      navbarBackground: navbar ? getComputedStyle(navbar).backgroundColor : '',
+    }
+  })
+
+  expect(Math.abs(geometry.backdropTop)).toBeLessThanOrEqual(1)
+  expect(Math.abs(geometry.backdropHeight - geometry.shellHeight)).toBeLessThanOrEqual(1)
+  expect(geometry.heroBackground).toBe('rgba(0, 0, 0, 0)')
+  expect(geometry.navbarBackground).toBe('rgba(0, 0, 0, 0)')
+
+  await page.evaluate(() => window.scrollTo(0, 500))
+  await expect(page.locator('#site-header')).toHaveClass(/site-header--scrolled/)
+  await expect(page.locator('.site-navbar')).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})
+
+test('core public compositions avoid horizontal overflow at target breakpoints', async ({ page }) => {
+  for (const width of [1440, 1280, 1024, 768, 430, 390]) {
+    await page.setViewportSize({ width, height: width <= 430 ? 844 : 900 })
+    for (const path of ['/', '/work']) {
+      await page.goto(path)
+      const dimensions = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
+      expect(dimensions.content, `${path} overflows at ${width}px`).toBeLessThanOrEqual(dimensions.viewport)
+    }
+  }
 })
 
 test('Work publishes selected automation project write-ups', async ({ page }) => {
@@ -92,6 +152,38 @@ test('resume is available from Profile only and opens inline', async ({ page, re
   expect(response.status()).toBe(200)
   expect(response.headers()['content-type']).toContain('application/pdf')
   expect(response.headers()['content-disposition'] || '').not.toContain('attachment')
+})
+
+test('Profile hover actions stay legible and large previews remain below navigation', async ({ page }) => {
+  test.setTimeout(45_000)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/profile')
+
+  const detailsAction = page.getByRole('button', { name: 'View details' }).first()
+  await detailsAction.hover()
+  await expect(detailsAction).toHaveCSS('color', 'rgb(255, 255, 255)')
+
+  const certificateButton = page.getByRole('button', { name: 'View No Code Automation with Zapier certificate full size' })
+  await certificateButton.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(300)
+  await certificateButton.click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  const backdropBox = await dialog.boundingBox()
+  const panelBox = await dialog.locator('.modal-viewport-panel').boundingBox()
+  const navbarBox = await page.locator('.site-navbar').boundingBox()
+  expect(backdropBox.y).toBe(0)
+  expect(backdropBox.height).toBe(900)
+  expect(panelBox.y).toBeGreaterThanOrEqual(navbarBox.y + navbarBox.height)
+  expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(900)
+})
+
+test('CMS decorative vector fields remain behind content and outside the accessibility tree', async ({ page }) => {
+  await page.goto('/admin')
+  const field = page.locator('.admin-vector-field')
+  await expect(field).toHaveCount(1)
+  await expect(field).toHaveAttribute('aria-hidden', 'true')
+  await expect(field.locator('.admin-vector-field__icon')).toHaveCount(6)
 })
 
 test('decorative vector motifs stay out of the accessibility tree', async ({ page }) => {

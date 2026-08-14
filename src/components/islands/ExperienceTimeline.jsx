@@ -28,7 +28,7 @@ function ExperienceTimeline({ experiences }) {
             <div className="flex justify-center">
               <div className="h-3.5 w-3.5 rounded-full border-[3px] border-white bg-brand-orange shadow-[0_0_0_3px_rgba(122,0,255,0.25)]"></div>
             </div>
-            <section className="rounded-2xl bg-white/0 p-4 shadow-none transition-all duration-300 hover:bg-white/90 hover:shadow-[0_16px_36px_rgba(60,28,120,0.14)]">
+            <section className="rounded-2xl border border-transparent bg-transparent p-4 shadow-none transition-all duration-300 hover:-translate-y-0.5 hover:border-white/10 hover:bg-white/[0.05] hover:shadow-[0_16px_36px_rgba(0,0,0,0.22)]">
               <div className="mb-1.5 flex items-center gap-2">
                 <AnimatedIcon icon={Briefcase} size={14} color="text-brand-teal" animationType="none" ariaLabel="Role type" />
                 <p className="text-xs uppercase tracking-[0.14em] text-slate-500">{item.title}</p>
@@ -43,7 +43,7 @@ function ExperienceTimeline({ experiences }) {
               <button
                 type="button"
                 onClick={() => setSelectedExperience(item)}
-                className="group mt-2 inline-flex items-center gap-1 text-sm font-semibold text-brand-teal transition hover:text-brand-ink"
+                className="experience-detail-action group mt-2 inline-flex items-center gap-1 text-sm font-semibold text-violet-300 transition"
               >
                 View details
                 <AnimatedIcon icon={ArrowRight} size={14} color="inherit" animationType="hover-slide" ariaLabel="View full experience details" />

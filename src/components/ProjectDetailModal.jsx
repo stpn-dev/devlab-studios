@@ -68,7 +68,7 @@ function ProjectDetailModal({ project, isOpen, onClose, onImageClick, suppressEs
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 px-4 pb-4 pt-[calc(6.75rem+env(safe-area-inset-top,0px))] backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) handleClose()
       }}
@@ -76,7 +76,7 @@ function ProjectDetailModal({ project, isOpen, onClose, onImageClick, suppressEs
       aria-modal="true"
       aria-labelledby="project-detail-title"
     >
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-6 shadow-[0_24px_60px_rgba(60,28,120,0.25)]">
+      <div className="modal-viewport-panel max-h-[calc(100dvh-8.75rem)] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-6 shadow-[0_24px_60px_rgba(60,28,120,0.25)]">
         <div className="flex items-start justify-between gap-4">
           <h3 id="project-detail-title" className="text-2xl font-semibold text-brand-ink">{project.title}</h3>
           <button

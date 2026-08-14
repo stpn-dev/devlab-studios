@@ -23,7 +23,7 @@ function Footer() {
             />
             <p className="mb-1 text-lg font-semibold text-brand-ink">{footer.companyName || 'DevLab Studios'}</p>
             <p className="mb-3 whitespace-normal text-slate-500 md:whitespace-nowrap">
-              {footer.tagline || 'Your Vision, Digitally Crafted - one solution at a time, always evolving.'}
+              {String(footer.tagline || 'Your Vision, Digitally Crafted — one solution at a time, always evolving.').replace(' - ', ' — ')}
             </p>
             <a href={`mailto:${footer.email || 'stpnrey.agustinez@gmail.com'}`} className="mb-1 block text-slate-700 hover:text-brand-teal hover:underline">
               {footer.email || 'stpnrey.agustinez@gmail.com'}

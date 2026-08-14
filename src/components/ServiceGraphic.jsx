@@ -201,7 +201,7 @@ function ServiceGraphic({ service }) {
   }
 
   return (
-    <div className="relative w-full max-w-md overflow-hidden rounded-[1.5rem] bg-white/88 p-4 shadow-[0_16px_34px_rgba(48,28,114,0.10)] sm:p-5">
+    <div className="relative w-full max-w-md overflow-hidden rounded-[1.5rem] bg-white/[0.88] p-4 shadow-[0_16px_34px_rgba(48,28,114,0.10)] sm:p-5">
       <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-br from-brand-mint/55 via-white to-transparent" aria-hidden="true" />
       <div className="absolute right-5 top-5 h-16 w-16 rounded-full bg-brand-orange/10 blur-2xl" aria-hidden="true" />
 
@@ -236,7 +236,7 @@ function ServiceGraphic({ service }) {
           {renderServiceScene()}
         </div>
 
-        <div className="mt-4 rounded-2xl bg-white/88 px-3 py-3 ring-1 ring-slate-200/70">
+        <div className="mt-4 rounded-2xl bg-white/[0.88] px-3 py-3 ring-1 ring-slate-200/70">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-brand-teal">
             <TrendingUp className="h-4 w-4" aria-hidden="true" />
             Visual Focus

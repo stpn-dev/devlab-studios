@@ -2,6 +2,14 @@ import { getSiteSettingsContent } from '../../worker/repositories/content.js'
 import { siteSettingsContent } from '../../data/siteSettingsContent.js'
 import { getEnv } from '../env'
 
+const canonicalTagline = 'Your Vision, Digitally Crafted — one solution at a time, always evolving.'
+
+function sanitizeFooterTagline(tagline?: string): string {
+  const value = String(tagline || '').trim()
+  if (!value || /^(?:smoke test|version history) tagline\b/i.test(value)) return canonicalTagline
+  return value.replace(' - ', ' — ')
+}
+
 export interface SiteSettingsData {
   navigation: Array<{ label: string; href: string }>
   ctas: { navbarContactLabel?: string; mobileContactLabel?: string }
@@ -38,6 +46,7 @@ export async function loadSiteSettings(): Promise<SiteSettingsData> {
       footer: {
         ...siteSettingsContent.footer,
         ...footer,
+        tagline: sanitizeFooterTagline(footer.tagline),
         quickLinks: footer.quickLinks?.length ? footer.quickLinks : siteSettingsContent.footer.quickLinks,
         socialLinks: footer.socialLinks?.length ? footer.socialLinks : siteSettingsContent.footer.socialLinks,
         legalLinks: footer.legalLinks?.length ? footer.legalLinks : siteSettingsContent.footer.legalLinks,

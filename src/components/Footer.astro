@@ -8,6 +8,11 @@ interface Props {
 
 const { siteSettings } = Astro.props
 const footer = siteSettings.footer || {}
+const canonicalTagline = 'Your Vision, Digitally Crafted — one solution at a time, always evolving.'
+const rawTagline = String(footer.tagline || '').trim()
+const footerTagline = !rawTagline || /^(?:smoke test|version history) tagline\b/i.test(rawTagline)
+  ? canonicalTagline
+  : rawTagline.replace(' - ', ' — ')
 const quickLinks = footer.quickLinks || []
 const socialLinks = footer.socialLinks || []
 const legalLinks = footer.legalLinks?.length
@@ -25,8 +30,8 @@ const socialIcon = (label: string) => {
 }
 ---
 
-<footer class="relative mt-20 overflow-hidden border-t border-white/10 bg-[#0a0d21] text-white">
-  <div class="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,#c000ff_28%,#4500ff_65%,#0000ff,transparent)]" aria-hidden="true"></div>
+<footer class="site-footer relative mt-20 overflow-hidden text-white">
+  <div class="absolute inset-x-[12%] top-0 h-px opacity-60 bg-[linear-gradient(90deg,transparent,#c000ff_28%,#4500ff_65%,#0000ff,transparent)]" aria-hidden="true"></div>
   <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,rgba(104,0,255,0.10),transparent_32%),radial-gradient(circle_at_85%_80%,rgba(0,0,255,0.08),transparent_30%)]" aria-hidden="true"></div>
   <div class="relative mx-auto max-w-7xl px-4 py-12 text-sm text-slate-300 sm:px-6 lg:px-6">
     <div class="flex flex-col gap-8 text-center md:flex-row md:items-start md:justify-between md:text-left">
@@ -36,7 +41,7 @@ const socialIcon = (label: string) => {
           <p class="text-lg font-semibold tracking-tight text-white">{footer.companyName || 'DevLab Studios'}</p>
         </div>
         <p class="mb-3 max-w-md text-slate-400">
-          {footer.tagline || 'Your Vision, Digitally Crafted - one solution at a time, always evolving.'}
+          {footerTagline}
         </p>
         <a href={`mailto:${footer.email || 'stpnrey.agustinez@gmail.com'}`} class="mb-1 block text-slate-200 transition hover:text-white hover:underline">
           {footer.email || 'stpnrey.agustinez@gmail.com'}

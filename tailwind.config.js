@@ -11,9 +11,9 @@ export default {
           ink: '#11142a',
           teal: '#4500ff',
           mint: '#eeefff',
-          orange: '#0000ff',
-          orangeDark: '#0000cc',
-          shell: '#f7f7ff',
+          orange: '#0800ff',
+          orangeDark: '#0800cc',
+          shell: '#f5f5fc',
         },
         navy: {
           50: '#e8edff',

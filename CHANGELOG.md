@@ -51,6 +51,18 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Changed
+- Brightened the homepage delivery timeline and aligned the client-credibility language around Full-stack Development + AI Automation.
+- Reframed the public experience as a dark-native, full-bleed DevLab system with a full-viewport landing chapter, the canonical brand tagline, restrained logo-derived color energy, open capability architecture, larger proof-first Work presentations, and light surfaces reserved for intentional content artifacts.
+- Consolidated public pages into one full-document midnight backdrop with continuous gradients, mesh, and sparse technical markers; transparent section wrappers; and a navbar that integrates at page load before gaining a restrained sticky surface on scroll.
+- Refined the Admin CMS into a quieter operational control plane with compact metrics, scan-friendly activity, restrained navigation states, and standardized workspace controls while preserving its routes and workflows.
+- Polished the profile tool strip and open dark-surface interactions, compact carousel pagination, process-artifact labels, and desktop hero height so the approved dark-native design remains legible and complete across common first-viewport sizes.
+
+### Fixed
+- Guarded the public footer and CMS login against temporary version-history or smoke-test tagline values while retaining a targeted, idempotent D1 correction for existing environments.
+- Kept Profile experience actions legible during hover, constrained public detail and image panels beneath the sticky navigation, and extended their dimming backdrop behind the navbar without covering it.
+- Extended the CMS visual system with icon-led navigation and sparse, non-interactive vector fields behind workspace content and the login introduction.
+
 ## [1.4.4] - 2026-08-13
 
 ### Fixed

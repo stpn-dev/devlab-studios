@@ -12,7 +12,7 @@ export const siteSettingsContent = {
   },
   footer: {
     companyName: 'DevLab Studios',
-    tagline: 'Your Vision, Digitally Crafted - one solution at a time, always evolving.',
+    tagline: 'Your Vision, Digitally Crafted — one solution at a time, always evolving.',
     email: 'stpnrey.agustinez@gmail.com',
     location: 'Lapu-Lapu City, Cebu, PH',
     quickLinks: [

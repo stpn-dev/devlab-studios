@@ -3,6 +3,7 @@ import '../index.css'
 import SeoHead from '../components/SeoHead.astro'
 import Navbar from '../components/Navbar.astro'
 import Footer from '../components/Footer.astro'
+import PublicBackdrop from '../components/PublicBackdrop.astro'
 import { loadSiteSettings } from '../lib/content/siteSettings'
 import type { SeoData } from '../lib/content/seo'
 
@@ -34,7 +35,7 @@ function safeJsonLd(value: unknown): string {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#000a14" />
+    <meta name="theme-color" content="#070916" />
     <meta name="robots" content="index, follow" />
     <SeoHead fallbackTitle={title} seo={seo} />
 
@@ -73,12 +74,13 @@ function safeJsonLd(value: unknown): string {
       });
     </script>
   </head>
-  <body>
-    <div class="relative flex min-h-screen flex-col text-slate-900">
+  <body class="public-page">
+    <div class="public-shell relative flex min-h-screen flex-col">
+      <PublicBackdrop />
       <Navbar siteSettings={siteSettings} currentPath={currentPath} />
 
       <div class="relative z-10 flex flex-1 flex-col pt-[calc(6.75rem+env(safe-area-inset-top,0px))]">
-        <main class="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 lg:px-6">
+        <main class="public-main mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 lg:px-6">
           <slot />
         </main>
         <Footer siteSettings={siteSettings} />
