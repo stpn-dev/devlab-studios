@@ -17,12 +17,14 @@ Snapshot as of 2026-07-31, taken as Phase 0 of the Astro/CMS rebuild program (se
 | `ADMIN_AUTH_MODE` | `password` \| `cloudflare-access` \| `disabled` — selects the admin auth strategy in `src/worker/middleware/adminAuth.js`. Currently `password`. |
 | `R2_PUBLIC_BASE_URL` | Public base URL used to build absolute links to R2-hosted media. |
 | `TURNSTILE_SITE_KEY` | Public runtime sitekey for the environment-specific contact-form widget. Preview and production use different keys. |
+| `RESEND_FROM_EMAIL` | Sender address for the lead-notification email (defaults to `hello@devlabstudios.com`). |
+| `LEAD_NOTIFICATION_EMAIL` | Recipient address for the lead-notification email (defaults to `hello@devlabstudios.com`). |
 
 ## Secrets (set via Cloudflare dashboard or `wrangler secret put` — never in the repo)
 
 | Secret | Used by | Purpose |
 |---|---|---|
-| `ZOHO_WEBHOOK_URL` | `POST /api/contact` (background delivery, see below) | Upstream contact-form delivery target. |
+| `RESEND_API_KEY` | `POST /api/contact` (background delivery, see below) | Resend API key used to send the lead-notification email. Intentionally unset in Preview. |
 | `TURNSTILE_SECRET_KEY` | `POST /api/contact` | Environment-specific server-side verification secret. Deployed requests fail closed when it is unset. |
 | `ADMIN_SESSION_SECRET` | `adminAuth.js` | HMAC key signing the admin session cookie. |
 | `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` | `adminAuth.js` | Single-admin credential pair (PBKDF2 hash format — see `scripts/cms/hash-admin-password.mjs`). |
@@ -39,8 +41,8 @@ Snapshot as of 2026-07-31, taken as Phase 0 of the Astro/CMS rebuild program (se
 
 `POST /api/contact` persists every submission to the `leads` table
 *before* attempting delivery — this is the core reliability guarantee:
-a Zoho outage never loses a lead, it just leaves it in `status: failed`,
-retryable from `/admin/leads`. The Zoho delivery attempt itself runs
+a Resend outage never loses a lead, it just leaves it in `status: failed`,
+retryable from `/admin/leads`. The Resend delivery attempt itself runs
 in the background via `Astro.locals.cfContext.waitUntil()` (Astro 6.2+'s
 Cloudflare-forwarded `ExecutionContext.waitUntil`, not the older/removed
 `locals.runtime.ctx` pattern), so the visitor's response doesn't wait on
@@ -57,7 +59,7 @@ git history around the Phase 5 commits for the fuller tradeoff.
 Submissions with the same email + message within a 5-minute window are
 treated as the same inquiry (`findRecentDuplicateLead`) — no new lead
 or delivery attempt, so double-clicks and retry-after-timeout don't
-spam Zoho or the admin Leads list.
+spam Resend or the admin Leads list.
 
 ### Turnstile setup
 
@@ -84,7 +86,7 @@ Maintenance mode is a runtime check (`src/middleware.ts`), not a build-time flag
 
 ## Local test/dev fixtures
 
-- `.dev.vars` (gitignored): local-only `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`/`ADMIN_SESSION_SECRET`/`ZOHO_WEBHOOK_URL` values used by `wrangler dev --local` and the Playwright `admin.spec.js` suite. Not real credentials — safe to regenerate at will via `npm run cms:hash-admin-password`.
+- `.dev.vars` (gitignored): local-only `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`/`ADMIN_SESSION_SECRET`/`RESEND_API_KEY` values used by `wrangler dev --local` and the Playwright `admin.spec.js` suite. `RESEND_API_KEY` is set to a deliberately-invalid placeholder so local/test runs never send a real email. Not real credentials — safe to regenerate at will via `npm run cms:hash-admin-password`.
 - Local D1: `npx wrangler d1 migrations apply devlab-studios-cms --local` applies `migrations/*.sql` to a local SQLite file under `.wrangler/` (gitignored).
 
 ## Other non-secret, hardcoded values worth knowing about
@@ -148,8 +150,10 @@ rather than passed as `--env preview` to `wrangler deploy` — a
 non-obvious consequence of how `@astrojs/cloudflare` bakes bindings in at
 build time.
 
-Preview needs its own values for every secret in the table above
-(`ADMIN_SESSION_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`,
-`ZOHO_WEBHOOK_URL`, `TURNSTILE_SECRET_KEY`) — set with `wrangler secret
+Preview needs its own values for every secret in the table above except
+`RESEND_API_KEY`, which is intentionally left unset so preview and e2e
+runs never send a real email (leads still persist to D1 with a failed
+delivery attempt): `ADMIN_SESSION_SECRET`, `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`,
+`TURNSTILE_SECRET_KEY` — set with `wrangler secret
 put <NAME> --env preview`, never copied from production. Turnstile must use a
 separate Preview widget and secret, not the Production pair.

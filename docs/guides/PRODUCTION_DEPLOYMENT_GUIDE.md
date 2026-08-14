@@ -26,7 +26,8 @@ continuous deployment on pushes to `main`.
 
 In the Worker's Settings → Variables and Secrets, configure:
 
-- `ZOHO_WEBHOOK_URL` (Secret) — contact form upstream
+- `RESEND_API_KEY` (Secret) — contact form lead-notification delivery
+- `RESEND_FROM_EMAIL` / `LEAD_NOTIFICATION_EMAIL` (Vars, optional) — sender/recipient override, defaults to `hello@devlabstudios.com`
 - `ADMIN_SESSION_SECRET` (Secret) — signs admin session cookies
 - `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` (or `ADMIN_USERS` JSON, or
   `ADMIN_AUTH_MODE=cloudflare-access` to use Cloudflare Access instead —
@@ -40,7 +41,7 @@ R2 bucket `devlab-studios` (binding `MEDIA_BUCKET`).
 Notes:
 - Do not store secrets in repository files — use the Cloudflare dashboard or
   `wrangler secret put`.
-- Rotate the Zoho webhook URL/admin credentials immediately if ever exposed.
+- Rotate the Resend API key/admin credentials immediately if ever exposed.
 
 ## 3. Routing and Headers
 

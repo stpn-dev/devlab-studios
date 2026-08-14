@@ -51,6 +51,9 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Changed
+- Replaced the Zoho Flow webhook as the contact-form lead-delivery target with the Resend API. A webhook trigger only confirms Zoho *received* the ping, not that its flow actually ran and sent an email — with the flow's subscription lapsed, leads were silently persisting to D1 while reporting "delivered" and no email ever arrived. Resend's response only reports success once the message is actually accepted for delivery, so lead status now reflects reality. Sends from and to `hello@devlabstudios.com` by default (both configurable), and preview intentionally has no working key so preview/e2e runs never send a real email.
+
 ### Fixed
 - Fixed the mobile navigation panel rendering with no background at all instead of a near-opaque dark surface, letting page content bleed through behind its links. The cause: Tailwind's opacity modifier (`/NN`) only resolves values on its opacity scale (multiples of 5); `bg-[#080d21]/98` used an unsupported value and silently compiled to nothing. Corrected this and two other same-shape instances (light gradient card treatments using `/92` and `/88`) to valid scale values.
 

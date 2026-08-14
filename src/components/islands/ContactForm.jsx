@@ -230,7 +230,7 @@ function ContactForm({ siteKey = '', copy = {} }) {
           <PrimaryButton type="submit" disabled={!isHydrated || isSubmitting || !siteKey || !turnstile.token} className="px-6">
             {isSubmitting ? <><span>Sending…</span><AnimatedIcon icon={Loader2} size={16} color="inherit" animationType="spin" ariaLabel={null} /></> : <><span>{copy.submitLabel || 'Send Message'}</span><AnimatedIcon icon={Send} size={16} color="inherit" animationType="hover-slide" ariaLabel={null} /></>}
           </PrimaryButton>
-          <span className="text-sm text-slate-600">{copy.helperText || 'Responses are securely routed via Zoho.'}</span>
+          <span className="text-sm text-slate-600">{copy.helperText || 'Responses are delivered securely by email.'}</span>
         </div>
 
         {status ? (

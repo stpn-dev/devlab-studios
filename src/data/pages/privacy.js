@@ -1,5 +1,5 @@
 // Standard privacy policy boilerplate reflecting what this site actually
-// does technically (contact form fields, Zoho delivery, GA4 config) —
+// does technically (contact form fields, Resend delivery, GA4 config) —
 // not invented legal claims. Flagged for legal review before being
 // treated as final; see docs/content-model.md.
 export const privacyPage = {
@@ -12,7 +12,7 @@ export const privacyPage = {
       props: {
         eyebrow: 'Legal',
         heading: 'Privacy Policy',
-        subheading: 'Last updated: July 31, 2026. This policy explains what information DevLab Studios collects through this website and how it is used.',
+        subheading: 'Last updated: August 14, 2026. This policy explains what information DevLab Studios collects through this website and how it is used.',
       },
     },
     {
@@ -28,7 +28,7 @@ DevLab Studios collects information you voluntarily provide through the contact 
 - Communicate about a potential or active project
 - Keep records of client communications for service delivery
 
-Contact form submissions are delivered to our email via a third-party automation service (Zoho). We do not sell, rent, or trade your personal information to third parties for their marketing purposes.
+Contact form submissions are delivered to our email via a third-party transactional email service (Resend). We do not sell, rent, or trade your personal information to third parties for their marketing purposes.
 
 ## Analytics
 

@@ -18,7 +18,7 @@ const formCopy = {
   emailLabel: String(formItems[1]?.label || 'Email'), emailPlaceholder: String(formItems[1]?.value || 'name@email.com'),
   subjectLabel: String(formItems[2]?.label || 'Subject'), subjectPlaceholder: String(formItems[2]?.value || 'Project inquiry, support, collaboration'),
   messageLabel: String(formItems[3]?.label || 'Message'), messagePlaceholder: String(formItems[3]?.value || 'Share context, goals, timelines, and success criteria.'),
-  submitLabel: String(contactSubmitCta.label || 'Send Message'), helperText: String(pageCta.body || 'Responses are securely routed via Zoho.'),
+  submitLabel: String(contactSubmitCta.label || 'Send Message'), helperText: String(pageCta.body || 'Responses are delivered securely by email.'),
 }
 const env = getEnv()
 const requestHostname = new URL(Astro.request.url).hostname

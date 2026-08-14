@@ -4,7 +4,7 @@ function buildContentSecurityPolicy(isLocalhost: boolean): string {
   const directives = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://challenges.cloudflare.com",
-    "connect-src 'self' https://*.zohopublic.com https://*.zoho.com https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://www.google.com https://www.googletagmanager.com https://challenges.cloudflare.com",
+    "connect-src 'self' https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://www.google.com https://www.googletagmanager.com https://challenges.cloudflare.com",
     "img-src 'self' data: https:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",

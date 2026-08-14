@@ -25,7 +25,9 @@
   "vars": {
     "ADMIN_AUTH_MODE": "password",
     "R2_PUBLIC_BASE_URL": "https://pub-401ca3448c3348158cdb3e4e9a9dcb20.r2.dev",
-    "TURNSTILE_SITE_KEY": "0x4AAAAAAEO3GbzGXQvAtOdI"
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAEO3GbzGXQvAtOdI",
+    "RESEND_FROM_EMAIL": "hello@devlabstudios.com",
+    "LEAD_NOTIFICATION_EMAIL": "hello@devlabstudios.com"
   },
   "compatibility_date": "2026-03-10",
   "compatibility_flags": ["nodejs_compat"],

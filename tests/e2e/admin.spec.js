@@ -300,10 +300,11 @@ test('Work editor selects existing Projects and owns its narrative without ownin
   expect(deleteResponse.ok()).toBeTruthy()
 })
 
-test('a lead persists in D1 and shows a failed delivery attempt when Zoho is unreachable', async ({ page, baseURL }) => {
-  // .dev.vars points ZOHO_WEBHOOK_URL at an RFC 2606 .invalid address, so
-  // delivery is guaranteed to fail here — this is exactly what proves the
-  // core Phase 5 guarantee: the lead survives a downstream outage.
+test('a lead persists in D1 and shows a failed delivery attempt when Resend is unreachable', async ({ page, baseURL }) => {
+  // .dev.vars points RESEND_API_KEY at a deliberately-invalid key, so Resend
+  // rejects it with 401 and delivery is guaranteed to fail here — this is
+  // exactly what proves the core Phase 5 guarantee: the lead survives a
+  // downstream outage.
   // Both subject and message must be unique per run: findRecentDuplicateLead
   // dedupes on email+message within a 5-minute window, so a repeated message
   // here would be (correctly) treated as a resubmission of the same inquiry
@@ -316,7 +317,7 @@ test('a lead persists in D1 and shows a failed delivery attempt when Zoho is unr
 
   await login(page)
 
-  // The Zoho attempt runs in the background (waitUntil) — poll briefly for
+  // The Resend attempt runs in the background (waitUntil) — poll briefly for
   // the delivery_attempts row to land rather than assuming it's instant.
   await expect(async () => {
     const leadsResponse = await page.request.get(`${baseURL}/api/admin/leads`)

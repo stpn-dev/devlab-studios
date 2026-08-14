@@ -24,7 +24,7 @@ remain the version and binding sources of truth.
 | Database | Cloudflare D1 | — | Separate `devlab-studios-cms` and `devlab-studios-cms-preview` databases |
 | Object storage | Cloudflare R2 | — | Separate production and preview buckets; `media_assets` provides CMS-visible metadata |
 | Admin CMS | React SPA under `/admin/*` | — | Dedicated Astro entry, schema-driven controls, custom collection/page editors, and React Router navigation |
-| External delivery | Zoho webhook | — | Contact submissions persist to D1 before asynchronous delivery/retry handling |
+| External delivery | Resend API | — | Contact submissions persist to D1 before asynchronous delivery/retry handling |
 
 ## Tooling
 

@@ -59,9 +59,10 @@ This has already been provisioned once (2026-07-31):
    `env.preview.vars.R2_PUBLIC_BASE_URL`.
 3. **Preview secrets** — deliberately different from production's, set via
    `wrangler secret put <NAME> --env preview`: `ADMIN_EMAIL`,
-   `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET`, `ZOHO_WEBHOOK_URL`
-   (a placeholder — preview leads still persist to D1 even though delivery
-   fails). Turnstile now requires a dedicated Preview widget; its public
+   `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET`. `RESEND_API_KEY` is
+   intentionally left unset in Preview — preview leads still persist to D1
+   even though delivery fails, and this keeps preview/e2e runs from ever
+   sending a real email. Turnstile now requires a dedicated Preview widget; its public
    `TURNSTILE_SITE_KEY` belongs in Preview vars and its matching
    `TURNSTILE_SECRET_KEY` in Preview secrets. Missing deployed configuration
    fails closed and never falls back to Cloudflare's test widget.

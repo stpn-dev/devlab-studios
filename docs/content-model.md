@@ -62,7 +62,7 @@ JavaScript, CSS, or SVG. Decorative motifs use approved icon keys.
 | Testimonials | `testimonials` | Retained for backward compatibility but hidden from normal Admin navigation and not added to public pages |
 | FAQs | `faqs` | Context/page-specific questions and answers |
 | Redirects | `redirects` | Consulted by middleware only after a real 404; do not duplicate a D1 redirect with a hardcoded page redirect |
-| Leads | `leads` + `delivery_attempts` | Contact persistence and Zoho delivery/retry history; operational rather than editorial content |
+| Leads | `leads` + `delivery_attempts` | Contact persistence and Resend delivery/retry history; operational rather than editorial content |
 
 ## Work and Project ownership
 

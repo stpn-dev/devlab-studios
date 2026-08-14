@@ -32,7 +32,7 @@ export async function recordDeliveryAttempt(db, input) {
     .bind(
       crypto.randomUUID(),
       input.leadId,
-      input.target || 'zoho',
+      input.target || 'resend',
       input.attemptNumber,
       input.status,
       input.statusCode ?? null,

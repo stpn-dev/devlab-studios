@@ -56,10 +56,9 @@ upgrade-insecure-requests
   rendering — not done yet, tracked as a follow-up, not a silent gap.
 - `googletagmanager.com` / `google-analytics.com`: GA4 (see
   `docs/operations.md` for the measurement ID).
-- `zohopublic.com` / `zoho.com`: the contact form's client-side calls (the
-  actual lead-delivery webhook call happens server-side in
-  `src/worker/leadDelivery.js` and isn't subject to browser CSP at all —
-  this entry is for any client-side Zoho asset/redirect only).
+  (The Resend delivery call happens server-side in
+  `src/worker/leadDelivery.js` and isn't subject to browser CSP at all, so
+  no `connect-src` entry is needed for it.)
 - `challenges.cloudflare.com` on `script-src`, `connect-src`, and
   `frame-src`: Cloudflare Turnstile (see `docs/operations.md`'s "Turnstile
   setup"). Added in this pass — the original CSP predates Phase 5 and
@@ -91,8 +90,10 @@ Never committed — see `docs/operations.md`'s secrets table for the full
 list and `.env.example` for local dev placeholders. Preview and
 production must use **different** values for every secret (see
 `docs/deployment.md`'s "Preview environment setup") — reusing production's
-admin password or Zoho webhook in preview would defeat the entire point
-of having a separate environment.
+admin password in preview would defeat the entire point of having a
+separate environment. `RESEND_API_KEY` is a special case: it is
+intentionally left **unset** in Preview entirely, rather than given a
+different value, so preview/e2e runs can never send a real email.
 
 ## Rate limiting
 

@@ -23,7 +23,7 @@ flowchart TB
 
     Preview[(Preview D1 + R2)]
     Production[(Production D1 + R2)]
-    Zoho[Zoho webhook]
+    Resend[Resend API]
 
     Browser --> Middleware
     Middleware --> Public
@@ -33,7 +33,7 @@ flowchart TB
     Admin --> API
     API --> Preview
     API --> Production
-    API --> Zoho
+    API --> Resend
 ```
 
 The deployment environment determines which D1 database, R2 bucket, public
@@ -100,7 +100,7 @@ Astro file-based endpoints live in `src/pages/api/`:
 
 - public content: projects, services, articles, profile, settings, SEO, and
   health;
-- contact: validation, Turnstile, D1 lead persistence, Zoho delivery, and retry;
+- contact: validation, Turnstile, D1 lead persistence, Resend delivery, and retry;
 - admin auth: login, logout, and session inspection;
 - admin content: pages, Projects, bespoke content editors, generic collections,
   media metadata/upload, leads, versions, and audit history.

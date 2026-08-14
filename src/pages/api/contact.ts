@@ -114,7 +114,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   // Durability guarantee starts here: once this insert succeeds, the lead
-  // survives regardless of what happens to the downstream Zoho delivery.
+  // survives regardless of what happens to the downstream email delivery.
   const duplicate = await findRecentDuplicateLead(env.DB, { email: payload.email, message: payload.message })
   const lead = duplicate || (await createLead(env.DB, {
     name: payload.name || '',
