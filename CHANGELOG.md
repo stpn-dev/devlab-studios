@@ -56,6 +56,7 @@ decided against that surface specifically:
 
 ### Fixed
 - Fixed the mobile navigation panel rendering with no background at all instead of a near-opaque dark surface, letting page content bleed through behind its links. The cause: Tailwind's opacity modifier (`/NN`) only resolves values on its opacity scale (multiples of 5); `bg-[#080d21]/98` used an unsupported value and silently compiled to nothing. Corrected this and two other same-shape instances (light gradient card treatments using `/92` and `/88`) to valid scale values.
+- Fixed the admin Leads list silently showing only the single most recent lead. The admin UI always requests `/api/admin/leads` with no `limit` param; `Number(null)` evaluates to `0` in JavaScript, and a `Number.isFinite()` guard let that `0` through as an explicit "limit 1" instead of falling back to the intended default of 100.
 
 ## [1.6.0] - 2026-08-14
 

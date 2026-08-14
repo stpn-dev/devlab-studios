@@ -332,3 +332,27 @@ test('a lead persists in D1 and shows a failed delivery attempt when Resend is u
   await expect(page.getByText(/attempt 1/i)).toBeVisible()
   await expect(page.getByText('failure').first()).toBeVisible()
 })
+
+test('the leads list returns more than one lead when the admin UI omits limit', async ({ page, baseURL }) => {
+  // Regression test: GET /api/admin/leads is always called by the admin UI
+  // with no `limit` param at all. A prior bug coerced that missing param to
+  // 0 via Number(null), which a naive Number.isFinite() guard let through as
+  // an explicit "limit 1" instead of falling back to the intended default —
+  // silently hiding every lead except the single most recent one.
+  const stamp = Date.now()
+  const markerA = `Limit regression A ${stamp}`
+  const markerB = `Limit regression B ${stamp}`
+  for (const [index, marker] of [markerA, markerB].entries()) {
+    const response = await page.request.post(`${baseURL}/api/contact`, {
+      data: { name: 'Smoke Test', email: `smoke-test-limit-${stamp}-${index}@example.com`, subject: marker, message: `Verifying the leads list. ${marker}` },
+    })
+    expect(response.ok()).toBeTruthy()
+  }
+
+  await login(page)
+
+  const leadsResponse = await page.request.get(`${baseURL}/api/admin/leads`)
+  const leads = await leadsResponse.json()
+  expect(leads.find((item) => item.subject === markerA)).toBeTruthy()
+  expect(leads.find((item) => item.subject === markerB)).toBeTruthy()
+})
