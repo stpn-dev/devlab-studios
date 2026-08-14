@@ -15,6 +15,13 @@ produces `dist/client` (static assets) and `dist/server` (the Worker
 script + a generated `wrangler.json`), and Workers Builds deploys that
 output using the bindings declared in `wrangler.jsonc`.
 
+The repository uses a preview-first branch policy: non-trivial changes are
+promoted to `development`, verified against the isolated Preview Worker and
+Preview D1, and only then fast-forwarded to `main`. After production promotion,
+`development` and `main` must be synchronized. See
+[branch-workflow.md](branch-workflow.md) for the complete workflow and branch
+cleanup rules.
+
 ## Preview environment setup
 
 **The non-obvious part**: `wrangler deploy --env preview` alone does

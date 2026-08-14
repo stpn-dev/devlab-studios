@@ -1,69 +1,82 @@
 # Contributing
 
-This is a single-maintainer project, but these conventions keep history
-readable and the changelog accurate.
+This is a single-maintainer project, but these conventions keep production,
+preview, content data, and release history aligned.
 
 ## Branch strategy
 
-- `main` — production. Cloudflare deploys automatically from every push here.
-- `development` — integration branch for work in progress; merge into `main`
-  when ready to release.
-- Feature work happens on short-lived branches off `development` (or `main`
-  for small fixes), named `type/short-description` (e.g.
-  `feat/resources-pagination`, `fix/contact-rate-limit`).
+`development` and `main` are the only long-lived branches:
+
+- `development` is the integration branch and deploys to the isolated preview
+  Worker at `devlab-studios-preview.stpnrey-agustinez.workers.dev`.
+- `main` is production. Cloudflare Workers Builds deploys every push to the
+  `devlab-studios` Worker; there is no normal manual production deploy step.
+
+Short-lived `feat/*`, `fix/*`, or `agent/*` branches are optional for isolated
+work. They must be removed locally and remotely after their commits are merged
+and verified. The full promotion and cleanup procedure is in
+[docs/branch-workflow.md](docs/branch-workflow.md).
 
 ## Commit messages
 
-This repo follows [Conventional Commits](https://www.conventionalcommits.org/).
-Once husky + commitlint are installed (`npm install`), non-conforming commit
-messages are rejected by the `commit-msg` hook.
+This repository follows
+[Conventional Commits](https://www.conventionalcommits.org/). After
+`npm install`, the Husky commit hook rejects non-conforming messages.
 
-```
+```text
 <type>(<optional scope>): <short description>
 
 <optional body>
 ```
 
-Allowed types:
-
 | Type | Use for |
 |---|---|
-| `feat` | A new feature |
-| `fix` | A bug fix |
-| `perf` | A performance improvement |
-| `refactor` | Code change that neither fixes a bug nor adds a feature |
-| `style` | Formatting/visual changes with no logic change |
+| `feat` | New capability |
+| `fix` | Bug fix |
+| `perf` | Performance improvement |
+| `refactor` | Internal code change without a user-facing feature or fix |
+| `style` | Visual or formatting change without behavior changes |
 | `docs` | Documentation only |
-| `test` | Adding or correcting tests |
-| `chore` | Tooling, dependency bumps, config |
-| `ci` | CI/CD pipeline changes |
+| `test` | Test coverage or corrections |
+| `chore` | Tooling, dependencies, configuration, or releases |
+| `ci` | CI/CD workflow changes |
 
-Examples:
-```
-feat(resources): add pagination to resources feed
-fix(contact): correct rate-limit window reset
-docs: update architecture diagram
-```
+## Change and promotion process
 
-## Pull request process
+1. Start from synchronized `development`/`main`, using a short-lived feature
+   branch only when isolation is useful.
+2. Make the change and add its user/operator-facing description under
+   `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) in the same commit.
+3. Run:
 
-1. Branch off `development` (or `main` for a small, isolated fix).
-2. Make your change; run `npm run lint` and `npm run build` locally.
-3. **Update [CHANGELOG.md](CHANGELOG.md)** — add an entry under
-   `## [Unreleased]` describing the change from a user/operator perspective.
-4. Open a PR using the template in
-   `.github/PULL_REQUEST_TEMPLATE.md`. CI (`.github/workflows/ci.yml`) runs
-   lint, build, and `npm audit` automatically.
-5. Merge to `main` (directly, or via `development` for larger batches of
-   work) — Cloudflare deploys automatically.
+   ```bash
+   npm run typecheck
+   npm run build
+   npx playwright test --project=static
+   ```
+
+4. Push the change to `development` and verify the live preview Worker and
+   Preview D1 behavior.
+5. Fast-forward `main` only after preview verification, then verify production.
+6. Confirm `main` and `development` point to the same commit.
+7. Remove merged feature branches only after checking unique commits, open
+   pull requests, active worktrees, and uncommitted files.
+
+Never run the destructive full CMS seed against an existing Preview or
+Production D1 database. Use targeted, idempotent SQL updates and inspect rows
+before and after each remote write.
+
+## Pull requests
+
+Use [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) when a
+feature branch needs review. Passing CI does not replace preview-environment
+verification for CMS, D1, R2, authentication, or Cloudflare-bound behavior.
 
 ## Versioning
 
-Full policy and the release process live in
-[CHANGELOG.md](CHANGELOG.md#versioning-policy) — read that before cutting a
-release. Short version: decide the SemVer bump yourself based on what
-actually changed (CI does not guess this from commit messages), bump
-`package.json` and retitle `[Unreleased]` to a dated version heading in one
-commit, then push to `main`. CI detects the version change and automatically
-tags the release and publishes a GitHub Release — you never run `git tag`
-by hand except as a documented fallback if CI is down.
+The full SemVer and release process is defined in
+[CHANGELOG.md](CHANGELOG.md#versioning-policy). A release commit updates only
+the root package versions in `package.json` and `package-lock.json`, converts
+the current Unreleased notes into a dated version, and starts a fresh
+Unreleased section. Pushing that version bump to `main` lets CI create the
+immutable tag and GitHub Release; tags are never moved during normal workflow.

@@ -51,6 +51,10 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Changed
+- Updated the repository README and operational documentation for the current Astro/Cloudflare platform, Full-Stack Software Engineer & AI Automation Specialist positioning, Work-to-Project CMS model, release 1.5.0 environment status, and the two-branch preview-first workflow.
+- Added a canonical branch workflow and cleanup guide after removing merged feature branches and the stale clean worktree.
+
 ## [1.5.0] - 2026-08-14
 
 ### Added

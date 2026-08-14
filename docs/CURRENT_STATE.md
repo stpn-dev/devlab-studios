@@ -1,98 +1,83 @@
 # Current State
 
-Snapshot as of 2026-07-30, written as part of a repo housekeeping/documentation
-pass. Replaces the stale "Known Limitations" section that used to live in
-`README.md` (which incorrectly described the site as having no CMS/backend).
+Snapshot as of 2026-08-14 after release `1.5.0` and repository branch cleanup.
 
-> **2026-07-31 update**: An Astro/CMS rebuild is in progress on the
-> `feat/astro-cms-rebuild` branch (see the approved plan and
-> `docs/architecture/ARCHITECTURE.md`). Phase 1 (Astro foundation + full API
-> port) is complete and merged into that branch — the site now runs on
-> Astro's Cloudflare adapter, though page-by-page conversion to real
-> `.astro` components (which is what actually fixes the "No SSR/SSG" and
-> double-render findings below) hasn't started yet. The sections below still
-> describe `main`'s current state until this branch merges.
+## Product positioning
 
-## What's implemented
+DevLab Studios presents Stephen Rey G. Agustinez as a **Full-Stack Software
+Engineer & AI Automation Specialist**. Public messaging connects interfaces,
+backend/API services, structured data, AI-assisted decisions, automation, and
+human operational handoff as one system.
 
-- Public site: Home, About, Services, Profile, Resources (+ dynamic
-  `/resources/:slug`), Contact, five `/landing-sample-*` marketing pages, 404
-  and Maintenance pages. `/experiences` and `/portfolio` redirect to `/profile`
-  (legacy route aliases).
-- Custom CMS: Cloudflare D1 + R2 + Hono backend, admin UI at `/admin` (built on
-  Refine) for managing projects, services, resources, profile content, site
-  settings, and SEO metadata. See
-  [architecture/ARCHITECTURE.md](./architecture/ARCHITECTURE.md).
-- Every content-bearing page falls back to bundled static content
-  (`src/data/*.js`) when D1 has no data for that page, so the CMS can be
-  populated incrementally without breaking the site.
-- Contact form proxied server-side to a Zoho webhook, with basic per-IP rate
-  limiting and payload validation.
-- Security headers (CSP, HSTS, X-Frame-Options, Permissions-Policy) applied via
-  `public/_headers`; `/admin*` and `/api/admin/*` marked `noindex`.
-- SEO: per-route meta tags via `react-helmet-async`, `sitemap.xml`,
-  `robots.txt`, JSON-LD (per prior `feat: implement comprehensive SEO
-  optimizations` commit).
+## Public experience
 
-## Dependency security
+- Astro-rendered Home, About, Services, Work, Process, Insights, Profile,
+  Contact, legal, maintenance, 404, article, and Work detail routes.
+- A unified dark-native visual system with restrained technical vectors,
+  reduced-motion support, responsive navigation, and decorative icon handling.
+- Five deliberately distinct landing samples retain their portfolio styles.
+- The canonical ATS resume remains unchanged and is available only from
+  Profile at `/resume.pdf`, opening in a new tab without forced download.
+- Static fallbacks keep public content available when a D1 record is absent.
 
-CI runs `npx audit-ci --config audit-ci.json` (replacing plain `npm audit` on
-2026-07-31) against production dependencies. One advisory is allowlisted:
+## CMS and storage
 
-- **`GHSA-qwww-vcr4-c8h2`** (react-router, RSC-mode CSRF bypass) — fixed only
-  in react-router 8.3.0, but `react-router-dom` (the package this app actually
-  imports) has not published a v8 release, so there is no available
-  non-breaking fix. The advisory explicitly states it only affects apps using
-  React Router's unstable RSC (React Server Components) APIs — this app uses
-  none (plain `createBrowserRouter`/`RouterProvider`, no RSC). Revisit and
-  remove the allowlist entry once `react-router-dom` ships a fixed release, or
-  when evaluating a move to the unified `react-router` v8+ package.
+- `/admin` manages Home, About, Process, Work, Projects, Services, Articles,
+  Case Studies, Testimonials, Certifications, Profile, site settings, SEO,
+  media metadata, redirects, leads, audit history, and content versions.
+- Projects own reusable facts and media: title, description, technology,
+  links, cover image, and ordered multi-image gallery.
+- Work selects existing Projects and independently owns the Work description,
+  Challenge, System Architecture, Delivery Value, ordering, and publication
+  state. Its initial description is copied once from the Project and does not
+  follow later Project description edits unless explicitly reset.
+- A Project cannot be deleted while referenced by Work.
+- R2 stores uploaded files. The `media_assets` D1 table powers the read-only
+  `/admin/media` index; uploads remain within the owning editors.
 
-## Known issues / limitations
+## Deployment and branches
 
-- **No SSR/SSG** — pure client-side rendering; see
-  [performance/PERFORMANCE_FINDINGS.md](./performance/PERFORMANCE_FINDINGS.md).
-- **No automated tests** — no unit, integration, or E2E test suite exists.
-- **Images are unoptimized** — 6.2 MB of largely uncompressed PNGs in
-  `src/assets/`.
-- **In-memory rate limiting** (`src/worker.js`, `contactAttempts` Map) resets
-  on every Worker cold start/redeploy — not persistent across instances.
-- **No `engines`/`.nvmrc` pin** despite CI assuming Node 20 (fixed as part of
-  this housekeeping pass).
+- `development` deploys to the isolated `devlab-studios-preview` Worker with
+  Preview D1, R2, and secrets.
+- `main` deploys the production `devlab-studios` Worker through Cloudflare
+  Workers Builds.
+- Both branches are kept synchronized; the current code baseline is release
+  `1.5.0`.
+- Stale merged feature branches and the clean profile-polish worktree were
+  removed on 2026-08-14. See [branch-workflow.md](branch-workflow.md).
 
-## Dead code inventory
+## Verification baseline
 
-Identified during this audit and removed as part of housekeeping:
+Release `1.5.0` passed:
 
-- `src/services/api/apiClient.js` — a fetch wrapper with normalized error
-  handling; confirmed zero imports anywhere in `src/`. Superseded by the
-  simpler `src/utils/cachedFetch.js` actually used by the content hooks.
-- `functions/api/contact.js` — a Cloudflare Pages Functions-style handler for
-  `/api/contact`, duplicating the Hono route already defined in
-  `src/worker.js` (`app.post('/api/contact', handleContact)`). `wrangler.jsonc`
-  deploys `src/worker.js` as the Worker entry point (not a Pages Functions
-  build), so this file was never reachable in production.
+- `npm run typecheck`
+- `npm run build`
+- the complete static Playwright project (`36/36`)
+- focused Work CMS selection, independent narrative, gallery, persistence,
+  restore, and deletion-guard coverage
+- live preview and production route checks
 
-## Recommended follow-ups (not actioned in this pass)
+## Environment status
 
-These were identified during the audit but intentionally left for a separate,
-explicit decision rather than being changed automatically:
+- Preview code and Preview D1 contain the Work CMS integration and bootstrap.
+- Production code is deployed and the public Work page safely uses its bundled
+  fallback.
+- **Pending operator action:** apply and verify the targeted, idempotent
+  `scripts/cms/updates/2026-08-14-work-page-cms.sql` bootstrap against
+  Production D1 using a fresh Cloudflare API token. Do not run the full seed.
+- The guarded prerequisite update found the initial featured Projects already
+  present and published in Production.
 
-- ~~**Stale remote branches** — `origin/cloudflare/workers-autoconfig` and
-  `origin/copilot/fix-error-in-actions`~~ **Done (2026-07-31).** Both were
-  one-off bot/agent-generated branches (Cloudflare's dashboard auto-config
-  proposal and a GitHub Copilot CI-fix attempt, both from 2026-03-10, both
-  fully superseded by later manual commits on `main`) and have been deleted
-  from `origin`.
-- **`screenshots/` folder** — currently tracked in git (~800 KB of ad-hoc QA
-  PNGs). Recommend either untracking + gitignoring it, or moving it into
-  `docs/` if it's meant to be an intentional documentation asset.
-- **`@types/react` / `@types/react-dom`** devDependencies are vestigial in a
-  non-TypeScript project — consider removing, or treat as a signal to
-  eventually migrate to TypeScript.
-- **No test suite** — consider adopting Vitest (unit) and/or Playwright (E2E)
-  for the critical user flows (contact form, admin login, navigation).
-- **Framework evaluation (Astro or otherwise)** — the next planned step after
-  this housekeeping pass; see
-  [performance/PERFORMANCE_FINDINGS.md](./performance/PERFORMANCE_FINDINGS.md)
-  for the data that evaluation should start from.
+## Known limitations and follow-ups
+
+- The in-memory first-line contact rate limiter is not durable across Worker
+  instances; lead persistence remains D1-backed.
+- The media library lists uploads recorded in `media_assets`; legacy R2 objects
+  without metadata rows do not appear automatically.
+- Media uploads are stored and served from R2, but automatic server-side
+  conversion of every raw PNG/JPEG into multiple modern formats is not a
+  universal upload guarantee. Preserve originals and verify important assets.
+- Case Studies and Testimonials may legitimately be empty until records are
+  published.
+- Production D1 content must be inspected directly before assuming it matches
+  seed files or Preview.
