@@ -6,17 +6,14 @@ import WorkProjectGallery from '../components/islands/WorkProjectGallery.jsx'
 import VectorField from '../components/VectorField.astro'
 import { MessageSquare, Briefcase, ArrowRight, Robot, Code2 } from '../components/icons/icons.js'
 import { loadPageSeo } from '../lib/content/seo'
-import { loadCaseStudies } from '../lib/content/caseStudies'
 import { loadProjects } from '../lib/content/projects'
 import { loadPage } from '../lib/content/pages'
 
 const seo = await loadPageSeo('work')
-const caseStudies = await loadCaseStudies()
 const projects = await loadProjects()
 const workPage = await loadPage('work')
 const hero = workPage?.blocks.find((block) => block.type === 'hero')?.props || {}
 const showcase = workPage?.blocks.find((block) => block.type === 'workProjectShowcase')?.props || {}
-const caseStudyBlock = workPage?.blocks.find((block) => block.type === 'featuredCaseStudies')?.props || {}
 const cta = workPage?.blocks.find((block) => block.type === 'cta')?.props || {}
 const projectsById = new Map(projects.map((project) => [project.id, project]))
 const selectedProjects = (Array.isArray(showcase.items) ? showcase.items : []).flatMap((item: Record<string, unknown>) => {
@@ -24,8 +21,6 @@ const selectedProjects = (Array.isArray(showcase.items) ? showcase.items : []).f
   const project = projectsById.get(String(item.projectId || ''))
   return project ? [{ project, narrative: item }] : []
 })
-const caseStudyLimit = Number(caseStudyBlock.limit) || 6
-const visibleCaseStudies = caseStudies.slice(0, caseStudyLimit)
 const primaryCta = hero.primaryCta as { label?: string; href?: string } | undefined
 const secondaryCta = hero.secondaryCta as { label?: string; href?: string } | undefined
 const finalCta = cta.primaryCta as { label?: string; href?: string } | undefined
@@ -125,26 +120,6 @@ const finalCta = cta.primaryCta as { label?: string; href?: string } | undefined
         })}
       </div>
     </section>
-
-    {visibleCaseStudies.length > 0 ? (
-      <section class="space-y-6">
-        <SectionHeader title={String(caseStudyBlock.heading || 'Client case studies')} subtitle={String(caseStudyBlock.subheading || '')} />
-        <div class="grid gap-5 sm:grid-cols-2">
-          {visibleCaseStudies.map((caseStudy) => (
-            <a href={`/work/${caseStudy.slug}`} class="light-panel group block overflow-hidden rounded-[24px] p-6 transition hover:-translate-y-1 hover:border-[#2f3cff]/35">
-              {caseStudy.industry ? (
-                <span class="rounded-full bg-[#e9edff] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#2f3cff]">{caseStudy.industry}</span>
-              ) : null}
-              <h2 class="mt-3 text-2xl font-semibold text-brand-ink">{caseStudy.title}</h2>
-              <p class="mt-2 text-sm leading-relaxed text-slate-600">{caseStudy.summary}</p>
-              <span class="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#2f3cff]">
-                Read case study <ArrowRight size={15} className="transition group-hover:translate-x-1" />
-              </span>
-            </a>
-          ))}
-        </div>
-      </section>
-    ) : null}
 
     <section class="cinematic-panel rounded-[28px] p-7 text-white sm:p-9">
       <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">

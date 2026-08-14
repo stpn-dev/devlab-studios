@@ -2,23 +2,19 @@ import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { brandingAssets } from '../../config/branding'
 import AdminVectorField from './AdminVectorField'
+import { PRIMARY_PUBLIC_SURFACES, SUPPORTING_PUBLIC_SURFACES } from '../../config/publicSurfaces'
 import {
   BadgeCheck,
   Briefcase,
-  ChartColumn,
   FileText,
   FolderOpen,
   Home,
   Image,
-  Info,
   Link2,
   Mail,
   Menu,
-  MessageSquare,
   Search,
   Settings,
-  User,
-  Wrench,
 } from '../../components/icons/icons'
 
 const NAV_GROUPS = [
@@ -26,37 +22,27 @@ const NAV_GROUPS = [
     items: [{ label: 'Dashboard', to: '/admin', icon: Home }],
   },
   {
-    heading: 'Pages',
-    items: [
-      { label: 'Home', to: '/admin/pages/home', icon: Home },
-      { label: 'About', to: '/admin/pages/about', icon: Info },
-      { label: 'Work', to: '/admin/pages/work', icon: Briefcase },
-      { label: 'Process', to: '/admin/pages/process', icon: Wrench },
-    ],
+    heading: 'Public Pages',
+    items: PRIMARY_PUBLIC_SURFACES.map(({ label, adminPath: to, icon }) => ({ label, to, icon })),
   },
   {
-    heading: 'Content',
+    heading: 'Supporting Content',
+    items: SUPPORTING_PUBLIC_SURFACES.map(({ label, adminPath: to, icon }) => ({ label, to, icon })),
+  },
+  {
+    heading: 'Content Libraries',
     items: [
       { label: 'Projects', to: '/admin/content/projects', icon: Briefcase },
-      { label: 'Services', to: '/admin/content/services', icon: Settings },
-      { label: 'Articles', to: '/admin/content/resources', icon: FileText },
-      { label: 'Case Studies', to: '/admin/collections/case-studies', icon: ChartColumn },
-      { label: 'Testimonials', to: '/admin/collections/testimonials', icon: MessageSquare },
+      { label: 'Service Catalog', to: '/admin/content/services', icon: Settings },
+      { label: 'Insight Articles', to: '/admin/content/resources', icon: FileText },
       { label: 'Certifications', to: '/admin/collections/certifications', icon: BadgeCheck },
     ],
   },
   {
-    items: [{ label: 'Profile', to: '/admin/content/profile', icon: User }],
-  },
-  {
-    heading: 'Site',
+    heading: 'Site Management',
     items: [
-      { label: 'Site Settings', to: '/admin/content/site-settings', icon: Settings },
+      { label: 'Navigation & Footer', to: '/admin/content/site-settings', icon: Settings },
       { label: 'SEO', to: '/admin/content/seo', icon: Search },
-    ],
-  },
-  {
-    items: [
       { label: 'Media', to: '/admin/media', icon: Image },
       { label: 'Redirects', to: '/admin/collections/redirects', icon: Link2 },
       { label: 'Audit Log', to: '/admin/audit-log', icon: FolderOpen },

@@ -7,21 +7,16 @@ import {
   FileText,
   Link2,
   Mail,
-  MessageSquare,
   Plus,
   RotateCw,
   Send,
-  Settings,
   Trash2,
-  ChartColumn,
 } from '../../components/icons/icons'
+import { PRIMARY_PUBLIC_SURFACES } from '../../config/publicSurfaces'
 
 const STAT_CARDS = [
   { key: 'projects', label: 'Projects', to: '/admin/content/projects', icon: Briefcase },
-  { key: 'services', label: 'Services', to: '/admin/content/services', icon: Settings },
-  { key: 'articles', label: 'Articles', to: '/admin/content/resources', icon: FileText },
-  { key: 'caseStudies', label: 'Case Studies', to: '/admin/collections/case-studies', icon: ChartColumn },
-  { key: 'testimonials', label: 'Testimonials', to: '/admin/collections/testimonials', icon: MessageSquare },
+  { key: 'articles', label: 'Insights', to: '/admin/content/resources', icon: FileText },
   { key: 'certifications', label: 'Certifications', to: '/admin/collections/certifications', icon: BadgeCheck },
   { key: 'redirects', label: 'Redirects', to: '/admin/collections/redirects', icon: Link2 },
   { key: 'leads', label: 'Leads', to: '/admin/leads', icon: Mail },
@@ -74,16 +69,13 @@ function DashboardPage() {
 
     Promise.all([
       fetchCount('/api/admin/projects', (data) => data.length),
-      fetchCount('/api/admin/content/services', (data) => data.solutionGroups?.length ?? 0),
       fetchCount('/api/admin/content/resources', (data) => data.posts?.length ?? 0),
-      fetchCount('/api/admin/collections/case-studies', (data) => data.length),
-      fetchCount('/api/admin/collections/testimonials', (data) => data.length),
       fetchCount('/api/admin/collections/certifications', (data) => data.length),
       fetchCount('/api/admin/collections/redirects', (data) => data.length),
       fetchCount('/api/admin/leads', (data) => data.length),
-    ]).then(([projects, services, articles, caseStudies, testimonials, certifications, redirects, leads]) => {
+    ]).then(([projects, articles, certifications, redirects, leads]) => {
       if (ignore) return
-      setCounts({ projects, services, articles, caseStudies, testimonials, certifications, redirects, leads })
+      setCounts({ projects, articles, certifications, redirects, leads })
       setStatus('ready')
     })
 
@@ -103,6 +95,33 @@ function DashboardPage() {
           <p className="mt-1 text-sm text-slate-300">An overview of your content, collections, and recent activity.</p>
         </div>
       </div>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Public Pages</h2>
+            <p className="mt-1 text-sm text-slate-500">Editors follow the same names and order visitors see on the website.</p>
+          </div>
+          <a href="/" target="_blank" rel="noreferrer" className="text-sm font-semibold text-brand-teal hover:underline">Preview public site</a>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {PRIMARY_PUBLIC_SURFACES.map((surface) => {
+            const Icon = surface.icon
+            return (
+              <Link key={surface.key} to={surface.adminPath} className="rounded-xl border border-slate-200 p-4 transition hover:border-violet-300 hover:bg-violet-50/40">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><Icon className="h-4 w-4" aria-hidden="true" /></span>
+                  <div>
+                    <p className="font-semibold text-slate-900">{surface.label}</p>
+                    <p className="text-xs text-slate-500">{surface.publicPath}</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-slate-500">{surface.description}</p>
+              </Link>
+            )
+          })}
+        </div>
+      </section>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STAT_CARDS.map((card) => {
@@ -149,6 +168,7 @@ function DashboardPage() {
                     <div className="min-w-0 flex-1">
                       <p className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-brand-teal">{event.entityType} · {event.action.replace('_', ' ')}</p>
                       <p className="mt-0.5 truncate text-sm font-medium text-slate-800">{event.entityId || event.entityType}</p>
+                      {event.metadata?.summary ? <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{event.metadata.summary}</p> : null}
                       {event.actorEmail ? <p className="mt-0.5 truncate text-xs text-slate-400">{event.actorEmail}</p> : null}
                     </div>
                     <span className="flex-shrink-0 text-xs text-slate-400">{formatRelativeTime(event.createdAt)}</span>
@@ -165,7 +185,7 @@ function DashboardPage() {
           <h2 className="text-base font-semibold text-slate-900">Quick Links</h2>
           <div className="mt-3 divide-y divide-slate-100">
             <Link to="/admin/pages/home" className="flex items-center justify-between py-3 text-sm font-medium text-slate-600 hover:text-brand-teal"><span>Edit homepage</span><span aria-hidden="true">→</span></Link>
-            <Link to="/admin/content/site-settings" className="flex items-center justify-between py-3 text-sm font-medium text-slate-600 hover:text-brand-teal"><span>Site settings</span><span aria-hidden="true">→</span></Link>
+            <Link to="/admin/content/site-settings" className="flex items-center justify-between py-3 text-sm font-medium text-slate-600 hover:text-brand-teal"><span>Navigation &amp; Footer</span><span aria-hidden="true">→</span></Link>
             <Link to="/admin/media" className="flex items-center justify-between py-3 text-sm font-medium text-slate-600 hover:text-brand-teal"><span>Media library</span><span aria-hidden="true">→</span></Link>
             <Link to="/admin/audit-log" className="flex items-center justify-between py-3 text-sm font-medium text-slate-600 hover:text-brand-teal"><span>Audit log</span><span aria-hidden="true">→</span></Link>
           </div>

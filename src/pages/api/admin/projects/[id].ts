@@ -7,6 +7,7 @@ import { projectRequestSchema } from '../../../../lib/schemas/collections'
 import { getEnv } from '../../../../lib/env'
 import { normalizeProjectMedia } from '../../../../lib/media'
 import { jsonResponse, readJsonBody } from '../../../../lib/http'
+import { buildAuditMetadata, buildDeleteAuditMetadata } from '../../../../lib/audit.js'
 
 export const GET: APIRoute = async ({ params }) => {
   const env = getEnv()
@@ -22,14 +23,15 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
   try {
+    const before = await getProject(env.DB, params.id as string, { includeDrafts: true })
     const rawPayload = await readJsonBody(request)
     const result = projectRequestSchema.safeParse({ ...rawPayload, id: params.id })
     if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
 
-    const project = await upsertProject(env.DB, result.data) as { id?: string; status?: string } | null
+    const project = await upsertProject(env.DB, result.data) as { id?: string; status?: string; title?: string } | null
     if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
     await recordVersion(env.DB, { contentType: 'projects', contentId: params.id as string, status: project.status || 'draft', snapshot: project, createdBy: locals.adminEmail || null })
-    await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'update', entityType: 'projects', entityId: params.id as string, metadata: {} })
+    await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'update', entityType: 'projects', entityId: params.id as string, metadata: buildAuditMetadata({ before, after: project, label: `Project ${project.title || params.id}` }) })
     return jsonResponse(normalizeProjectMedia(project, env))
   } catch (error) {
     const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500
@@ -49,10 +51,10 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
     const result = projectRequestSchema.safeParse({ ...existing, ...payload, id: params.id })
     if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
 
-    const project = await upsertProject(env.DB, result.data) as { id?: string; status?: string } | null
+    const project = await upsertProject(env.DB, result.data) as { id?: string; status?: string; title?: string } | null
     if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
     await recordVersion(env.DB, { contentType: 'projects', contentId: params.id as string, status: project.status || 'draft', snapshot: project, createdBy: locals.adminEmail || null })
-    await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'update', entityType: 'projects', entityId: params.id as string, metadata: {} })
+    await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'update', entityType: 'projects', entityId: params.id as string, metadata: buildAuditMetadata({ before: existing, after: project, label: `Project ${project.title || params.id}` }) })
     return jsonResponse(normalizeProjectMedia(project, env))
   } catch (error) {
     const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500
@@ -66,6 +68,8 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
   const projectId = params.id as string
+  const existing = await getProject(env.DB, projectId, { includeDrafts: true })
+  if (!existing) return jsonResponse({ error: 'Project not found.' }, 404)
   const workPage = await getPage(env.DB, 'work', { includeDrafts: true }) as {
     blocks?: Array<{ type?: string; props?: { items?: Array<{ projectId?: string }> } }>
   } | null
@@ -80,6 +84,6 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
   }
 
   const deleted = await deleteProject(env.DB, projectId)
-  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'delete', entityType: 'projects', entityId: projectId, metadata: {} })
+  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'delete', entityType: 'projects', entityId: projectId, metadata: buildDeleteAuditMetadata(existing, 'Project') })
   return jsonResponse(deleted)
 }

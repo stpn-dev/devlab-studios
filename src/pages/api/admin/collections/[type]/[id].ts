@@ -3,6 +3,7 @@ import { getPerItemCollection } from '../../../../../worker/adminRegistry.js'
 import { recordAuditEvent } from '../../../../../worker/repositories/auditLog.js'
 import { getEnv } from '../../../../../lib/env'
 import { jsonResponse } from '../../../../../lib/http'
+import { buildDeleteAuditMetadata } from '../../../../../lib/audit.js'
 
 export const DELETE: APIRoute = async ({ params, locals }) => {
   const type = params.type as string
@@ -13,8 +14,10 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
   const env = getEnv()
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
+  const existingItems = await collection.list(env.DB)
+  const existing = existingItems.find((item: { id?: string }) => item.id === id)
   await collection.delete(env.DB, id)
-  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'delete', entityType: type, entityId: id, metadata: {} })
+  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'delete', entityType: type, entityId: id, metadata: buildDeleteAuditMetadata(existing, collection.label) })
 
   return jsonResponse({ id })
 }

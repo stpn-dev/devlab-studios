@@ -9,7 +9,7 @@ import {
   Webhook,
 } from './icons/icons.js'
 
-const nodes = [
+const defaultNodes = [
   { key: 'visitor', label: 'Visitor / Lead', note: 'Intent captured', icon: Globe },
   { key: 'interface', label: 'Web Interface', note: 'React + Astro', icon: Code2 },
   { key: 'backend', label: 'API Service', note: 'Java + Laravel', icon: Server },
@@ -18,6 +18,15 @@ const nodes = [
   { key: 'automation', label: 'Automation', note: 'n8n + Make', icon: Webhook },
   { key: 'handoff', label: 'Human Handoff', note: 'CRM + response', icon: MessageSquare },
 ]
+
+const { contentNodes = [], statusLabel = 'System online' } = Astro.props
+const configuredNodes = Array.isArray(contentNodes) ? contentNodes : []
+const nodes = defaultNodes.map((node) => {
+  const configured = configuredNodes.find((item) => item?.key === node.key)
+  return configured
+    ? { ...node, label: String(configured.label || node.label), note: String(configured.note || node.note) }
+    : node
+})
 ---
 
 <div class="living-system" data-living-system aria-label="A full-stack and automation system from visitor to human handoff">
@@ -40,7 +49,7 @@ const nodes = [
   </div>
   <div class="living-system__status" aria-hidden="true">
     <span></span>
-    System online
+    {statusLabel}
   </div>
 </div>
 

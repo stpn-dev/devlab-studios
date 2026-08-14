@@ -63,7 +63,7 @@ export const workPage: PageData = {
       type: 'cta',
       props: {
         heading: 'Have a workflow that should operate like a system?',
-        body: 'We can map the trigger, rules, data, integrations, failure paths, and human handoff before deciding what should be automated.',
+        body: 'The first step maps the trigger, rules, data, integrations, failure paths, and human handoff before deciding what should be automated.',
         primaryCta: { label: 'Start a Project', href: '/contact' },
       },
     },

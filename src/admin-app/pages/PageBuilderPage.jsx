@@ -4,8 +4,24 @@ import { adminApi } from '../lib/adminApi'
 import { BLOCK_FIELDS, BLOCK_LABELS, PAGE_BLOCK_TYPES, createEmptyBlockProps } from '../lib/blockFieldDescriptors'
 import SchemaForm from '../components/SchemaForm'
 import VersionHistoryPanel from './VersionHistoryPanel'
+import PublicUsageNotice from '../components/PublicUsageNotice'
+import { PUBLIC_SURFACES } from '../../config/publicSurfaces'
 
 const STATUS_OPTIONS = ['draft', 'published', 'archived']
+const HIDDEN_PUBLIC_BLOCKS = new Set(['featuredCaseStudies', 'testimonials'])
+const PAGE_ALLOWED_BLOCK_TYPES = {
+  home: ['hero', 'stats', 'richText', 'servicesGrid', 'processSteps'],
+  about: ['hero', 'stats', 'richText', 'servicesGrid', 'faq', 'cta'],
+  services: ['hero', 'richText', 'faq', 'cta'],
+  insights: ['hero', 'richText', 'cta'],
+  contact: ['hero', 'stats', 'cta'],
+}
+const RELATED_LIBRARY = {
+  services: { label: 'Edit Service Catalog', to: '/admin/content/services' },
+  insights: { label: 'Edit Insight Articles', to: '/admin/content/resources' },
+  work: { label: 'Edit Projects', to: '/admin/content/projects' },
+  profile: { label: 'Edit Profile Records', to: '/admin/content/profile' },
+}
 
 function PageBuilderPage() {
   const { slug } = useParams()
@@ -14,6 +30,10 @@ function PageBuilderPage() {
   const [message, setMessage] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
   const [newBlockType, setNewBlockType] = useState(PAGE_BLOCK_TYPES[0])
+  const surface = PUBLIC_SURFACES.find((item) => item.key === slug)
+  const relatedLibrary = RELATED_LIBRARY[slug]
+  const allowedBlockTypes = PAGE_ALLOWED_BLOCK_TYPES[slug] || PAGE_BLOCK_TYPES
+  const hiddenBlockCount = page?.blocks?.filter((block) => HIDDEN_PUBLIC_BLOCKS.has(block.type) || !allowedBlockTypes.includes(block.type)).length || 0
 
   useEffect(() => {
     let ignore = false
@@ -71,9 +91,15 @@ function PageBuilderPage() {
 
   return (
     <div className="space-y-6">
+      <PublicUsageNotice
+        label={surface?.label || page.title || slug}
+        publicPath={surface?.publicPath || `/${slug}`}
+        description={surface?.description || 'Controls the corresponding public page.'}
+      />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">Page: {page.title || slug}</h1>
         <div className="flex gap-2">
+          {relatedLibrary ? <a href={relatedLibrary.to} className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100">{relatedLibrary.label}</a> : null}
           <button type="button" onClick={() => setShowHistory((v) => !v)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             {showHistory ? 'Hide History' : 'Version History'}
           </button>
@@ -124,7 +150,7 @@ function PageBuilderPage() {
           onChange={(e) => setNewBlockType(e.target.value)}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
         >
-          {PAGE_BLOCK_TYPES.map((type) => (
+          {allowedBlockTypes.map((type) => (
             <option key={type} value={type}>{BLOCK_LABELS[type]}</option>
           ))}
         </select>
@@ -134,7 +160,8 @@ function PageBuilderPage() {
       </div>
 
       <div className="space-y-4">
-        {page.blocks.map((block, index) => (
+        {hiddenBlockCount ? <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{hiddenBlockCount} legacy block{hiddenBlockCount === 1 ? '' : 's'} retained in storage but hidden because this public page does not render that component.</p> : null}
+        {page.blocks.map((block, index) => HIDDEN_PUBLIC_BLOCKS.has(block.type) || !allowedBlockTypes.includes(block.type) ? null : (
           <div key={index} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <span className="rounded-full bg-brand-mint px-3 py-1 text-xs font-semibold text-brand-teal">{BLOCK_LABELS[block.type] || block.type}</span>

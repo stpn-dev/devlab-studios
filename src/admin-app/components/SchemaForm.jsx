@@ -26,6 +26,48 @@ function CtaField({ fieldId, value = {}, onChange }) {
   )
 }
 
+function ObjectListField({ fieldId, value = [], fields = [], onChange }) {
+  const items = Array.isArray(value) ? value : []
+  function updateItem(index, key, nextValue) {
+    onChange(items.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: nextValue } : item))
+  }
+  function move(index, direction) {
+    const target = index + direction
+    if (target < 0 || target >= items.length) return
+    const next = [...items]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    onChange(next)
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item, index) => (
+        <article key={`${fieldId}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Item {index + 1}</p>
+            <div className="flex gap-2 text-xs font-semibold">
+              <button type="button" disabled={index === 0} onClick={() => move(index, -1)} className="text-slate-600 disabled:opacity-30">Up</button>
+              <button type="button" disabled={index === items.length - 1} onClick={() => move(index, 1)} className="text-slate-600 disabled:opacity-30">Down</button>
+              <button type="button" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))} className="text-rose-600">Remove</button>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {fields.map((itemField) => (
+              <label key={itemField.name} className={`grid gap-1 text-xs font-semibold text-slate-600 ${itemField.type === 'textarea' || itemField.type === 'stringList' ? 'sm:col-span-2' : ''}`}>
+                {itemField.label}
+                {itemField.type === 'textarea' ? <textarea rows={3} className={inputClass} value={item[itemField.name] || ''} onChange={(event) => updateItem(index, itemField.name, event.target.value)} /> : null}
+                {itemField.type === 'stringList' ? <StringListField fieldId={`${fieldId}-${index}-${itemField.name}`} value={item[itemField.name]} onChange={(next) => updateItem(index, itemField.name, next)} /> : null}
+                {!['textarea', 'stringList'].includes(itemField.type) ? <input className={inputClass} value={item[itemField.name] || ''} onChange={(event) => updateItem(index, itemField.name, event.target.value)} /> : null}
+              </label>
+            ))}
+          </div>
+        </article>
+      ))}
+      <button type="button" onClick={() => onChange([...items, Object.fromEntries(fields.map((field) => [field.name, field.type === 'stringList' ? [] : '']))])} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Add item</button>
+    </div>
+  )
+}
+
 /**
  * Escape hatch for nested array/object props (e.g. a block's stats.items
  * or imageGallery.images) that don't have a dedicated widget yet — edits
@@ -125,6 +167,10 @@ function Field({ field, fieldId, value, onChange }) {
     return <CtaField fieldId={fieldId} value={value} onChange={onChange} />
   }
 
+  if (field.type === 'objectList') {
+    return <ObjectListField fieldId={fieldId} value={value} fields={field.fields || []} onChange={onChange} />
+  }
+
   return <input {...commonProps} type={field.type === 'url' ? 'url' : 'text'} value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
 }
 
@@ -150,7 +196,7 @@ function SchemaForm({ fields, value, onChange, idPrefix = 'form' }) {
       {fields.map((field) => {
         const fieldId = `${idPrefix}-${field.name}`
         return (
-          <div key={field.name} className={field.type === 'textarea' || field.type === 'json' || field.type === 'stringList' || field.type === 'cta' ? 'flex flex-col gap-1.5 sm:col-span-2' : 'flex flex-col gap-1.5'}>
+          <div key={field.name} className={field.type === 'textarea' || field.type === 'json' || field.type === 'stringList' || field.type === 'cta' || field.type === 'objectList' ? 'flex flex-col gap-1.5 sm:col-span-2' : 'flex flex-col gap-1.5'}>
             <label htmlFor={fieldId} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               {field.label}
               {field.required ? <span className="text-rose-600">*</span> : null}

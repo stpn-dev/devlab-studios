@@ -53,6 +53,7 @@ export {
   Lightbulb,
   Settings,
   Download,
+  Upload,
   Copy,
   Check,
   X as Close,

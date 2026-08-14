@@ -27,9 +27,15 @@ test('rejects an invalid login', async ({ page }) => {
   await expect(page.getByText(/invalid email or password/i)).toBeVisible()
 })
 
-test('logs in and can open Site Settings', async ({ page }) => {
+test('admin navigation mirrors public pages and hides unused collections', async ({ page }) => {
   await login(page)
-  await page.getByRole('navigation').getByRole('link', { name: 'Site Settings' }).click()
+  const navigation = page.getByRole('navigation')
+  for (const label of ['Home', 'About', 'Services', 'Work', 'Insights', 'Profile']) {
+    await expect(navigation.getByRole('link', { name: label, exact: true })).toBeVisible()
+  }
+  await expect(navigation.getByRole('link', { name: 'Testimonials' })).toHaveCount(0)
+  await expect(navigation.getByRole('link', { name: 'Case Studies' })).toHaveCount(0)
+  await navigation.getByRole('link', { name: 'Navigation & Footer' }).click()
   await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 })
 
@@ -45,13 +51,14 @@ test('media library inventories the bound R2 bucket and explains its purpose', a
 
   await page.getByRole('navigation').getByRole('link', { name: 'Media' }).click()
   await expect(page.getByRole('heading', { name: 'Media Library', level: 1 })).toBeVisible()
-  await expect(page.getByText(/inventory of files stored in the current environment's R2 bucket/i)).toBeVisible()
+  await expect(page.getByText(/optimized public images in the current environment/i)).toBeVisible()
   await expect(page.getByText('R2 objects')).toBeVisible()
+  await expect(page.getByText('Upload Image')).toBeVisible()
 })
 
 test('site settings save round-trip persists across reload', async ({ page }) => {
   await login(page)
-  await page.getByRole('navigation').getByRole('link', { name: 'Site Settings' }).click()
+  await page.getByRole('navigation').getByRole('link', { name: 'Navigation & Footer' }).click()
   await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 
   const taglineInput = page.getByLabel(/tagline/i).first()
@@ -61,13 +68,13 @@ test('site settings save round-trip persists across reload', async ({ page }) =>
   await expect(page.getByText(/saved/i)).toBeVisible({ timeout: 10_000 })
 
   await page.reload()
-  await page.getByRole('navigation').getByRole('link', { name: 'Site Settings' }).click()
+  await page.getByRole('navigation').getByRole('link', { name: 'Navigation & Footer' }).click()
   await expect(page.getByLabel(/tagline/i).first()).toHaveValue(marker)
 })
 
 test('site settings changes are versioned and a prior version can be restored', async ({ page }) => {
   await login(page)
-  await page.getByRole('navigation').getByRole('link', { name: 'Site Settings' }).click()
+  await page.getByRole('navigation').getByRole('link', { name: 'Navigation & Footer' }).click()
   await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 
   const taglineInput = page.getByLabel(/tagline/i).first()
@@ -94,9 +101,10 @@ test('site settings changes are versioned and a prior version can be restored', 
   await expect(page.getByLabel(/tagline/i).first()).toHaveValue(olderMarker)
 })
 
-test('testimonials collection round-trip persists across reload', async ({ page }) => {
+test('hidden testimonials collection remains backward compatible by direct route', async ({ page }) => {
   await login(page)
-  await page.getByRole('navigation').getByRole('link', { name: 'Testimonials' }).click()
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Testimonials' })).toHaveCount(0)
+  await page.goto('/admin/collections/testimonials')
   await expect(page.getByRole('heading', { name: 'Testimonials', level: 1 })).toBeVisible()
 
   await page.getByRole('button', { name: /^add testimonial/i }).click()

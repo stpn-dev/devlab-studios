@@ -78,12 +78,20 @@ The Astro development server prints the active local URL, normally
 
 CMS-backed public reads use D1 when a published record exists and otherwise
 fall back to the bundled static source. Uploads are performed from the owning
-editor and stored in R2; `/admin/media` is a read-only index of uploads that
-have corresponding `media_assets` metadata.
+editor and stored in R2. `/admin/media` inventories the bound R2 bucket,
+optimizes new browser uploads to WebP, replaces referenced images safely, and
+blocks deletion while an image is still used by public content. The Worker
+independently verifies the optimized file signature and size before storage.
 
 The Work editor never uploads or duplicates Project media. Add and maintain
 images under Projects, then select that Project under Work and edit only the
 Work-specific presentation copy.
+
+Admin navigation mirrors the public information architecture: Home, About,
+Services, Work, Insights, and Profile are primary; Process and Contact are
+supporting pages. Case Studies and Testimonials remain available only through
+their legacy storage/API paths and are intentionally absent from normal Admin
+navigation and public page composition.
 
 ## Branches and deployment
 

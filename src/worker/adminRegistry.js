@@ -77,7 +77,7 @@ export const PER_ITEM_COLLECTIONS = {
  */
 export const SINGLETON_CONTENT_TYPES = {
   services: { label: 'Services', get: getServicesContent, replace: replaceServicesContent },
-  resources: { label: 'Resources', get: getResourcesContent, replace: replaceResourcesContent },
+  resources: { label: 'Insights', get: getResourcesContent, replace: replaceResourcesContent },
   profile: { label: 'Profile', get: getProfileContent, replace: replaceProfileContent },
   'site-settings': { label: 'Site Settings', get: getSiteSettingsContent, replace: replaceSiteSettingsContent },
   seo: { label: 'SEO', get: getSeoContent, replace: replaceSeoContent },

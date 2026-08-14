@@ -7,12 +7,17 @@ import * as Icons from '../components/icons/icons.js'
 import { ArrowRight, Calendar, CheckCircle2, Clock, Code2, MessageSquare } from '../components/icons/icons.js'
 import { loadPageSeo } from '../lib/content/seo'
 import { loadArticlesContent, formatArticleDate, slugifyLabel, type ArticlePost } from '../lib/content/articles'
+import { loadPage } from '../lib/content/pages'
 
 function resolveIcon(name: string) {
   return (Icons as Record<string, typeof Icons.Lightbulb>)[name] || Icons.Lightbulb
 }
 
 const seo = await loadPageSeo('insights')
+const insightsPage = await loadPage('insights')
+const pageHero = insightsPage?.blocks.find((block) => block.type === 'hero')?.props || {}
+const pageSections = insightsPage?.blocks.filter((block) => block.type === 'richText') || []
+const pageCta = insightsPage?.blocks.find((block) => block.type === 'cta')?.props || {}
 const { posts, playbook } = await loadArticlesContent()
 
 const publishedPosts = posts.filter((post) => post.status !== 'draft')
@@ -35,18 +40,18 @@ const filterOptions = [
 const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
 ---
 
-<Layout title="Resources — DevLab Studios" seo={seo}>
+<Layout title="Insights — DevLab Studios" seo={seo}>
   <div class="space-y-10">
     <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
       <VectorField motif="editorial" />
       <div class="relative z-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <div class="space-y-5">
-          <p class="tech-kicker">Engineering Notes</p>
+          <p class="tech-kicker">{String(pageHero.eyebrow || 'Engineering Notes')}</p>
           <h1 class="text-4xl font-semibold leading-tight text-white sm:text-5xl">
-            Guides, AI updates, and operational notes for modern workflows.
+            {String(pageHero.heading || 'Guides, AI updates, and operational notes for modern workflows.')}
           </h1>
           <p class="max-w-3xl text-base leading-relaxed text-slate-300 sm:text-lg">
-            A CMS-managed feed of practical implementation notes across AI automation, websites, systems design, delivery workflows, and business operations.
+            {String(pageHero.subheading || 'A CMS-managed feed of practical implementation notes across AI automation, websites, systems design, delivery workflows, and business operations.')}
           </p>
           <div class="flex flex-wrap gap-3">
             <PrimaryButton to="/services">
@@ -77,9 +82,9 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
 
     {featuredPost ? (
       <section class="space-y-6">
-        <SectionHeader
-          title="Featured Insight"
-          subtitle="Longer-form guidance and implementation notes with enough detail to read, not just skim."
+      <SectionHeader
+        title={String(pageSections[0]?.props?.heading || 'Featured Insight')}
+        subtitle={String(pageSections[0]?.props?.body || 'Longer-form guidance and implementation notes with enough detail to read, not just skim.')}
         />
         <article class="overflow-hidden rounded-[28px] border border-slate-200 bg-white/95 shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
           <div class="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
@@ -144,8 +149,8 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
 
     <section class="space-y-6">
       <SectionHeader
-        title="Latest From the Feed"
-        subtitle="A practical mix of evergreen guides, automation notes, and current AI or systems insights."
+        title={String(pageSections[1]?.props?.heading || 'Latest From the Feed')}
+        subtitle={String(pageSections[1]?.props?.body || 'A practical mix of evergreen guides, automation notes, and current AI or systems insights.')}
       />
 
       <div id="insights-filters" class="flex flex-wrap gap-2">
@@ -229,10 +234,10 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
     <section class="rounded-[28px] bg-gradient-to-r from-brand-ink via-[#22185a] to-[#3120a3] p-6 text-white shadow-[0_22px_50px_rgba(20,13,64,0.22)] sm:p-8">
       <div class="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-center">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Need implementation?</p>
-          <h2 class="mt-2 text-3xl font-semibold">Turn the article into a working system.</h2>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">{String(pageCta.eyebrow || 'Need implementation?')}</p>
+          <h2 class="mt-2 text-3xl font-semibold">{String(pageCta.heading || 'Turn the article into a working system.')}</h2>
           <p class="mt-3 text-white/75">
-            DevLab Studios can map the process, choose the stack, and build the website, automation, or internal workflow around your current tools.
+            {String(pageCta.body || 'DevLab Studios can map the process, choose the stack, and build the website, automation, or internal workflow around your current tools.')}
           </p>
         </div>
         <div class="flex flex-wrap gap-3 lg:justify-end">

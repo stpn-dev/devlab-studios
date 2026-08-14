@@ -18,17 +18,17 @@ storage, validation, editor ownership, and public read behavior.
 
 | Content | Storage | Public/admin behavior |
 |---|---|---|
-| Home, About, Process, Work | `pages` + `page_sections` | Block-composed pages with static fallbacks and dedicated/admin page editors |
+| Home, About, Services, Work, Insights, Profile, Process, Contact | `pages` + `page_sections` plus their established collections | Public surfaces use the same labels in Admin. Controlled presentation blocks edit visible copy and ordering while specialized records remain in their owning libraries. |
 | Site settings | `site_settings` | Brand, availability, URLs, and global configuration |
 | Navigation | `navigation_items` | Published items populate the public shell; static navigation protects unavailable CMS reads |
 | Footer | `site_settings` key `site_footer` | Brand, Explore, Connect, legal, and contact content |
 | Profile | `site_settings` key `profile_about` plus `experiences`, `skills`, `tools`, and `workflow_items` | Dedicated profile editor and public static fallback |
-| Contact | Fixed form plus environment settings | Form behavior is application code; surrounding public copy is not an arbitrary form schema |
+| Contact | `pages` + `page_sections` plus environment settings | Hero, field labels/placeholders, submit label, and helper copy are controlled CMS content; validation, Turnstile, and submission behavior remain application code. |
 | Privacy and Terms | `pages`/`page_sections` or bundled fallback | Rich-text legal content without arbitrary executable markup |
 
 ## Approved page blocks
 
-`src/lib/schemas/blocks.ts` defines fourteen Zod-validated block types:
+`src/lib/schemas/blocks.ts` defines Zod-validated block types. Case Study and Testimonial blocks remain backward-compatible schema types but are not offered in the normal page editor.
 
 - `hero`
 - `richText`
@@ -58,8 +58,8 @@ JavaScript, CSS, or SVG. Decorative motifs use approved icon keys.
 | Resources | `resources` | Download, checklist, template, or external-link records; distinct from Articles |
 | Experiences | `experiences` | Profile timeline entries |
 | Certifications | `certifications` | Platform and professional certification metadata and image references |
-| Case Studies | `case_studies` | Structured case-study records with optional Project/Testimonial references |
-| Testimonials | `testimonials` | Structured proof records; may legitimately be empty |
+| Case Studies | `case_studies` | Retained for backward compatibility but hidden from normal Admin navigation and not added to public pages |
+| Testimonials | `testimonials` | Retained for backward compatibility but hidden from normal Admin navigation and not added to public pages |
 | FAQs | `faqs` | Context/page-specific questions and answers |
 | Redirects | `redirects` | Consulted by middleware only after a real 404; do not duplicate a D1 redirect with a hardcoded page redirect |
 | Leads | `leads` + `delivery_attempts` | Contact persistence and Zoho delivery/retry history; operational rather than editorial content |
@@ -108,14 +108,15 @@ R2 stores uploaded bytes. `media_assets` stores the CMS metadata index:
 - alt text
 - logical folder
 
-`POST /api/admin/media` uploads the file and attempts to add its metadata row.
-`GET /api/admin/media` lists indexed uploads for `/admin/media`. The media page
-is read-only; upload and replacement happen inside owning editors. Existing R2
-objects without a `media_assets` row do not appear automatically.
+`GET /api/admin/media` inventories the actual R2 bucket and joins optional D1
+metadata. Admin accepts JPG, PNG, WebP, and AVIF in the browser, constrains
+dimensions, and converts the result to WebP. The Worker independently enforces
+the byte limit and verifies the WebP file signature before writing to R2.
 
-The upload path does not universally promise automatic conversion of every raw
-PNG/JPEG to multiple modern formats. Preserve important originals and validate
-quality/weight in the public rendering path.
+Replacement writes a new immutable R2 key, updates known D1 content references,
+records metadata and audit details, and then retires the old key. Deletion is
+blocked while a known content reference exists. R2-only legacy objects remain
+visible and can be replaced or deleted under the same safeguards.
 
 ## Validation sources
 

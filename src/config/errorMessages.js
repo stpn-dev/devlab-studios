@@ -23,7 +23,7 @@ export const ERROR_MESSAGES = {
   // Maintenance
   MAINTENANCE_MODE: {
     title: 'Under Maintenance',
-    message: "We're temporarily offline for updates. We'll be back shortly.",
+    message: 'The site is temporarily offline for updates and will be back shortly.',
     details: 'Expected return time: within the next few hours.',
   },
 

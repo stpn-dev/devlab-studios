@@ -3,18 +3,19 @@ import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PrimaryButton from '../components/PrimaryButton.jsx'
 import VectorField from '../components/VectorField.astro'
-import BlockRenderer from '../components/blocks/BlockRenderer.astro'
 import { ArrowRight, BadgeCheck, Briefcase, CheckCircle2, Code2, Lightbulb, Settings, Zap } from '../components/icons/icons.js'
 import { loadPageSeo } from '../lib/content/seo'
 import { loadPage } from '../lib/content/pages'
+import { loadServicesContent } from '../lib/content/services'
 
 const seo = await loadPageSeo('about')
 const aboutPage = await loadPage('about')
+const servicesContent = await loadServicesContent()
 const cmsHero = aboutPage?.blocks.find((block) => block.type === 'hero')?.props || {}
 const heroHeading = String(cmsHero.heading || 'Systems for clearer offers, faster operations, and cleaner handoffs.')
 const heroSubheading = String(cmsHero.subheading || 'DevLab Studios helps businesses turn messy workflows into complete digital systems—customer-facing interfaces, dependable services, structured data, and automation that keeps work moving.')
 
-const buildAreas = [
+const defaultBuildAreas = [
   {
     title: 'Conversion-focused websites',
     description: 'Landing pages and business websites that explain an offer clearly, load quickly, and move visitors toward inquiry, booking, or purchase.',
@@ -32,14 +33,14 @@ const buildAreas = [
   },
 ]
 
-const principles = [
+const defaultPrinciples = [
   'Start with the real workflow before choosing tools.',
   'Build small enough to ship, but structured enough to maintain.',
   'Keep data flow, handoff, and reliability visible.',
   'Use automation where it removes repeat work or response delays.',
 ]
 
-const faqs = [
+const defaultFaqs = [
   {
     question: 'When was DevLab Studios founded?',
     answer: 'DevLab Studios was founded on March 2, 2026 as a focused software engineering and AI automation studio for practical business systems.',
@@ -57,6 +58,25 @@ const faqs = [
     answer: 'Projects start with a practical workflow review. The goal is to understand the business problem, map the current process, and then define the smallest reliable system that can solve it.',
   },
 ]
+
+const statsBlocks = aboutPage?.blocks.filter((block) => block.type === 'stats') || []
+const richTextBlocks = aboutPage?.blocks.filter((block) => block.type === 'richText') || []
+const servicesBlock = aboutPage?.blocks.find((block) => block.type === 'servicesGrid')?.props || {}
+const faqBlock = aboutPage?.blocks.find((block) => block.type === 'faq')?.props || {}
+const ctaBlock = aboutPage?.blocks.find((block) => block.type === 'cta')?.props || {}
+const aboutCta = (ctaBlock.primaryCta as { label?: string; href?: string } | undefined) || {}
+const heroFacts = Array.isArray(statsBlocks[0]?.props?.items) && statsBlocks[0].props.items.length ? statsBlocks[0].props.items : [
+  { label: 'Focus', value: 'Full-stack + AI automation' }, { label: 'Approach', value: 'Workflow-first delivery' },
+  { label: 'Founder', value: 'Stephen Rey Agustinez' }, { label: 'Availability', value: 'Remote-first worldwide' },
+]
+const principleItems = Array.isArray(statsBlocks[1]?.props?.items) ? statsBlocks[1].props.items : []
+const principles = principleItems.length ? principleItems.map((item) => String(item.value || item.label)) : defaultPrinciples
+const selectedServiceIds = Array.isArray(servicesBlock.serviceIds) ? servicesBlock.serviceIds : []
+const selectedServices = selectedServiceIds.length ? selectedServiceIds.flatMap((id) => servicesContent.solutionGroups.filter((group) => group.id === id)) : []
+const buildAreas = defaultBuildAreas.map((area, index) => selectedServices[index] ? { ...area, title: selectedServices[index].title, description: selectedServices[index].description } : area)
+const missionCopy = richTextBlocks[0]?.props || {}
+const founderCopy = richTextBlocks[1]?.props || {}
+const faqs = Array.isArray(faqBlock.items) && faqBlock.items.length ? faqBlock.items : defaultFaqs
 ---
 
 <Layout title="About DevLab Studios" seo={seo}>
@@ -85,12 +105,7 @@ const faqs = [
         </div>
 
         <dl class="grid gap-3 sm:grid-cols-2">
-          {[
-            { label: 'Focus', value: 'Full-stack + AI automation' },
-            { label: 'Approach', value: 'Workflow-first delivery' },
-            { label: 'Founder', value: 'Stephen Rey Agustinez' },
-            { label: 'Availability', value: 'Remote-first worldwide' },
-          ].map((item) => (
+          {heroFacts.map((item) => (
             <div class="rounded-2xl border border-white/10 bg-white/[0.07] p-5">
               <dt class="text-xs font-semibold uppercase tracking-[0.14em] text-white/60">{item.label}</dt>
               <dd class="mt-2 text-base font-semibold leading-snug sm:text-lg">{item.value}</dd>
@@ -102,12 +117,12 @@ const faqs = [
 
     <section class="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
       <div class="space-y-4">
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Our Mission</p>
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">{String(missionCopy.eyebrow || 'Mission')}</p>
         <h2 class="text-3xl font-semibold tracking-tight text-brand-ink sm:text-4xl">
-          Make business systems easier to launch, connect, and operate.
+          {String(missionCopy.heading || 'Make business systems easier to launch, connect, and operate.')}
         </h2>
         <p class="text-slate-700">
-          DevLab Studios exists to help businesses reduce operational friction with practical software. The mission is to build systems that clarify the customer journey, connect the tools behind the work, and make repeated processes easier to manage.
+          {String(missionCopy.body || 'DevLab Studios exists to help businesses reduce operational friction with practical software. The mission is to build systems that clarify the customer journey, connect the tools behind the work, and make repeated processes easier to manage.')}
         </p>
       </div>
 
@@ -123,8 +138,8 @@ const faqs = [
 
     <section class="space-y-6">
       <SectionHeader
-        title="What DevLab Studios Builds"
-        subtitle="The work sits between front-end delivery, backend implementation, and automation logic."
+        title={String(servicesBlock.heading || 'What DevLab Studios Builds')}
+        subtitle={String(servicesBlock.subheading || 'The work sits between front-end delivery, backend implementation, and automation logic.')}
       />
       <div class="grid gap-5 lg:grid-cols-3">
         {buildAreas.map((area) => (
@@ -142,17 +157,17 @@ const faqs = [
     <section class="surface-card p-6 sm:p-8">
       <div class="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Founder Note</p>
-          <h2 class="mt-2 text-3xl font-semibold text-brand-ink">Built from hands-on software and operations experience.</h2>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">{String(founderCopy.eyebrow || 'Founder Note')}</p>
+          <h2 class="mt-2 text-3xl font-semibold text-brand-ink">{String(founderCopy.heading || 'Built from hands-on software and operations experience.')}</h2>
         </div>
         <p class="text-slate-700">
-          DevLab Studios is led by Stephen Rey Agustinez, a full-stack developer and AI automation specialist with experience across React, Astro, Java, Spring Boot, Laravel, REST APIs, SQL, Zapier, Make, n8n, and operational process improvement. The studio is designed for clients who need implementation that understands every layer and the workflow around it.
+          {String(founderCopy.body || 'DevLab Studios is led by Stephen Rey Agustinez, a full-stack developer and AI automation specialist with experience across React, Astro, Java, Spring Boot, Laravel, REST APIs, SQL, Zapier, Make, n8n, and operational process improvement. The studio is designed for clients who need implementation that understands every layer and the workflow around it.')}
         </p>
       </div>
     </section>
 
     <section class="space-y-5">
-      <SectionHeader title="FAQ" subtitle="Common questions about how DevLab Studios works." />
+      <SectionHeader title={String(faqBlock.heading || 'FAQ')} subtitle={String(faqBlock.subheading || 'Common questions about DevLab Studios delivery.')} />
       <div class="grid gap-4 lg:grid-cols-2">
         {faqs.map((faq) => (
           <article class="surface-card p-5">
@@ -172,17 +187,14 @@ const faqs = [
       <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Next Step</p>
-          <h2 class="mt-2 text-2xl font-semibold text-brand-ink">Need a system designed around your workflow?</h2>
+          <h2 class="mt-2 text-2xl font-semibold text-brand-ink">{String(ctaBlock.heading || 'Need a system designed around your workflow?')}</h2>
         </div>
-        <a href="/contact" class="inline-flex items-center gap-2 text-sm font-semibold text-brand-teal transition hover:text-brand-orange">
-          Start a project conversation
+        <a href={String(aboutCta.href || '/contact')} class="inline-flex items-center gap-2 text-sm font-semibold text-brand-teal transition hover:text-brand-orange">
+          {String(aboutCta.label || 'Start a project conversation')}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </a>
       </div>
     </section>
 
-    {aboutPage?.blocks?.some((block) => block.type !== 'hero') ? (
-      <BlockRenderer blocks={aboutPage.blocks.filter((block) => block.type !== 'hero')} />
-    ) : null}
   </div>
 </Layout>

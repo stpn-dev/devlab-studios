@@ -15,7 +15,7 @@ export const POST: APIRoute = async ({ params, locals }) => {
   if (!lead) return jsonResponse({ error: 'Lead not found.' }, 404)
 
   const result = await attemptLeadDelivery(env, lead)
-  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'retry_delivery', entityType: 'leads', entityId: id, metadata: { ok: result.ok } })
+  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'retry_delivery', entityType: 'leads', entityId: id, metadata: { summary: `${result.ok ? 'Retried' : 'Failed to retry'} lead delivery for ${id}.`, ok: result.ok } })
 
   const updatedLead = await getLead(env.DB, id)
   const attempts = await listDeliveryAttempts(env.DB, id)

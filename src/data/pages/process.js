@@ -3,13 +3,13 @@
 // marketing claims for a dedicated page.
 export const processPage = {
   slug: 'process',
-  title: 'Our Process',
+  title: 'Process',
   status: 'published',
   blocks: [
     {
       type: 'hero',
       props: {
-        eyebrow: 'How we work',
+        eyebrow: 'Delivery Process',
         heading: 'A four-phase delivery model built for real operations.',
         subheading: 'Every engagement moves through the same structure: diagnose the problem, define the approach, build in controlled phases, and deliver with full handoff support.',
         primaryCta: { label: 'Book a Consultation', href: '/contact' },
@@ -23,15 +23,15 @@ export const processPage = {
         steps: [
           {
             title: 'Problem Audit',
-            description: 'We start by mapping the actual business problem, not just the requested feature. That includes bottlenecks, broken handoffs, slow response points, missing integrations, and unclear customer flow.',
+            description: 'The process begins by mapping the actual business problem, not just the requested feature. That includes bottlenecks, broken handoffs, slow response points, missing integrations, and unclear customer flow.',
           },
           {
             title: 'Solution Proposal',
-            description: 'After the audit, we define the best-fit solution model. This usually includes the recommended system structure, scope, tools, delivery phases, and the expected business outcome before any build work begins.',
+            description: 'The audit produces a defined, best-fit solution model. This usually includes the recommended system structure, scope, tools, delivery phases, and the expected business outcome before any build work begins.',
           },
           {
             title: 'Solution Build-Up',
-            description: 'Once the direction is approved, we build the website, automation, integration, or backend workflow in structured phases so each part is tested, connected, and ready for real use.',
+            description: 'Once the direction is approved, implementation proceeds in structured phases across the website, automation, integration, or backend workflow so each part is tested, connected, and ready for real use.',
           },
           {
             title: 'Solution Delivery',

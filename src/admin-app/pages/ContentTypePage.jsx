@@ -5,6 +5,7 @@ import ContentManager from '../../components/admin/ContentManager'
 import SiteSettingsManager from '../../components/admin/SiteSettingsManager'
 import SeoManager from '../../components/admin/SeoManager'
 import VersionHistoryPanel from './VersionHistoryPanel'
+import PublicUsageNotice from '../components/PublicUsageNotice'
 
 /**
  * Hosts the existing bespoke singleton/collection editors (built pre-shell)
@@ -39,6 +40,7 @@ function ContentTypePage() {
 
   return (
     <div className="space-y-4">
+      <PublicUsageNotice contentType={type} />
       {supportsPageLevelHistory ? (
         <div className="flex justify-end">
           <button

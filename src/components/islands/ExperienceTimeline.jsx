@@ -25,7 +25,7 @@ function ExperienceTimeline({ experiences }) {
             <div className="flex flex-col items-end justify-center px-1 text-right">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 sm:text-sm">{item.dates}</span>
             </div>
-            <div className="flex justify-center">
+            <div className="relative z-10 flex justify-center">
               <div className="h-3.5 w-3.5 rounded-full border-[3px] border-white bg-brand-orange shadow-[0_0_0_3px_rgba(122,0,255,0.25)]"></div>
             </div>
             <section className="group/experience rounded-2xl border border-transparent bg-transparent p-4 shadow-none transition-all duration-300 hover:-translate-y-0.5 hover:border-white/10 hover:bg-white/[0.05] hover:shadow-[0_16px_36px_rgba(0,0,0,0.22)]">

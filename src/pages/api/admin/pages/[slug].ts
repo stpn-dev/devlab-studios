@@ -6,6 +6,7 @@ import { recordVersion } from '../../../../worker/repositories/contentVersions.j
 import { recordAuditEvent } from '../../../../worker/repositories/auditLog.js'
 import { getEnv } from '../../../../lib/env'
 import { jsonResponse, readJsonBody } from '../../../../lib/http'
+import { buildAuditMetadata } from '../../../../lib/audit.js'
 
 interface ProjectReferenceRecord {
   id: string
@@ -26,6 +27,7 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
   const env = getEnv()
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
+  const before = await getPage(env.DB, slug, { includeDrafts: true })
   const payload = await readJsonBody(request)
   const result = pageSingletonSchema.safeParse({ ...payload, slug })
   if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
@@ -60,7 +62,13 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
 
   const saved = await replacePage(env.DB, slug, result.data)
   await recordVersion(env.DB, { contentType: 'pages', contentId: slug, status: result.data.status, snapshot: saved, createdBy: locals.adminEmail || null })
-  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'replace', entityType: 'pages', entityId: slug, metadata: { blockCount: result.data.blocks.length } })
+  await recordAuditEvent(env.DB, {
+    actorEmail: locals.adminEmail || null,
+    action: 'replace',
+    entityType: 'pages',
+    entityId: slug,
+    metadata: buildAuditMetadata({ before, after: saved, label: `${result.data.title || slug} page` }),
+  })
 
   return jsonResponse(saved)
 }

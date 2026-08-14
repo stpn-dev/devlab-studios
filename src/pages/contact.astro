@@ -4,8 +4,22 @@ import ContactForm from '../components/islands/ContactForm.jsx'
 import VectorField from '../components/VectorField.astro'
 import { loadPageSeo } from '../lib/content/seo'
 import { getEnv } from '../lib/env'
+import { loadPage } from '../lib/content/pages'
 
 const seo = await loadPageSeo('contact')
+const contactPage = await loadPage('contact')
+const pageHero = contactPage?.blocks.find((block) => block.type === 'hero')?.props || {}
+const formBlock = contactPage?.blocks.find((block) => block.type === 'stats')?.props || {}
+const pageCta = contactPage?.blocks.find((block) => block.type === 'cta')?.props || {}
+const contactSubmitCta = (pageCta.primaryCta as { label?: string } | undefined) || {}
+const formItems = Array.isArray(formBlock.items) ? formBlock.items : []
+const formCopy = {
+  nameLabel: String(formItems[0]?.label || 'Full Name'), namePlaceholder: String(formItems[0]?.value || 'Your name'),
+  emailLabel: String(formItems[1]?.label || 'Email'), emailPlaceholder: String(formItems[1]?.value || 'name@email.com'),
+  subjectLabel: String(formItems[2]?.label || 'Subject'), subjectPlaceholder: String(formItems[2]?.value || 'Project inquiry, support, collaboration'),
+  messageLabel: String(formItems[3]?.label || 'Message'), messagePlaceholder: String(formItems[3]?.value || 'Share context, goals, timelines, and success criteria.'),
+  submitLabel: String(contactSubmitCta.label || 'Send Message'), helperText: String(pageCta.body || 'Responses are securely routed via Zoho.'),
+}
 const env = getEnv()
 const requestHostname = new URL(Astro.request.url).hostname
 const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1'
@@ -17,14 +31,14 @@ const turnstileSiteKey = isLocalRequest ? '1x00000000000000000000AA' : env.TURNS
     <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
       <VectorField motif="automation" />
       <div class="relative z-10 max-w-3xl space-y-4">
-        <p class="tech-kicker">Start a Project</p>
-        <h1 class="text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Tell us where the workflow slows down.</h1>
+        <p class="tech-kicker">{String(pageHero.eyebrow || 'Start a Project')}</p>
+        <h1 class="text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">{String(pageHero.heading || 'Share where the workflow slows down.')}</h1>
         <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-          Share the interface, integration, data, or automation problem. DevLab Studios will respond with the clearest next step for the full system.
+          {String(pageHero.subheading || 'Share the interface, integration, data, or automation problem. DevLab Studios will respond with the clearest next step for the full system.')}
         </p>
       </div>
     </section>
 
-    <ContactForm client:load siteKey={turnstileSiteKey} />
+    <ContactForm client:load siteKey={turnstileSiteKey} copy={formCopy} />
   </div>
 </Layout>

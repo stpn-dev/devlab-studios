@@ -51,7 +51,23 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Added
+- Added public-usage guidance to CMS editors, controlled repeatable page-section fields, readable field-level audit diffs, and reference-aware R2 media upload, replacement, and deletion actions.
+
 ### Changed
+- Reorganized the Admin CMS around the actual public information architecture: Home, About, Services, Work, Insights, and Profile now appear in public order; Process and Contact are supporting content; Projects, Service Catalog, Insight Articles, and Certifications are clearly labeled content libraries.
+- Hid the unused Case Studies and Testimonials collections from normal Admin navigation and dashboard surfaces while retaining their storage and API compatibility.
+- Removed the dormant Case Study presentation path from the public Work page so legacy records cannot surface there accidentally.
+- Wired existing Home, About, Services, Insights, and Contact presentation copy to controlled CMS page blocks without changing their public layouts or enabling arbitrary HTML.
+- Renamed Admin-facing Resources/Articles wording to Insights and Site Settings navigation to Navigation & Footer.
+
+### Fixed
+- Audit Log details now explain the action performed and show safe before/after field previews instead of raw metadata JSON.
+- Media uploads now require a size-checked, signature-verified optimized WebP at the Worker boundary; replacement updates known content references before retiring the prior R2 key, and deletion is blocked while references remain.
+- Fixed the public Experience timeline rendering its connector line above each node's circle instead of behind it.
+- Reworded remaining first-person marketing copy ("We start by mapping…", "After the audit, we define…", "Once the direction is approved, we build…", "Tell us where…", "Our Process", "How we work") to a neutral/third-person voice across the homepage, Process, and Contact pages and their static fallback data, matching the wording pass already applied to Services.
+- Corrected a stale seeded value on the Home hero's secondary call-to-action (`secondaryCta` pointed at "View Profile" → `/profile`) that, now that the public renderer reads it, would have silently replaced the live "View Work" → `/work` button; the update script repairs any database still carrying that placeholder.
+
 - Updated the repository README and operational documentation for the current Astro/Cloudflare platform, Full-Stack Software Engineer & AI Automation Specialist positioning, Work-to-Project CMS model, release 1.5.0 environment status, and the two-branch preview-first workflow.
 - Added a canonical branch workflow and cleanup guide after removing merged feature branches and the stale clean worktree.
 

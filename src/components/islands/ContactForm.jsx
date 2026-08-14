@@ -105,7 +105,7 @@ const verificationMessages = {
   'configuration-error': 'Verification is temporarily unavailable. Please try again later.',
 }
 
-function ContactForm({ siteKey = '' }) {
+function ContactForm({ siteKey = '', copy = {} }) {
   const [isHydrated, setIsHydrated] = useState(false)
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
@@ -194,26 +194,26 @@ function ContactForm({ siteKey = '' }) {
       <form className="contact-form-flow" onSubmit={handleSubmit} noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="name"><AnimatedIcon icon={User} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Full Name</label>
-            <input id="name" name="name" type="text" value={form.name} onChange={handleChange} className={fieldClass} placeholder="Your name" disabled={!isHydrated} {...errorProps('name')} />
+            <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="name"><AnimatedIcon icon={User} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />{copy.nameLabel || 'Full Name'}</label>
+            <input id="name" name="name" type="text" value={form.name} onChange={handleChange} className={fieldClass} placeholder={copy.namePlaceholder || 'Your name'} disabled={!isHydrated} {...errorProps('name')} />
             {errors.name ? <p id="name-error" className="text-sm text-rose-700">{errors.name}</p> : null}
           </div>
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="email"><AnimatedIcon icon={Mail} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Email</label>
-            <input id="email" name="email" type="email" value={form.email} onChange={handleChange} className={fieldClass} placeholder="name@email.com" disabled={!isHydrated} {...errorProps('email')} />
+            <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="email"><AnimatedIcon icon={Mail} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />{copy.emailLabel || 'Email'}</label>
+            <input id="email" name="email" type="email" value={form.email} onChange={handleChange} className={fieldClass} placeholder={copy.emailPlaceholder || 'name@email.com'} disabled={!isHydrated} {...errorProps('email')} />
             {errors.email ? <p id="email-error" className="text-sm text-rose-700">{errors.email}</p> : null}
           </div>
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="subject"><AnimatedIcon icon={MessageSquare} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Subject</label>
-          <input id="subject" name="subject" type="text" value={form.subject} onChange={handleChange} className={fieldClass} placeholder="Project inquiry, support, collaboration" disabled={!isHydrated} {...errorProps('subject')} />
+          <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="subject"><AnimatedIcon icon={MessageSquare} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />{copy.subjectLabel || 'Subject'}</label>
+          <input id="subject" name="subject" type="text" value={form.subject} onChange={handleChange} className={fieldClass} placeholder={copy.subjectPlaceholder || 'Project inquiry, support, collaboration'} disabled={!isHydrated} {...errorProps('subject')} />
           {errors.subject ? <p id="subject-error" className="text-sm text-rose-700">{errors.subject}</p> : null}
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="message"><AnimatedIcon icon={MessageSquare} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />Message</label>
-          <textarea id="message" name="message" rows="5" value={form.message} onChange={handleChange} className={fieldClass} placeholder="Share context, goals, timelines, and success criteria." disabled={!isHydrated} {...errorProps('message')} />
+          <label className="flex items-center gap-2 text-sm font-semibold text-brand-ink" htmlFor="message"><AnimatedIcon icon={MessageSquare} size={16} color="text-brand-teal" animationType="none" ariaLabel={null} />{copy.messageLabel || 'Message'}</label>
+          <textarea id="message" name="message" rows="5" value={form.message} onChange={handleChange} className={fieldClass} placeholder={copy.messagePlaceholder || 'Share context, goals, timelines, and success criteria.'} disabled={!isHydrated} {...errorProps('message')} />
           {errors.message ? <p id="message-error" className="text-sm text-rose-700">{errors.message}</p> : null}
         </div>
 
@@ -228,9 +228,9 @@ function ContactForm({ siteKey = '' }) {
 
         <div className="flex flex-wrap items-center gap-3">
           <PrimaryButton type="submit" disabled={!isHydrated || isSubmitting || !siteKey || !turnstile.token} className="px-6">
-            {isSubmitting ? <><span>Sending…</span><AnimatedIcon icon={Loader2} size={16} color="inherit" animationType="spin" ariaLabel={null} /></> : <><span>Send Message</span><AnimatedIcon icon={Send} size={16} color="inherit" animationType="hover-slide" ariaLabel={null} /></>}
+            {isSubmitting ? <><span>Sending…</span><AnimatedIcon icon={Loader2} size={16} color="inherit" animationType="spin" ariaLabel={null} /></> : <><span>{copy.submitLabel || 'Send Message'}</span><AnimatedIcon icon={Send} size={16} color="inherit" animationType="hover-slide" ariaLabel={null} /></>}
           </PrimaryButton>
-          <span className="text-sm text-slate-600">Responses are securely routed via Zoho.</span>
+          <span className="text-sm text-slate-600">{copy.helperText || 'Responses are securely routed via Zoho.'}</span>
         </div>
 
         {status ? (

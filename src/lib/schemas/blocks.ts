@@ -14,6 +14,8 @@ const heroBlockSchema = z.object({
   type: z.literal('hero'),
   props: z.object({
     eyebrow: z.string().optional().default(''),
+    kicker: z.string().optional().default(''),
+    tagline: z.string().optional().default(''),
     heading: z.string().min(1),
     subheading: z.string().optional().default(''),
     primaryCta: z.object({ label: z.string(), href: z.string() }).optional(),
@@ -22,14 +24,23 @@ const heroBlockSchema = z.object({
     variant: z.enum(['system', 'editorial', 'compact']).optional().default('editorial'),
     iconMotif: iconMotifSchema.optional().default('fullstack'),
     signals: z.array(z.string()).optional().default([]),
+    capabilities: z.array(z.object({ label: z.string(), value: z.string() })).max(3).optional().default([]),
+    canvasNodes: z.array(z.object({
+      key: z.enum(['visitor', 'interface', 'backend', 'data', 'decision', 'automation', 'handoff']),
+      label: z.string(),
+      note: z.string(),
+    })).max(7).optional().default([]),
+    statusLabel: z.string().optional().default(''),
   }),
 })
 
 const richTextBlockSchema = z.object({
   type: z.literal('richText'),
   props: z.object({
+    eyebrow: z.string().optional().default(''),
     heading: z.string().optional().default(''),
     body: z.string().min(1),
+    highlights: z.array(z.object({ label: z.string(), value: z.string() })).max(4).optional().default([]),
   }),
 })
 
@@ -37,6 +48,7 @@ const statsBlockSchema = z.object({
   type: z.literal('stats'),
   props: z.object({
     heading: z.string().optional().default(''),
+    subheading: z.string().optional().default(''),
     items: z.array(z.object({ label: z.string(), value: z.string() })).default([]),
   }),
 })
@@ -45,10 +57,16 @@ const processStepsBlockSchema = z.object({
   type: z.literal('processSteps'),
   props: z.object({
     heading: z.string().optional().default(''),
+    subheading: z.string().optional().default(''),
     steps: z.array(z.object({
       title: z.string(),
       description: z.string(),
       icon: z.string().optional().default(''),
+      outcomes: z.array(z.string()).optional().default([]),
+      visualTitle: z.string().optional().default(''),
+      visualChips: z.array(z.string()).optional().default([]),
+      visualNote: z.string().optional().default(''),
+      visualFlow: z.array(z.object({ label: z.string(), icon: z.string().optional().default('') })).optional().default([]),
     })).default([]),
   }),
 })
@@ -64,6 +82,7 @@ const servicesGridBlockSchema = z.object({
   type: z.literal('servicesGrid'),
   props: z.object({
     heading: z.string().optional().default(''),
+    subheading: z.string().optional().default(''),
     serviceIds: z.array(z.string()).optional().default([]),
   }),
 })
@@ -146,7 +165,9 @@ const faqBlockSchema = z.object({
   type: z.literal('faq'),
   props: z.object({
     heading: z.string().optional().default(''),
+    subheading: z.string().optional().default(''),
     context: z.string().default('general'),
+    items: z.array(z.object({ question: z.string(), answer: z.string() })).optional().default([]),
   }),
 })
 
@@ -169,9 +190,11 @@ const imageGalleryBlockSchema = z.object({
 const ctaBlockSchema = z.object({
   type: z.literal('cta'),
   props: z.object({
+    eyebrow: z.string().optional().default(''),
     heading: z.string().min(1),
     body: z.string().optional().default(''),
     primaryCta: z.object({ label: z.string(), href: z.string() }),
+    secondaryCta: z.object({ label: z.string(), href: z.string() }).optional(),
   }),
 })
 

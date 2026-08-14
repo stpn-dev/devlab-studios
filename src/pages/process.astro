@@ -8,6 +8,6 @@ const seo = await loadPageSeo('process')
 const page = await loadPage('process')
 ---
 
-<Layout title={`${page?.title || 'Our Process'} — DevLab Studios`} seo={seo}>
+<Layout title={`${page?.title || 'Process'} — DevLab Studios`} seo={seo}>
   {page ? <BlockRenderer blocks={page.blocks} /> : <p class="text-slate-600">This page is not available right now.</p>}
 </Layout>

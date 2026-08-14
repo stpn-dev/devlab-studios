@@ -8,6 +8,7 @@ import { ArrowRight, Briefcase, MessageSquare, Shield } from '../components/icon
 import { loadPageSeo } from '../lib/content/seo'
 import { loadServicesContent } from '../lib/content/services'
 import { loadProjects } from '../lib/content/projects'
+import { loadPage } from '../lib/content/pages'
 
 function resolveIcon(name: string) {
   return (Icons as Record<string, typeof Icons.Lightbulb>)[name] || Icons.Lightbulb
@@ -20,6 +21,13 @@ function getProjects(projectIds: string[], projectItems: Awaited<ReturnType<type
 }
 
 const seo = await loadPageSeo('services')
+const servicesPage = await loadPage('services')
+const pageHero = servicesPage?.blocks.find((block) => block.type === 'hero')?.props || {}
+const sectionCopy = servicesPage?.blocks.filter((block) => block.type === 'richText') || []
+const pageCta = servicesPage?.blocks.find((block) => block.type === 'cta')?.props || {}
+const pageFaq = servicesPage?.blocks.find((block) => block.type === 'faq')?.props || {}
+const servicePrimaryCta = (pageCta.primaryCta as { label?: string; href?: string } | undefined) || {}
+const serviceSecondaryCta = (pageCta.secondaryCta as { label?: string; href?: string } | undefined) || {}
 const { solutionGroups, processSteps, faqs } = await loadServicesContent()
 const projectItems = await loadProjects()
 ---
@@ -30,12 +38,12 @@ const projectItems = await loadProjects()
       <VectorField motif="automation" />
       <div class="relative z-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <div class="space-y-5">
-          <p class="tech-kicker">Services as systems</p>
+          <p class="tech-kicker">{String(pageHero.eyebrow || 'Services as systems')}</p>
           <h1 class="text-4xl font-semibold leading-tight text-white sm:text-5xl">
-            Full-stack products and AI automation built around real operations.
+            {String(pageHero.heading || 'Full-stack products and AI automation built around real operations.')}
           </h1>
           <p class="max-w-3xl text-base leading-relaxed text-slate-300 sm:text-lg">
-            From the interface customers see to the APIs, data, and automated workflows behind it, every layer is designed as one maintainable system.
+            {String(pageHero.subheading || 'From the interface customers see to the APIs, data, and automated workflows behind it, every layer is designed as one maintainable system.')}
           </p>
           <div class="flex flex-wrap gap-3">
             <PrimaryButton to="/contact">
@@ -74,8 +82,8 @@ const projectItems = await loadProjects()
 
     <section class="space-y-6">
       <SectionHeader
-        title="Solution Categories"
-        subtitle="Each category connects to actual project patterns already built across website, automation, API, and AI workflow work."
+        title={String(sectionCopy[0]?.props?.heading || 'Solution Categories')}
+        subtitle={String(sectionCopy[0]?.props?.body || 'Each category connects to actual project patterns already built across website, automation, API, and AI workflow work.')}
       />
 
       <div class="space-y-6">
@@ -141,27 +149,27 @@ const projectItems = await loadProjects()
     <section class="rounded-[28px] bg-gradient-to-r from-brand-ink via-[#22185a] to-[#3120a3] p-6 text-white shadow-[0_22px_50px_rgba(20,13,64,0.22)] sm:p-8">
       <div class="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-center">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Not sure where to start?</p>
-          <h2 class="mt-2 text-3xl font-semibold">Start with the workflow that loses the most time or opportunities.</h2>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">{String(pageCta.eyebrow || 'Not sure where to start?')}</p>
+          <h2 class="mt-2 text-3xl font-semibold">{String(pageCta.heading || 'Start with the workflow that loses the most time or opportunities.')}</h2>
           <p class="mt-3 text-white/75">
-            A short discovery conversation can identify whether your best first move is a website, automation, AI agent, internal tool, or backend integration.
+            {String(pageCta.body || 'A short discovery conversation can identify whether your best first move is a website, automation, AI agent, internal tool, or backend integration.')}
           </p>
         </div>
         <div class="flex flex-wrap gap-3 lg:justify-end">
-          <PrimaryButton to="/contact">
+          <PrimaryButton to={String(servicePrimaryCta.href || '/contact')}>
             <MessageSquare size={16} />
-            Start a Project Conversation
+            {String(servicePrimaryCta.label || 'Start a Project Conversation')}
           </PrimaryButton>
-          <PrimaryButton to="/insights" variant="secondary">
+          <PrimaryButton to={String(serviceSecondaryCta.href || '/insights')} variant="secondary">
             <Shield size={16} />
-            Read Resources
+            {String(serviceSecondaryCta.label || 'Read Insights')}
           </PrimaryButton>
         </div>
       </div>
     </section>
 
     <section class="space-y-5">
-      <SectionHeader title="FAQ" subtitle="Common questions about DevLab Studios solution work." />
+      <SectionHeader title={String(pageFaq.heading || 'FAQ')} subtitle={String(pageFaq.subheading || 'Common questions about DevLab Studios solution work.')} />
       <div class="grid gap-4 lg:grid-cols-2">
         {faqs.map((faq) => (
           <article class="rounded-2xl bg-white/[0.92] p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">

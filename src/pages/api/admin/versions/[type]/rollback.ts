@@ -40,7 +40,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   }
 
   await recordVersion(env.DB, { contentType: type, contentId, status: version.status, snapshot: version.snapshot, createdBy: locals.adminEmail || null })
-  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'restore', entityType: type, entityId: contentId, metadata: { restoredVersion: versionNumber } })
+  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'restore', entityType: type, entityId: contentId, metadata: { summary: `Restored ${type}${contentId ? ` ${contentId}` : ''} from version ${versionNumber}.`, restoredVersion: versionNumber } })
 
   return jsonResponse(restored)
 }

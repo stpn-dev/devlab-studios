@@ -5,6 +5,7 @@ import { recordVersion } from '../../../../../worker/repositories/contentVersion
 import { recordAuditEvent } from '../../../../../worker/repositories/auditLog.js'
 import { getEnv } from '../../../../../lib/env'
 import { jsonResponse, readJsonBody } from '../../../../../lib/http'
+import { buildAuditMetadata, buildCreateAuditMetadata } from '../../../../../lib/audit.js'
 
 export const GET: APIRoute = async ({ params }) => {
   const type = params.type as string
@@ -33,9 +34,10 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
   const result = z.array(collection.schema).safeParse(items)
   if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
 
+  const before = await collection.list(env.DB)
   await collection.replaceAll(env.DB, result.data)
   await recordVersion(env.DB, { contentType: type, contentId: null, status: 'published', snapshot: result.data, createdBy: locals.adminEmail || null })
-  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'replace', entityType: type, entityId: null, metadata: { count: result.data.length } })
+  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'replace', entityType: type, entityId: null, metadata: buildAuditMetadata({ before, after: result.data, label: collection.label }) })
 
   return jsonResponse(await collection.list(env.DB))
 }
@@ -55,10 +57,20 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   const isUpdate = Boolean((payload as { id?: string }).id)
 
   try {
+    const beforeItems = isUpdate ? await collection.list(env.DB) : []
+    const before = isUpdate ? beforeItems.find((item: { id?: string }) => item.id === (payload as { id?: string }).id) || null : null
     const saved = await collection.upsert(env.DB, result.data)
     const savedId = (saved as { id?: string } | null)?.id || null
     await recordVersion(env.DB, { contentType: type, contentId: savedId, status: (saved as { status?: string } | null)?.status || 'draft', snapshot: saved, createdBy: locals.adminEmail || null })
-    await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: isUpdate ? 'update' : 'create', entityType: type, entityId: savedId, metadata: {} })
+    await recordAuditEvent(env.DB, {
+      actorEmail: locals.adminEmail || null,
+      action: isUpdate ? 'update' : 'create',
+      entityType: type,
+      entityId: savedId,
+      metadata: isUpdate
+        ? buildAuditMetadata({ before, after: saved, label: collection.label })
+        : buildCreateAuditMetadata(saved, collection.label),
+    })
     return jsonResponse(saved, isUpdate ? 200 : 201)
   } catch (error) {
     const status = error && typeof error === 'object' && 'status' in error ? Number((error as { status: number }).status) : 500

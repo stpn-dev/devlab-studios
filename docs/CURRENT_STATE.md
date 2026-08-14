@@ -22,9 +22,11 @@ human operational handoff as one system.
 
 ## CMS and storage
 
-- `/admin` manages Home, About, Process, Work, Projects, Services, Articles,
-  Case Studies, Testimonials, Certifications, Profile, site settings, SEO,
-  media metadata, redirects, leads, audit history, and content versions.
+- `/admin` follows the public information architecture: Home, About, Services,
+  Work, Insights, and Profile are primary pages; Process and Contact are
+  supporting content. Projects, Service Catalog, Insight Articles, and
+  Certifications are labeled by where they are used. Unused Case Studies and
+  Testimonials remain backward-compatible but are hidden from normal Admin UI.
 - Projects own reusable facts and media: title, description, technology,
   links, cover image, and ordered multi-image gallery.
 - Work selects existing Projects and independently owns the Work description,
@@ -32,8 +34,9 @@ human operational handoff as one system.
   state. Its initial description is copied once from the Project and does not
   follow later Project description edits unless explicitly reset.
 - A Project cannot be deleted while referenced by Work.
-- R2 stores uploaded files. The `media_assets` D1 table powers the read-only
-  `/admin/media` index; uploads remain within the owning editors.
+- R2 stores optimized media. `/admin/media` inventories the bucket and supports
+  optimized upload, reference-aware replacement, and guarded deletion. D1
+  metadata remains an index rather than the source of file bytes.
 
 ## Deployment and branches
 
@@ -72,12 +75,10 @@ Release `1.5.0` passed:
 
 - The in-memory first-line contact rate limiter is not durable across Worker
   instances; lead persistence remains D1-backed.
-- The media library lists uploads recorded in `media_assets`; legacy R2 objects
-  without metadata rows do not appear automatically.
-- Media uploads are stored and served from R2, but automatic server-side
-  conversion of every raw PNG/JPEG into multiple modern formats is not a
-  universal upload guarantee. Preserve originals and verify important assets.
-- Case Studies and Testimonials may legitimately be empty until records are
-  published.
+- Existing R2-only objects appear in Media, but their D1 metadata is populated
+  only after a new upload or replacement.
+- Browser conversion handles raw JPG/PNG/WebP/AVIF and the Worker verifies the
+  optimized WebP boundary. Public responsive variants continue through the
+  Cloudflare Images binding where the renderer uses it.
 - Production D1 content must be inspected directly before assuming it matches
   seed files or Preview.

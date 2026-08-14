@@ -259,7 +259,7 @@ function getConfig(contentType) {
 
   if (contentType === 'resources') {
     return {
-      title: 'Resources Content',
+      title: 'Insight Articles',
       subtitle: 'Manage feed posts, long-form guides, and automation readiness playbook items.',
       endpoint: '/api/admin/content/resources',
       createDefault: () => deepClone(resourcesContent),
@@ -798,7 +798,7 @@ function ResourcesEditor({ value, onChange, onSave, onStatusChange, isSaving, is
       <section className="rounded-md border border-slate-200 bg-white">
         <SectionHeader
           title="Resource Feed Posts"
-          description="Feed entries and detail articles shown on the public Resources page."
+          description="Feed entries and detail articles shown on the public Insights page."
           action={(
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -816,7 +816,7 @@ function ResourcesEditor({ value, onChange, onSave, onStatusChange, isSaving, is
                 className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Save size={16} />
-                {isSaving ? 'Saving...' : 'Save Resources'}
+                {isSaving ? 'Saving...' : 'Save Insights'}
               </button>
             </div>
           )}
@@ -980,7 +980,7 @@ function ResourcesEditor({ value, onChange, onSave, onStatusChange, isSaving, is
               </div>
 
               <div className="rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
-                Draft posts stay in CMS only. Published posts appear in the public Resources feed after you save.
+                Draft posts stay in CMS only. Published posts appear in the public Insights feed after you save.
               </div>
 
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -1241,7 +1241,7 @@ function ResourcesEditor({ value, onChange, onSave, onStatusChange, isSaving, is
       </section>
 
       <section className="rounded-md border border-slate-200 bg-white">
-        <SectionHeader title="Automation Readiness Playbook" description="Checklist bullets shown in the Resources hero panel." />
+        <SectionHeader title="Automation Readiness Playbook" description="Checklist bullets shown in the Insights hero panel." />
         <div className="px-5 py-5">
           <ArrayTextArea
             label="Playbook Items"
