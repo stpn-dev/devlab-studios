@@ -1,7 +1,7 @@
 import { nowIso, parseJsonField } from '../utils/responses'
 
 /**
- * Block-composed singleton pages (Home, About, Process). Backed by the
+ * Block-composed singleton pages (Home, About, Process, Work). Backed by the
  * `pages`/`page_sections` tables from migrations/0001_cms_foundation.sql,
  * which were created early on for exactly this purpose but never wired up
  * until now — `section_type` is the block type, `content_json` is its

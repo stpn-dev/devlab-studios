@@ -51,6 +51,9 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Added
+- Added a dedicated CMS-managed Work page that features existing Project records, keeps Work-specific description, Challenge, System Architecture, and Delivery Value copy independently editable, renders each Project's ordered multi-image gallery, and prevents deletion while a Project remains featured.
+
 ### Changed
 - Brightened the homepage delivery timeline and aligned the client-credibility language around Full-stack Development + AI Automation.
 - Reframed the public experience as a dark-native, full-bleed DevLab system with a full-viewport landing chapter, the canonical brand tagline, restrained logo-derived color energy, open capability architecture, larger proof-first Work presentations, and light surfaces reserved for intentional content artifacts.

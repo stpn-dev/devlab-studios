@@ -95,7 +95,7 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
             <div class="mt-6">
               <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Platform Training</p>
               <div class="mt-3">
-                <CertificationsGallery client:visible certifications={certifications} />
+                <CertificationsGallery client:load certifications={certifications} />
               </div>
             </div>
           ) : null}

@@ -1,4 +1,4 @@
-// Field descriptors for each of the 13 approved page-composition block
+// Field descriptors for the general-purpose page-composition blocks.
 // types' `props` shape (see src/lib/schemas/blocks.ts) — the constrained
 // building blocks editors compose Home/About/Process from. Nested
 // array/object props (CTAs, list items) use the 'json' field type as an
@@ -59,6 +59,7 @@ export const BLOCK_FIELDS = {
   ],
   featuredCaseStudies: [
     { name: 'heading', label: 'Heading', type: 'text' },
+    { name: 'subheading', label: 'Subheading', type: 'textarea' },
     { name: 'limit', label: 'Limit', type: 'number' },
   ],
   testimonials: [

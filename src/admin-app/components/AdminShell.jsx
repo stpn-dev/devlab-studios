@@ -30,6 +30,7 @@ const NAV_GROUPS = [
     items: [
       { label: 'Home', to: '/admin/pages/home', icon: Home },
       { label: 'About', to: '/admin/pages/about', icon: Info },
+      { label: 'Work', to: '/admin/pages/work', icon: Briefcase },
       { label: 'Process', to: '/admin/pages/process', icon: Wrench },
     ],
   },

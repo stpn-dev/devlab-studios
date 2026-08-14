@@ -170,10 +170,11 @@ const articles = blockTypes.has('resourceCards') ? (await loadArticlesContent())
     }
 
     if (block.type === 'featuredCaseStudies') {
-      const { heading, limit = 3 } = block.props
+      const { heading, subheading, limit = 3 } = block.props
       return (
         <section class="space-y-5">
           {heading ? <h2 class="text-2xl font-semibold text-brand-ink sm:text-3xl">{heading}</h2> : null}
+          {subheading ? <p class="max-w-3xl text-slate-600">{subheading}</p> : null}
           <div class="grid gap-5 md:grid-cols-3">
             {caseStudies.slice(0, limit).map((item) => (
               <a href={`/work/${item.slug}`} class="light-panel group rounded-[1.5rem] p-5">

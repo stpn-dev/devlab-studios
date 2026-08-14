@@ -52,12 +52,12 @@ export const profileSchema = z.object({
 export type Profile = z.infer<typeof profileSchema>
 
 /**
- * Block-composed singleton pages (Home, About, Process). Contact keeps a
+ * Block-composed singleton pages (Home, About, Process, Work). Contact keeps a
  * fixed form component rather than being block-composed. Backed by the
  * repurposed `pages`/`page_sections` tables (see src/worker/repositories/pages.js).
  */
 export const pageSingletonSchema = z.object({
-  slug: z.enum(['home', 'about', 'process', 'contact']),
+  slug: z.enum(['home', 'about', 'process', 'work', 'contact']),
   title: z.string().min(1),
   status: z.enum(['draft', 'published', 'archived']).default('draft'),
   blocks: z.array(pageBlockSchema).default([]),

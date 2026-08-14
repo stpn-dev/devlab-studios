@@ -197,6 +197,101 @@ test('creating a project through the bespoke Projects editor still records a ver
   await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
 })
 
+test('Work editor selects existing Projects and owns its narrative without owning uploads', async ({ page, baseURL }) => {
+  await login(page)
+
+  const originalWorkResponse = await page.request.get(`${baseURL}/api/admin/pages/work`)
+  expect(originalWorkResponse.ok()).toBeTruthy()
+  const originalWork = await originalWorkResponse.json()
+  const existingProjectsResponse = await page.request.get(`${baseURL}/api/admin/projects`)
+  const existingProjects = await existingProjectsResponse.json()
+  const existingProjectIds = new Set(existingProjects.map((project) => project.id))
+  const originalReferences = originalWork.blocks
+    ?.find((block) => block.type === 'workProjectShowcase')
+    ?.props?.items?.map((item) => item.projectId) || []
+  const restoreWork = originalReferences.every((projectId) => existingProjectIds.has(projectId))
+    ? originalWork
+    : { slug: 'work', title: originalWork.title || 'Work', status: 'draft', blocks: [] }
+  const projectId = `smoke-work-project-${Date.now()}`
+  const projectDescription = `Initial Project description ${Date.now()}`
+
+  const createResponse = await page.request.post(`${baseURL}/api/admin/projects`, {
+    data: {
+      id: projectId,
+      title: 'Smoke Work Linked Project',
+      description: projectDescription,
+      techStack: ['n8n', 'API'],
+      type: 'Automation',
+      status: 'published',
+      sortOrder: 0,
+      galleryImages: [
+        { id: `${projectId}-1`, url: 'https://example.com/work-one.png', altText: 'First workflow view', sortOrder: 1 },
+        { id: `${projectId}-2`, url: 'https://example.com/work-two.png', altText: 'Second workflow view', sortOrder: 2 },
+      ],
+    },
+  })
+  expect(createResponse.ok()).toBeTruthy()
+
+  // A fresh local D1 can legitimately have no Work sections yet. Seed a
+  // minimal empty selector state for this test so it exercises the editor's
+  // Project-linking behavior without depending on the static fallback's
+  // production Project IDs being present in the isolated test database.
+  const emptyWorkResponse = await page.request.put(`${baseURL}/api/admin/pages/work`, {
+    data: {
+      slug: 'work',
+      title: 'Work',
+      status: 'published',
+      blocks: [{
+        type: 'workProjectShowcase',
+        props: { heading: 'Selected automation projects', subheading: 'Test selection', items: [] },
+      }],
+    },
+  })
+  expect(emptyWorkResponse.ok()).toBeTruthy()
+
+  await page.getByRole('navigation').getByRole('link', { name: 'Work' }).click()
+  await expect(page.getByRole('heading', { name: 'Work', level: 1 })).toBeVisible()
+  await expect(page.locator('input[type="file"]')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /manage project images/i })).toHaveAttribute('href', '/admin/content/projects')
+
+  await page.getByPlaceholder('Search title, type, ID, or technology').fill(projectId)
+  await page.getByRole('button', { name: /Smoke Work Linked Project/ }).click()
+  await expect(page.getByLabel('Work description').last()).toHaveValue(projectDescription)
+  await expect(page.getByText('2 image(s)', { exact: false }).last()).toBeVisible()
+
+  await page.getByLabel('Work description').last().fill('Independent Work description')
+  await page.getByLabel('Challenge').last().fill('A specific operational challenge.')
+  await page.getByLabel('System Architecture').last().fill('A linked multi-stage architecture.')
+  await page.getByLabel('Delivery Value').last().fill('A measurable delivery value.')
+  await page.getByLabel('Work entry status').last().selectOption('published')
+  await page.getByRole('button', { name: 'Save Work' }).click()
+  await expect(page.getByText(/Work content saved/i)).toBeVisible({ timeout: 10_000 })
+
+  const savedResponse = await page.request.get(`${baseURL}/api/admin/pages/work`)
+  const savedWork = await savedResponse.json()
+  const showcase = savedWork.blocks.find((block) => block.type === 'workProjectShowcase')
+  const savedEntry = showcase.props.items.find((item) => item.projectId === projectId)
+  expect(savedEntry).toMatchObject({
+    description: 'Independent Work description',
+    challenge: 'A specific operational challenge.',
+    systemArchitecture: 'A linked multi-stage architecture.',
+    deliveryValue: 'A measurable delivery value.',
+    status: 'published',
+  })
+
+  const blockedDelete = await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`, {
+    headers: { Origin: baseURL },
+  })
+  expect(blockedDelete.status()).toBe(409)
+
+  const restoreResponse = await page.request.put(`${baseURL}/api/admin/pages/work`, { data: restoreWork })
+  expect(restoreResponse.ok()).toBeTruthy()
+  const deleteResponse = await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`, {
+    headers: { Origin: baseURL },
+  })
+  expect(deleteResponse.ok()).toBeTruthy()
+})
+
 test('a lead persists in D1 and shows a failed delivery attempt when Zoho is unreachable', async ({ page, baseURL }) => {
   // .dev.vars points ZOHO_WEBHOOK_URL at an RFC 2606 .invalid address, so
   // delivery is guaranteed to fail here — this is exactly what proves the

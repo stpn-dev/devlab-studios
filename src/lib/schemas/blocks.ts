@@ -5,7 +5,7 @@ export const ICON_MOTIFS = iconMotifSchema.options
 
 /**
  * The constrained set of page-composition blocks approved for use on
- * block-composed singleton pages (Home, About, Process). Editors can
+ * block-composed singleton pages (Home, About, Process, Work). Editors can
  * configure and reorder these; nothing else (no arbitrary HTML/JS/CSS).
  * Each block's `props` shape is validated against its own schema below.
  */
@@ -76,10 +76,60 @@ const featuredProjectsBlockSchema = z.object({
   }),
 })
 
+const workProjectItemSchema = z.object({
+  projectId: z.string().min(1),
+  description: z.string().optional().default(''),
+  challenge: z.string().optional().default(''),
+  systemArchitecture: z.string().optional().default(''),
+  deliveryValue: z.string().optional().default(''),
+  status: z.enum(['draft', 'published']).optional().default('draft'),
+}).superRefine((item, context) => {
+  if (item.status !== 'published') return
+
+  const requiredFields = [
+    ['description', item.description],
+    ['challenge', item.challenge],
+    ['systemArchitecture', item.systemArchitecture],
+    ['deliveryValue', item.deliveryValue],
+  ] as const
+
+  for (const [field, value] of requiredFields) {
+    if (!value.trim()) {
+      context.addIssue({
+        code: 'custom',
+        path: [field],
+        message: 'Published Work entries require this field.',
+      })
+    }
+  }
+})
+
+const workProjectShowcaseBlockSchema = z.object({
+  type: z.literal('workProjectShowcase'),
+  props: z.object({
+    heading: z.string().min(1),
+    subheading: z.string().optional().default(''),
+    items: z.array(workProjectItemSchema).max(12).default([]),
+  }).superRefine((props, context) => {
+    const seen = new Set<string>()
+    props.items.forEach((item, index) => {
+      if (seen.has(item.projectId)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['items', index, 'projectId'],
+          message: 'A project can only be featured once on Work.',
+        })
+      }
+      seen.add(item.projectId)
+    })
+  }),
+})
+
 const featuredCaseStudiesBlockSchema = z.object({
   type: z.literal('featuredCaseStudies'),
   props: z.object({
     heading: z.string().optional().default(''),
+    subheading: z.string().optional().default(''),
     limit: z.number().int().min(1).max(12).default(3),
   }),
 })
@@ -133,6 +183,7 @@ export const pageBlockSchema = z.discriminatedUnion('type', [
   experienceTimelineBlockSchema,
   servicesGridBlockSchema,
   featuredProjectsBlockSchema,
+  workProjectShowcaseBlockSchema,
   featuredCaseStudiesBlockSchema,
   testimonialsBlockSchema,
   faqBlockSchema,
@@ -151,6 +202,7 @@ export const PAGE_BLOCK_TYPES: PageBlockType[] = [
   'experienceTimeline',
   'servicesGrid',
   'featuredProjects',
+  'workProjectShowcase',
   'featuredCaseStudies',
   'testimonials',
   'faq',

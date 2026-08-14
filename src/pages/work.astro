@@ -2,52 +2,33 @@
 import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PrimaryButton from '../components/PrimaryButton.jsx'
-import ResponsivePicture from '../components/ResponsivePicture.jsx'
+import WorkProjectGallery from '../components/islands/WorkProjectGallery.jsx'
 import VectorField from '../components/VectorField.astro'
-import { MessageSquare, Briefcase, ArrowRight, Network, Database, Robot } from '../components/icons/icons.js'
+import { MessageSquare, Briefcase, ArrowRight, Robot, Code2 } from '../components/icons/icons.js'
 import { loadPageSeo } from '../lib/content/seo'
 import { loadCaseStudies } from '../lib/content/caseStudies'
 import { loadProjects } from '../lib/content/projects'
+import { loadPage } from '../lib/content/pages'
 
 const seo = await loadPageSeo('work')
 const caseStudies = await loadCaseStudies()
 const projects = await loadProjects()
-
-const selectedProjectIds = [
-  'p10-automated-lead-qualification',
-  'p11-wholesaling-buyer-intelligence',
-  'p6-messenger-ai-agent',
-]
-
-const writeups = {
-  'p10-automated-lead-qualification': {
-    label: 'Lead operations system',
-    challenge: 'Raw property leads needed consistent validation, qualification, calling, and follow-up without losing context between tools.',
-    architecture: 'Scheduled intake normalizes and deduplicates records, authenticated Retell calls handle outbound conversations, and post-call webhooks analyze transcripts before routing qualified opportunities to a human acquisitions queue.',
-    value: 'The build turns disconnected lead tasks into a monitored flow with explicit validation, failure paths, and a clear human handoff.',
-    icon: Robot,
-  },
-  'p11-wholesaling-buyer-intelligence': {
-    label: 'Data enrichment system',
-    challenge: 'Buyer research required several location, property, skip-trace, and ranking steps that were difficult to repeat consistently by hand.',
-    architecture: 'An n8n workflow geocodes the property, checks a reusable address cache, gathers property and buyer data, normalizes LLC and person contacts, then uses AI-assisted ranking to prepare a focused buyer list.',
-    value: 'The system keeps data provenance visible while reducing repetitive research and presenting the team with a cleaner shortlist for review.',
-    icon: Database,
-  },
-  'p6-messenger-ai-agent': {
-    label: 'Customer response system',
-    challenge: 'Incoming Messenger conversations needed fast, context-aware replies without allowing an AI response step to control the entire workflow.',
-    architecture: 'Webhook events are filtered and enriched with conversation context, an AI agent drafts the response, controlled HTTP actions trigger downstream work, and the final message returns through the Messenger flow.',
-    value: 'Deterministic workflow steps retain control of routing and integrations while AI handles the language-heavy part of the interaction.',
-    icon: Network,
-  },
-}
-
-const selectedAutomationProjects = selectedProjectIds.flatMap((id) => {
-  const project = projects.find((candidate) => candidate.id === id)
-  const writeup = writeups[id as keyof typeof writeups]
-  return project ? [{ project, writeup }] : []
+const workPage = await loadPage('work')
+const hero = workPage?.blocks.find((block) => block.type === 'hero')?.props || {}
+const showcase = workPage?.blocks.find((block) => block.type === 'workProjectShowcase')?.props || {}
+const caseStudyBlock = workPage?.blocks.find((block) => block.type === 'featuredCaseStudies')?.props || {}
+const cta = workPage?.blocks.find((block) => block.type === 'cta')?.props || {}
+const projectsById = new Map(projects.map((project) => [project.id, project]))
+const selectedProjects = (Array.isArray(showcase.items) ? showcase.items : []).flatMap((item: Record<string, unknown>) => {
+  if (item.status !== 'published') return []
+  const project = projectsById.get(String(item.projectId || ''))
+  return project ? [{ project, narrative: item }] : []
 })
+const caseStudyLimit = Number(caseStudyBlock.limit) || 6
+const visibleCaseStudies = caseStudies.slice(0, caseStudyLimit)
+const primaryCta = hero.primaryCta as { label?: string; href?: string } | undefined
+const secondaryCta = hero.secondaryCta as { label?: string; href?: string } | undefined
+const finalCta = cta.primaryCta as { label?: string; href?: string } | undefined
 ---
 
 <Layout title="Work — DevLab Studios" seo={seo}>
@@ -55,19 +36,19 @@ const selectedAutomationProjects = selectedProjectIds.flatMap((id) => {
     <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
       <VectorField motif="automation" />
       <div class="relative z-10 max-w-4xl space-y-5">
-        <p class="tech-kicker">Selected Work</p>
-        <h1 class="text-4xl font-semibold leading-tight text-white sm:text-5xl">Automation systems with the decisions, data flow, and handoff explained.</h1>
+        <p class="tech-kicker">{String(hero.eyebrow || 'Selected Work')}</p>
+        <h1 class="text-4xl font-semibold leading-tight text-white sm:text-5xl">{String(hero.heading || 'Automation systems with the decisions, data flow, and handoff explained.')}</h1>
         <p class="max-w-3xl text-base leading-relaxed text-slate-300 sm:text-lg">
-          Real project write-ups covering the operational problem, system architecture, safeguards, and practical value—not just a gallery of workflow screenshots.
+          {String(hero.subheading || '')}
         </p>
         <div class="flex flex-wrap gap-3">
-          <PrimaryButton to="#automation-projects">
+          <PrimaryButton to={primaryCta?.href || '#automation-projects'}>
             <Briefcase size={16} />
-            Explore Selected Projects
+            {primaryCta?.label || 'Explore Selected Projects'}
           </PrimaryButton>
-          <PrimaryButton to="/contact" variant="secondary">
+          <PrimaryButton to={secondaryCta?.href || '/contact'} variant="secondary">
             <MessageSquare size={16} />
-            Start a Project Conversation
+            {secondaryCta?.label || 'Start a Project Conversation'}
           </PrimaryButton>
         </div>
       </div>
@@ -75,23 +56,17 @@ const selectedAutomationProjects = selectedProjectIds.flatMap((id) => {
 
     <section id="automation-projects" class="space-y-7 scroll-mt-28">
       <SectionHeader
-        title="Selected automation projects"
-        subtitle="A closer look at how each system moves from trigger to verified operational handoff."
+        title={String(showcase.heading || 'Selected automation projects')}
+        subtitle={String(showcase.subheading || '')}
       />
 
       <div class="space-y-7">
-        {selectedAutomationProjects.map(({ project, writeup }) => {
-          const ProjectIcon = writeup.icon
+        {selectedProjects.map(({ project, narrative }) => {
+          const ProjectIcon = project.type === 'Website' ? Code2 : Robot
           return (
             <article class="work-project">
               <div class="flex flex-col">
-                <div class="work-project__visual overflow-hidden border-b border-slate-200">
-                  <ResponsivePicture
-                    image={project.optimizedImage || null}
-                    alt={`${project.title} workflow screenshot`}
-                    className="h-full min-h-[22rem] w-full object-cover object-center"
-                  />
-                </div>
+                <WorkProjectGallery project={project} client:visible />
 
                 <div class="grid gap-8 p-6 sm:p-8 lg:grid-cols-[0.72fr_1.28fr] lg:p-10">
                   <div>
@@ -99,11 +74,11 @@ const selectedAutomationProjects = selectedProjectIds.flatMap((id) => {
                       <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#e9edff] text-[#2f3cff]">
                         <ProjectIcon size={20} aria-hidden="true" />
                       </span>
-                      <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#2f3cff]">{writeup.label}</p>
+                      <p class="text-xs font-bold uppercase tracking-[0.16em] text-[#2f3cff]">{project.type} system</p>
                     </div>
 
                     <h2 class="mt-5 text-2xl font-semibold leading-tight text-brand-ink sm:text-3xl">{project.title}</h2>
-                    <p class="mt-3 text-sm leading-relaxed text-slate-600">{project.description}</p>
+                    <p class="mt-3 text-sm leading-relaxed text-slate-600">{String(narrative.description || '')}</p>
 
                     <div class="mt-7 flex flex-wrap gap-2">
                       {(project.techStack || []).map((technology) => (
@@ -112,23 +87,37 @@ const selectedAutomationProjects = selectedProjectIds.flatMap((id) => {
                         </span>
                       ))}
                     </div>
+
+                    {project.liveUrl !== '#' || project.sourceUrl !== '#' ? (
+                      <div class="mt-6 flex flex-wrap gap-4 text-sm font-semibold text-[#2f3cff]">
+                        {project.liveUrl && project.liveUrl !== '#' ? (
+                          <a href={project.liveUrl} target="_blank" rel="noreferrer" class="inline-flex items-center gap-1.5 hover:underline">
+                            View live project <ArrowRight size={14} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                        {project.sourceUrl && project.sourceUrl !== '#' ? (
+                          <a href={project.sourceUrl} target="_blank" rel="noreferrer" class="inline-flex items-center gap-1.5 hover:underline">
+                            View source <ArrowRight size={14} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
 
                   <dl class="grid gap-5 border-t border-slate-200 pt-7 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
                     <div class="border-l-2 border-[#2f3cff] pl-4">
                       <dt class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Challenge</dt>
-                      <dd class="mt-1 text-sm leading-relaxed text-slate-700">{writeup.challenge}</dd>
+                      <dd class="mt-1 text-sm leading-relaxed text-slate-700">{String(narrative.challenge || '')}</dd>
                     </div>
                     <div class="border-l-2 border-[#55d8ff] pl-4">
                       <dt class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">System architecture</dt>
-                      <dd class="mt-1 text-sm leading-relaxed text-slate-700">{writeup.architecture}</dd>
+                      <dd class="mt-1 text-sm leading-relaxed text-slate-700">{String(narrative.systemArchitecture || '')}</dd>
                     </div>
                     <div class="border-l-2 border-[#8b96c8] pl-4">
                       <dt class="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Delivery value</dt>
-                      <dd class="mt-1 text-sm leading-relaxed text-slate-700">{writeup.value}</dd>
+                      <dd class="mt-1 text-sm leading-relaxed text-slate-700">{String(narrative.deliveryValue || '')}</dd>
                     </div>
                   </dl>
-
                 </div>
               </div>
             </article>
@@ -137,11 +126,11 @@ const selectedAutomationProjects = selectedProjectIds.flatMap((id) => {
       </div>
     </section>
 
-    {caseStudies.length > 0 ? (
+    {visibleCaseStudies.length > 0 ? (
       <section class="space-y-6">
-        <SectionHeader title="Client case studies" subtitle="Published engagements with additional context on the problem, delivery, and result." />
+        <SectionHeader title={String(caseStudyBlock.heading || 'Client case studies')} subtitle={String(caseStudyBlock.subheading || '')} />
         <div class="grid gap-5 sm:grid-cols-2">
-          {caseStudies.map((caseStudy) => (
+          {visibleCaseStudies.map((caseStudy) => (
             <a href={`/work/${caseStudy.slug}`} class="light-panel group block overflow-hidden rounded-[24px] p-6 transition hover:-translate-y-1 hover:border-[#2f3cff]/35">
               {caseStudy.industry ? (
                 <span class="rounded-full bg-[#e9edff] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#2f3cff]">{caseStudy.industry}</span>
@@ -161,11 +150,11 @@ const selectedAutomationProjects = selectedProjectIds.flatMap((id) => {
       <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div class="max-w-2xl">
           <p class="tech-kicker">From proof to delivery</p>
-          <h2 class="mt-3 text-3xl font-semibold">Have a workflow that should operate like a system?</h2>
-          <p class="mt-3 text-slate-300">We can map the trigger, rules, data, integrations, failure paths, and human handoff before deciding what should be automated.</p>
+          <h2 class="mt-3 text-3xl font-semibold">{String(cta.heading || 'Have a workflow that should operate like a system?')}</h2>
+          <p class="mt-3 text-slate-300">{String(cta.body || '')}</p>
         </div>
-        <PrimaryButton to="/contact">
-          Start a Project <ArrowRight size={16} />
+        <PrimaryButton to={finalCta?.href || '/contact'}>
+          {finalCta?.label || 'Start a Project'} <ArrowRight size={16} />
         </PrimaryButton>
       </div>
     </section>

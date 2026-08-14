@@ -136,6 +136,8 @@ test('Work publishes selected automation project write-ups', async ({ page }) =>
   await expect(page.getByText('Challenge', { exact: true })).toHaveCount(3)
   await expect(page.getByText('System architecture', { exact: true })).toHaveCount(3)
   await expect(page.getByText('Delivery value', { exact: true })).toHaveCount(3)
+  await expect(page.getByRole('button', { name: /^Enlarge .* image 1$/ })).toHaveCount(3)
+  await expect(page.getByText('View full image', { exact: true })).toHaveCount(3)
 })
 
 test('resume is available from Profile only and opens inline', async ({ page, request }) => {

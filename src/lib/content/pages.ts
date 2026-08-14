@@ -3,6 +3,7 @@ import { getEnv } from '../env'
 import { privacyPage } from '../../data/pages/privacy'
 import { termsPage } from '../../data/pages/terms'
 import { processPage } from '../../data/pages/process'
+import { workPage } from '../../data/pages/work'
 
 export interface PageBlock {
   type: string
@@ -20,10 +21,11 @@ const STATIC_PAGES: Record<string, PageData> = {
   privacy: privacyPage,
   terms: termsPage,
   process: processPage,
+  work: workPage,
 }
 
 /**
- * Block-composed singleton pages (Home, About, Process) and the
+ * Block-composed singleton pages (Home, About, Process, Work) and the
  * single-richText-block legal pages (Privacy, Terms) share this loader —
  * D1 first, falling back to bundled static content so these pages render
  * correctly before an editor has ever saved them through the admin.

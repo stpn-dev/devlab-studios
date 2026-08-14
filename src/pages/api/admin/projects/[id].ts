@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro'
 import { deleteProject, getProject, upsertProject } from '../../../../worker/repositories/projects.js'
+import { getPage } from '../../../../worker/repositories/pages.js'
 import { recordVersion } from '../../../../worker/repositories/contentVersions.js'
 import { recordAuditEvent } from '../../../../worker/repositories/auditLog.js'
 import { projectRequestSchema } from '../../../../lib/schemas/collections'
@@ -64,7 +65,21 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
   const env = getEnv()
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
 
-  const deleted = await deleteProject(env.DB, params.id as string)
-  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'delete', entityType: 'projects', entityId: params.id as string, metadata: {} })
+  const projectId = params.id as string
+  const workPage = await getPage(env.DB, 'work', { includeDrafts: true }) as {
+    blocks?: Array<{ type?: string; props?: { items?: Array<{ projectId?: string }> } }>
+  } | null
+  const workShowcase = workPage?.blocks?.find((block) => block.type === 'workProjectShowcase')
+  const isFeaturedOnWork = Array.isArray(workShowcase?.props?.items)
+    && workShowcase.props.items.some((item: { projectId?: string }) => item?.projectId === projectId)
+
+  if (isFeaturedOnWork) {
+    return jsonResponse({
+      error: 'This project is featured on Work. Remove it from the Work page before deleting it.',
+    }, 409)
+  }
+
+  const deleted = await deleteProject(env.DB, projectId)
+  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'delete', entityType: 'projects', entityId: projectId, metadata: {} })
   return jsonResponse(deleted)
 }
