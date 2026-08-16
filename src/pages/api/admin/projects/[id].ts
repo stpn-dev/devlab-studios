@@ -28,7 +28,7 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
     const result = projectRequestSchema.safeParse({ ...rawPayload, id: params.id })
     if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
 
-    const project = await upsertProject(env.DB, result.data) as { id?: string; status?: string; title?: string } | null
+    const project = await upsertProject(env.DB, result.data, env) as { id?: string; status?: string; title?: string } | null
     if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
     await recordVersion(env.DB, { contentType: 'projects', contentId: params.id as string, status: project.status || 'draft', snapshot: project, createdBy: locals.adminEmail || null })
     await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'update', entityType: 'projects', entityId: params.id as string, metadata: buildAuditMetadata({ before, after: project, label: `Project ${project.title || params.id}` }) })
@@ -51,7 +51,7 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
     const result = projectRequestSchema.safeParse({ ...existing, ...payload, id: params.id })
     if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
 
-    const project = await upsertProject(env.DB, result.data) as { id?: string; status?: string; title?: string } | null
+    const project = await upsertProject(env.DB, result.data, env) as { id?: string; status?: string; title?: string } | null
     if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
     await recordVersion(env.DB, { contentType: 'projects', contentId: params.id as string, status: project.status || 'draft', snapshot: project, createdBy: locals.adminEmail || null })
     await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'update', entityType: 'projects', entityId: params.id as string, metadata: buildAuditMetadata({ before: existing, after: project, label: `Project ${project.title || params.id}` }) })

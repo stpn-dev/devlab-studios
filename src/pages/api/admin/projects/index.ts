@@ -29,7 +29,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const result = projectRequestSchema.safeParse(rawPayload)
     if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
 
-    const project = await upsertProject(env.DB, result.data) as { id?: string; status?: string } | null
+    const project = await upsertProject(env.DB, result.data, env) as { id?: string; status?: string } | null
     if (!project) return jsonResponse({ error: 'Project could not be saved.' }, 500)
     await recordVersion(env.DB, { contentType: 'projects', contentId: project.id || null, status: project.status || 'draft', snapshot: project, createdBy: locals.adminEmail || null })
     await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'create', entityType: 'projects', entityId: project.id || null, metadata: buildCreateAuditMetadata(project, 'Project') })
