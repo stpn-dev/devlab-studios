@@ -189,6 +189,10 @@ export default function ProjectsManager() {
     setSaveStage('uploading')
     setStatus('Uploading staged images...')
 
+    const pendingBlobUrls = (selectedProject.galleryImages || [])
+      .filter((item) => item.pending && item.url)
+      .map((item) => item.url)
+
     let uploadedGalleryImages
     try {
       uploadedGalleryImages = await uploadPendingGalleryImages(selectedProject.galleryImages, (fileName) => {
@@ -222,6 +226,7 @@ export default function ProjectsManager() {
       }
 
       setSelectedProject(toFormProject(data))
+      pendingBlobUrls.forEach((blobUrl) => URL.revokeObjectURL(blobUrl))
       await loadProjects({ preserveStatus: true })
       setStatus(`Project saved at ${new Date().toLocaleTimeString()}.`)
     } catch {
@@ -279,7 +284,7 @@ export default function ProjectsManager() {
         setStatus(`Validating ${file.name}...`)
         const prepared = await validateAndConvertToWebP(file)
         staged.push({
-          id: `pending-${crypto.randomUUID()}`,
+          id: crypto.randomUUID(),
           url: URL.createObjectURL(prepared.file),
           filename: prepared.file.name,
           altText: '',
@@ -316,11 +321,11 @@ export default function ProjectsManager() {
 
       setSelectedProject((current) => ({
         ...current,
-        galleryImages: (current.galleryImages || []).map((item, itemIndex) => (
-          itemIndex === index
-            ? { ...item, url: URL.createObjectURL(prepared.file), filename: prepared.file.name, pending: true, file: prepared.file }
-            : item
-        )),
+        galleryImages: (current.galleryImages || []).map((item, itemIndex) => {
+          if (itemIndex !== index) return item
+          if (item.pending && item.url) URL.revokeObjectURL(item.url)
+          return { ...item, url: URL.createObjectURL(prepared.file), filename: prepared.file.name, pending: true, file: prepared.file }
+        }),
       }))
       setStatus(`Replacement staged for slide ${index + 1}. Save the project to persist it.`)
     } catch (error) {
@@ -354,15 +359,20 @@ export default function ProjectsManager() {
   }
 
   function removeGalleryImage(index) {
-    setSelectedProject((current) => ({
-      ...current,
-      galleryImages: (current.galleryImages || [])
-        .filter((_, itemIndex) => itemIndex !== index)
-        .map((item, itemIndex) => ({
-          ...item,
-          sortOrder: itemIndex + 1,
-        })),
-    }))
+    setSelectedProject((current) => {
+      const removed = (current.galleryImages || [])[index]
+      if (removed?.pending && removed.url) URL.revokeObjectURL(removed.url)
+
+      return {
+        ...current,
+        galleryImages: (current.galleryImages || [])
+          .filter((_, itemIndex) => itemIndex !== index)
+          .map((item, itemIndex) => ({
+            ...item,
+            sortOrder: itemIndex + 1,
+          })),
+      }
+    })
     setStatus('Gallery image removed. Save the project to persist the change.')
   }
 
@@ -433,6 +443,12 @@ export default function ProjectsManager() {
   }, [projects])
 
   const hasPendingImages = (selectedProject.galleryImages || []).some((item) => item.pending)
+
+  function revokeCurrentPendingImageUrls() {
+    for (const item of selectedProject.galleryImages || []) {
+      if (item.pending && item.url) URL.revokeObjectURL(item.url)
+    }
+  }
 
   useEffect(() => {
     function handleBeforeUnload(event) {
@@ -525,6 +541,7 @@ export default function ProjectsManager() {
                     type="button"
                     onClick={() => {
                       if (hasPendingImages && !window.confirm('You have unsaved image changes — leave anyway?')) return
+                      revokeCurrentPendingImageUrls()
                       setSelectedProject(toFormProject(project))
                       setShowHistory(false)
                     }}
@@ -607,6 +624,7 @@ export default function ProjectsManager() {
                 type="button"
                 onClick={() => {
                   if (hasPendingImages && !window.confirm('You have unsaved image changes — leave anyway?')) return
+                  revokeCurrentPendingImageUrls()
                   setSelectedProject(emptyProject)
                   setShowHistory(false)
                   if (isReadOnlyPreview) {

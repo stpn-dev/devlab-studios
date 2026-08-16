@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { getEnv } from '../../../lib/env'
-import { deleteMediaAsset, findMediaReferences, listMediaAssets, recordMediaAsset, replaceMediaReferences } from '../../../worker/repositories/mediaAssets.js'
+import { deleteMediaAsset, findMediaReferences, findMediaReferencesForAssets, listMediaAssets, recordMediaAsset, replaceMediaReferences } from '../../../worker/repositories/mediaAssets.js'
 import { recordAuditEvent } from '../../../worker/repositories/auditLog.js'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -75,12 +75,6 @@ function objectUrl(baseUrl: string, key: string): string {
   return `${baseUrl.replace(/\/$/, '')}/${key.split('/').map(encodeURIComponent).join('/')}`
 }
 
-// Each asset's findMediaReferences call issues up to ~20 D1 queries. Capping
-// how many assets get a "used by" lookup keeps a full 250-asset page well
-// under Cloudflare D1's per-invocation subrequest budget. This is a stopgap;
-// batching all assets into a handful of queries is a follow-up rearchitecture.
-const MAX_USED_BY_LOOKUPS = 40
-
 export const GET: APIRoute = async ({ url }) => {
   const env = getEnv()
   if (!env.MEDIA_BUCKET) return jsonResponse({ error: 'R2 MEDIA_BUCKET binding is not configured.' }, 503)
@@ -99,26 +93,11 @@ export const GET: APIRoute = async ({ url }) => {
 
   const trackedAssets = env.DB ? await listMediaAssets(env.DB, { limit: 1000 }).catch(() => []) : []
   const trackedByKey = new Map(trackedAssets.map((asset) => [asset.key, asset]))
-  const assets = await Promise.all(listed.objects.map(async (object, index) => {
+  const baseAssets = listed.objects.map((object) => {
     const tracked = trackedByKey.get(object.key)
     const contentType = String(object.httpMetadata?.contentType || tracked?.contentType || inferContentType(object.key))
     const folder = object.key.includes('/') ? object.key.slice(0, object.key.lastIndexOf('/')) : 'root'
     const url = publicBaseUrl ? `${publicBaseUrl}/${object.key.split('/').map(encodeURIComponent).join('/')}` : tracked?.url || ''
-    let usedBy: Array<{ type: string; id: string; label: string; isThumbnail: boolean }> = []
-    if (env.DB && index < MAX_USED_BY_LOOKUPS) {
-      try {
-        usedBy = await findMediaReferences(env.DB, [object.key, url])
-      } catch (error) {
-        console.error(
-          JSON.stringify({
-            event: 'media_reference_lookup',
-            outcome: 'failure',
-            key: object.key,
-            errorMessage: error instanceof Error ? error.message : String(error),
-          }),
-        )
-      }
-    }
     return {
       id: tracked?.id || object.key,
       key: object.key,
@@ -131,9 +110,24 @@ export const GET: APIRoute = async ({ url }) => {
       uploadedAt: object.uploaded.toISOString(),
       etag: object.httpEtag,
       trackedInD1: Boolean(tracked),
-      usedBy,
     }
-  }))
+  })
+
+  let usedByKey = new Map<string, Array<{ type: string; id: string; label: string; isThumbnail: boolean }>>()
+  if (env.DB) {
+    try {
+      usedByKey = await findMediaReferencesForAssets(env.DB, baseAssets)
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: 'media_reference_lookup',
+          outcome: 'failure',
+          errorMessage: error instanceof Error ? error.message : String(error),
+        }),
+      )
+    }
+  }
+  const assets = baseAssets.map((asset) => ({ ...asset, usedBy: usedByKey.get(asset.key) || [] }))
 
   return jsonResponse({
     assets,

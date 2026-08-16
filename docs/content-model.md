@@ -52,7 +52,7 @@ JavaScript, CSS, or SVG. Decorative motifs use approved icon keys.
 
 | Collection | Storage | Notes |
 |---|---|---|
-| Projects | `projects` + `project_gallery_images` | Owns reusable facts, cover media, and ordered multi-image galleries; deletion is blocked while referenced by Work |
+| Projects | `projects` + `project_gallery_images` | Owns reusable facts and an ordered multi-image gallery; the thumbnail is a *selection* from that gallery (`project_gallery_images.is_thumbnail`), not a separate upload — `projects.image_url`/`image_filename` are derived server-side from whichever gallery row is flagged, and fall back to the logo when none is. Gallery image uploads are staged client-side and only persisted (and uploaded to R2) when the project is saved. Deletion is blocked while referenced by Work |
 | Services | `service_groups` | Service category content and related project patterns |
 | Articles | `articles` | Insight/article records served through `/insights` and article API routes |
 | Resources | `resources` | Download, checklist, template, or external-link records; distinct from Articles |

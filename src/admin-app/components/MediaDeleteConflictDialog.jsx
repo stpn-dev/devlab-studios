@@ -19,7 +19,11 @@ export default function MediaDeleteConflictDialog({ references, onClose }) {
       if (event.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = 'unset'
+    }
   }, [onClose])
 
   return (
@@ -27,14 +31,14 @@ export default function MediaDeleteConflictDialog({ references, onClose }) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Media in use"
+      aria-labelledby="media-delete-conflict-heading"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose()
       }}
     >
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
         <div className="flex items-start justify-between gap-3">
-          <h2 className="text-base font-semibold text-slate-900">This image is still in use</h2>
+          <h2 id="media-delete-conflict-heading" className="text-base font-semibold text-slate-900">This image is still in use</h2>
           <button type="button" onClick={onClose} aria-label="Close"><X className="h-4 w-4 text-slate-400 hover:text-slate-700" /></button>
         </div>
         <ul className="mt-4 space-y-3">

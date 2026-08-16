@@ -49,4 +49,12 @@ describe('diffRemovedGalleryUrls', () => {
     const result = diffRemovedGalleryUrls(['https://example.com/a.webp'], ['https://example.com/a.webp'])
     expect(result).toEqual([])
   })
+
+  it('dedupes a URL that appears more than once in the previous list', () => {
+    const result = diffRemovedGalleryUrls(
+      ['https://example.com/a.webp', 'https://example.com/a.webp', 'https://example.com/b.webp'],
+      ['https://example.com/b.webp'],
+    )
+    expect(result).toEqual(['https://example.com/a.webp'])
+  })
 })

@@ -83,7 +83,7 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
     }, 409)
   }
 
-  const deleted = await deleteProject(env.DB, projectId)
+  const deleted = await deleteProject(env.DB, projectId, env)
   await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'delete', entityType: 'projects', entityId: projectId, metadata: buildDeleteAuditMetadata(existing, 'Project') })
   return jsonResponse(deleted)
 }

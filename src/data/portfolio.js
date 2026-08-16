@@ -56,6 +56,7 @@ export const portfolioItems = projectRecords.map(({ imageFilename, sortOrder, st
           filename: imageFilename,
           altText: `${project.title} screenshot`,
           sortOrder: 1,
+          isThumbnail: true,
         },
       ]
     : [],

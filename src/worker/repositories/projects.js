@@ -1,5 +1,5 @@
 import { nowIso, parseJsonField } from '../utils/responses'
-import { deleteMediaAssetByUrl, findMediaReferences } from './mediaAssets.js'
+import { deleteMediaAssetByKey, deleteMediaAssetByUrl, findMediaReferences } from './mediaAssets.js'
 
 function isMissingGalleryTableError(error) {
   return /no such table:\s*project_gallery_images/i.test(String(error?.message || ''))
@@ -64,7 +64,7 @@ export function deriveThumbnailFields(normalizedImages) {
 
 export function diffRemovedGalleryUrls(previousUrls, nextUrls) {
   const nextSet = new Set(nextUrls)
-  return previousUrls.filter((url) => !nextSet.has(url))
+  return [...new Set(previousUrls)].filter((url) => !nextSet.has(url))
 }
 
 function toDbProject(input) {
@@ -205,18 +205,24 @@ async function cleanupOrphanedGalleryImages(db, env, removedUrls) {
     const candidates = trackedAsset?.key ? [url, trackedAsset.key] : [url]
     const stillReferenced = await findMediaReferences(db, candidates)
     if (stillReferenced.length) return
-    await deleteMediaAssetByUrl(db, mediaBucket, url)
+    if (trackedAsset?.key) {
+      await deleteMediaAssetByKey(db, mediaBucket, trackedAsset.key)
+    } else {
+      await deleteMediaAssetByUrl(db, mediaBucket, url)
+    }
   }))
 }
 
 export async function upsertProject(db, input, env = {}) {
-  const before = input.id ? await getProject(db, input.id, { includeDrafts: true }) : null
+  const trimmedId = String(input.id || '').trim()
+  const before = trimmedId ? await getProject(db, trimmedId, { includeDrafts: true }) : null
   const previousGalleryUrls = before ? before.galleryImages.map((image) => image.url) : []
 
   const normalizedImages = normalizeGalleryImages(input.galleryImages)
   const derived = deriveThumbnailFields(normalizedImages)
-  const imageUrl = derived.imageUrl || String(input.imageUrl || '').trim()
-  const imageFilename = derived.imageFilename || String(input.imageFilename || '').trim()
+  const hasThumbnail = Boolean(derived.imageUrl)
+  const imageUrl = hasThumbnail ? derived.imageUrl : String(input.imageUrl || '').trim()
+  const imageFilename = hasThumbnail ? derived.imageFilename : String(input.imageFilename || '').trim()
 
   const project = toDbProject({ ...input, imageUrl, imageFilename })
   const timestamp = nowIso()
@@ -283,7 +289,27 @@ export async function upsertProject(db, input, env = {}) {
   return getProject(db, project.id, { includeDrafts: true })
 }
 
-export async function deleteProject(db, id) {
+export async function deleteProject(db, id, env = {}) {
+  const existing = await getProject(db, id, { includeDrafts: true })
+  const galleryUrls = existing ? existing.galleryImages.map((image) => image.url) : []
+
+  await db.prepare('DELETE FROM project_gallery_images WHERE project_id = ?').bind(id).run()
   await db.prepare('DELETE FROM projects WHERE id = ?').bind(id).run()
+
+  if (galleryUrls.length) {
+    try {
+      await cleanupOrphanedGalleryImages(db, env, galleryUrls)
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: 'project_delete_cleanup',
+          outcome: 'failure',
+          projectId: id,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        }),
+      )
+    }
+  }
+
   return { id }
 }

@@ -448,12 +448,9 @@ test('removing the thumbnail-flagged gallery image is blocked', async ({ page, b
   // plain, non-R2 URL is fine here — this test only exercises the client-side
   // "can't remove the active thumbnail" guard in GalleryImageRow.jsx, not
   // media storage).
-  // The gallery image id must be unique per run, not just the project id:
-  // deleteProject() only deletes the `projects` row and never cascades to
-  // `project_gallery_images` (whose `id` column is a global PRIMARY KEY, not
-  // scoped per-project), so a fixed id here would collide with the orphaned
-  // row a previous run of this same test left behind and make project
-  // creation fail on a UNIQUE constraint violation.
+  // The gallery image id is still derived per-run (not fixed) for safety —
+  // project_gallery_images.id is a global PRIMARY KEY — even though
+  // deleteProject() now also deletes a project's gallery rows on cleanup.
   const projectId = `smoke-test-blocked-removal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   await createProject(page, baseURL, {
     id: projectId,
@@ -511,6 +508,49 @@ test('deleting a used image shows the conflict dialog and links to the project',
   await expect(page).toHaveURL(new RegExp(`/admin/content/projects\\?projectId=${projectId}`))
 
   await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
+})
+
+test('deleting a project cleans up its exclusive gallery image from R2', async ({ page, baseURL }) => {
+  await login(page)
+  const projectId = await createProject(page, baseURL, { title: 'Smoke Test Delete Cleanup' })
+
+  await page.goto(`/admin/content/projects?projectId=${projectId}`)
+  await expect(page.getByLabel('ID')).toHaveValue(projectId)
+
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByText('Add Gallery Images', { exact: true }).click(),
+  ])
+  await fileChooser.setFiles('tests/e2e/fixtures/sample-image.png')
+  await expect(page.getByText('Pending')).toBeVisible()
+
+  const [uploadResponse] = await Promise.all([
+    page.waitForResponse((response) => response.url().includes('/api/admin/media') && response.request().method() === 'POST'),
+    page.getByRole('button', { name: /Save Project/ }).click(),
+  ])
+  const { key: uploadedKey } = await uploadResponse.json()
+  await expect(page.getByText(/Project saved at/)).toBeVisible({ timeout: 15_000 })
+
+  const beforeDelete = await page.request.get(`${baseURL}/api/admin/media`)
+  const { assets: assetsBefore } = await beforeDelete.json()
+  expect(assetsBefore.some((asset) => asset.key === uploadedKey)).toBe(true)
+
+  // deleteProject() now cleans up gallery rows *and* their R2/media_assets
+  // entries (unless still referenced elsewhere) — this image belongs to no
+  // other project, so it should be gone after the project itself is deleted.
+  // Issued via page.evaluate (real in-page fetch, same-origin) rather than
+  // page.request.delete — Astro's CSRF check rejects the latter's DELETE
+  // here since it doesn't carry the same-origin context a real browser
+  // fetch (like the admin UI's own delete button) does.
+  const deleteResult = await page.evaluate(async (id) => {
+    const response = await fetch(`/api/admin/projects/${id}`, { method: 'DELETE' })
+    return { ok: response.ok, status: response.status }
+  }, projectId)
+  expect(deleteResult.ok).toBeTruthy()
+
+  const afterDelete = await page.request.get(`${baseURL}/api/admin/media`)
+  const { assets: assetsAfter } = await afterDelete.json()
+  expect(assetsAfter.some((asset) => asset.key === uploadedKey)).toBe(false)
 })
 
 test('Media Library toggles between Medium icons and Details views', async ({ page, baseURL }) => {

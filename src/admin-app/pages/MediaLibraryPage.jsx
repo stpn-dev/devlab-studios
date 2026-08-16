@@ -137,7 +137,33 @@ function MediaLibraryPage() {
         <MediaDeleteConflictDialog references={conflictReferences} onClose={() => setConflictReferences(null)} />
       ) : null}
       {message ? <p className={`rounded-xl border p-4 text-sm ${message.tone === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-violet-200 bg-violet-50 text-violet-700'}`}>{message.text}</p> : null}
-      {status === 'loading' ? <p className="text-sm text-slate-500">Loading R2 inventory…</p> : null}
+      {status === 'loading' ? (
+        <div aria-live="polite" aria-busy="true">
+          <span className="sr-only">Loading R2 inventory…</span>
+          {view === 'grid' ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <div key={index} className="animate-pulse overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="h-40 w-full bg-slate-200" />
+                  <div className="space-y-2 p-3">
+                    <div className="h-4 w-3/4 rounded bg-slate-200" />
+                    <div className="h-3 w-1/2 rounded bg-slate-100" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="animate-pulse overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-3 border-b border-slate-100 px-3 py-3 last:border-b-0">
+                  <div className="h-10 w-14 shrink-0 rounded bg-slate-200" />
+                  <div className="h-4 w-full max-w-xs rounded bg-slate-200" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
       {status === 'error' ? <p className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">Could not load this environment’s R2 bucket.</p> : null}
 
       {status === 'ready' ? <>

@@ -32,9 +32,14 @@ export async function deleteMediaAsset(db, key) {
 export async function deleteMediaAssetByUrl(db, mediaBucket, url) {
   const row = await db.prepare('SELECT key FROM media_assets WHERE url = ?').bind(url).first()
   if (!row?.key) return false
-  await mediaBucket.delete(row.key)
-  await deleteMediaAsset(db, row.key)
+  await deleteMediaAssetByKey(db, mediaBucket, row.key)
   return true
+}
+
+/** Same as deleteMediaAssetByUrl, for callers that already resolved the R2 key themselves (skips the redundant media_assets lookup). */
+export async function deleteMediaAssetByKey(db, mediaBucket, key) {
+  await mediaBucket.delete(key)
+  await deleteMediaAsset(db, key)
 }
 
 const MEDIA_REFERENCE_QUERIES = [
@@ -49,7 +54,10 @@ const MEDIA_REFERENCE_QUERIES = [
   },
   {
     type: 'Project',
-    sql: `SELECT id, title AS label
+    // Only matches image_url values with no corresponding gallery row (a
+    // legacy/rollback snapshot predating the is_thumbnail model) — since it
+    // only ever fires for the project's own thumbnail, isThumbnail is always 1.
+    sql: `SELECT id, title AS label, 1 AS isThumbnail
         FROM projects
         WHERE image_url = ? AND image_url != ''
           AND NOT EXISTS (
@@ -84,6 +92,167 @@ export async function findMediaReferences(db, candidates) {
     }
   }
   return references.filter((reference, index, items) => items.findIndex((item) => item.type === reference.type && item.id === reference.id) === index)
+}
+
+function buildPlaceholders(count) {
+  return Array(count).fill('?').join(', ')
+}
+
+// Batched equivalent of the exact-match entries in MEDIA_REFERENCE_QUERIES:
+// one IN(...) query per reference type covering every candidate value at
+// once, instead of one query per candidate. Each SELECT returns the matched
+// value itself so results can be attributed back to the right asset.
+const BATCH_EXACT_QUERIES = [
+  {
+    type: 'Project',
+    buildSql: (placeholders) => `
+      SELECT project_gallery_images.url AS matchedValue,
+             project_gallery_images.project_id AS id,
+             projects.title AS label,
+             project_gallery_images.is_thumbnail AS isThumbnail
+      FROM project_gallery_images
+      JOIN projects ON projects.id = project_gallery_images.project_id
+      WHERE project_gallery_images.url IN (${placeholders})`,
+  },
+  {
+    type: 'Project',
+    // Only matches image_url values with no corresponding gallery row — see
+    // the identical entry in MEDIA_REFERENCE_QUERIES for why isThumbnail is always 1 here.
+    buildSql: (placeholders) => `
+      SELECT image_url AS matchedValue, id, title AS label, 1 AS isThumbnail
+      FROM projects
+      WHERE image_url IN (${placeholders}) AND image_url != ''
+        AND NOT EXISTS (
+          SELECT 1 FROM project_gallery_images
+          WHERE project_gallery_images.project_id = projects.id
+            AND project_gallery_images.url = projects.image_url
+        )`,
+  },
+  { type: 'Insight cover', buildSql: (p) => `SELECT cover_image_url AS matchedValue, id, title AS label FROM articles WHERE cover_image_url IN (${p})` },
+  { type: 'Certification badge', buildSql: (p) => `SELECT badge_image_url AS matchedValue, id, name AS label FROM certifications WHERE badge_image_url IN (${p})` },
+  { type: 'Profile experience', buildSql: (p) => `SELECT image_url AS matchedValue, id, role AS label FROM experiences WHERE image_url IN (${p})` },
+  { type: 'Testimonial photo', buildSql: (p) => `SELECT author_photo_url AS matchedValue, id, author_name AS label FROM testimonials WHERE author_photo_url IN (${p})` },
+  { type: 'Case-study cover', buildSql: (p) => `SELECT cover_image_url AS matchedValue, id, title AS label FROM case_studies WHERE cover_image_url IN (${p})` },
+]
+
+async function runBatchExactQueries(db, values) {
+  const referencesByValue = new Map(values.map((value) => [value, []]))
+  if (!values.length) return referencesByValue
+
+  const placeholders = buildPlaceholders(values.length)
+  for (const query of BATCH_EXACT_QUERIES) {
+    try {
+      const result = await db.prepare(query.buildSql(placeholders)).bind(...values).all()
+      for (const row of result.results || []) {
+        const bucket = referencesByValue.get(row.matchedValue)
+        if (bucket) bucket.push({ type: query.type, id: row.id, label: row.label || row.id, isThumbnail: Boolean(row.isThumbnail) })
+      }
+    } catch (error) {
+      if (!/no such table/i.test(String(error?.message || ''))) throw error
+    }
+  }
+  return referencesByValue
+}
+
+async function runBatchSeoImageQuery(db, values) {
+  const referencesByValue = new Map(values.map((value) => [value, []]))
+  if (!values.length) return referencesByValue
+
+  const placeholders = buildPlaceholders(values.length)
+  try {
+    const result = await db
+      .prepare(`SELECT id, page_slug AS label, og_image, twitter_image FROM seo_metadata WHERE og_image IN (${placeholders}) OR twitter_image IN (${placeholders})`)
+      .bind(...values, ...values)
+      .all()
+    for (const row of result.results || []) {
+      for (const matchedValue of [row.og_image, row.twitter_image]) {
+        const bucket = referencesByValue.get(matchedValue)
+        if (bucket) bucket.push({ type: 'SEO image', id: row.id, label: row.label || row.id, isThumbnail: false })
+      }
+    }
+  } catch (error) {
+    if (!/no such table/i.test(String(error?.message || ''))) throw error
+  }
+  return referencesByValue
+}
+
+// The three JSON-blob "contains" columns can't be batched with IN(...) (they're
+// substring searches, not equality), so instead of one query per candidate,
+// fetch every row from the table ONCE and do the substring check in JS —
+// still exactly one query regardless of how many candidates/assets there are,
+// and it sidesteps D1's LIKE/GLOB pattern-complexity limit entirely (no LIKE
+// or INSTR needed at all for this batched path).
+async function runContainsScan(db, { table, jsonColumn, idColumn, labelColumn, type }, values) {
+  const referencesByValue = new Map(values.map((value) => [value, []]))
+  if (!values.length) return referencesByValue
+
+  let rows
+  try {
+    const result = await db.prepare(`SELECT ${idColumn} AS id, ${labelColumn} AS label, ${jsonColumn} AS blob FROM ${table}`).all()
+    rows = result.results || []
+  } catch (error) {
+    if (/no such table/i.test(String(error?.message || ''))) return referencesByValue
+    throw error
+  }
+
+  for (const row of rows) {
+    const blob = String(row.blob || '')
+    for (const value of values) {
+      if (blob.includes(value)) referencesByValue.get(value).push({ type, id: row.id, label: row.label || row.id, isThumbnail: false })
+    }
+  }
+  return referencesByValue
+}
+
+const CONTAINS_SCAN_TABLES = [
+  { table: 'case_studies', jsonColumn: 'screenshots_json', idColumn: 'id', labelColumn: 'title', type: 'Case-study gallery' },
+  { table: 'page_sections', jsonColumn: 'content_json', idColumn: 'id', labelColumn: 'section_key', type: 'Page section' },
+  { table: 'site_settings', jsonColumn: 'value_json', idColumn: 'key', labelColumn: 'key', type: 'Site setting' },
+]
+
+/**
+ * Batched equivalent of findMediaReferences for a whole list of assets at
+ * once — used by the Media Library's GET listing, where calling
+ * findMediaReferences per-asset would issue ~20 D1 queries per asset (up to
+ * thousands per page). This issues a fixed ~11 queries total regardless of
+ * how many assets are passed in, then attributes results back per asset.
+ *
+ * db: D1Database. assets: array of { key, url } (string fields — only key
+ * and url are read). Returns a Map<assetKey, references[]> of
+ * {type, id, label, isThumbnail} entries.
+ */
+export async function findMediaReferencesForAssets(db, assets) {
+  const candidateSet = new Set()
+  for (const asset of assets) {
+    if (asset.key) candidateSet.add(asset.key)
+    if (asset.url) candidateSet.add(asset.url)
+  }
+  const values = [...candidateSet]
+
+  const [exactMap, seoMap, ...containsMaps] = await Promise.all([
+    runBatchExactQueries(db, values),
+    runBatchSeoImageQuery(db, values),
+    ...CONTAINS_SCAN_TABLES.map((tableConfig) => runContainsScan(db, tableConfig, values)),
+  ])
+  const valueMaps = [exactMap, seoMap, ...containsMaps]
+
+  const byAssetKey = new Map()
+  for (const asset of assets) {
+    const seen = new Set()
+    const refs = []
+    for (const candidate of [asset.key, asset.url].filter(Boolean)) {
+      for (const map of valueMaps) {
+        for (const ref of map.get(candidate) || []) {
+          const dedupeKey = `${ref.type}:${ref.id}`
+          if (seen.has(dedupeKey)) continue
+          seen.add(dedupeKey)
+          refs.push(ref)
+        }
+      }
+    }
+    byAssetKey.set(asset.key, refs)
+  }
+  return byAssetKey
 }
 
 export async function replaceMediaReferences(db, candidates, nextUrl) {
