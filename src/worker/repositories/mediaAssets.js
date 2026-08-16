@@ -249,8 +249,10 @@ const CONTAINS_SCAN_TABLES = [
  * Batched equivalent of findMediaReferences for a whole list of assets at
  * once — used by the Media Library's GET listing, where calling
  * findMediaReferences per-asset would issue ~20 D1 queries per asset (up to
- * thousands per page). This issues a fixed ~11 queries total regardless of
- * how many assets are passed in, then attributes results back per asset.
+ * thousands per page). This issues ~11 queries per MAX_BOUND_PARAMS_PER_QUERY-
+ * sized chunk of candidates (D1 caps bound parameters per query at 100) —
+ * a small, roughly-constant number for a typical page, scaling only if the
+ * asset list is unusually large — then attributes results back per asset.
  *
  * db: D1Database. assets: array of { key, url } (string fields — only key
  * and url are read). Returns a Map<assetKey, references[]> of
