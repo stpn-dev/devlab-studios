@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
@@ -164,11 +164,15 @@ export default function ProjectsManager() {
     loadProjects()
   }, [loadProjects])
 
+  const appliedProjectIdRef = useRef(null)
+
   useEffect(() => {
     const requestedId = searchParams.get('projectId')
     if (!requestedId || !projects.length) return
+    if (appliedProjectIdRef.current === requestedId) return
     const match = projects.find((project) => project.id === requestedId)
     if (match) {
+      appliedProjectIdRef.current = requestedId
       setSelectedProject(toFormProject(match))
       document.getElementById('project-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
