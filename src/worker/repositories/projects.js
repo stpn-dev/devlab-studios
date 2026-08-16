@@ -200,11 +200,11 @@ async function cleanupOrphanedGalleryImages(db, env, removedUrls) {
   const mediaBucket = env?.MEDIA_BUCKET
   if (!mediaBucket || !removedUrls.length) return
 
-  for (const url of removedUrls) {
+  await Promise.all(removedUrls.map(async (url) => {
     const stillReferenced = await findMediaReferences(db, [url])
-    if (stillReferenced.length) continue
+    if (stillReferenced.length) return
     await deleteMediaAssetByUrl(db, mediaBucket, url)
-  }
+  }))
 }
 
 export async function upsertProject(db, input, env = {}) {
@@ -212,7 +212,9 @@ export async function upsertProject(db, input, env = {}) {
   const previousGalleryUrls = before ? before.galleryImages.map((image) => image.url) : []
 
   const normalizedImages = normalizeGalleryImages(input.galleryImages)
-  const { imageUrl, imageFilename } = deriveThumbnailFields(normalizedImages)
+  const derived = deriveThumbnailFields(normalizedImages)
+  const imageUrl = derived.imageUrl || String(input.imageUrl || '').trim()
+  const imageFilename = derived.imageFilename || String(input.imageFilename || '').trim()
 
   const project = toDbProject({ ...input, imageUrl, imageFilename })
   const timestamp = nowIso()
@@ -262,7 +264,19 @@ export async function upsertProject(db, input, env = {}) {
 
   const nextGalleryUrls = normalizedImages.map((image) => image.url)
   const removedUrls = diffRemovedGalleryUrls(previousGalleryUrls, nextGalleryUrls)
-  await cleanupOrphanedGalleryImages(db, env, removedUrls)
+
+  try {
+    await cleanupOrphanedGalleryImages(db, env, removedUrls)
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'project_gallery_cleanup',
+        outcome: 'failure',
+        projectId: project.id,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }),
+    )
+  }
 
   return getProject(db, project.id, { includeDrafts: true })
 }
