@@ -58,7 +58,7 @@ function mergeWithStaticImages(projects: ProjectData[]): ProjectData[] {
       liveUrl: project.liveUrl || '#',
       sourceUrl: project.sourceUrl || '#',
       techStack: Array.isArray(project.techStack) ? project.techStack : [],
-      image: project.imageUrl || apiGallery[0]?.url || fallback?.image,
+      image: project.imageUrl || undefined,
       galleryImages: apiGallery.length > 0 ? apiGallery : fallbackGallery,
     }
   })

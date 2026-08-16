@@ -513,7 +513,7 @@ test('deleting a used image shows the conflict dialog and links to the project',
   await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
 })
 
-test('Media Library toggles between Medium icons and Details views', async ({ page }) => {
+test('Media Library toggles between Medium icons and Details views', async ({ page, baseURL }) => {
   await login(page)
   await page.goto('/admin/media')
 
@@ -525,7 +525,15 @@ test('Media Library toggles between Medium icons and Details views', async ({ pa
     page.waitForEvent('filechooser'),
     page.getByText('Upload Image').click(),
   ])
-  await fileChooser.setFiles('tests/e2e/fixtures/sample-image.png')
+
+  // Capture the real R2 key the upload endpoint assigns (same pattern as the
+  // "deleting a used image..." test above) so this test can delete exactly
+  // the asset it created, rather than leaving it behind for every CI run.
+  const [uploadResponse] = await Promise.all([
+    page.waitForResponse((response) => response.url().includes('/api/admin/media') && response.request().method() === 'POST'),
+    fileChooser.setFiles('tests/e2e/fixtures/sample-image.png'),
+  ])
+  const { key: uploadedKey } = await uploadResponse.json()
   await expect(page.getByText(/Optimized image uploaded/i)).toBeVisible({ timeout: 15_000 })
 
   await expect(page.locator('table')).toHaveCount(0)
@@ -533,4 +541,6 @@ test('Media Library toggles between Medium icons and Details views', async ({ pa
   await expect(page.locator('table')).toBeVisible()
   await page.getByRole('button', { name: 'Medium icons' }).click()
   await expect(page.locator('table')).toHaveCount(0)
+
+  await page.request.delete(`${baseURL}/api/admin/media?key=${encodeURIComponent(uploadedKey)}`)
 })

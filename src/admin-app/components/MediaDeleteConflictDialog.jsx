@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X } from '../../components/icons/icons'
 
@@ -13,8 +14,24 @@ function describeReference(reference) {
 export default function MediaDeleteConflictDialog({ references, onClose }) {
   const navigate = useNavigate()
 
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Media in use"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-lg">
         <div className="flex items-start justify-between gap-3">
           <h2 className="text-base font-semibold text-slate-900">This image is still in use</h2>

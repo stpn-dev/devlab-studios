@@ -201,7 +201,9 @@ async function cleanupOrphanedGalleryImages(db, env, removedUrls) {
   if (!mediaBucket || !removedUrls.length) return
 
   await Promise.all(removedUrls.map(async (url) => {
-    const stillReferenced = await findMediaReferences(db, [url])
+    const trackedAsset = await db.prepare('SELECT key FROM media_assets WHERE url = ?').bind(url).first()
+    const candidates = trackedAsset?.key ? [url, trackedAsset.key] : [url]
+    const stillReferenced = await findMediaReferences(db, candidates)
     if (stillReferenced.length) return
     await deleteMediaAssetByUrl(db, mediaBucket, url)
   }))

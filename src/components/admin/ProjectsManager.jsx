@@ -738,7 +738,7 @@ export default function ProjectsManager() {
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Gallery Images</p>
                     <p className="text-xs text-slate-500">
-                      Keep one thumbnail above, then add one or more carousel images here.
+                      Add carousel images here, then pick the thumbnail in the sidebar.
                     </p>
                   </div>
                   <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">

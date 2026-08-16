@@ -47,6 +47,17 @@ const MEDIA_REFERENCE_QUERIES = [
         JOIN projects ON projects.id = project_gallery_images.project_id
         WHERE project_gallery_images.url = ?`,
   },
+  {
+    type: 'Project',
+    sql: `SELECT id, title AS label
+        FROM projects
+        WHERE image_url = ? AND image_url != ''
+          AND NOT EXISTS (
+            SELECT 1 FROM project_gallery_images
+            WHERE project_gallery_images.project_id = projects.id
+              AND project_gallery_images.url = projects.image_url
+          )`,
+  },
   { type: 'Insight cover', sql: 'SELECT id, title AS label FROM articles WHERE cover_image_url = ?' },
   { type: 'Certification badge', sql: 'SELECT id, name AS label FROM certifications WHERE badge_image_url = ?' },
   { type: 'Profile experience', sql: 'SELECT id, role AS label FROM experiences WHERE image_url = ?' },
@@ -86,12 +97,12 @@ export async function replaceMediaReferences(db, candidates, nextUrl) {
       db.prepare('UPDATE certifications SET badge_image_url = ?, updated_at = ? WHERE badge_image_url = ?').bind(nextUrl, nowIso(), value),
       db.prepare('UPDATE experiences SET image_url = ?, updated_at = ? WHERE image_url = ?').bind(nextUrl, nowIso(), value),
       db.prepare('UPDATE testimonials SET author_photo_url = ?, updated_at = ? WHERE author_photo_url = ?').bind(nextUrl, nowIso(), value),
-      db.prepare('UPDATE case_studies SET cover_image_url = CASE WHEN cover_image_url = ? THEN ? ELSE cover_image_url END, screenshots_json = REPLACE(screenshots_json, ?, ?), updated_at = ? WHERE cover_image_url = ? OR screenshots_json LIKE ?')
-        .bind(value, nextUrl, value, nextUrl, nowIso(), value, `%${value}%`),
-      db.prepare('UPDATE page_sections SET content_json = REPLACE(content_json, ?, ?), updated_at = ? WHERE content_json LIKE ?')
-        .bind(value, nextUrl, nowIso(), `%${value}%`),
-      db.prepare('UPDATE site_settings SET value_json = REPLACE(value_json, ?, ?), updated_at = ? WHERE value_json LIKE ?')
-        .bind(value, nextUrl, nowIso(), `%${value}%`),
+      db.prepare('UPDATE case_studies SET cover_image_url = CASE WHEN cover_image_url = ? THEN ? ELSE cover_image_url END, screenshots_json = REPLACE(screenshots_json, ?, ?), updated_at = ? WHERE cover_image_url = ? OR INSTR(screenshots_json, ?) > 0')
+        .bind(value, nextUrl, value, nextUrl, nowIso(), value, value),
+      db.prepare('UPDATE page_sections SET content_json = REPLACE(content_json, ?, ?), updated_at = ? WHERE INSTR(content_json, ?) > 0')
+        .bind(value, nextUrl, nowIso(), value),
+      db.prepare('UPDATE site_settings SET value_json = REPLACE(value_json, ?, ?), updated_at = ? WHERE INSTR(value_json, ?) > 0')
+        .bind(value, nextUrl, nowIso(), value),
       db.prepare('UPDATE seo_metadata SET og_image = CASE WHEN og_image = ? THEN ? ELSE og_image END, twitter_image = CASE WHEN twitter_image = ? THEN ? ELSE twitter_image END, updated_at = ? WHERE og_image = ? OR twitter_image = ?')
         .bind(value, nextUrl, value, nextUrl, nowIso(), value, value),
     )
