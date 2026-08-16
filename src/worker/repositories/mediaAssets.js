@@ -52,9 +52,9 @@ const MEDIA_REFERENCE_QUERIES = [
   { type: 'Profile experience', sql: 'SELECT id, role AS label FROM experiences WHERE image_url = ?' },
   { type: 'Testimonial photo', sql: 'SELECT id, author_name AS label FROM testimonials WHERE author_photo_url = ?' },
   { type: 'Case-study cover', sql: 'SELECT id, title AS label FROM case_studies WHERE cover_image_url = ?' },
-  { type: 'Case-study gallery', sql: 'SELECT id, title AS label FROM case_studies WHERE screenshots_json LIKE ?', contains: true },
-  { type: 'Page section', sql: 'SELECT id, section_key AS label FROM page_sections WHERE content_json LIKE ?', contains: true },
-  { type: 'Site setting', sql: 'SELECT key AS id, key AS label FROM site_settings WHERE value_json LIKE ?', contains: true },
+  { type: 'Case-study gallery', sql: 'SELECT id, title AS label FROM case_studies WHERE INSTR(screenshots_json, ?) > 0' },
+  { type: 'Page section', sql: 'SELECT id, section_key AS label FROM page_sections WHERE INSTR(content_json, ?) > 0' },
+  { type: 'Site setting', sql: 'SELECT key AS id, key AS label FROM site_settings WHERE INSTR(value_json, ?) > 0' },
   { type: 'SEO image', sql: 'SELECT id, page_slug AS label FROM seo_metadata WHERE og_image = ? OR twitter_image = ?' },
 ]
 
@@ -64,8 +64,7 @@ export async function findMediaReferences(db, candidates) {
   for (const query of MEDIA_REFERENCE_QUERIES) {
     for (const value of values) {
       try {
-        const binding = query.contains ? `%${value}%` : value
-        const bindings = query.type === 'SEO image' ? [binding, binding] : [binding]
+        const bindings = query.type === 'SEO image' ? [value, value] : [value]
         const result = await db.prepare(query.sql).bind(...bindings).all()
         for (const row of result.results || []) references.push({ type: query.type, id: row.id, label: row.label || row.id, isThumbnail: Boolean(row.isThumbnail) })
       } catch (error) {

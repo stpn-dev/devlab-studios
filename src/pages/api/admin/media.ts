@@ -98,7 +98,21 @@ export const GET: APIRoute = async ({ url }) => {
     const contentType = String(object.httpMetadata?.contentType || tracked?.contentType || inferContentType(object.key))
     const folder = object.key.includes('/') ? object.key.slice(0, object.key.lastIndexOf('/')) : 'root'
     const url = publicBaseUrl ? `${publicBaseUrl}/${object.key.split('/').map(encodeURIComponent).join('/')}` : tracked?.url || ''
-    const usedBy = env.DB ? await findMediaReferences(env.DB, [object.key, url]) : []
+    let usedBy: Array<{ type: string; id: string; label: string; isThumbnail: boolean }> = []
+    if (env.DB) {
+      try {
+        usedBy = await findMediaReferences(env.DB, [object.key, url])
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: 'media_reference_lookup',
+            outcome: 'failure',
+            key: object.key,
+            errorMessage: error instanceof Error ? error.message : String(error),
+          }),
+        )
+      }
+    }
     return {
       id: tracked?.id || object.key,
       key: object.key,
