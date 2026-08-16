@@ -64,7 +64,7 @@ export const PER_ITEM_COLLECTIONS = {
     schema: projectSchema,
     list: (db) => listProjects(db, { includeDrafts: true }),
     upsert: (db, payload) => upsertProject(db, payload),
-    delete: (db, id) => deleteProject(db, id),
+    delete: (db, id, env) => deleteProject(db, id, env),
   },
 }
 

@@ -221,7 +221,7 @@ test('creating a project through the bespoke Projects editor still records a ver
   expect(versions.length).toBeGreaterThan(0)
   expect(versions[0].snapshot.title).toBe('Smoke Test Project')
 
-  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
+  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`, { headers: { Origin: baseURL } })
 })
 
 test('Work editor selects existing Projects and owns its narrative without owning uploads', async ({ page, baseURL }) => {
@@ -405,7 +405,7 @@ test('staged gallery images are not uploaded until Save is clicked', async ({ pa
   await expect(page.getByLabel('ID')).toHaveValue(projectId)
   await expect(page.getByText('Pending')).not.toBeVisible()
 
-  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
+  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`, { headers: { Origin: baseURL } })
 })
 
 test('selecting a gallery image as thumbnail persists projects.imageUrl on save', async ({ page, baseURL }) => {
@@ -439,7 +439,7 @@ test('selecting a gallery image as thumbnail persists projects.imageUrl on save'
   expect(saved.imageUrl).toBeTruthy()
   expect(saved.galleryImages.find((image) => image.isThumbnail)?.url).toBe(saved.imageUrl)
 
-  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
+  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`, { headers: { Origin: baseURL } })
 })
 
 test('removing the thumbnail-flagged gallery image is blocked', async ({ page, baseURL }) => {
@@ -464,7 +464,7 @@ test('removing the thumbnail-flagged gallery image is blocked', async ({ page, b
   await expect(page.getByLabel('ID')).toHaveValue(projectId)
   await expect(page.getByRole('button', { name: 'Remove' }).first()).toBeDisabled()
 
-  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
+  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`, { headers: { Origin: baseURL } })
 })
 
 test('deleting a used image shows the conflict dialog and links to the project', async ({ page, baseURL }) => {
@@ -507,7 +507,7 @@ test('deleting a used image shows the conflict dialog and links to the project',
   await page.getByRole('button', { name: 'Go to project' }).click()
   await expect(page).toHaveURL(new RegExp(`/admin/content/projects\\?projectId=${projectId}`))
 
-  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
+  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`, { headers: { Origin: baseURL } })
 })
 
 test('deleting a project cleans up its exclusive gallery image from R2', async ({ page, baseURL }) => {
@@ -538,15 +538,13 @@ test('deleting a project cleans up its exclusive gallery image from R2', async (
   // deleteProject() now cleans up gallery rows *and* their R2/media_assets
   // entries (unless still referenced elsewhere) — this image belongs to no
   // other project, so it should be gone after the project itself is deleted.
-  // Issued via page.evaluate (real in-page fetch, same-origin) rather than
-  // page.request.delete — Astro's CSRF check rejects the latter's DELETE
-  // here since it doesn't carry the same-origin context a real browser
-  // fetch (like the admin UI's own delete button) does.
-  const deleteResult = await page.evaluate(async (id) => {
-    const response = await fetch(`/api/admin/projects/${id}`, { method: 'DELETE' })
-    return { ok: response.ok, status: response.status }
-  }, projectId)
-  expect(deleteResult.ok).toBeTruthy()
+  // An explicit Origin header is required — Astro's CSRF check rejects a
+  // page.request.delete() with none (see the Work-showcase test above for
+  // the same pattern).
+  const deleteResponse = await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`, {
+    headers: { Origin: baseURL },
+  })
+  expect(deleteResponse.ok()).toBeTruthy()
 
   const afterDelete = await page.request.get(`${baseURL}/api/admin/media`)
   const { assets: assetsAfter } = await afterDelete.json()
@@ -582,5 +580,5 @@ test('Media Library toggles between Medium icons and Details views', async ({ pa
   await page.getByRole('button', { name: 'Medium icons' }).click()
   await expect(page.locator('table')).toHaveCount(0)
 
-  await page.request.delete(`${baseURL}/api/admin/media?key=${encodeURIComponent(uploadedKey)}`)
+  await page.request.delete(`${baseURL}/api/admin/media?key=${encodeURIComponent(uploadedKey)}`, { headers: { Origin: baseURL } })
 })

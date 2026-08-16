@@ -291,10 +291,17 @@ export async function upsertProject(db, input, env = {}) {
 
 export async function deleteProject(db, id, env = {}) {
   const existing = await getProject(db, id, { includeDrafts: true })
-  const galleryUrls = existing ? existing.galleryImages.map((image) => image.url) : []
+  const galleryUrls = [...new Set(existing ? existing.galleryImages.map((image) => image.url) : [])]
 
-  await db.prepare('DELETE FROM project_gallery_images WHERE project_id = ?').bind(id).run()
-  await db.prepare('DELETE FROM projects WHERE id = ?').bind(id).run()
+  try {
+    await db.batch([
+      db.prepare('DELETE FROM project_gallery_images WHERE project_id = ?').bind(id),
+      db.prepare('DELETE FROM projects WHERE id = ?').bind(id),
+    ])
+  } catch (error) {
+    if (!isMissingGalleryTableError(error)) throw error
+    await db.prepare('DELETE FROM projects WHERE id = ?').bind(id).run()
+  }
 
   if (galleryUrls.length) {
     try {

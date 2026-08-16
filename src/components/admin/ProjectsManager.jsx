@@ -254,6 +254,7 @@ export default function ProjectsManager() {
         return
       }
 
+      revokeCurrentPendingImageUrls()
       setSelectedProject(emptyProject)
       await loadProjects({ preserveStatus: true })
       setStatus(`Project deleted at ${new Date().toLocaleTimeString()}.`)
@@ -263,6 +264,8 @@ export default function ProjectsManager() {
   }
 
   async function handleVersionRestored(restored) {
+    if (hasPendingImages && !window.confirm('You have unsaved image changes — restore anyway?')) return
+    revokeCurrentPendingImageUrls()
     setShowHistory(false)
     setSelectedProject(toFormProject(restored))
     await loadProjects({ preserveStatus: true })
@@ -614,7 +617,11 @@ export default function ProjectsManager() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={loadProjects}
+                onClick={() => {
+                  if (hasPendingImages && !window.confirm('You have unsaved image changes — refresh anyway?')) return
+                  revokeCurrentPendingImageUrls()
+                  loadProjects()
+                }}
                 className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 <RotateCw size={16} />

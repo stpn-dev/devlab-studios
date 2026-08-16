@@ -16,7 +16,7 @@ export const DELETE: APIRoute = async ({ params, locals }) => {
 
   const existingItems = await collection.list(env.DB)
   const existing = existingItems.find((item: { id?: string }) => item.id === id)
-  await collection.delete(env.DB, id)
+  await collection.delete(env.DB, id, env)
   await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'delete', entityType: type, entityId: id, metadata: buildDeleteAuditMetadata(existing, collection.label) })
 
   return jsonResponse({ id })

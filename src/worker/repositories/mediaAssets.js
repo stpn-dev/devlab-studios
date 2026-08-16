@@ -98,6 +98,30 @@ function buildPlaceholders(count) {
   return Array(count).fill('?').join(', ')
 }
 
+// Cloudflare D1 caps bound parameters per query at 100 — well below what a
+// full media list's key+url candidate set can reach. Chunk any batched query
+// to stay safely under that regardless of how many distinct candidates exist.
+const MAX_BOUND_PARAMS_PER_QUERY = 90
+
+export function chunkValues(values, chunkSize) {
+  const chunks = []
+  for (let start = 0; start < values.length; start += chunkSize) {
+    chunks.push(values.slice(start, start + chunkSize))
+  }
+  return chunks
+}
+
+export function mergeReferenceMaps(chunkMaps, values) {
+  const merged = new Map(values.map((value) => [value, []]))
+  for (const chunkMap of chunkMaps) {
+    for (const [value, refs] of chunkMap) {
+      const bucket = merged.get(value)
+      if (bucket) bucket.push(...refs)
+    }
+  }
+  return merged
+}
+
 // Batched equivalent of the exact-match entries in MEDIA_REFERENCE_QUERIES:
 // one IN(...) query per reference type covering every candidate value at
 // once, instead of one query per candidate. Each SELECT returns the matched
@@ -135,14 +159,12 @@ const BATCH_EXACT_QUERIES = [
   { type: 'Case-study cover', buildSql: (p) => `SELECT cover_image_url AS matchedValue, id, title AS label FROM case_studies WHERE cover_image_url IN (${p})` },
 ]
 
-async function runBatchExactQueries(db, values) {
-  const referencesByValue = new Map(values.map((value) => [value, []]))
-  if (!values.length) return referencesByValue
-
-  const placeholders = buildPlaceholders(values.length)
+async function runBatchExactQueriesChunk(db, chunk) {
+  const referencesByValue = new Map(chunk.map((value) => [value, []]))
+  const placeholders = buildPlaceholders(chunk.length)
   for (const query of BATCH_EXACT_QUERIES) {
     try {
-      const result = await db.prepare(query.buildSql(placeholders)).bind(...values).all()
+      const result = await db.prepare(query.buildSql(placeholders)).bind(...chunk).all()
       for (const row of result.results || []) {
         const bucket = referencesByValue.get(row.matchedValue)
         if (bucket) bucket.push({ type: query.type, id: row.id, label: row.label || row.id, isThumbnail: Boolean(row.isThumbnail) })
@@ -154,15 +176,20 @@ async function runBatchExactQueries(db, values) {
   return referencesByValue
 }
 
-async function runBatchSeoImageQuery(db, values) {
-  const referencesByValue = new Map(values.map((value) => [value, []]))
-  if (!values.length) return referencesByValue
+async function runBatchExactQueries(db, values) {
+  if (!values.length) return new Map()
+  const chunks = chunkValues(values, MAX_BOUND_PARAMS_PER_QUERY)
+  const chunkMaps = await Promise.all(chunks.map((chunk) => runBatchExactQueriesChunk(db, chunk)))
+  return mergeReferenceMaps(chunkMaps, values)
+}
 
-  const placeholders = buildPlaceholders(values.length)
+async function runBatchSeoImageQueryChunk(db, chunk) {
+  const referencesByValue = new Map(chunk.map((value) => [value, []]))
+  const placeholders = buildPlaceholders(chunk.length)
   try {
     const result = await db
       .prepare(`SELECT id, page_slug AS label, og_image, twitter_image FROM seo_metadata WHERE og_image IN (${placeholders}) OR twitter_image IN (${placeholders})`)
-      .bind(...values, ...values)
+      .bind(...chunk, ...chunk)
       .all()
     for (const row of result.results || []) {
       for (const matchedValue of [row.og_image, row.twitter_image]) {
@@ -174,6 +201,14 @@ async function runBatchSeoImageQuery(db, values) {
     if (!/no such table/i.test(String(error?.message || ''))) throw error
   }
   return referencesByValue
+}
+
+async function runBatchSeoImageQuery(db, values) {
+  if (!values.length) return new Map()
+  // Bound twice per candidate (og_image OR twitter_image), so halve the chunk size.
+  const chunks = chunkValues(values, Math.floor(MAX_BOUND_PARAMS_PER_QUERY / 2))
+  const chunkMaps = await Promise.all(chunks.map((chunk) => runBatchSeoImageQueryChunk(db, chunk)))
+  return mergeReferenceMaps(chunkMaps, values)
 }
 
 // The three JSON-blob "contains" columns can't be batched with IN(...) (they're
@@ -222,10 +257,13 @@ const CONTAINS_SCAN_TABLES = [
  * {type, id, label, isThumbnail} entries.
  */
 export async function findMediaReferencesForAssets(db, assets) {
+  const normalize = (value) => String(value || '').trim()
   const candidateSet = new Set()
   for (const asset of assets) {
-    if (asset.key) candidateSet.add(asset.key)
-    if (asset.url) candidateSet.add(asset.url)
+    const key = normalize(asset.key)
+    const url = normalize(asset.url)
+    if (key) candidateSet.add(key)
+    if (url) candidateSet.add(url)
   }
   const values = [...candidateSet]
 
@@ -240,7 +278,7 @@ export async function findMediaReferencesForAssets(db, assets) {
   for (const asset of assets) {
     const seen = new Set()
     const refs = []
-    for (const candidate of [asset.key, asset.url].filter(Boolean)) {
+    for (const candidate of [normalize(asset.key), normalize(asset.url)].filter(Boolean)) {
       for (const map of valueMaps) {
         for (const ref of map.get(candidate) || []) {
           const dedupeKey = `${ref.type}:${ref.id}`
