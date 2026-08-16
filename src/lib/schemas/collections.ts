@@ -28,6 +28,7 @@ const projectGalleryImageSchema = z.object({
   filename: z.string().optional().default(''),
   altText: z.string().optional().default(''),
   sortOrder: z.union([z.number(), z.string()]).optional(),
+  isThumbnail: z.boolean().optional().default(false),
 })
 
 /**
@@ -40,10 +41,21 @@ const projectGalleryImageSchema = z.object({
  * projectSchema itself stays as the field-descriptor/rollback-snapshot
  * contract other callers (adminRegistry.js's PER_ITEM_COLLECTIONS) expect.
  */
-export const projectRequestSchema = projectSchema.extend({
-  imageFilename: z.string().optional().default(''),
-  galleryImages: z.array(projectGalleryImageSchema).optional().default([]),
-})
+export const projectRequestSchema = projectSchema
+  .extend({
+    imageFilename: z.string().optional().default(''),
+    galleryImages: z.array(projectGalleryImageSchema).optional().default([]),
+  })
+  .superRefine((data, ctx) => {
+    const thumbnailCount = data.galleryImages.filter((image) => image.isThumbnail).length
+    if (thumbnailCount > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['galleryImages'],
+        message: 'Only one gallery image may be marked as the thumbnail.',
+      })
+    }
+  })
 
 /** Ships with zero rows for now — see docs/content-model.md. */
 export const caseStudySchema = baseItemSchema.extend({
