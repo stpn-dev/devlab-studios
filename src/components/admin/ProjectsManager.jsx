@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   ArrowRight,
   ChevronLeft,
@@ -13,6 +14,9 @@ import {
 import { portfolioItems } from '../../data/portfolio'
 import { validateAndConvertToWebP } from '../../utils/imageUpload'
 import VersionHistoryPanel from '../../admin-app/pages/VersionHistoryPanel'
+import GalleryImageRow from './projects/GalleryImageRow'
+import ThumbnailPicker from './projects/ThumbnailPicker'
+import { uploadPendingGalleryImages } from './projects/projectImageUpload'
 
 const PAGE_SIZE = 6
 
@@ -23,8 +27,6 @@ const emptyProject = {
   techStackText: '',
   liveUrl: '#',
   sourceUrl: '#',
-  imageUrl: '',
-  imageFilename: '',
   galleryImages: [],
   type: 'Automation',
   sortOrder: 999,
@@ -56,6 +58,9 @@ function toFormProject(project) {
             filename: item.filename || deriveFilenameFromUrl(item.url),
             altText: item.altText || '',
             sortOrder: Number(item.sortOrder) || index + 1,
+            isThumbnail: Boolean(item.isThumbnail),
+            pending: false,
+            file: null,
           }))
       : [],
     techStackText: Array.isArray(project.techStack) ? project.techStack.join(', ') : '',
@@ -63,11 +68,6 @@ function toFormProject(project) {
 }
 
 function toPayload(form) {
-  const imageUrl = form.imageUrl.trim()
-  const imageFilename = imageUrl
-    ? (form.imageFilename.trim() || deriveFilenameFromUrl(imageUrl))
-    : ''
-
   return {
     id: form.id.trim(),
     title: form.title.trim(),
@@ -75,8 +75,6 @@ function toPayload(form) {
     techStack: form.techStackText.split(',').map((item) => item.trim()).filter(Boolean),
     liveUrl: form.liveUrl.trim() || '#',
     sourceUrl: form.sourceUrl.trim() || '#',
-    imageUrl,
-    imageFilename,
     galleryImages: Array.isArray(form.galleryImages)
       ? form.galleryImages
           .filter((item) => String(item?.url || '').trim())
@@ -86,6 +84,7 @@ function toPayload(form) {
             filename: String(item.filename || '').trim() || deriveFilenameFromUrl(item.url),
             altText: String(item.altText || '').trim(),
             sortOrder: index + 1,
+            isThumbnail: Boolean(item.isThumbnail),
           }))
       : [],
     type: form.type,
@@ -105,10 +104,12 @@ function normalizeValue(value) {
 }
 
 export default function ProjectsManager() {
+  const [searchParams] = useSearchParams()
   const [projects, setProjects] = useState([])
   const [selectedProject, setSelectedProject] = useState(emptyProject)
   const [status, setStatus] = useState('Loading admin data...')
   const [isSaving, setIsSaving] = useState(false)
+  const [saveStage, setSaveStage] = useState(null)
   const [isReadOnlyPreview, setIsReadOnlyPreview] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
@@ -116,10 +117,7 @@ export default function ProjectsManager() {
   const [showHistory, setShowHistory] = useState(false)
 
   const loadStaticPreview = useCallback((reason) => {
-    const staticProjects = portfolioItems.map((project) => ({
-      ...project,
-      imageUrl: '',
-    }))
+    const staticProjects = portfolioItems
 
     setProjects(staticProjects)
     setSelectedProject(staticProjects[0] ? toFormProject(staticProjects[0]) : emptyProject)
@@ -166,6 +164,16 @@ export default function ProjectsManager() {
     loadProjects()
   }, [loadProjects])
 
+  useEffect(() => {
+    const requestedId = searchParams.get('projectId')
+    if (!requestedId || !projects.length) return
+    const match = projects.find((project) => project.id === requestedId)
+    if (match) {
+      setSelectedProject(toFormProject(match))
+      document.getElementById('project-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [searchParams, projects])
+
   async function saveProject(event) {
     event.preventDefault()
     if (isReadOnlyPreview) {
@@ -174,9 +182,25 @@ export default function ProjectsManager() {
     }
 
     setIsSaving(true)
+    setSaveStage('uploading')
+    setStatus('Uploading staged images...')
+
+    let uploadedGalleryImages
+    try {
+      uploadedGalleryImages = await uploadPendingGalleryImages(selectedProject.galleryImages, (fileName) => {
+        setStatus(`Uploading ${fileName}...`)
+      })
+    } catch (error) {
+      setStatus(error.message || 'Image upload failed. The project was not saved.')
+      setIsSaving(false)
+      setSaveStage(null)
+      return
+    }
+
+    setSaveStage('saving')
     setStatus('Saving project...')
 
-    const payload = toPayload(selectedProject)
+    const payload = toPayload({ ...selectedProject, galleryImages: uploadedGalleryImages })
     const method = projects.some((project) => project.id === payload.id) ? 'PUT' : 'POST'
     const url = method === 'PUT' ? `/api/admin/projects/${payload.id}` : '/api/admin/projects'
 
@@ -200,6 +224,7 @@ export default function ProjectsManager() {
       setStatus('Project save failed.')
     } finally {
       setIsSaving(false)
+      setSaveStage(null)
     }
   }
 
@@ -235,134 +260,84 @@ export default function ProjectsManager() {
     setStatus(`Project restored to a previous version at ${new Date().toLocaleTimeString()}.`)
   }
 
-  async function uploadImage(event) {
+  async function addGalleryFiles(event) {
     const files = Array.from(event.target.files || [])
     if (!files.length) return
     if (isReadOnlyPreview) {
-      setStatus('Read-only preview mode. Configure R2 and the admin API before uploading images.')
+      setStatus('Read-only preview mode. Configure R2 and the admin API before adding images.')
+      event.target.value = ''
       return
     }
 
     try {
-      const uploadedImages = []
-
-      for (const [index, file] of files.entries()) {
-        setStatus(`Validating ${file.name} (${index + 1}/${files.length}) and converting to WebP...`)
+      const staged = []
+      for (const file of files) {
+        setStatus(`Validating ${file.name}...`)
         const prepared = await validateAndConvertToWebP(file)
-
-        const formData = new FormData()
-        formData.append('folder', 'projects')
-        formData.append('file', prepared.file)
-
-        setStatus(`Uploading ${prepared.file.name} (${index + 1}/${files.length})...`)
-        const response = await fetch('/api/admin/media', {
-          method: 'POST',
-          body: formData,
-        })
-        const data = await response.json()
-        if (!response.ok) {
-          setStatus(data.error || `Upload failed (${response.status}).`)
-          return
-        }
-
-        uploadedImages.push({
-          id: data.key,
-          url: data.url,
-          filename: data.filename,
+        staged.push({
+          id: `pending-${crypto.randomUUID()}`,
+          url: URL.createObjectURL(prepared.file),
+          filename: prepared.file.name,
           altText: '',
-          converted: prepared.converted,
+          isThumbnail: false,
+          pending: true,
+          file: prepared.file,
         })
       }
 
       setSelectedProject((current) => {
-        const [primaryImage, ...galleryImages] = uploadedImages
-        const nextGalleryImages = [
-          ...(current.galleryImages || []),
-          ...(galleryImages.length > 0 ? galleryImages : []),
-        ].map((item, index) => ({
+        const nextImages = [...(current.galleryImages || []), ...staged].map((item, index) => ({
           ...item,
           sortOrder: index + 1,
         }))
-
-        return {
-          ...current,
-          imageUrl: primaryImage?.url || current.imageUrl,
-          imageFilename: primaryImage?.filename || current.imageFilename,
-          galleryImages: nextGalleryImages,
-        }
+        return { ...current, galleryImages: nextImages }
       })
-
-      if (uploadedImages.length === 1) {
-        const image = uploadedImages[0]
-        setStatus(`Thumbnail uploaded as WebP (${image.converted.width}x${image.converted.height}). Save the project to persist it.`)
-      } else {
-        setStatus(`Thumbnail replaced and ${uploadedImages.length - 1} gallery image(s) uploaded. Save the project to persist the changes.`)
-      }
+      setStatus(`${staged.length} image(s) staged. Save the project to upload and persist them.`)
     } catch (error) {
-      setStatus(error.message || 'Image upload failed.')
+      setStatus(error.message || 'Image staging failed.')
     } finally {
       event.target.value = ''
     }
   }
 
-  async function uploadGalleryImages(event) {
-    const files = Array.from(event.target.files || [])
-    if (!files.length) return
+  async function replaceGalleryImage(index, file) {
     if (isReadOnlyPreview) {
-      setStatus('Read-only preview mode. Configure R2 and the admin API before uploading gallery images.')
+      setStatus('Read-only preview mode. Configure R2 and the admin API before replacing images.')
       return
     }
 
-    setStatus(`Uploading ${files.length} gallery image(s)...`)
-
     try {
-      const uploadedImages = []
+      setStatus(`Validating ${file.name}...`)
+      const prepared = await validateAndConvertToWebP(file)
 
-      for (const file of files) {
-        setStatus(`Validating ${file.name}...`)
-        const prepared = await validateAndConvertToWebP(file)
-
-        const formData = new FormData()
-        formData.append('folder', 'projects')
-        formData.append('file', prepared.file)
-
-        setStatus(`Uploading ${prepared.file.name}...`)
-
-        const response = await fetch('/api/admin/media', {
-          method: 'POST',
-          body: formData,
-        })
-        const data = await response.json()
-        if (!response.ok) {
-          setStatus(data.error || `Gallery upload failed (${response.status}).`)
-          return
-        }
-
-        uploadedImages.push({
-          id: data.key,
-          url: data.url,
-          filename: data.filename,
-          altText: '',
-        })
-      }
-
-      setSelectedProject((current) => {
-        const nextImages = [...(current.galleryImages || []), ...uploadedImages].map((item, index) => ({
-          ...item,
-          sortOrder: index + 1,
-        }))
-
-        return {
-          ...current,
-          galleryImages: nextImages,
-        }
-      })
-      setStatus('Gallery image(s) uploaded as WebP. Save the project to persist them.')
+      setSelectedProject((current) => ({
+        ...current,
+        galleryImages: (current.galleryImages || []).map((item, itemIndex) => (
+          itemIndex === index
+            ? { ...item, url: URL.createObjectURL(prepared.file), filename: prepared.file.name, pending: true, file: prepared.file }
+            : item
+        )),
+      }))
+      setStatus(`Replacement staged for slide ${index + 1}. Save the project to persist it.`)
     } catch (error) {
-      setStatus(error.message || 'Gallery upload failed.')
-    } finally {
-      event.target.value = ''
+      setStatus(error.message || 'Image staging failed.')
     }
+  }
+
+  function selectThumbnail(id) {
+    setSelectedProject((current) => ({
+      ...current,
+      galleryImages: (current.galleryImages || []).map((item) => ({ ...item, isThumbnail: item.id === id })),
+    }))
+    setStatus('Thumbnail selection updated. Save the project to persist it.')
+  }
+
+  function clearThumbnail() {
+    setSelectedProject((current) => ({
+      ...current,
+      galleryImages: (current.galleryImages || []).map((item) => ({ ...item, isThumbnail: false })),
+    }))
+    setStatus('Thumbnail cleared — the logo will show until a new one is selected. Save the project to persist it.')
   }
 
   function updateGalleryImage(index, updates) {
@@ -453,7 +428,19 @@ export default function ProjectsManager() {
     return { draft, websites, automations }
   }, [projects])
 
-  const previewImage = selectedProject.imageUrl || selectedProject.image
+  const hasPendingImages = (selectedProject.galleryImages || []).some((item) => item.pending)
+
+  useEffect(() => {
+    function handleBeforeUnload(event) {
+      if (!hasPendingImages) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasPendingImages])
+
+  const previewImage = selectedProject.galleryImages.find((image) => image.isThumbnail)?.url || ''
 
   return (
     <>
@@ -533,6 +520,7 @@ export default function ProjectsManager() {
                     key={project.id}
                     type="button"
                     onClick={() => {
+                      if (hasPendingImages && !window.confirm('You have unsaved image changes — leave anyway?')) return
                       setSelectedProject(toFormProject(project))
                       setShowHistory(false)
                     }}
@@ -596,7 +584,7 @@ export default function ProjectsManager() {
           </div>
         </section>
 
-        <form onSubmit={saveProject} className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+        <form id="project-editor" onSubmit={saveProject} className="min-w-0 overflow-hidden rounded-md border border-slate-200 bg-white">
           <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
             <div>
               <h2 className="text-base font-semibold text-slate-950">Editor</h2>
@@ -614,6 +602,7 @@ export default function ProjectsManager() {
               <button
                 type="button"
                 onClick={() => {
+                  if (hasPendingImages && !window.confirm('You have unsaved image changes — leave anyway?')) return
                   setSelectedProject(emptyProject)
                   setShowHistory(false)
                   if (isReadOnlyPreview) {
@@ -740,15 +729,6 @@ export default function ProjectsManager() {
                 </label>
               </div>
 
-              <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
-                Image URL
-                <input
-                  className="rounded-md border border-slate-300 px-3 py-2 text-slate-800 outline-none transition focus:border-slate-500"
-                  value={selectedProject.imageUrl}
-                  onChange={(event) => setSelectedProject({ ...selectedProject, imageUrl: event.target.value })}
-                />
-              </label>
-
               <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -765,7 +745,7 @@ export default function ProjectsManager() {
                       accept="image/*"
                       multiple
                       className="hidden"
-                      onChange={uploadGalleryImages}
+                      onChange={addGalleryFiles}
                       disabled={isReadOnlyPreview}
                     />
                   </label>
@@ -774,64 +754,16 @@ export default function ProjectsManager() {
                 {selectedProject.galleryImages?.length ? (
                   <div className="grid gap-3">
                     {selectedProject.galleryImages.map((galleryImage, index) => (
-                      <div key={galleryImage.id || `${galleryImage.url}-${index}`} className="grid gap-3 rounded-md border border-slate-200 bg-white p-3">
-                        <div className="grid gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
-                          <div className="overflow-hidden rounded-md border border-slate-200 bg-slate-100">
-                            <img
-                              src={galleryImage.url}
-                              alt={galleryImage.altText || `${selectedProject.title || 'Project'} gallery ${index + 1}`}
-                              className="h-24 w-full object-cover"
-                            />
-                          </div>
-
-                          <div className="grid gap-3">
-                            <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                              Alt Text
-                              <input
-                                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-normal text-slate-800 outline-none transition focus:border-slate-500"
-                                value={galleryImage.altText}
-                                onChange={(event) => updateGalleryImage(index, { altText: event.target.value })}
-                                placeholder="Project screenshot detail"
-                              />
-                            </label>
-                            <p className="truncate text-xs text-slate-500">{galleryImage.filename || deriveFilenameFromUrl(galleryImage.url)}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                            Slide {index + 1}
-                          </span>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => moveGalleryImage(index, -1)}
-                              disabled={index === 0}
-                              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <ChevronLeft size={14} />
-                              Up
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveGalleryImage(index, 1)}
-                              disabled={index === selectedProject.galleryImages.length - 1}
-                              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              Down
-                              <ChevronRight size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeGalleryImage(index)}
-                              className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
-                            >
-                              <Trash2 size={14} />
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                      <GalleryImageRow
+                        key={galleryImage.id || `${galleryImage.url}-${index}`}
+                        item={galleryImage}
+                        index={index}
+                        total={selectedProject.galleryImages.length}
+                        onUpdateAltText={(rowIndex, value) => updateGalleryImage(rowIndex, { altText: value })}
+                        onReplace={replaceGalleryImage}
+                        onRemove={removeGalleryImage}
+                        onMove={moveGalleryImage}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -841,31 +773,14 @@ export default function ProjectsManager() {
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedProject((current) => ({
-                      ...current,
-                      imageUrl: '',
-                      imageFilename: '',
-                    }))
-                    setStatus('Project image cleared. Save the project to persist the change.')
-                  }}
-                  disabled={isReadOnlyPreview || !selectedProject.imageUrl}
-                  className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Trash2 size={16} />
-                  Clear Image
-                </button>
-
+              <div className="flex flex-wrap items-center justify-end gap-3">
                 <button
                   type="submit"
                   disabled={isSaving || isReadOnlyPreview}
                   className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save size={16} />
-                  Save Project
+                  {saveStage === 'uploading' ? 'Uploading images…' : saveStage === 'saving' ? 'Saving project…' : 'Save Project'}
                   <ArrowRight size={16} />
                 </button>
               </div>
@@ -892,18 +807,14 @@ export default function ProjectsManager() {
                 </div>
               )}
 
-              <label className="inline-flex min-w-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                <Image size={16} />
-                <span className="truncate">Upload / Replace Images</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={uploadImage}
-                  disabled={isReadOnlyPreview}
+              <div className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Thumbnail</p>
+                <ThumbnailPicker
+                  galleryImages={selectedProject.galleryImages}
+                  onSelect={selectThumbnail}
+                  onClear={clearThumbnail}
                 />
-              </label>
+              </div>
 
               <div className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Gallery Summary</p>
