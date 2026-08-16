@@ -93,14 +93,16 @@ export const GET: APIRoute = async ({ url }) => {
 
   const trackedAssets = env.DB ? await listMediaAssets(env.DB, { limit: 1000 }).catch(() => []) : []
   const trackedByKey = new Map(trackedAssets.map((asset) => [asset.key, asset]))
-  const assets = listed.objects.map((object) => {
+  const assets = await Promise.all(listed.objects.map(async (object) => {
     const tracked = trackedByKey.get(object.key)
     const contentType = String(object.httpMetadata?.contentType || tracked?.contentType || inferContentType(object.key))
     const folder = object.key.includes('/') ? object.key.slice(0, object.key.lastIndexOf('/')) : 'root'
+    const url = publicBaseUrl ? `${publicBaseUrl}/${object.key.split('/').map(encodeURIComponent).join('/')}` : tracked?.url || ''
+    const usedBy = env.DB ? await findMediaReferences(env.DB, [object.key, url]) : []
     return {
       id: tracked?.id || object.key,
       key: object.key,
-      url: publicBaseUrl ? `${publicBaseUrl}/${object.key.split('/').map(encodeURIComponent).join('/')}` : tracked?.url || '',
+      url,
       filename: tracked?.filename || filenameFromKey(object.key),
       contentType,
       size: object.size,
@@ -109,8 +111,9 @@ export const GET: APIRoute = async ({ url }) => {
       uploadedAt: object.uploaded.toISOString(),
       etag: object.httpEtag,
       trackedInD1: Boolean(tracked),
+      usedBy,
     }
-  })
+  }))
 
   return jsonResponse({
     assets,
