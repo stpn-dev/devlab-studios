@@ -29,9 +29,24 @@ export async function deleteMediaAsset(db, key) {
   await db.prepare('DELETE FROM media_assets WHERE key = ?').bind(key).run()
 }
 
+export async function deleteMediaAssetByUrl(db, mediaBucket, url) {
+  const row = await db.prepare('SELECT key FROM media_assets WHERE url = ?').bind(url).first()
+  if (!row?.key) return false
+  await mediaBucket.delete(row.key)
+  await deleteMediaAsset(db, row.key)
+  return true
+}
+
 const MEDIA_REFERENCE_QUERIES = [
-  { type: 'Project cover', sql: 'SELECT id, title AS label FROM projects WHERE image_url = ?' },
-  { type: 'Project gallery', sql: 'SELECT project_id AS id, alt_text AS label FROM project_gallery_images WHERE url = ?' },
+  {
+    type: 'Project',
+    sql: `SELECT project_gallery_images.project_id AS id,
+               projects.title AS label,
+               project_gallery_images.is_thumbnail AS isThumbnail
+        FROM project_gallery_images
+        JOIN projects ON projects.id = project_gallery_images.project_id
+        WHERE project_gallery_images.url = ?`,
+  },
   { type: 'Insight cover', sql: 'SELECT id, title AS label FROM articles WHERE cover_image_url = ?' },
   { type: 'Certification badge', sql: 'SELECT id, name AS label FROM certifications WHERE badge_image_url = ?' },
   { type: 'Profile experience', sql: 'SELECT id, role AS label FROM experiences WHERE image_url = ?' },
@@ -52,7 +67,7 @@ export async function findMediaReferences(db, candidates) {
         const binding = query.contains ? `%${value}%` : value
         const bindings = query.type === 'SEO image' ? [binding, binding] : [binding]
         const result = await db.prepare(query.sql).bind(...bindings).all()
-        for (const row of result.results || []) references.push({ type: query.type, id: row.id, label: row.label || row.id })
+        for (const row of result.results || []) references.push({ type: query.type, id: row.id, label: row.label || row.id, isThumbnail: Boolean(row.isThumbnail) })
       } catch (error) {
         if (!/no such table/i.test(String(error?.message || ''))) throw error
       }
