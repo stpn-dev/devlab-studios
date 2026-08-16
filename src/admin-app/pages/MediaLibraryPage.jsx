@@ -6,6 +6,7 @@ import { formatBytes } from '../lib/formatBytes'
 import { validateAndConvertToWebP } from '../../utils/imageUpload'
 import MediaAssetGrid from '../components/MediaAssetGrid'
 import MediaAssetTable from '../components/MediaAssetTable'
+import MediaDeleteConflictDialog from '../components/MediaDeleteConflictDialog'
 
 async function mediaRequest(method, body, query = '') {
   const response = await fetch(`/api/admin/media${query}`, { method, body, credentials: 'include' })
@@ -24,6 +25,7 @@ function MediaLibraryPage() {
   const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState(null)
   const [busyKey, setBusyKey] = useState('')
+  const [conflictReferences, setConflictReferences] = useState(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const view = searchParams.get('view') === 'details' ? 'details' : 'grid'
 
@@ -90,8 +92,11 @@ function MediaLibraryPage() {
       setMessage({ tone: 'success', text: `Deleted ${asset.filename}.` })
       await loadAssets()
     } catch (error) {
-      const usages = error.references?.map((item) => `${item.type}: ${item.label}`).join(', ')
-      setMessage({ tone: 'error', text: usages ? `${error.message} Used by ${usages}.` : error.message })
+      if (error.references?.length) {
+        setConflictReferences(error.references)
+      } else {
+        setMessage({ tone: 'error', text: error.message })
+      }
     } finally { setBusyKey('') }
   }
 
@@ -128,6 +133,9 @@ function MediaLibraryPage() {
         </div>
       </div>
 
+      {conflictReferences ? (
+        <MediaDeleteConflictDialog references={conflictReferences} onClose={() => setConflictReferences(null)} />
+      ) : null}
       {message ? <p className={`rounded-xl border p-4 text-sm ${message.tone === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : message.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-violet-200 bg-violet-50 text-violet-700'}`}>{message.text}</p> : null}
       {status === 'loading' ? <p className="text-sm text-slate-500">Loading R2 inventory…</p> : null}
       {status === 'error' ? <p className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">Could not load this environment’s R2 bucket.</p> : null}
