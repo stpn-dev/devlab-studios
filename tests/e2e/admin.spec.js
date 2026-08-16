@@ -11,6 +11,25 @@ async function login(page) {
   await expect(page.getByRole('button', { name: /log ?out/i })).toBeVisible({ timeout: 10_000 })
 }
 
+// Creates a project directly via the API (bypassing the bespoke editor UI)
+// so each media-focused test starts from a known, isolated project record —
+// mirrors the pattern already used by the "creating a project..." and "Work
+// editor..." tests above.
+async function createProject(page, baseURL, overrides = {}) {
+  const id = overrides.id || `smoke-test-media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const response = await page.request.post(`${baseURL}/api/admin/projects`, {
+    data: {
+      title: 'Smoke Test Media Project',
+      description: 'Created by an e2e test to verify project media handling.',
+      type: 'Automation',
+      ...overrides,
+      id,
+    },
+  })
+  expect(response.ok()).toBeTruthy()
+  return id
+}
+
 test('health endpoint reports DB and media bucket bindings', async ({ request, baseURL }) => {
   const response = await request.get(`${baseURL}/api/health`)
   expect(response.ok()).toBeTruthy()
@@ -355,4 +374,163 @@ test('the leads list returns more than one lead when the admin UI omits limit', 
   const leads = await leadsResponse.json()
   expect(leads.find((item) => item.subject === markerA)).toBeTruthy()
   expect(leads.find((item) => item.subject === markerB)).toBeTruthy()
+})
+
+test('staged gallery images are not uploaded until Save is clicked', async ({ page, baseURL }) => {
+  await login(page)
+  const projectId = await createProject(page, baseURL)
+
+  await page.goto(`/admin/content/projects?projectId=${projectId}`)
+  await expect(page.getByLabel('ID')).toHaveValue(projectId)
+
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByText('Add Gallery Images', { exact: true }).click(),
+  ])
+  await fileChooser.setFiles('tests/e2e/fixtures/sample-image.png')
+  await expect(page.getByText('Pending')).toBeVisible()
+
+  // Nothing should hit the media upload endpoint just from staging a file —
+  // uploadPendingGalleryImages() only runs from saveProject() in
+  // ProjectsManager.jsx, which is never triggered here.
+  const mediaRequestPromise = page.waitForRequest('**/api/admin/media', { timeout: 2000 }).catch(() => null)
+  // Reloading with a staged (unsaved) image trips the beforeunload guard in
+  // ProjectsManager.jsx; accept the native "leave site" dialog so the reload
+  // actually proceeds instead of Playwright's default dialog handling
+  // silently keeping us on the page.
+  page.on('dialog', (dialog) => dialog.accept())
+  await page.reload()
+  await expect(mediaRequestPromise).resolves.toBeNull()
+
+  await expect(page.getByLabel('ID')).toHaveValue(projectId)
+  await expect(page.getByText('Pending')).not.toBeVisible()
+
+  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
+})
+
+test('selecting a gallery image as thumbnail persists projects.imageUrl on save', async ({ page, baseURL }) => {
+  await login(page)
+  const projectId = await createProject(page, baseURL)
+
+  await page.goto(`/admin/content/projects?projectId=${projectId}`)
+  await expect(page.getByLabel('ID')).toHaveValue(projectId)
+
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByText('Add Gallery Images', { exact: true }).click(),
+  ])
+  await fileChooser.setFiles('tests/e2e/fixtures/sample-image.png')
+  await expect(page.getByText('Pending')).toBeVisible()
+
+  await page.getByRole('button', { name: /Save Project/ }).click()
+  await expect(page.getByText(/Uploading images/)).toBeVisible()
+  await expect(page.getByText(/Project saved at/)).toBeVisible({ timeout: 15_000 })
+
+  // Pick the newly-uploaded gallery image as the thumbnail (first, and only,
+  // tile) and save again — no new upload should be needed since the item is
+  // no longer "pending".
+  await page.locator('[data-testid="thumbnail-picker-tile"]').first().click()
+  await page.getByRole('button', { name: /Save Project/ }).click()
+  await expect(page.getByText(/Project saved at/)).toBeVisible({ timeout: 15_000 })
+
+  const response = await page.request.get(`${baseURL}/api/admin/projects`)
+  const projects = await response.json()
+  const saved = projects.find((project) => project.id === projectId)
+  expect(saved.imageUrl).toBeTruthy()
+  expect(saved.galleryImages.find((image) => image.isThumbnail)?.url).toBe(saved.imageUrl)
+
+  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
+})
+
+test('removing the thumbnail-flagged gallery image is blocked', async ({ page, baseURL }) => {
+  await login(page)
+  // Seeded directly with a thumbnail-flagged gallery image via the API (a
+  // plain, non-R2 URL is fine here — this test only exercises the client-side
+  // "can't remove the active thumbnail" guard in GalleryImageRow.jsx, not
+  // media storage).
+  // The gallery image id must be unique per run, not just the project id:
+  // deleteProject() only deletes the `projects` row and never cascades to
+  // `project_gallery_images` (whose `id` column is a global PRIMARY KEY, not
+  // scoped per-project), so a fixed id here would collide with the orphaned
+  // row a previous run of this same test left behind and make project
+  // creation fail on a UNIQUE constraint violation.
+  const projectId = `smoke-test-blocked-removal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  await createProject(page, baseURL, {
+    id: projectId,
+    title: 'Smoke Test Blocked Removal',
+    galleryImages: [
+      { id: `${projectId}-1`, url: 'https://example.com/blocked-removal.png', altText: 'Thumbnail image', sortOrder: 1, isThumbnail: true },
+    ],
+  })
+
+  await page.goto(`/admin/content/projects?projectId=${projectId}`)
+  await expect(page.getByLabel('ID')).toHaveValue(projectId)
+  await expect(page.getByRole('button', { name: 'Remove' }).first()).toBeDisabled()
+
+  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
+})
+
+test('deleting a used image shows the conflict dialog and links to the project', async ({ page, baseURL }) => {
+  await login(page)
+  const projectId = await createProject(page, baseURL, { title: 'Smoke Test Delete Conflict' })
+
+  await page.goto(`/admin/content/projects?projectId=${projectId}`)
+  await expect(page.getByLabel('ID')).toHaveValue(projectId)
+
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByText('Add Gallery Images', { exact: true }).click(),
+  ])
+  await fileChooser.setFiles('tests/e2e/fixtures/sample-image.png')
+  await expect(page.getByText('Pending')).toBeVisible()
+
+  // Capture the real R2 key the upload endpoint assigns so this test can
+  // find *this* asset in the Media Library later, rather than assuming it's
+  // whatever the "first" listed asset happens to be (which could be an
+  // unrelated, unreferenced object left over from another run).
+  const [uploadResponse] = await Promise.all([
+    page.waitForResponse((response) => response.url().includes('/api/admin/media') && response.request().method() === 'POST'),
+    page.getByRole('button', { name: /Save Project/ }).click(),
+  ])
+  const { key: uploadedKey } = await uploadResponse.json()
+  await expect(page.getByText(/Project saved at/)).toBeVisible({ timeout: 15_000 })
+
+  await page.locator('[data-testid="thumbnail-picker-tile"]').first().click()
+  await page.getByRole('button', { name: /Save Project/ }).click()
+  await expect(page.getByText(/Project saved at/)).toBeVisible({ timeout: 15_000 })
+
+  await page.goto('/admin/media')
+  page.on('dialog', (dialog) => dialog.accept())
+
+  const assetCard = page.locator('article', { hasText: uploadedKey })
+  await expect(assetCard).toBeVisible({ timeout: 10_000 })
+  await assetCard.getByRole('button', { name: 'Delete' }).click()
+
+  await expect(page.getByText('This image is still in use')).toBeVisible()
+  await page.getByRole('button', { name: 'Go to project' }).click()
+  await expect(page).toHaveURL(new RegExp(`/admin/content/projects\\?projectId=${projectId}`))
+
+  await page.request.delete(`${baseURL}/api/admin/projects/${projectId}`)
+})
+
+test('Media Library toggles between Medium icons and Details views', async ({ page }) => {
+  await login(page)
+  await page.goto('/admin/media')
+
+  // MediaAssetTable only renders a real <table> once at least one asset
+  // exists (otherwise it shows an empty-state message with no table at
+  // all), so upload one here to make the Details view deterministic
+  // regardless of what other tests have or haven't uploaded yet.
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByText('Upload Image').click(),
+  ])
+  await fileChooser.setFiles('tests/e2e/fixtures/sample-image.png')
+  await expect(page.getByText(/Optimized image uploaded/i)).toBeVisible({ timeout: 15_000 })
+
+  await expect(page.locator('table')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Details' }).click()
+  await expect(page.locator('table')).toBeVisible()
+  await page.getByRole('button', { name: 'Medium icons' }).click()
+  await expect(page.locator('table')).toHaveCount(0)
 })
