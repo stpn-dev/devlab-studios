@@ -1,4 +1,5 @@
 import { nowIso, parseJsonField } from '../utils/responses'
+import { deleteMediaAssetByUrl, findMediaReferences } from './mediaAssets.js'
 
 function isMissingGalleryTableError(error) {
   return /no such table:\s*project_gallery_images/i.test(String(error?.message || ''))
@@ -11,6 +12,7 @@ function toGalleryImage(row) {
     filename: row.filename || '',
     altText: row.alt_text || '',
     sortOrder: Number(row.sort_order) || 0,
+    isThumbnail: Boolean(row.is_thumbnail),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -37,7 +39,7 @@ function toProject(row, galleryImages = []) {
   }
 }
 
-function normalizeGalleryImages(input) {
+export function normalizeGalleryImages(input) {
   if (!Array.isArray(input)) return []
 
   return input
@@ -47,8 +49,22 @@ function normalizeGalleryImages(input) {
       filename: String(item?.filename || '').trim(),
       altText: String(item?.altText || '').trim(),
       sortOrder: Number.isFinite(Number(item?.sortOrder)) ? Number(item.sortOrder) : index + 1,
+      isThumbnail: Boolean(item?.isThumbnail),
     }))
     .filter((item) => item.url)
+}
+
+export function deriveThumbnailFields(normalizedImages) {
+  const thumbnail = normalizedImages.find((image) => image.isThumbnail)
+  return {
+    imageUrl: thumbnail?.url || '',
+    imageFilename: thumbnail?.filename || '',
+  }
+}
+
+export function diffRemovedGalleryUrls(previousUrls, nextUrls) {
+  const nextSet = new Set(nextUrls)
+  return previousUrls.filter((url) => !nextSet.has(url))
 }
 
 function toDbProject(input) {
@@ -74,7 +90,7 @@ async function listGalleryImagesForProjects(db, projectIds) {
     const placeholders = projectIds.map(() => '?').join(', ')
     const result = await db
       .prepare(
-        `SELECT id, project_id, url, filename, alt_text, sort_order, created_at, updated_at
+        `SELECT id, project_id, url, filename, alt_text, sort_order, is_thumbnail, created_at, updated_at
          FROM project_gallery_images
          WHERE project_id IN (${placeholders})
          ORDER BY project_id ASC, sort_order ASC, created_at ASC`,
@@ -141,9 +157,7 @@ export async function getProject(db, id, { includeDrafts = false } = {}) {
  * see repositories/testimonials.js's replaceTestimonials for why a bare
  * DELETE followed by a sequential .run() loop is unsafe on D1.
  */
-async function syncProjectGallery(db, projectId, galleryImages) {
-  const normalizedImages = normalizeGalleryImages(galleryImages)
-
+async function syncProjectGallery(db, projectId, normalizedImages) {
   try {
     const timestamp = nowIso()
     const statements = [db.prepare('DELETE FROM project_gallery_images WHERE project_id = ?').bind(projectId)]
@@ -153,8 +167,8 @@ async function syncProjectGallery(db, projectId, galleryImages) {
         db
           .prepare(
             `INSERT INTO project_gallery_images (
-              id, project_id, url, filename, alt_text, sort_order, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              id, project_id, url, filename, alt_text, sort_order, is_thumbnail, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .bind(
             image.id,
@@ -163,6 +177,7 @@ async function syncProjectGallery(db, projectId, galleryImages) {
             image.filename,
             image.altText,
             image.sortOrder,
+            image.isThumbnail ? 1 : 0,
             timestamp,
             timestamp,
           ),
@@ -181,8 +196,25 @@ async function syncProjectGallery(db, projectId, galleryImages) {
   }
 }
 
-export async function upsertProject(db, input) {
-  const project = toDbProject(input)
+async function cleanupOrphanedGalleryImages(db, env, removedUrls) {
+  const mediaBucket = env?.MEDIA_BUCKET
+  if (!mediaBucket || !removedUrls.length) return
+
+  for (const url of removedUrls) {
+    const stillReferenced = await findMediaReferences(db, [url])
+    if (stillReferenced.length) continue
+    await deleteMediaAssetByUrl(db, mediaBucket, url)
+  }
+}
+
+export async function upsertProject(db, input, env = {}) {
+  const before = input.id ? await getProject(db, input.id, { includeDrafts: true }) : null
+  const previousGalleryUrls = before ? before.galleryImages.map((image) => image.url) : []
+
+  const normalizedImages = normalizeGalleryImages(input.galleryImages)
+  const { imageUrl, imageFilename } = deriveThumbnailFields(normalizedImages)
+
+  const project = toDbProject({ ...input, imageUrl, imageFilename })
   const timestamp = nowIso()
 
   if (!project.id || !project.title || !project.description || !project.type) {
@@ -226,7 +258,11 @@ export async function upsertProject(db, input) {
     )
     .run()
 
-  await syncProjectGallery(db, project.id, input.galleryImages)
+  await syncProjectGallery(db, project.id, normalizedImages)
+
+  const nextGalleryUrls = normalizedImages.map((image) => image.url)
+  const removedUrls = diffRemovedGalleryUrls(previousGalleryUrls, nextGalleryUrls)
+  await cleanupOrphanedGalleryImages(db, env, removedUrls)
 
   return getProject(db, project.id, { includeDrafts: true })
 }
