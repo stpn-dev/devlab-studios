@@ -40,9 +40,9 @@ export function parseCookies(cookieHeader) {
     }, {})
 }
 
-export function buildSetCookieHeader(name, value, { secure, maxAgeSeconds }) {
+export function buildSetCookieHeader(name, value, { secure, maxAgeSeconds, sameSite = 'Strict' }) {
   const secureFlag = secure ? '; Secure' : ''
-  return `${name}=${value}; Path=/; HttpOnly; SameSite=Strict${secureFlag}; Max-Age=${maxAgeSeconds}`
+  return `${name}=${value}; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${maxAgeSeconds}`
 }
 
 export function buildClearCookieHeader(name, { secure }) {

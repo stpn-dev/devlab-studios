@@ -54,4 +54,10 @@ describe('buildSetCookieHeader / buildClearCookieHeader', () => {
   it('clears the cookie with Max-Age=0', () => {
     expect(buildClearCookieHeader(SESSION_COOKIE_NAME, { secure: true })).toContain('Max-Age=0')
   })
+
+  it('supports an explicit SameSite=Lax override for cross-site-initiated redirects', () => {
+    const header = buildSetCookieHeader('devlab_pb_oauth', 'stash-value', { secure: true, maxAgeSeconds: 600, sameSite: 'Lax' })
+    expect(header).toContain('SameSite=Lax')
+    expect(header).not.toContain('SameSite=Strict')
+  })
 })

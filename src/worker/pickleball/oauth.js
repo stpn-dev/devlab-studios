@@ -59,5 +59,11 @@ export async function fetchGoogleProfile(accessToken) {
   }
 
   const body = await response.json()
-  return { sub: body.sub, email: body.email, name: body.name || body.email, picture: body.picture || '' }
+  return {
+    sub: body.sub,
+    email: body.email,
+    emailVerified: Boolean(body.email_verified),
+    name: body.name || body.email,
+    picture: body.picture || '',
+  }
 }

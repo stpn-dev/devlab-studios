@@ -34,7 +34,12 @@ export const GET: APIRoute = async ({ request }) => {
     status: 302,
     headers: {
       Location: authorizationUrl,
-      'Set-Cookie': buildSetCookieHeader(OAUTH_COOKIE_NAME, cookiePayload, { secure, maxAgeSeconds: 600 }),
+      // Google's redirect back to the callback is a cross-site top-level
+      // navigation, so this stash cookie needs SameSite=Lax (Strict cookies
+      // are never sent on a cross-site-initiated navigation) — unlike the
+      // session cookie, which stays Strict since it's only ever read on
+      // same-site requests after login.
+      'Set-Cookie': buildSetCookieHeader(OAUTH_COOKIE_NAME, cookiePayload, { secure, maxAgeSeconds: 600, sameSite: 'Lax' }),
     },
   })
 }
