@@ -14,6 +14,11 @@
       "binding": "DB",
       "database_name": "devlab-studios-cms",
       "database_id": "6ff5e313-51a4-43d5-a649-678eeff1ff25"
+    },
+    {
+      "binding": "PICKLEBALL_DB",
+      "database_name": "devlab-pickleball",
+      "database_id": "1ca87dbc-beef-492f-8251-058ff2794820"
     }
   ],
   "r2_buckets": [
@@ -27,7 +32,9 @@
     "R2_PUBLIC_BASE_URL": "https://pub-401ca3448c3348158cdb3e4e9a9dcb20.r2.dev",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAEO3GbzGXQvAtOdI",
     "RESEND_FROM_EMAIL": "hello@devlabstudios.com",
-    "LEAD_NOTIFICATION_EMAIL": "hello@devlabstudios.com"
+    "LEAD_NOTIFICATION_EMAIL": "hello@devlabstudios.com",
+    "PICKLEBALL_OAUTH_REDIRECT_BASE_URL": "https://www.devlabstudios.com",
+    "GOOGLE_OAUTH_CLIENT_ID": "REPLACE_ME"
   },
   "compatibility_date": "2026-03-10",
   "compatibility_flags": ["nodejs_compat"],
@@ -49,13 +56,20 @@
       "vars": {
         "ADMIN_AUTH_MODE": "password",
         "R2_PUBLIC_BASE_URL": "https://pub-2450236b7cbf4d68aa4bc07f9b606e29.r2.dev",
-        "TURNSTILE_SITE_KEY": "0x4AAAAAAEO0gy1ZeS8AbYUC"
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAEO0gy1ZeS8AbYUC",
+        "PICKLEBALL_OAUTH_REDIRECT_BASE_URL": "https://devlab-studios-preview.stpnrey-agustinez.workers.dev",
+        "GOOGLE_OAUTH_CLIENT_ID": "REPLACE_ME"
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "devlab-studios-cms-preview",
           "database_id": "3e01246b-fe41-4bb4-b667-30fa964ba82b"
+        },
+        {
+          "binding": "PICKLEBALL_DB",
+          "database_name": "devlab-pickleball-preview",
+          "database_id": "9f1687d1-dd5a-4a96-9fad-0ce93f49da12"
         }
       ],
       "r2_buckets": [

@@ -15,6 +15,12 @@ interface Env {
   ADMIN_USERS?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
+  PICKLEBALL_DB: D1Database
+  GOOGLE_OAUTH_CLIENT_ID?: string
+  GOOGLE_OAUTH_CLIENT_SECRET?: string
+  PICKLEBALL_SESSION_SECRET?: string
+  PICKLEBALL_OAUTH_REDIRECT_BASE_URL?: string
+  PICKLEBALL_TEST_AUTH_ENABLED?: string
 }
 
 declare namespace App {
@@ -23,5 +29,6 @@ declare namespace App {
     adminRole?: string
     adminAuthMode?: string
     cfContext?: { waitUntil(promise: Promise<unknown>): void }
+    pickleballSession?: { userId: string; googleSub: string; activeOrgId: string | null; exp: number }
   }
 }
