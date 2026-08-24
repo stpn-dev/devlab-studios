@@ -2172,6 +2172,7 @@ import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../worker/pickleball/authContext.js'
 import { can } from '../../../../lib/pickleball/permissions'
 import { listCourtsForVenue, createCourt } from '../../../../worker/repositories/pickleball/courts.js'
+import { getVenue } from '../../../../worker/repositories/pickleball/venues.js'
 import { createCourtSchema } from '../../../../lib/schemas/pickleball/courts'
 import { getEnv } from '../../../../lib/env'
 
@@ -2199,6 +2200,14 @@ export const POST: APIRoute = async ({ request }) => {
     const result = createCourtSchema.safeParse(await request.json().catch(() => null))
     if (!result.success) {
       return new Response(JSON.stringify({ error: 'Validation failed.', issues: result.error.issues }), { status: 400 })
+    }
+
+    // Required: without this check, org B could POST a venueId belonging to
+    // org A and create a court row that cross-references another tenant's
+    // venue (caught in Task 12's review — see the plan's task log).
+    const venue = await getVenue(env.PICKLEBALL_DB, result.data.venueId, session.activeOrgId)
+    if (!venue) {
+      return new Response(JSON.stringify({ error: 'Venue not found in this organization.' }), { status: 400 })
     }
 
     const court = await createCourt(env.PICKLEBALL_DB, { organizationId: session.activeOrgId, ...result.data })
