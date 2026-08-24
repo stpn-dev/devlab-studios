@@ -175,13 +175,41 @@ A Durable Object class `SessionCoordinatorDO`, one instance per `session_id` (vi
 
 ## 7. Scoring engine
 
-`src/lib/pickleball/scoring/` contains the ruleset-driven engine, framework-agnostic (pure functions over a `GameState` + `ScoringRuleset`):
-- `applyPoint(state, ruleset, team)` → new state, enforcing "only the serving side can score" for `SIDE_OUT` scoring method.
-- `isValidFinalScore(scoreA, scoreB, ruleset)` → `max(scoreA,scoreB) >= ruleset.targetScore && Math.abs(scoreA - scoreB) >= ruleset.winBy` — never a hardcoded `=== 11`.
-- `sideOut(state)` → advances server per doubles server-number rules when `format = DOUBLES`.
-- Undo pops the last `score_events` row logically (appends a compensating `POINT_REVERSED`/inverse event rather than deleting history — audit trail is append-only) and recomputes the projection.
-- `finishGame` refuses to transition to `FINISHED` unless `isValidFinalScore` passes; returns a domain error the UI surfaces inline, never a generic 500.
-- `reopenGame`/`correctGame` (ADMIN/FACILITATOR only) append `GAME_REOPENED`/`SCORE_CORRECTED` events, flip status back to `IN_PROGRESS`, and — critically — trigger `invalidateAndRecompute(gameId)`: delete the game's `player_game_stats` rows and matching contribution from `player_performance_snapshots` (subtracting, not just re-adding on top), then re-derive once the game is finished again. This satisfies §25's "never apply corrected statistics on top of the old statistics."
+`src/lib/pickleball/scoring/` contains the ruleset-driven engine, framework-agnostic (pure functions over a `GameState` + `ScoringRuleset`).
+
+### 7.1 Rally-driven interaction model
+
+The scorekeeper never enters a raw score delta or manually declares a side-out. The only primary input is **who won the rally**, and the engine derives every consequence — this replaces manual +/- and manual side-out controls entirely as the primary interface (a privileged correction flow, §7.3, is the only path back to editing a number directly).
+
+`GameState` carries `{ scoreA, scoreB, servingTeam: 'A' | 'B', serverNumber: 1 | 2 }`. A new game starts `{ scoreA: 0, scoreB: 0, servingTeam: <whichever team serves first>, serverNumber: 2 }` — starting `serverNumber` at `2`, not `1`, is what produces the traditional "0-0-2" opening: the first serving side effectively plays only one server's turn, so losing the opening rally is an immediate side-out with no intermediate server-1-to-server-2 step. This one initialization choice encodes the whole opening-service rule without a separate "is this the first serve of the game" flag.
+
+`recordRally(state, ruleset, winningTeam): GameState` — the single function every rally-result button calls:
+- **Serving team wins the rally**: award it one point; `servingTeam` and `serverNumber` are unchanged.
+- **Receiving team wins while `serverNumber === 1`** (doubles only — see below): no point is awarded; `serverNumber` becomes `2`; `servingTeam` is unchanged.
+- **Receiving team wins while `serverNumber === 2`**: no point is awarded; this is a **side out** — `servingTeam` flips to the winning team and `serverNumber` resets to `1`.
+
+For `format = SINGLES`, there is no server-1/server-2 distinction — every receiving-team win is an immediate side out (equivalent to treating singles as permanently "on server 2"). `recordRally` special-cases this: singles games never set `serverNumber` above `1` and a receiving-team win always flips `servingTeam` directly.
+
+`recordRally` is pure and fully unit-tested as a deterministic state machine — no D1, no DO, just `GameState → GameState`. The DO-serialized command handler (§6) wraps it: append a `POINT_AWARDED` or `SIDE_OUT` score event carrying the resulting state, update the `games` projection, broadcast the diff.
+
+### 7.2 Display derivation (also pure functions)
+
+- `officialScoreCall(state, format)` → for doubles, `${servingSideScore}-${receivingSideScore}-${serverNumber}` (server's own score always called first, regardless of whether that's Team A or Team B); for singles, `${servingSideScore}-${receivingSideScore}` (no third number — singles has no server-number concept to call). This is what changes on a side out, never the on-screen team rows (§7.4).
+- `isGamePoint(state, ruleset)` → true if the serving team winning one more rally would satisfy `isValidFinalScore` for their side.
+- `contextualState(state, ruleset)` → one of `SIDE_OUT` (transient, shown immediately after a side out event), `GAME_POINT` (per `isGamePoint`), `TIED_WIN_BY_TWO` (both scores equal and at or above `targetScore - 1`), or `null` (no special banner).
+- `isValidFinalScore(scoreA, scoreB, ruleset)` → unchanged from the original design: `max(scoreA,scoreB) >= ruleset.targetScore && Math.abs(scoreA - scoreB) >= ruleset.winBy` — never a hardcoded `=== 11`.
+
+### 7.3 Undo and correction
+
+- **Undo Last Rally** — the primary, always-visible control next to the two rally-result buttons. Pops the most recent `POINT_AWARDED`/`SIDE_OUT` event by appending a compensating inverse event (never deleting history — the audit trail is append-only) and recomputes `GameState` by replaying. Available for the immediate last action only, not a general history scrubber.
+- **Correction flow** (ADMIN/FACILITATOR only, separate from the rally buttons entirely — no `-1` button lives beside them) — for mistakes noticed after further rallies have already been played. Opens `reopenGame` → lets the operator set the game back to a specific prior `GameState` (score + serving side + server number, all three, since correcting one without the others could desync the call) → re-finish. This triggers `invalidateAndRecompute(gameId)` exactly as in the original design: delete the game's `player_game_stats` rows and matching `player_performance_snapshots` contribution (subtracting, not layering on top), then re-derive once finished again — satisfying §25's "never apply corrected statistics on top of the old statistics."
+- `finishGame` still refuses to transition to `FINISHED` unless `isValidFinalScore` passes on the current `GameState`; returns a domain error the UI surfaces inline, never a generic 500.
+
+### 7.4 Scorekeeper UI contract
+
+- Team A and Team B occupy **fixed screen rows** for the entire game — service changes never reorder or swap them. Only the serving indicator (which row shows "Serving") and the official score call's digit order change.
+- Always visible: Team A score, Team B score, which team is serving, the current server (player name, for doubles), the server number, the official score call (§7.2), and the contextual state banner when one applies.
+- The two primary buttons are rally results only: **TEAM A WON RALLY** / **TEAM B WON RALLY** — labeled by team, not by "point"/"side out", since the engine (not the operator) decides which one occurred. **UNDO LAST RALLY** sits beside them. Large touch targets, no `-1`/`+1` stepper controls anywhere near this primary control group.
 
 ## 8. OPI — Open Play Performance Index
 
@@ -224,7 +252,7 @@ QR codes are generated client-side in the SPA from the canonical public URL usin
 
 ## 12. Testing strategy
 
-- **Vitest, colocated**: `opi.test.ts` (the exact canonical numbers from §8/§65), `queueEngine.test.ts` (all the §57 numbered-player-count edge cases run as parametrized cases), `scoring.test.ts` (win-by/target-score validation matrix, undo, doubles server rotation), `sessionStateMachine.test.ts`.
+- **Vitest, colocated**: `opi.test.ts` (the exact canonical numbers from §8/§65), `queueEngine.test.ts` (all the §57 numbered-player-count edge cases run as parametrized cases), `scoring.test.ts` — `recordRally` as a deterministic state machine: serving side wins → point awarded, server/serverNumber unchanged; receiving side wins on server 1 → no point, server advances to 2; receiving side wins on server 2 → side out, service transfers, new server is 1; opening `{0, 0, servingTeam, serverNumber: 2}` loses immediately to one lost rally; singles never exposes a server-1 state; `officialScoreCall` digit order flips on side out while `scoreA`/`scoreB` never swap; win-by/target-score validation matrix; undo reverses exactly one rally — plus `sessionStateMachine.test.ts`.
 - **Playwright, `tests/e2e/pickleball/`, `worker` project (against local `wrangler dev` with `PICKLEBALL_DB` + DO bindings)**: check-in → queue → assign → score → finish happy path; late-arrival flow; replacement flow; reopen/correct flow; **the concurrency test** — two parallel `fetch()` calls invoking `assignCourt` for two different courts with overlapping eligible players, asserting exactly one succeeds in claiming the contested player; public live view reflects a score change without a page reload (via a real WebSocket client in the test).
 - Idempotency test: fire `finishGame` twice with the same idempotency key, assert stats applied once.
 
