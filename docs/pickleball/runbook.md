@@ -24,6 +24,13 @@
 
 - Unit: `npm run test:unit -- src/lib/pickleball src/worker/pickleball`
 - E2E: `npx playwright test --project=worker tests/e2e/pickleball/` (requires the bootstrap step above to have run first, so the `test-login` fixture email has an active membership)
+  - The cross-organization isolation test needs a *second* organization and an org-scoped scoring
+    ruleset, neither of which any Phase 1 API can create. `scripts/pickleball/apply-e2e-fixtures.mjs`
+    seeds them idempotently (`e2e-cross-org-b`, `org-b-admin@example.com`,
+    `e2e-cross-org-b-ruleset`); `playwright.config.js` runs it as part of the `worker` project's
+    `wrangler dev` command, so it happens automatically *before* the server opens the local D1.
+    If you start `wrangler dev` yourself and let Playwright reuse it, run the script once by hand
+    first: `node scripts/pickleball/apply-e2e-fixtures.mjs`.
 
 ## Notes
 
