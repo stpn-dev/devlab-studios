@@ -206,6 +206,7 @@ git commit -m "chore: provision Pickleball D1 database and env bindings"
 
 **Files:**
 - Create: `migrations/pickleball/0001_foundation.sql`
+- Modify: `wrangler.jsonc` — add `"migrations_dir": "migrations/pickleball"` to the `PICKLEBALL_DB` entry (root and `env.preview`) and `"migrations_dir": "migrations"` to the existing CMS `DB` entry (root and `env.preview`). **Required, not optional**: without this, `wrangler d1 migrations apply` defaults every `d1_databases` entry to the same `./migrations` folder, so applying migrations to `devlab-pickleball` would apply the CMS's 7 migrations into it — exactly the cross-contamination the design forbids. The CMS-side addition is behavior-preserving (it names the folder D1 already defaulted to).
 
 **Interfaces:**
 - Produces: tables `organizations`, `users`, `organization_memberships`, `players`, `venues`, `courts`, `scoring_rulesets`, `pickleball_sessions`, `session_courts`, `public_session_tokens`, `session_operator_grants` — consumed by every repository task below.
