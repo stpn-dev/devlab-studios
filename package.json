@@ -19,7 +19,8 @@
     "prepare": "husky",
     "cms:seed:projects": "node scripts/cms/generate-project-seed.mjs > scripts/cms/seed/project-seed.sql",
     "cms:upload:project-media": "node scripts/cms/upload-project-media.mjs",
-    "cms:hash-admin-password": "node scripts/cms/hash-admin-password.mjs"
+    "cms:hash-admin-password": "node scripts/cms/hash-admin-password.mjs",
+    "pickleball:create-organization": "node scripts/pickleball/create-organization.mjs"
   },
   "lint-staged": {
     "*.{js,jsx}": "eslint --fix",
