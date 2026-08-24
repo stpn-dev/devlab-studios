@@ -3,15 +3,22 @@ import { generatePkcePair, buildGoogleAuthorizationUrl } from '../../../../../wo
 import { randomBase64Url } from '../../../../../lib/pickleball/webCrypto.js'
 import { buildSetCookieHeader } from '../../../../../worker/pickleball/session.js'
 import { getEnv } from '../../../../../lib/env'
+import { jsonResponse } from '../../../../../worker/utils/responses.js'
 
 const OAUTH_COOKIE_NAME = 'devlab_pb_oauth'
+
+// wrangler.jsonc ships GOOGLE_OAUTH_CLIENT_ID as this literal placeholder
+// until real Google credentials are provisioned. It is truthy, so a bare
+// falsy check would let it through and bounce real users to Google with a
+// garbage client_id instead of returning a clean 503.
+const CLIENT_ID_PLACEHOLDER = 'REPLACE_ME'
 
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
   const clientId = env.GOOGLE_OAUTH_CLIENT_ID
   const redirectBase = env.PICKLEBALL_OAUTH_REDIRECT_BASE_URL
-  if (!clientId || !redirectBase) {
-    return new Response(JSON.stringify({ error: 'Google OAuth is not configured.' }), { status: 503 })
+  if (!clientId || clientId === CLIENT_ID_PLACEHOLDER || !redirectBase) {
+    return jsonResponse({ error: 'Google OAuth is not configured.' }, 503)
   }
 
   const { verifier, challenge } = await generatePkcePair()

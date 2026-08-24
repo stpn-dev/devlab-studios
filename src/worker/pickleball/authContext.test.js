@@ -1,5 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { resolveActiveOrgId, pickSessionRole, isLoginRateLimited, recordFailedLogin, clearFailedLogins } from './authContext.js'
+import {
+  resolveActiveOrgId,
+  pickSessionRole,
+  isLoginRateLimited,
+  recordFailedLogin,
+  clearFailedLogins,
+  getRequestIp,
+  buildLoginRateLimitKey,
+} from './authContext.js'
+
+function requestWithHeaders(headers) {
+  return { headers: { get: (name) => headers[name.toLowerCase()] ?? null } }
+}
 
 const memberships = [
   { organizationId: 'org-1', role: 'SESSION_FACILITATOR' },
@@ -53,5 +65,33 @@ describe('login rate limiting', () => {
     for (let i = 0; i < 8; i += 1) recordFailedLogin('test-key')
     clearFailedLogins('test-key')
     expect(isLoginRateLimited('test-key')).toBe(false)
+  })
+})
+
+describe('getRequestIp', () => {
+  it('prefers cf-connecting-ip', () => {
+    const request = requestWithHeaders({ 'cf-connecting-ip': '203.0.113.5', 'x-forwarded-for': '198.51.100.1' })
+    expect(getRequestIp(request)).toBe('203.0.113.5')
+  })
+
+  it('falls back to the first x-forwarded-for entry', () => {
+    const request = requestWithHeaders({ 'x-forwarded-for': '198.51.100.1, 10.0.0.1' })
+    expect(getRequestIp(request)).toBe('198.51.100.1')
+  })
+
+  it('returns "unknown" when neither header is present', () => {
+    expect(getRequestIp(requestWithHeaders({}))).toBe('unknown')
+  })
+})
+
+describe('buildLoginRateLimitKey', () => {
+  it('keys on ip and normalized email so neither can be probed alone', () => {
+    const request = requestWithHeaders({ 'cf-connecting-ip': '203.0.113.5' })
+    expect(buildLoginRateLimitKey(request, '  Operator@Example.COM ')).toBe('203.0.113.5:operator@example.com')
+  })
+
+  it('substitutes "unknown" for a missing email rather than collapsing to the bare ip', () => {
+    const request = requestWithHeaders({ 'cf-connecting-ip': '203.0.113.5' })
+    expect(buildLoginRateLimitKey(request, '')).toBe('203.0.113.5:unknown')
   })
 })

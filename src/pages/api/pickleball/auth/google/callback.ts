@@ -2,14 +2,27 @@ import type { APIRoute } from 'astro'
 import { exchangeGoogleCode, fetchGoogleProfile } from '../../../../../worker/pickleball/oauth.js'
 import { upsertUserByGoogleSub } from '../../../../../worker/repositories/pickleball/users.js'
 import { listActiveMembershipsForEmail, linkMembershipUser } from '../../../../../worker/repositories/pickleball/memberships.js'
-import { resolveActiveOrgId } from '../../../../../worker/pickleball/authContext.js'
+import {
+  resolveActiveOrgId,
+  buildLoginRateLimitKey,
+  isLoginRateLimited,
+  recordFailedLogin,
+  clearFailedLogins,
+} from '../../../../../worker/pickleball/authContext.js'
 import { signSession, buildSetCookieHeader, buildClearCookieHeader } from '../../../../../worker/pickleball/session.js'
 import { SESSION_COOKIE_NAME } from '../../../../../worker/pickleball/session.js'
 import { getEnv } from '../../../../../lib/env'
 import { parseCookies } from '../../../../../worker/pickleball/session.js'
+import { jsonResponse } from '../../../../../worker/utils/responses.js'
 
 const OAUTH_COOKIE_NAME = 'devlab_pb_oauth'
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8
+
+// The SPA is mounted at /pickleball/app and renders LoginPage for an
+// unauthenticated visit, reading ?error= to explain why the attempt failed.
+// There is no standalone /pickleball/login route, so every failure redirect
+// must target the SPA mount point or it would 404.
+const LOGIN_PATH = '/pickleball/app'
 
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
@@ -29,7 +42,7 @@ export const GET: APIRoute = async ({ request }) => {
   }
 
   if (!code || !state || !stashed?.state || stashed.state !== state) {
-    return new Response(JSON.stringify({ error: 'Invalid OAuth state.' }), { status: 400 })
+    return jsonResponse({ error: 'Invalid OAuth state.' }, 400)
   }
 
   // Fail fast on misconfiguration before spending a round-trip to Google —
@@ -37,10 +50,7 @@ export const GET: APIRoute = async ({ request }) => {
   // "undefined" as the secret, issue a cookie that looks like a successful
   // login, and only fail later (503) on the very next authenticated request.
   if (!env.PICKLEBALL_SESSION_SECRET) {
-    return new Response(JSON.stringify({ error: 'Pickleball session secret is not configured.' }), {
-      status: 503,
-      headers: { 'Set-Cookie': clearOauthCookie },
-    })
+    return jsonResponse({ error: 'Pickleball session secret is not configured.' }, 503, { 'Set-Cookie': clearOauthCookie })
   }
 
   try {
@@ -62,7 +72,23 @@ export const GET: APIRoute = async ({ request }) => {
     if (!profile.emailVerified) {
       return new Response(null, {
         status: 302,
-        headers: { Location: '/pickleball/login?error=email_not_verified', 'Set-Cookie': clearOauthCookie },
+        headers: { Location: `${LOGIN_PATH}?error=email_not_verified`, 'Set-Cookie': clearOauthCookie },
+      })
+    }
+
+    // Same ip:email throttle as the test-login bypass. Without it the
+    // "no memberships" branch below is an email-enumeration oracle: an
+    // attacker who controls many Google accounts (or one account plus a
+    // scripted consent loop) can distinguish "invited" from "not invited"
+    // by whether they land on the dashboard or the ?error=no_access page.
+    // This branch is reached by a top-level browser navigation, so it
+    // redirects (rather than returning a raw 429 body the user would see as
+    // JSON) — the SPA's LoginPage renders the throttling message.
+    const loginKey = buildLoginRateLimitKey(request, profile.email)
+    if (isLoginRateLimited(loginKey)) {
+      return new Response(null, {
+        status: 302,
+        headers: { Location: `${LOGIN_PATH}?error=too_many_attempts`, 'Set-Cookie': clearOauthCookie },
       })
     }
 
@@ -74,20 +100,20 @@ export const GET: APIRoute = async ({ request }) => {
     })
 
     if (!user) {
-      return new Response(JSON.stringify({ error: 'Failed to create or update user.' }), {
-        status: 500,
-        headers: { 'Set-Cookie': clearOauthCookie },
-      })
+      return jsonResponse({ error: 'Failed to create or update user.' }, 500, { 'Set-Cookie': clearOauthCookie })
     }
 
     const memberships = await listActiveMembershipsForEmail(env.PICKLEBALL_DB, profile.email)
 
     if (!memberships.length) {
+      recordFailedLogin(loginKey)
       return new Response(null, {
         status: 302,
-        headers: { Location: '/pickleball/login?error=no_access', 'Set-Cookie': clearOauthCookie },
+        headers: { Location: `${LOGIN_PATH}?error=no_access`, 'Set-Cookie': clearOauthCookie },
       })
     }
+
+    clearFailedLogins(loginKey)
 
     // Link every active membership for this email to the real user id now
     // that we have one — requirePickleballSession's getMembership() lookup
@@ -117,14 +143,23 @@ export const GET: APIRoute = async ({ request }) => {
         'Set-Cookie': buildSetCookieHeader(SESSION_COOKIE_NAME, token, { secure, maxAgeSeconds: SESSION_MAX_AGE_SECONDS }),
       },
     })
-  } catch {
+  } catch (error) {
     // exchangeGoogleCode / fetchGoogleProfile throw tagged 502s on routine
     // conditions (expired/reused code, a transient Google 4xx, network
     // failure) — none of that should surface as a raw unhandled 500 to the
-    // user, so send them back to login with a friendly error instead.
+    // user, so send them back to login with a friendly error instead. The
+    // real reason is only useful server-side, so log it rather than leaking
+    // it into the redirect URL.
+    console.error(
+      JSON.stringify({
+        event: 'pickleball_oauth_callback_failed',
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }),
+    )
+
     return new Response(null, {
       status: 302,
-      headers: { Location: '/pickleball/login?error=oauth_failed', 'Set-Cookie': clearOauthCookie },
+      headers: { Location: `${LOGIN_PATH}?error=oauth_failed`, 'Set-Cookie': clearOauthCookie },
     })
   }
 }

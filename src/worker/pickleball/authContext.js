@@ -43,6 +43,26 @@ export function clearFailedLogins(key) {
   loginAttempts.delete(key)
 }
 
+// Mirrors the header-fallback order in src/worker/middleware/adminAuth.js's
+// getClientIp — Cloudflare sets cf-connecting-ip in production; local
+// `wrangler dev` and any proxy in front only set x-forwarded-for. Kept here
+// (rather than imported from the CMS middleware) so the Pickleball subsystem
+// stays independent of the Admin CMS, per the design's isolation rule.
+export function getRequestIp(request) {
+  const forwardedFor = request.headers.get('x-forwarded-for')
+  return request.headers.get('cf-connecting-ip')
+    || (forwardedFor ? forwardedFor.split(',')[0].trim() : '')
+    || 'unknown'
+}
+
+// The login rate-limit bucket is keyed by ip:email so a single client cannot
+// probe many addresses, and a single address cannot be locked out globally by
+// an unrelated attacker. Used by both the real Google callback and the
+// env-gated test-login bypass.
+export function buildLoginRateLimitKey(request, email) {
+  return `${getRequestIp(request)}:${String(email || '').trim().toLowerCase() || 'unknown'}`
+}
+
 export async function requirePickleballSession(request, env) {
   const secret = env.PICKLEBALL_SESSION_SECRET
   if (!secret) {
