@@ -1281,6 +1281,7 @@ git commit -m "feat: add Pickleball auth resolution and login rate limiting"
 - Create: `src/pages/api/pickleball/auth/switch-org.ts`
 - Create: `src/pages/api/pickleball/auth/test-login.ts`
 - Modify: `src/middleware.ts`
+- Modify: `src/worker/pickleball/authContext.js` (adds `requirePickleballSession`, per Step 1)
 
 **Interfaces:**
 - Consumes: everything from Tasks 3, 5, 6, 7, 8 (`generatePkcePair`, `buildGoogleAuthorizationUrl`, `exchangeGoogleCode`, `fetchGoogleProfile`, `signSession`, `verifySession`, `parseCookies`, `buildSetCookieHeader`, `buildClearCookieHeader`, `SESSION_COOKIE_NAME`, `upsertUserByGoogleSub`, `listActiveMembershipsForEmail`, `resolveActiveOrgId`, `pickSessionRole`, `isLoginRateLimited`, `recordFailedLogin`, `clearFailedLogins`, `randomBase64Url`)
