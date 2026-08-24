@@ -1,6 +1,13 @@
 {
   "name": "devlab-studios",
-  "main": "@astrojs/cloudflare/entrypoints/server",
+  // Custom entrypoint (src/worker.ts) rather than @astrojs/cloudflare's
+  // generated one: the generated entrypoint cannot export a Durable Object
+  // class, and a DO must be exported from the Worker's entrypoint to be
+  // bound. src/worker.ts delegates every request to Astro's own handle()
+  // unchanged and only adds the DO export. Both environments share it —
+  // there is deliberately no per-environment `main` override below. See
+  // docs/architecture/decisions/0006-pickleball-durable-objects.md.
+  "main": "./src/worker.ts",
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -28,6 +35,17 @@
       "binding": "MEDIA_BUCKET",
       "bucket_name": "devlab-studios"
     }
+  ],
+  // One Durable Object per Open Play session, keyed by session id, so two
+  // simultaneous court assignments are serialized by construction rather than
+  // by client-side button-disabling. D1 stays the source of truth.
+  "durable_objects": {
+    "bindings": [
+      { "name": "SESSION_COORDINATOR", "class_name": "SessionCoordinatorDO" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["SessionCoordinatorDO"] }
   ],
   "vars": {
     "ADMIN_AUTH_MODE": "password",
@@ -81,6 +99,17 @@
           "binding": "MEDIA_BUCKET",
           "bucket_name": "devlab-studios-preview"
         }
+      ],
+      // Unlike D1/R2, a Durable Object needs no separate physical resource per
+      // environment: the same class_name is correct here, and Cloudflare keeps
+      // preview and production DO storage apart by Worker name.
+      "durable_objects": {
+        "bindings": [
+          { "name": "SESSION_COORDINATOR", "class_name": "SessionCoordinatorDO" }
+        ]
+      },
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["SessionCoordinatorDO"] }
       ]
     }
   }

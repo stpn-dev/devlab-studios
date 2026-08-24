@@ -21,6 +21,7 @@ interface Env {
   PICKLEBALL_SESSION_SECRET?: string
   PICKLEBALL_OAUTH_REDIRECT_BASE_URL?: string
   PICKLEBALL_TEST_AUTH_ENABLED?: string
+  SESSION_COORDINATOR: DurableObjectNamespace
 }
 
 declare namespace App {
