@@ -1,3 +1,6 @@
+import { parseCookies, verifySession, SESSION_COOKIE_NAME } from './session.js'
+import { getMembership } from '../repositories/pickleball/memberships.js'
+
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const LOGIN_MAX_ATTEMPTS = 8
 const loginAttempts = new Map()
@@ -38,4 +41,40 @@ export function recordFailedLogin(key) {
 
 export function clearFailedLogins(key) {
   loginAttempts.delete(key)
+}
+
+export async function requirePickleballSession(request, env) {
+  const secret = env.PICKLEBALL_SESSION_SECRET
+  if (!secret) {
+    const error = new Error('Pickleball session secret is not configured.')
+    error.status = 503
+    throw error
+  }
+
+  const cookies = parseCookies(request.headers.get('Cookie'))
+  const session = await verifySession(cookies[SESSION_COOKIE_NAME], secret)
+  if (!session?.userId) {
+    const error = new Error('Pickleball login is required.')
+    error.status = 401
+    throw error
+  }
+
+  if (!session.activeOrgId) {
+    const error = new Error('No active organization selected.')
+    error.status = 403
+    throw error
+  }
+
+  const membership = await getMembership(env.PICKLEBALL_DB, {
+    organizationId: session.activeOrgId,
+    userId: session.userId,
+  })
+
+  if (!membership) {
+    const error = new Error('No active membership in this organization.')
+    error.status = 403
+    throw error
+  }
+
+  return { userId: session.userId, googleSub: session.googleSub, activeOrgId: session.activeOrgId, role: membership.role }
 }

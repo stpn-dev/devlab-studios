@@ -5,9 +5,18 @@ import { getEnv } from './lib/env'
 import { getSiteSetting } from './worker/repositories/content.js'
 import { findRedirect } from './worker/repositories/redirects.js'
 import { applySecurityHeaders } from './lib/securityHeaders'
+import { requirePickleballSession } from './worker/pickleball/authContext.js'
 
 const ADMIN_API_PREFIX = '/api/admin/'
 const ADMIN_PUBLIC_ROUTES = new Set(['/api/admin/login', '/api/admin/logout'])
+const PICKLEBALL_API_PREFIX = '/api/pickleball/'
+const PICKLEBALL_PUBLIC_ROUTES = new Set([
+  '/api/pickleball/auth/google/start',
+  '/api/pickleball/auth/google/callback',
+  '/api/pickleball/auth/session',
+  '/api/pickleball/auth/logout',
+  '/api/pickleball/auth/test-login',
+])
 const MAINTENANCE_PAGE = '/maintenance'
 const MAINTENANCE_GATED_PATHS = new Set(['/', '/about', '/services', '/profile', '/insights'])
 
@@ -37,6 +46,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
     if (!didContinue) {
       return applySecurityHeaders(result, url.pathname, url.hostname)
+    }
+  }
+
+  if (url.pathname.startsWith(PICKLEBALL_API_PREFIX) && !PICKLEBALL_PUBLIC_ROUTES.has(url.pathname)) {
+    try {
+      await requirePickleballSession(context.request, getEnv())
+    } catch (error: any) {
+      return applySecurityHeaders(
+        new Response(JSON.stringify({ error: error.message }), { status: error.status || 500 }),
+        url.pathname,
+        url.hostname,
+      )
     }
   }
 
