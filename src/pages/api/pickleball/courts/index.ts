@@ -5,17 +5,18 @@ import { listCourtsForVenue, createCourt } from '../../../../worker/repositories
 import { getVenue } from '../../../../worker/repositories/pickleball/venues.js'
 import { createCourtSchema } from '../../../../lib/schemas/pickleball/courts'
 import { getEnv } from '../../../../lib/env'
+import { jsonResponse } from '../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request, url }) => {
   const env = getEnv()
   try {
     const session = await requirePickleballSession(request, env)
     const venueId = url.searchParams.get('venueId')
-    if (!venueId) return new Response(JSON.stringify({ error: 'venueId query param is required.' }), { status: 400 })
+    if (!venueId) return jsonResponse({ error: 'venueId query param is required.' }, 400)
     const courts = await listCourtsForVenue(env.PICKLEBALL_DB, venueId, session.activeOrgId)
-    return new Response(JSON.stringify({ courts }), { status: 200 })
+    return jsonResponse({ courts }, 200)
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), { status: error.status || 500 })
+    return jsonResponse({ error: error.message }, error.status || 500)
   }
 }
 
@@ -24,22 +25,22 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const session = await requirePickleballSession(request, env)
     if (!can(session.role, 'MANAGE_VENUES_COURTS')) {
-      return new Response(JSON.stringify({ error: 'Forbidden.' }), { status: 403 })
+      return jsonResponse({ error: 'Forbidden.' }, 403)
     }
 
     const result = createCourtSchema.safeParse(await request.json().catch(() => null))
     if (!result.success) {
-      return new Response(JSON.stringify({ error: 'Validation failed.', issues: result.error.issues }), { status: 400 })
+      return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
     }
 
     const venue = await getVenue(env.PICKLEBALL_DB, result.data.venueId, session.activeOrgId)
     if (!venue) {
-      return new Response(JSON.stringify({ error: 'Venue not found in this organization.' }), { status: 400 })
+      return jsonResponse({ error: 'Venue not found in this organization.' }, 400)
     }
 
     const court = await createCourt(env.PICKLEBALL_DB, { organizationId: session.activeOrgId, ...result.data })
-    return new Response(JSON.stringify({ court }), { status: 201 })
+    return jsonResponse({ court }, 201)
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), { status: error.status || 500 })
+    return jsonResponse({ error: error.message }, error.status || 500)
   }
 }

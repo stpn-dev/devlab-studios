@@ -44,6 +44,35 @@ export async function getSession(db, id, organizationId) {
   return toSession(row)
 }
 
+function toScoringRuleset(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    name: row.name,
+    targetScore: row.target_score,
+    winBy: row.win_by,
+    format: row.format,
+  }
+}
+
+// Tenancy guard for a client-supplied scoring_ruleset_id. `organization_id`
+// is nullable on scoring_rulesets: NULL means a global built-in profile every
+// org may reference, anything else is that org's private ruleset. Without the
+// `(IS NULL OR = ?)` clause, org B could attach org A's private ruleset to its
+// own session — the same IDOR class as the venue/court cross-tenant bug.
+export async function getScoringRuleset(db, id, organizationId) {
+  const row = await db
+    .prepare(
+      `SELECT id, organization_id, name, target_score, win_by, format
+       FROM scoring_rulesets
+       WHERE id = ? AND (organization_id IS NULL OR organization_id = ?)`,
+    )
+    .bind(id, organizationId)
+    .first()
+  return toScoringRuleset(row)
+}
+
 export async function createSession(db, {
   organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId,
 }) {

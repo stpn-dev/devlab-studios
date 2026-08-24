@@ -1,10 +1,11 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../worker/pickleball/authContext.js'
 import { getUserByGoogleSub } from '../../../../worker/repositories/pickleball/users.js'
-import { listActiveMembershipsForEmail } from '../../../../worker/repositories/pickleball/memberships.js'
+import { listActiveMembershipsForEmail, linkMembershipUser } from '../../../../worker/repositories/pickleball/memberships.js'
 import { resolveActiveOrgId } from '../../../../worker/pickleball/authContext.js'
 import { signSession, buildSetCookieHeader, SESSION_COOKIE_NAME } from '../../../../worker/pickleball/session.js'
 import { getEnv } from '../../../../lib/env'
+import { jsonResponse } from '../../../../worker/utils/responses.js'
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8
 
@@ -17,13 +18,31 @@ export const POST: APIRoute = async ({ request }) => {
 
     const user = await getUserByGoogleSub(env.PICKLEBALL_DB, session.googleSub)
     if (!user) {
-      return new Response(JSON.stringify({ error: 'User not found.' }), { status: 404 })
+      return jsonResponse({ error: 'User not found.' }, 404)
     }
-    const memberships = await listActiveMembershipsForEmail(env.PICKLEBALL_DB, user.email)
+    const memberships = (await listActiveMembershipsForEmail(env.PICKLEBALL_DB, user.email)) as {
+      organizationId: string
+    }[]
     const activeOrgId = resolveActiveOrgId(memberships, requestedOrgId)
 
     if (activeOrgId !== requestedOrgId) {
-      return new Response(JSON.stringify({ error: 'Not a member of that organization.' }), { status: 403 })
+      return jsonResponse({ error: 'Not a member of that organization.' }, 403)
+    }
+
+    // Memberships are matched by invited_email here, but every authenticated
+    // request afterwards resolves membership by (organizationId, userId) in
+    // requirePickleballSession. An org this user was invited to *after* their
+    // last login still has user_id = NULL, so switching into it without
+    // linking first would issue a valid cookie the very next request then
+    // rejects — locking the user out of the org they just chose. Same
+    // linking step google/callback.ts and test-login.ts perform at sign-in.
+    const targetMembership = memberships.find((membership) => membership.organizationId === activeOrgId)
+    if (targetMembership) {
+      await linkMembershipUser(env.PICKLEBALL_DB, {
+        organizationId: targetMembership.organizationId,
+        invitedEmail: user.email,
+        userId: user.id,
+      })
     }
 
     const now = Math.floor(Date.now() / 1000)
@@ -33,11 +52,10 @@ export const POST: APIRoute = async ({ request }) => {
     )
     const secure = new URL(request.url).protocol === 'https:'
 
-    return new Response(JSON.stringify({ ok: true, activeOrgId }), {
-      status: 200,
-      headers: { 'Set-Cookie': buildSetCookieHeader(SESSION_COOKIE_NAME, token, { secure, maxAgeSeconds: SESSION_MAX_AGE_SECONDS }) },
+    return jsonResponse({ ok: true, activeOrgId }, 200, {
+      'Set-Cookie': buildSetCookieHeader(SESSION_COOKIE_NAME, token, { secure, maxAgeSeconds: SESSION_MAX_AGE_SECONDS }),
     })
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), { status: error.status || 500 })
+    return jsonResponse({ error: error.message }, error.status || 500)
   }
 }

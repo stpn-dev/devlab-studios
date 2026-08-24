@@ -3,6 +3,7 @@ import { requirePickleballSession } from '../../../../worker/pickleball/authCont
 import { getEnv } from '../../../../lib/env'
 import { getUserByGoogleSub } from '../../../../worker/repositories/pickleball/users.js'
 import { listActiveMembershipsForEmail } from '../../../../worker/repositories/pickleball/memberships.js'
+import { jsonResponse } from '../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
@@ -10,11 +11,11 @@ export const GET: APIRoute = async ({ request }) => {
     const session = await requirePickleballSession(request, env)
     const user = await getUserByGoogleSub(env.PICKLEBALL_DB, session.googleSub)
     if (!user) {
-      return new Response(JSON.stringify({ error: 'User not found.' }), { status: 404 })
+      return jsonResponse({ error: 'User not found.' }, 404)
     }
     const memberships = await listActiveMembershipsForEmail(env.PICKLEBALL_DB, user.email)
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         userId: session.userId,
         activeOrgId: session.activeOrgId,
         role: session.role,
@@ -24,10 +25,10 @@ export const GET: APIRoute = async ({ request }) => {
           organizationId: m.organizationId,
           role: m.role,
         })),
-      }),
-      { status: 200 },
+      },
+      200,
     )
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), { status: error.status || 500 })
+    return jsonResponse({ error: error.message }, error.status || 500)
   }
 }
