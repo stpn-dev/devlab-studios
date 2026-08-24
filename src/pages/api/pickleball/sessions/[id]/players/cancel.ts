@@ -1,0 +1,35 @@
+import type { APIRoute } from 'astro'
+import { requirePickleballSession } from '../../../../../../worker/pickleball/authContext.js'
+import { can } from '../../../../../../lib/pickleball/permissions'
+import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
+import { cancelRegistration } from '../../../../../../worker/repositories/pickleball/sessionPlayers.js'
+import { playerIdBodySchema } from '../../../../../../lib/schemas/pickleball/sessionPlayers'
+import { jsonResponse } from '../../../../../../worker/utils/responses.js'
+import { getEnv } from '../../../../../../lib/env'
+
+export const POST: APIRoute = async ({ request, params }) => {
+  const env = getEnv()
+  try {
+    const session = await requirePickleballSession(request, env)
+    const pickleballSession = await getSession(env.PICKLEBALL_DB, params.id, session.activeOrgId)
+    if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
+
+    if (!can(session.role, 'CHECK_IN_PLAYERS')) {
+      return jsonResponse({ error: 'Forbidden.' }, 403)
+    }
+
+    const result = playerIdBodySchema.safeParse(await request.json().catch(() => null))
+    if (!result.success) {
+      return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
+    }
+
+    const sessionPlayer = await cancelRegistration(env.PICKLEBALL_DB, params.id, result.data.playerId)
+    if (!sessionPlayer) {
+      return jsonResponse({ error: 'Only a not-checked-in registration can be cancelled.' }, 409)
+    }
+
+    return jsonResponse({ sessionPlayer }, 200)
+  } catch (error: any) {
+    return jsonResponse({ error: error.message }, error.status || 500)
+  }
+}
