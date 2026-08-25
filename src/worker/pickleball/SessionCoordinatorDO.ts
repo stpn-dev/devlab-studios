@@ -28,6 +28,7 @@ import {
   buildCreateTeamStatement,
   buildAddTeamMemberStatement,
   buildReplaceTeamMemberStatement,
+  buildClearTeamCourtBindingStatement,
   getActiveTeamForSessionPlayer,
   listAssignedSessionPlayerIdsForCourt,
 } from '../repositories/pickleball/teams.js'
@@ -199,7 +200,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // session-wide query, so releasing one court also requeued every other
     // simultaneously-assigned court's players while leaving those courts stuck
     // at ASSIGNED.
-    const sessionPlayerIds: string[] = await listAssignedSessionPlayerIdsForCourt(db, sessionCourtId)
+    const sessionPlayerIds: string[] = await listAssignedSessionPlayerIdsForCourt(db, sessionId, sessionCourtId)
 
     const requeued = session?.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
 
@@ -211,6 +212,13 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       ...(requeued ? [buildJoinQueueStatement(db, { sessionId, sessionPlayerId })] : []),
     ])
 
+    // Release the court's team binding along with the court itself, so it does
+    // not outlive this occupancy. A court is assigned and released many times
+    // per session; a stale binding would let THIS release match a previous
+    // occupancy's team and sweep in players who have since been reassigned
+    // elsewhere. Order within the batch is irrelevant — different table, and
+    // the read above already happened.
+    statements.push(buildClearTeamCourtBindingStatement(db, sessionId, sessionCourtId))
     statements.push(buildSetCourtStatusStatement(db, sessionId, sessionCourtId, 'AVAILABLE'))
 
     await db.batch(statements)

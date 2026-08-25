@@ -45,6 +45,24 @@ export function buildReplaceTeamMemberStatement(db, { teamId, outgoingSessionPla
     .bind(incomingSessionPlayerId, teamId, outgoingSessionPlayerId)
 }
 
+/**
+ * Unbinds every team currently attached to a court, so the binding lasts only
+ * as long as the occupancy it represents.
+ *
+ * Without this, `teams.session_court_id` would be write-once and outlive the
+ * assignment: a court that is released and later reassigned (which happens
+ * constantly in open play) would still carry its old team, and a later release
+ * of that court would match those old members against whatever assignment they
+ * hold *now* — on a different court — sweeping them into the wrong release.
+ * Clearing the binding as part of the release keeps at most one live team
+ * binding per court at any moment.
+ */
+export function buildClearTeamCourtBindingStatement(db, sessionId, sessionCourtId) {
+  return db
+    .prepare(`UPDATE teams SET session_court_id = NULL WHERE session_court_id = ? AND session_id = ?`)
+    .bind(sessionCourtId, sessionId)
+}
+
 export async function getTeamWithMembers(db, teamId) {
   const team = await db
     .prepare(`SELECT id, session_id, session_court_id, kind, created_at FROM teams WHERE id = ?`)
@@ -98,19 +116,31 @@ export async function getActiveTeamForSessionPlayer(db, sessionId, sessionPlayer
 
 /**
  * Session players currently occupying one specific court: members of a team
- * bound to that court who still hold an open ASSIGNED queue entry. DISTINCT
- * because a player could appear on more than one historical team for the court.
+ * bound to that court who still hold an open assignment. DISTINCT because a
+ * player could appear on more than one team row for the court.
+ *
+ * Matches ASSIGNED *and* PLAYING, the same definition of "open assignment" as
+ * `hasOpenAssignment`. Nothing writes PLAYING until Phase 4's game engine, but
+ * matching only ASSIGNED would then silently regress: releaseCourt would return
+ * an empty list and flip the court to AVAILABLE while its players sat stuck in
+ * PLAYING with no queue entry.
+ *
+ * This is only correct because releaseCourt clears the court binding of every
+ * team it releases (see buildClearTeamCourtBindingStatement) — otherwise a team
+ * from a previous occupancy of this same court would still match here, and its
+ * members' *current* assignments on some other court would be swept into this
+ * court's release.
  */
-export async function listAssignedSessionPlayerIdsForCourt(db, sessionCourtId) {
+export async function listAssignedSessionPlayerIdsForCourt(db, sessionId, sessionCourtId) {
   const result = await db
     .prepare(
       `SELECT DISTINCT tm.session_player_id
        FROM team_members tm
        JOIN teams t ON t.id = tm.team_id
        JOIN queue_entries qe ON qe.session_player_id = tm.session_player_id AND qe.session_id = t.session_id
-       WHERE t.session_court_id = ? AND qe.status = 'ASSIGNED'`,
+       WHERE t.session_court_id = ? AND t.session_id = ? AND qe.status IN ('ASSIGNED', 'PLAYING')`,
     )
-    .bind(sessionCourtId)
+    .bind(sessionCourtId, sessionId)
     .all()
 
   return (result.results || []).map((row) => row.session_player_id)
