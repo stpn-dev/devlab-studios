@@ -30,16 +30,38 @@ function resolveWranglerBin() {
   return join(dirname(require.resolve('wrangler')), '..', 'bin', 'wrangler.js')
 }
 
+// This reader is a SECOND process opening the same local SQLite file miniflare
+// already holds open, so it can lose a race against an in-flight worker write
+// and come back SQLITE_BUSY -- a pure infrastructure flake with nothing to do
+// with the assertion being made, and more likely now that several tests in
+// this fully-parallel file read D1 directly. Retry a few times with a short
+// synchronous backoff (Atomics.wait, since execFileSync keeps this helper
+// synchronous for its callers) and only then give up.
+const D1_BUSY_RETRIES = 5
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
 function queryD1(sql) {
   const sqlPath = join(mkdtempSync(join(tmpdir(), 'pb-games-e2e-')), 'query.sql')
   writeFileSync(sqlPath, sql, 'utf8')
-  const out = execFileSync(
-    process.execPath,
-    [resolveWranglerBin(), 'd1', 'execute', 'devlab-pickleball', '--local', '--json', `--file=${sqlPath}`],
-    { encoding: 'utf-8', windowsHide: true },
-  )
-  const parsed = JSON.parse(out)
-  return parsed[0]?.results || []
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const out = execFileSync(
+        process.execPath,
+        [resolveWranglerBin(), 'd1', 'execute', 'devlab-pickleball', '--local', '--json', `--file=${sqlPath}`],
+        { encoding: 'utf-8', windowsHide: true },
+      )
+      const parsed = JSON.parse(out)
+      return parsed[0]?.results || []
+    } catch (error) {
+      const busy = String(error?.message || '').includes('SQLITE_BUSY')
+      if (!busy || attempt >= D1_BUSY_RETRIES) throw error
+      sleepSync(200 * (attempt + 1))
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +176,20 @@ async function reopenGame(request, sessionId, gameId) {
 
 async function correctGame(request, sessionId, gameId, correctedState) {
   return request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/correct`, { data: correctedState })
+}
+
+async function releaseCourt(request, sessionId, sessionCourtId) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/courts/release`, { data: { sessionCourtId } })
+}
+
+// `teams.session_court_id` is the ONLY representation of "this occupancy owns
+// this court", and there is no read API for it -- so the court-clobbering
+// tests below verify it through the same read-only local-D1 helper the
+// stats/matchmaking assertions use.
+function teamIdsBoundToCourt(sessionCourtId) {
+  return queryD1(`SELECT id FROM teams WHERE session_court_id = '${sessionCourtId}'`)
+    .map((row) => row.id)
+    .sort()
 }
 
 test.describe('Pickleball games', () => {
@@ -411,6 +447,93 @@ test.describe('Pickleball games', () => {
     for (const player of (await afterPlayersResponse.json()).players) {
       expect(player.gamesPlayed).toBe(beforeGamesPlayed[player.id])
     }
+  })
+
+  test('abandon on a REOPENED game does not clobber the different live game that court now hosts', async ({ request }) => {
+    // 8 players / 1 court: the four who sit out game 1 are the four the
+    // queue's fewest-games-played fairness rule then picks for game 2, so
+    // game 2 is a genuinely DIFFERENT occupancy of the same court.
+    const { sessionId, sessionCourts } = await createLiveSessionWithPlayers(request, 8)
+    const sessionCourtId = sessionCourts[0].id
+
+    const firstAssignBody = await assignCourt(request, sessionId, sessionCourtId)
+    const game1Id = (await (await startGame(request, sessionId, sessionCourtId, firstAssignBody, 'A')).json()).game.id
+    await playSequence(request, sessionId, game1Id, Array(11).fill('A'))
+    expect((await finishGame(request, sessionId, game1Id)).status()).toBe(200)
+
+    const secondAssignBody = await assignCourt(request, sessionId, sessionCourtId)
+    const startGame2Response = await startGame(request, sessionId, sessionCourtId, secondAssignBody, 'A')
+    expect(startGame2Response.status()).toBe(201)
+    const game2 = (await startGame2Response.json()).game
+
+    // A reopened game is `status = 'IN_PROGRESS'` again, which used to be
+    // abandonGame's ONLY guard -- so abandoning it released whatever game was
+    // physically on its court at that moment, i.e. game 2.
+    expect((await reopenGame(request, sessionId, game1Id)).status()).toBe(200)
+
+    const abandonResponse = await abandonGame(request, sessionId, game1Id)
+    expect(abandonResponse.status()).toBe(200)
+    const abandonBody = await abandonResponse.json()
+    // Game 1 itself still transitions -- only the court-release side effect is
+    // skipped, because that court is no longer game 1's to hand back.
+    expect(abandonBody.game.status).toBe('ABANDONED')
+    expect(abandonBody.releasedSessionPlayerIds).toEqual([])
+    expect(abandonBody.requeued).toBe(false)
+
+    // Game 2's occupancy is completely untouched: court status, team-court
+    // binding, game status, and its players' PLAYING queue entries.
+    const courtsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts`)
+    expect((await courtsResponse.json()).courts.find((c) => c.id === sessionCourtId).status).toBe('PLAYING')
+    expect(teamIdsBoundToCourt(sessionCourtId)).toEqual([game2.teamAId, game2.teamBId].sort())
+
+    const gamesResponse = await request.get(`/api/pickleball/sessions/${sessionId}/games`)
+    expect((await gamesResponse.json()).games.find((g) => g.id === game2.id).status).toBe('IN_PROGRESS')
+
+    const queueResponse = await request.get(`/api/pickleball/sessions/${sessionId}/queue`)
+    const queue = (await queueResponse.json()).queue
+    expect(queue.filter((e) => e.status === 'PLAYING')).toHaveLength(4)
+  })
+
+  test('finish on a game whose court was already released and reassigned skips the release without erroring', async ({ request }) => {
+    const { sessionId, sessionCourts } = await createLiveSessionWithPlayers(request, 8)
+    const sessionCourtId = sessionCourts[0].id
+
+    const firstAssignBody = await assignCourt(request, sessionId, sessionCourtId)
+    const game1Id = (await (await startGame(request, sessionId, sessionCourtId, firstAssignBody, 'A')).json()).game.id
+    await playSequence(request, sessionId, game1Id, Array(11).fill('A'))
+
+    // A facilitator releases the court out from under the still-unfinished
+    // game 1 (releaseCourt accepts a PLAYING court), and the court is then
+    // reassigned to game 2. Game 1's own finish call must NOT then fire its
+    // release composition against game 2's occupancy.
+    expect((await releaseCourt(request, sessionId, sessionCourtId)).status()).toBe(200)
+
+    const secondAssignBody = await assignCourt(request, sessionId, sessionCourtId)
+    const startGame2Response = await startGame(request, sessionId, sessionCourtId, secondAssignBody, 'A')
+    expect(startGame2Response.status()).toBe(201)
+    const game2 = (await startGame2Response.json()).game
+
+    const finishResponse = await finishGame(request, sessionId, game1Id)
+    expect(finishResponse.status()).toBe(200)
+    const finishBody = await finishResponse.json()
+    expect(finishBody.game.status).toBe('FINISHED')
+    expect(finishBody.finalScoreA).toBe(11)
+    expect(finishBody.releasedSessionPlayerIds).toEqual([])
+    expect(finishBody.requeued).toBe(false)
+
+    const courtsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts`)
+    expect((await courtsResponse.json()).courts.find((c) => c.id === sessionCourtId).status).toBe('PLAYING')
+    expect(teamIdsBoundToCourt(sessionCourtId)).toEqual([game2.teamAId, game2.teamBId].sort())
+
+    const gamesResponse = await request.get(`/api/pickleball/sessions/${sessionId}/games`)
+    expect((await gamesResponse.json()).games.find((g) => g.id === game2.id).status).toBe('IN_PROGRESS')
+
+    // Game 2's four players still hold PLAYING entries; game 1's four are
+    // still QUEUED from the facilitator's release, not swept up a second time.
+    const queueResponse = await request.get(`/api/pickleball/sessions/${sessionId}/queue`)
+    const queue = (await queueResponse.json()).queue
+    expect(queue.filter((e) => e.status === 'PLAYING')).toHaveLength(4)
+    expect(queue.filter((e) => e.status === 'QUEUED')).toHaveLength(4)
   })
 
   test('correction-only lifecycle: a reopened game blocks ordinary rallies, correct+re-finish succeeds without touching a later court reassignment', async ({ request }) => {

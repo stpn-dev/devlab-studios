@@ -33,6 +33,7 @@ import {
   getActiveTeamForSessionPlayer,
   listAssignedSessionPlayerIdsForCourt,
   getTeamWithMembers,
+  hasTeamBoundToCourt,
 } from '../repositories/pickleball/teams.js'
 import {
   buildSetAvailabilityByIdStatement,
@@ -88,6 +89,42 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // losing mutual exclusion. This asserts the pairing instead of trusting it.
   private ownsSession(sessionId: string): boolean {
     return this.ctx.id.equals(this.env.SESSION_COORDINATOR.idFromName(sessionId))
+  }
+
+  // Shared release-safety guard for finishGame AND abandonGame.
+  //
+  // Both of those compose court-release statements (clear the team-court
+  // binding, flip the court to AVAILABLE, close/requeue queue entries) that
+  // are derived from the COURT's current occupants rather than from the
+  // game's own participants. That is only safe while the game being
+  // finished/abandoned really IS that court's current occupant. It very
+  // often is NOT:
+  //
+  //   * `status = 'IN_PROGRESS'` does not mean "physically on a court": a
+  //     REOPENED game (correction_pending = 1) is IN_PROGRESS again even
+  //     though its court was released — and very likely reassigned to a
+  //     later, still-live game — back when it first finished.
+  //   * releaseCourt accepts a PLAYING court, so a court can be released and
+  //     reassigned out from under a game by another path entirely, after
+  //     which that game's own finish/abandon would clobber the NEW occupant.
+  //
+  // So: release only when the court is still PLAYING and one of this game's
+  // own two teams is still the team bound to it. Otherwise the game still
+  // finishes/abandons normally (its `games` row still transitions, its events
+  // are still appended) and only the "hand this court back to the pool" side
+  // effect is skipped, because that court is no longer this game's to hand
+  // back.
+  private async gameStillHoldsItsCourt(
+    db: D1Database,
+    sessionId: string,
+    game: { sessionCourtId: string; teamAId: string; teamBId: string },
+  ): Promise<boolean> {
+    if (!game.sessionCourtId) return false
+
+    const court = await getSessionCourt(db, sessionId, game.sessionCourtId)
+    if (!court || court.status !== 'PLAYING') return false
+
+    return hasTeamBoundToCourt(db, sessionId, game.sessionCourtId, [game.teamAId, game.teamBId])
   }
 
   async assignCourt(sessionId: string, sessionCourtId: string) {
@@ -727,6 +764,14 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // this same result return identical, `game`-inclusive shapes (see the
     // block comment on the normal path's `result` a bit further down for why
     // this matters).
+    //
+    // Its "must NOT release the court again" half is now ALSO covered by the
+    // general `gameStillHoldsItsCourt` guard on the normal path below (a
+    // reopened game's teams were unbound from the court when it first
+    // finished, so the guard would skip the release anyway). The branch stays
+    // because its OTHER half is not subsumed: recomputing games_played and
+    // matchmaking_history from scratch instead of incrementing/upserting them
+    // is specific to a re-finish and has nothing to do with the court.
     if (game.correctionPending) {
       const clearCorrectionStatement = db.prepare(`UPDATE games SET correction_pending = 0 WHERE id = ?`).bind(gameId)
       const gamesPlayedStatements = participants.map((p) => buildRecomputeGamesPlayedStatement(db, sessionId, p.session_player_id))
@@ -792,14 +837,21 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // window where the game is FINISHED but the court/queue still say
     // otherwise. releaseCourt itself remains independently callable (a
     // facilitator can still release a court with no finished game behind it).
-    const releasedSessionPlayerIds = participants.map((p) => p.session_player_id)
-    const requeued = session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
+    //
+    // Gated on the shared `gameStillHoldsItsCourt` guard (see its comment):
+    // if this game is no longer the court's current occupant, the release is
+    // skipped entirely rather than clobbering whatever occupancy took over.
+    const holdsCourt = await this.gameStillHoldsItsCourt(db, sessionId, game)
+    const releasedSessionPlayerIds = holdsCourt ? participants.map((p) => p.session_player_id) : []
+    const requeued = holdsCourt && session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
     const releaseStatements = releasedSessionPlayerIds.flatMap((sessionPlayerId) => [
       buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId),
       ...(requeued ? [buildJoinQueueStatement(db, { sessionId, sessionPlayerId })] : []),
     ])
-    releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
-    releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
+    if (holdsCourt) {
+      releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
+      releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
+    }
 
     // Built purely in-memory BEFORE the batch runs, mirroring recordRally's
     // `updatedGame` (Ruling 8). Every field mirrors exactly what
@@ -881,14 +933,27 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // -- an abandoned game is explicitly excluded from OPI (edge case #18) and
     // was never actually completed. Court/queue release IS atomic with the
     // abandonment, same principle as finishGame.
-    const sessionPlayerIds: string[] = await listAssignedSessionPlayerIdsForCourt(db, sessionId, game.sessionCourtId)
-    const requeued = session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
+    //
+    // ...and, exactly as in finishGame, that release only happens while this
+    // game is still the court's current occupant (see
+    // `gameStillHoldsItsCourt`). `status !== 'IN_PROGRESS'` above is NOT
+    // sufficient on its own: a REOPENED game is IN_PROGRESS again long after
+    // its court was released and reassigned, so an abandon issued against it
+    // would otherwise release whatever DIFFERENT live game now holds that
+    // court.
+    const holdsCourt = await this.gameStillHoldsItsCourt(db, sessionId, game)
+    const sessionPlayerIds: string[] = holdsCourt
+      ? await listAssignedSessionPlayerIdsForCourt(db, sessionId, game.sessionCourtId)
+      : []
+    const requeued = holdsCourt && session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
     const releaseStatements = sessionPlayerIds.flatMap((sessionPlayerId) => [
       buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId),
       ...(requeued ? [buildJoinQueueStatement(db, { sessionId, sessionPlayerId })] : []),
     ])
-    releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
-    releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
+    if (holdsCourt) {
+      releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
+      releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
+    }
 
     await db.batch([abandonedEvent, projectionStatement, ...releaseStatements])
 

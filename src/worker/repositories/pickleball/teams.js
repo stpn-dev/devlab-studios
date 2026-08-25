@@ -53,6 +53,38 @@ export function buildClearTeamCourtBindingStatement(db, sessionId, sessionCourtI
     .bind(sessionCourtId, sessionId)
 }
 
+/**
+ * Whether ANY of the given teams is still bound to `sessionCourtId`.
+ *
+ * `teams.session_court_id` is the only representation of "this occupancy owns
+ * this court": assignCourt sets it, and every release clears it via
+ * buildClearTeamCourtBindingStatement. So asking "are THIS game's own two
+ * teams still bound to the court the game was played on?" is exactly the
+ * question "is this game still that court's current occupant?" — which is
+ * what finishGame/abandonGame must answer before releasing the court, so a
+ * stale finish/abandon can never release a court a LATER game has since been
+ * assigned to.
+ *
+ * @param {string[]} teamIds
+ * @returns {Promise<boolean>}
+ */
+export async function hasTeamBoundToCourt(db, sessionId, sessionCourtId, teamIds) {
+  const ids = (teamIds || []).filter(Boolean)
+  if (!ids.length || !sessionCourtId) return false
+
+  const placeholders = ids.map(() => '?').join(', ')
+  const row = await db
+    .prepare(
+      `SELECT 1 AS bound FROM teams
+       WHERE session_id = ? AND session_court_id = ? AND id IN (${placeholders})
+       LIMIT 1`,
+    )
+    .bind(sessionId, sessionCourtId, ...ids)
+    .first()
+
+  return Boolean(row)
+}
+
 export async function getTeamWithMembers(db, teamId) {
   const team = await db
     .prepare(`SELECT id, session_id, session_court_id, kind, created_at FROM teams WHERE id = ?`)
