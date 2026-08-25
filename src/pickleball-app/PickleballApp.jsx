@@ -3,13 +3,17 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import AppShell from './components/AppShell'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import PlayersPage from './pages/PlayersPage'
 
 function buildRouter(session, organizations, onSwitchOrg, onLogout) {
   return createBrowserRouter([
     {
       path: '/pickleball/app',
       element: <AppShell session={session} organizations={organizations} onSwitchOrg={onSwitchOrg} onLogout={onLogout} />,
-      children: [{ index: true, element: <DashboardPage /> }],
+      children: [
+        { index: true, element: <DashboardPage /> },
+        { path: 'players', element: <PlayersPage /> },
+      ],
     },
   ])
 }
