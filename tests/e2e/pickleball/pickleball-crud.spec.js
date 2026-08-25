@@ -216,3 +216,12 @@ test.describe('Pickleball cross-organization isolation', () => {
     }
   })
 })
+
+test('lists scoring rulesets, including the global seeded ones', async ({ request }) => {
+  await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+  const response = await request.get('/api/pickleball/scoring-rulesets')
+  expect(response.ok()).toBe(true)
+  const body = await response.json()
+  expect(Array.isArray(body.rulesets)).toBe(true)
+  expect(body.rulesets.some((r) => r.id === 'usap-2026-sideout-11-doubles')).toBe(true)
+})

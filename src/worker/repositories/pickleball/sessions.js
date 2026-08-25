@@ -90,6 +90,21 @@ export async function getScoringRuleset(db, id, organizationId) {
   return toScoringRuleset(row)
 }
 
+// Same tenancy rule as getScoringRuleset (a NULL organization_id is a global
+// built-in every org may use): every global ruleset plus this org's own.
+export async function listScoringRulesets(db, organizationId) {
+  const result = await db
+    .prepare(
+      `SELECT id, organization_id, name, target_score, win_by, format
+       FROM scoring_rulesets
+       WHERE organization_id IS NULL OR organization_id = ?
+       ORDER BY organization_id IS NULL DESC, name ASC`,
+    )
+    .bind(organizationId)
+    .all()
+  return (result.results || []).map(toScoringRuleset)
+}
+
 // Compare-and-swap: the caller (the status route) has already read the
 // session and validated the state-machine transition against `fromStatus` a
 // moment earlier. Binding `fromStatus` into the WHERE clause means a second,

@@ -23,6 +23,8 @@ import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 
+export const DEFAULT_ORG_ID = 'e2e-default-org'
+export const DEFAULT_ORG_ADMIN_EMAIL = 'operator@example.com'
 export const ORG_B_ID = 'e2e-cross-org-b'
 export const ORG_B_ADMIN_EMAIL = 'org-b-admin@example.com'
 export const ORG_B_RULESET_ID = 'e2e-cross-org-b-ruleset'
@@ -34,6 +36,12 @@ export const GLOBAL_RULESET_ID = 'usap-2026-sideout-11-doubles'
 const FIXTURE_TIMESTAMP = '2026-08-24T00:00:00.000Z'
 
 export const FIXTURE_SQL = `
+INSERT OR IGNORE INTO organizations (id, name, slug, created_at, updated_at)
+VALUES ('${DEFAULT_ORG_ID}', 'E2E Default Org', '${DEFAULT_ORG_ID}', '${FIXTURE_TIMESTAMP}', '${FIXTURE_TIMESTAMP}');
+
+INSERT OR IGNORE INTO organization_memberships (id, organization_id, user_id, invited_email, role, status, created_at, updated_at)
+VALUES ('${DEFAULT_ORG_ID}-admin', '${DEFAULT_ORG_ID}', NULL, '${DEFAULT_ORG_ADMIN_EMAIL}', 'ADMIN', 'ACTIVE', '${FIXTURE_TIMESTAMP}', '${FIXTURE_TIMESTAMP}');
+
 INSERT OR IGNORE INTO organizations (id, name, slug, created_at, updated_at)
 VALUES ('${ORG_B_ID}', 'E2E Cross-Org B', '${ORG_B_ID}', '${FIXTURE_TIMESTAMP}', '${FIXTURE_TIMESTAMP}');
 
