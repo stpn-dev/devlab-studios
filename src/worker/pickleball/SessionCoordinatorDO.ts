@@ -1254,4 +1254,80 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     return { ok: true as const, game: await getGame(db, sessionId, gameId) }
   }
+
+  // The 8 methods below are thin wrappers -- each delegates its actual
+  // read/write to the SAME repository function the REST route used to call
+  // directly (see this plan's Task 7), adding only the ownsSession guard
+  // every DO method has and a broadcast() call so these session-player/
+  // queue changes are as "live" as the 10 game/court commands above. Ruling
+  // A: this plan's spec named 6 of these; registerPlayer and leaveSession
+  // are the 2 more the same "everything, including queue/check-in" decision
+  // implies once the REST surface is actually re-checked against it.
+  //
+  // Each repository call's null/false "no-op" return (e.g. "already
+  // checked in", "no open queue entry") maps to a failure() here and
+  // SKIPS the broadcast -- nothing changed, so nothing to tell connected
+  // clients about.
+
+  async registerPlayer(sessionId: string, playerId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const sessionPlayer = await registerPlayerRepo(this.env.PICKLEBALL_DB, { sessionId, playerId })
+    await this.broadcast(sessionId)
+    return { ok: true as const, sessionPlayer }
+  }
+
+  async checkIn(sessionId: string, playerId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const sessionPlayer = await checkInPlayer(this.env.PICKLEBALL_DB, sessionId, playerId)
+    if (!sessionPlayer) return failure('Player is not eligible to check in.')
+    await this.broadcast(sessionId)
+    return { ok: true as const, sessionPlayer }
+  }
+
+  async checkInBulk(sessionId: string, playerIds: string[]) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const checkedInPlayerIds = await bulkCheckIn(this.env.PICKLEBALL_DB, sessionId, playerIds)
+    if (checkedInPlayerIds.length) await this.broadcast(sessionId)
+    return { ok: true as const, checkedInPlayerIds }
+  }
+
+  async setAvailability(sessionId: string, playerId: string, status: 'AVAILABLE' | 'TEMPORARILY_UNAVAILABLE') {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const sessionPlayer = await setAvailabilityRepo(this.env.PICKLEBALL_DB, sessionId, playerId, status)
+    if (!sessionPlayer) return failure('Player is not eligible for an availability change.')
+    await this.broadcast(sessionId)
+    return { ok: true as const, sessionPlayer }
+  }
+
+  async cancelRegistration(sessionId: string, playerId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const sessionPlayer = await cancelRegistrationRepo(this.env.PICKLEBALL_DB, sessionId, playerId)
+    if (!sessionPlayer) return failure('Registration cannot be cancelled in its current state.')
+    await this.broadcast(sessionId)
+    return { ok: true as const, sessionPlayer }
+  }
+
+  async leaveSession(sessionId: string, playerId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const sessionPlayer = await leaveSessionRepo(this.env.PICKLEBALL_DB, sessionId, playerId)
+    if (!sessionPlayer) return failure('Player cannot leave in their current state.')
+    await this.broadcast(sessionId)
+    return { ok: true as const, sessionPlayer }
+  }
+
+  async joinQueue(sessionId: string, sessionPlayerId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const queueEntry = await joinQueueRepo(this.env.PICKLEBALL_DB, { sessionId, sessionPlayerId })
+    if (!queueEntry) return failure('Player already has an open queue entry.')
+    await this.broadcast(sessionId)
+    return { ok: true as const, queueEntry }
+  }
+
+  async leaveQueue(sessionId: string, sessionPlayerId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const left = await leaveQueueRepo(this.env.PICKLEBALL_DB, sessionId, sessionPlayerId)
+    if (!left) return failure('No open queue entry to leave.')
+    await this.broadcast(sessionId)
+    return { ok: true as const }
+  }
 }
