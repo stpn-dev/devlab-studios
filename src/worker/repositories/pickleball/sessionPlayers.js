@@ -165,6 +165,27 @@ export function buildIncrementGamesPlayedStatement(db, sessionId, sessionPlayerI
     .bind(nowIso(), sessionPlayerId, sessionId)
 }
 
+/**
+ * Unexecuted UPDATE recomputing a session-player's games-played counter from
+ * scratch (Ruling 11) rather than incrementally: games_played is set to the
+ * COUNT of FINISHED games this session_player actually participated in, as
+ * of whenever this statement executes. Used by the reopen/correct/re-finish
+ * cycle instead of buildIncrementGamesPlayedStatement above, so there is no
+ * negative-count risk and no double-counting risk across those transitions.
+ */
+export function buildRecomputeGamesPlayedStatement(db, sessionId, sessionPlayerId) {
+  return db
+    .prepare(
+      `UPDATE session_players SET games_played = (
+        SELECT COUNT(*) FROM game_participants gp
+        JOIN games g ON g.id = gp.game_id
+        WHERE gp.session_player_id = ? AND g.status = 'FINISHED'
+      ), updated_at = ?
+       WHERE id = ? AND session_id = ?`,
+    )
+    .bind(sessionPlayerId, nowIso(), sessionPlayerId, sessionId)
+}
+
 export async function leaveSession(db, sessionId, playerId) {
   const result = await db
     .prepare(

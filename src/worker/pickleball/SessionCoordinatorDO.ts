@@ -34,7 +34,11 @@ import {
   listAssignedSessionPlayerIdsForCourt,
   getTeamWithMembers,
 } from '../repositories/pickleball/teams.js'
-import { buildSetAvailabilityByIdStatement, buildIncrementGamesPlayedStatement } from '../repositories/pickleball/sessionPlayers.js'
+import {
+  buildSetAvailabilityByIdStatement,
+  buildIncrementGamesPlayedStatement,
+  buildRecomputeGamesPlayedStatement,
+} from '../repositories/pickleball/sessionPlayers.js'
 import {
   buildCreateGameStatement,
   buildUpdateGameProjectionStatement,
@@ -43,8 +47,14 @@ import {
 } from '../repositories/pickleball/games.js'
 import { getNextSequence, buildAppendScoreEventStatement, listScoreEventsForGame } from '../repositories/pickleball/scoreEvents.js'
 import { getIdempotentResult, buildRecordIdempotentResultStatement } from '../repositories/pickleball/idempotencyKeys.js'
-import { buildCreatePlayerGameStatStatement } from '../repositories/pickleball/playerGameStats.js'
-import { buildUpsertMatchmakingStatement } from '../repositories/pickleball/matchmakingHistory.js'
+import {
+  buildCreatePlayerGameStatStatement,
+  buildDeletePlayerGameStatsForGameStatement,
+} from '../repositories/pickleball/playerGameStats.js'
+import {
+  buildUpsertMatchmakingStatement,
+  recomputeMatchmakingHistoryStatements,
+} from '../repositories/pickleball/matchmakingHistory.js'
 import { selectNextPlayers, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
@@ -655,6 +665,56 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       })
     })
 
+    // Re-finish after a historical correction (issue #12): the court was
+    // already released and its players already moved on when this game
+    // first finished, so this branch must NOT release the court again and
+    // must NOT re-increment games_played incrementally (this game's
+    // contribution may already be counted once from before the reopen) --
+    // recompute both games_played and matchmaking_history from scratch
+    // instead (Ruling 11). finishedEvent/projectionStatement/statStatements
+    // above are identical regardless of which path is taken, so this branch
+    // reuses them rather than recomputing anything already built. `result`
+    // is built the SAME way the normal path below builds its `result` --
+    // with an in-memory `finishedGame` snapshot embedded as `game` BEFORE the
+    // batch runs, so a fresh call and an idempotency-key cache hit against
+    // this same result return identical, `game`-inclusive shapes (see the
+    // block comment on the normal path's `result` a bit further down for why
+    // this matters).
+    if (game.correctionPending) {
+      const clearCorrectionStatement = db.prepare(`UPDATE games SET correction_pending = 0 WHERE id = ?`).bind(gameId)
+      const gamesPlayedStatements = participants.map((p) => buildRecomputeGamesPlayedStatement(db, sessionId, p.session_player_id))
+      const matchmakingRecomputeStatements = await recomputeMatchmakingHistoryStatements(db, sessionId)
+
+      const finishedGame = {
+        ...game,
+        status: 'FINISHED' as const,
+        correctionPending: false,
+        winningTeamId,
+        finalScoreA: game.scoreA,
+        finalScoreB: game.scoreB,
+        revision: sequence,
+        finishedAt: timestamp,
+        updatedAt: timestamp,
+      }
+
+      const result = {
+        ok: true as const, winningTeamId, finalScoreA: game.scoreA, finalScoreB: game.scoreB,
+        releasedSessionPlayerIds: [] as string[], requeued: false, game: finishedGame,
+      }
+
+      const statements = [
+        finishedEvent, projectionStatement, clearCorrectionStatement, ...statStatements,
+        ...gamesPlayedStatements, ...matchmakingRecomputeStatements,
+      ]
+      if (idempotencyKey) {
+        statements.push(buildRecordIdempotentResultStatement(db, { gameId, commandType: 'FINISH_GAME', key: idempotencyKey, result }))
+      }
+
+      await db.batch(statements)
+
+      return result
+    }
+
     const matchmakingStatements: unknown[] = []
     const teamAPlayers = participants.filter((p) => p.team_id === game.teamAId).map((p) => p.player_id)
     const teamBPlayers = participants.filter((p) => p.team_id === game.teamBId).map((p) => p.player_id)
@@ -777,5 +837,84 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     await db.batch([abandonedEvent, projectionStatement, ...releaseStatements])
 
     return { ok: true as const, releasedSessionPlayerIds: sessionPlayerIds, requeued, game: await getGame(db, sessionId, gameId) }
+  }
+
+  // Reopens an already-FINISHED game for a historical correction (issue #12).
+  // Deliberately does NOT touch the court or queue -- the court was already
+  // released and its players already moved on when the game first finished,
+  // so there is nothing court/queue-side to undo. `status` returns to
+  // IN_PROGRESS (Ruling 2: no new status value, so existing readers of
+  // `status` keep working unchanged) but `correction_pending = 1` is the real
+  // signal: recordRally checks this flag and refuses ordinary rallies against
+  // a reopened game until correctGame + a re-finish clear it again.
+  async reopenGame(sessionId: string, gameId: string, actorUserId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+
+    const db = this.env.PICKLEBALL_DB
+
+    const game = await getGame(db, sessionId, gameId)
+    if (!game) return failure('Game not found.')
+    if (game.status !== 'FINISHED') return failure('Only a finished game can be reopened.')
+
+    const sequence = await getNextSequence(db, gameId)
+    const reopenedEvent = buildAppendScoreEventStatement(db, { gameId, sequence, eventType: 'GAME_REOPENED', actorUserId, payload: {} })
+    const projectionStatement = buildUpdateGameProjectionStatement(db, gameId, {
+      scoreA: game.scoreA, scoreB: game.scoreB, servingTeam: game.servingTeam, serverNumber: game.serverNumber,
+      status: 'IN_PROGRESS', winningTeamId: null, finalScoreA: null, finalScoreB: null, revision: sequence,
+    })
+    const correctionFlagStatement = db.prepare(`UPDATE games SET correction_pending = 1 WHERE id = ?`).bind(gameId)
+    const invalidateStatsStatement = buildDeletePlayerGameStatsForGameStatement(db, gameId)
+
+    // Deterministic recomputation (Ruling 11) rather than incremental
+    // subtraction, since this game's contribution to games_played /
+    // matchmaking_history is being invalidated: recompute both from scratch
+    // now that this game no longer counts as FINISHED.
+    const participantsResult = await db
+      .prepare(`SELECT DISTINCT gp.session_player_id FROM game_participants gp WHERE gp.game_id = ?`)
+      .bind(gameId)
+      .all<{ session_player_id: string }>()
+    const sessionPlayerIds = (participantsResult.results || []).map((row) => row.session_player_id)
+    const gamesPlayedStatements = sessionPlayerIds.map((id) => buildRecomputeGamesPlayedStatement(db, sessionId, id))
+    const matchmakingStatements = await recomputeMatchmakingHistoryStatements(db, sessionId)
+
+    await db.batch([
+      reopenedEvent, projectionStatement, correctionFlagStatement, invalidateStatsStatement,
+      ...gamesPlayedStatements, ...matchmakingStatements,
+    ])
+
+    return { ok: true as const, game: await getGame(db, sessionId, gameId) }
+  }
+
+  // Corrects an IN_PROGRESS game's score/serving state, whether that game is
+  // genuinely still live (correction_pending = 0, a mid-game mistake caught
+  // before finishing) or was reopened for a historical correction
+  // (correction_pending = 1). Deliberately does NOT require correction_pending
+  // to be set -- see section 7 of the hardening plan: correcting a mistake
+  // while a game is still physically IN_PROGRESS does not require going
+  // through reopenGame first.
+  async correctGame(
+    sessionId: string,
+    gameId: string,
+    actorUserId: string,
+    correctedState: { scoreA: number; scoreB: number; servingTeam: 'A' | 'B'; serverNumber: 1 | 2 },
+  ) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+
+    const db = this.env.PICKLEBALL_DB
+
+    const game = await getGame(db, sessionId, gameId)
+    if (!game) return failure('Game not found.')
+    if (game.status !== 'IN_PROGRESS') return failure('Reopen the game before correcting its score.')
+
+    const sequence = await getNextSequence(db, gameId)
+    const correctedEvent = buildAppendScoreEventStatement(db, { gameId, sequence, eventType: 'SCORE_CORRECTED', actorUserId, payload: correctedState })
+    const projectionStatement = buildUpdateGameProjectionStatement(db, gameId, {
+      scoreA: correctedState.scoreA, scoreB: correctedState.scoreB, servingTeam: correctedState.servingTeam, serverNumber: correctedState.serverNumber,
+      status: 'IN_PROGRESS', winningTeamId: null, finalScoreA: null, finalScoreB: null, revision: sequence,
+    })
+
+    await db.batch([correctedEvent, projectionStatement])
+
+    return { ok: true as const, game: await getGame(db, sessionId, gameId) }
   }
 }

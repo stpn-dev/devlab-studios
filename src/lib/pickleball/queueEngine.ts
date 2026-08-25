@@ -21,6 +21,15 @@ function pluralize(count: number, singular: string, plural: string): string {
 }
 
 export function selectNextPlayers(candidates: QueueCandidate[], count: number, nowIso: string): QueueSelectionResult {
+  // Sorts by fewest games played first (primary fairness key, spec §5 rule
+  // 1), then by longest queue wait as the tiebreak (rule 2). Rule 3 --
+  // repeat-avoidance (avoid re-pairing players/opponents from
+  // matchmaking_history) -- remains out of scope here (base plan's Ruling 4).
+  //
+  // TODO(Phase 5 or 7): wire matchmaking_history's repeat-avoidance tiebreak
+  // here once a phase actually owns this read side. matchmaking_history is
+  // fully populated by Phase 4's finishGame (both PARTNER and OPPONENT
+  // relations, both directions) -- only the read/tiebreak logic is missing.
   const sorted = [...candidates].sort((a, b) => {
     if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed
     return Date.parse(a.queuedAt) - Date.parse(b.queuedAt)
