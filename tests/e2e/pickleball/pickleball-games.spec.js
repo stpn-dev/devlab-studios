@@ -588,6 +588,51 @@ test.describe('Pickleball games', () => {
     expect(game2.status).toBe('IN_PROGRESS')
   })
 
+  test('matchmaking_history is exactly right after a reopen -> correct -> re-finish cycle, not stale, doubled, or missing', async ({ request }) => {
+    const { sessionId, sessionCourts } = await createLiveSessionWithPlayers(request, 4)
+    const sessionCourtId = sessionCourts[0].id
+    const assignBody = await assignCourt(request, sessionId, sessionCourtId)
+    const gameId = (await (await startGame(request, sessionId, sessionCourtId, assignBody, 'A')).json()).game.id
+
+    const matchmakingRows = () =>
+      queryD1(`SELECT player_id, other_player_id, relation, pairing_count FROM matchmaking_history WHERE session_id = '${sessionId}'`)
+
+    await playSequence(request, sessionId, gameId, Array(11).fill('A'))
+    expect((await finishGame(request, sessionId, gameId)).status()).toBe(200)
+
+    // Doubles, one game: 2 PARTNER pairs x 2 directions = 4, plus 2x2
+    // OPPONENT pairs x 2 directions = 8. Every pair seen exactly once.
+    const afterFirstFinish = matchmakingRows()
+    expect(afterFirstFinish).toHaveLength(12)
+    expect(afterFirstFinish.filter((r) => r.relation === 'PARTNER')).toHaveLength(4)
+    expect(afterFirstFinish.filter((r) => r.relation === 'OPPONENT')).toHaveLength(8)
+    expect(afterFirstFinish.every((r) => r.pairing_count === 1)).toBe(true)
+
+    // Reopen: this game stops counting as FINISHED, so it contributes NOTHING
+    // -- and it is this session's only game, so the table must be empty. The
+    // recompute used to read `status = 'FINISHED'` live, BEFORE its own
+    // batch's status transition committed, and so re-inserted all 12 rows it
+    // was supposed to remove.
+    expect((await reopenGame(request, sessionId, gameId)).status()).toBe(200)
+    expect(matchmakingRows()).toHaveLength(0)
+
+    expect((await correctGame(request, sessionId, gameId, { scoreA: 11, scoreB: 6, servingTeam: 'A', serverNumber: 1 })).status()).toBe(200)
+
+    // Re-finish: the same 12 pairs come back, each still counted ONCE -- the
+    // symmetric half of the same stale-read bug, which used to see the game as
+    // not-yet-FINISHED and omit every one of them, leaving the table
+    // permanently empty for this game with no rebuild path.
+    expect((await finishGame(request, sessionId, gameId)).status()).toBe(200)
+    const afterRefinish = matchmakingRows()
+    expect(afterRefinish).toHaveLength(12)
+    expect(afterRefinish.filter((r) => r.relation === 'PARTNER')).toHaveLength(4)
+    expect(afterRefinish.filter((r) => r.relation === 'OPPONENT')).toHaveLength(8)
+    expect(afterRefinish.every((r) => r.pairing_count === 1)).toBe(true)
+    // Same pair set as the original finish, not a different or partial one.
+    const pairKey = (r) => `${r.player_id}|${r.other_player_id}|${r.relation}`
+    expect(afterRefinish.map(pairKey).sort()).toEqual(afterFirstFinish.map(pairKey).sort())
+  })
+
   test('serving-player derivation: rally responses report the correct currently-serving player through SIDE_OUT and SERVE_CHANGED transitions', async ({ request }) => {
     const { sessionId, sessionCourts } = await createLiveSessionWithPlayers(request, 4)
     const sessionCourtId = sessionCourts[0].id

@@ -27,9 +27,14 @@ export function selectNextPlayers(candidates: QueueCandidate[], count: number, n
   // matchmaking_history) -- remains out of scope here (base plan's Ruling 4).
   //
   // TODO(Phase 5 or 7): wire matchmaking_history's repeat-avoidance tiebreak
-  // here once a phase actually owns this read side. matchmaking_history is
-  // fully populated by Phase 4's finishGame (both PARTNER and OPPONENT
-  // relations, both directions) -- only the read/tiebreak logic is missing.
+  // here once a phase actually owns this read side. Phase 4 owns the WRITE
+  // side: finishGame upserts a game's PARTNER/OPPONENT pairs (both relations,
+  // both directions) as it finishes, and every transition that invalidates or
+  // restores a game's contribution -- reopenGame, and finishGame's re-finish
+  // after a correction -- rebuilds the whole session's rows from the currently
+  // FINISHED games instead (recomputeMatchmakingHistoryStatements). So the
+  // table reflects finished games as of the last such transition; only the
+  // read/tiebreak logic is missing.
   const sorted = [...candidates].sort((a, b) => {
     if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed
     return Date.parse(a.queuedAt) - Date.parse(b.queuedAt)

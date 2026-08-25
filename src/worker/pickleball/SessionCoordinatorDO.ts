@@ -775,7 +775,10 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (game.correctionPending) {
       const clearCorrectionStatement = db.prepare(`UPDATE games SET correction_pending = 0 WHERE id = ?`).bind(gameId)
       const gamesPlayedStatements = participants.map((p) => buildRecomputeGamesPlayedStatement(db, sessionId, p.session_player_id))
-      const matchmakingRecomputeStatements = await recomputeMatchmakingHistoryStatements(db, sessionId)
+      // Pure SQL, built without reading D1 -- and appended LAST in the batch
+      // below so its `WHERE status = 'FINISHED'` is evaluated after
+      // `projectionStatement` has already flipped this game back to FINISHED.
+      const matchmakingRecomputeStatements = recomputeMatchmakingHistoryStatements(db, sessionId)
 
       const finishedGame = {
         ...game,
@@ -1002,7 +1005,10 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       .all<{ session_player_id: string }>()
     const sessionPlayerIds = (participantsResult.results || []).map((row) => row.session_player_id)
     const gamesPlayedStatements = sessionPlayerIds.map((id) => buildRecomputeGamesPlayedStatement(db, sessionId, id))
-    const matchmakingStatements = await recomputeMatchmakingHistoryStatements(db, sessionId)
+    // Pure SQL, built without reading D1 -- and appended LAST in the batch
+    // below so its `WHERE status = 'FINISHED'` is evaluated after
+    // `projectionStatement` has already moved this game off FINISHED.
+    const matchmakingStatements = recomputeMatchmakingHistoryStatements(db, sessionId)
 
     await db.batch([
       reopenedEvent, projectionStatement, correctionFlagStatement, invalidateStatsStatement,

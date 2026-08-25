@@ -14,55 +14,67 @@ export function buildUpsertMatchmakingStatement(db, { sessionId, playerId, other
 
 // Full session-scoped rebuild (Ruling 11): delete everything for this
 // session, then re-derive every partner/opponent pair from every currently
-// FINISHED game, processed oldest-finished-first so last_game_at naturally
-// ends up correct (each upsert overwrites it with the latest timestamp
-// processed) with no special-casing for "was the corrected game the most
-// recent one." Returns an array of UNEXECUTED statements for the caller to
-// fold into its own db.batch() -- this function only READS before building
-// them, it does not execute anything itself.
-export async function recomputeMatchmakingHistoryStatements(db, sessionId) {
+// FINISHED game. Returns UNEXECUTED statements for the caller to fold into
+// its own db.batch() -- it executes nothing itself.
+//
+// WHY THIS IS PURE SQL AND NOT A JS LOOP OVER A PRE-FETCHED READ:
+// every caller folds these statements into the SAME db.batch() as the very
+// status transition being recomputed against (reopenGame's
+// FINISHED -> IN_PROGRESS, finishGame's re-finish back to FINISHED). A live
+// JS `SELECT ... WHERE status = 'FINISHED'` issued here would run BEFORE that
+// batch commits, so it would see the PRE-transition state and rebuild against
+// exactly the wrong world: reopen would re-insert the pairs it is supposed to
+// remove, and the later re-finish would omit the pairs it is supposed to
+// restore -- compounding, not cancelling, and leaving matchmaking_history
+// permanently wrong with no rebuild path. Expressing the whole derivation as
+// SQL makes D1 evaluate `status = 'FINISHED'` at BATCH-EXECUTION time,
+// i.e. after the earlier statements in the same batch have applied. This is
+// the same ordering-hazard fix `buildRecomputeGamesPlayedStatement`
+// (sessionPlayers.js) already uses for games_played, and it carries the same
+// requirement: the caller MUST place these statements AFTER the status
+// transition in its batch array.
+//
+// The self-join pairs every participant of a FINISHED game with every OTHER
+// participant of that same game, in BOTH directions (the join is not
+// order-restricted), labelling each pair PARTNER when both sit on the same
+// team_id and OPPONENT otherwise -- which also handles singles for free,
+// where each team has one member so no PARTNER pair can arise. `pairing_count`
+// is the number of finished games the pair shared and `last_game_at` the
+// latest of those games' finish timestamps, matching what the previous
+// incremental upsert loop converged to. `id` is generated SQL-side
+// (`randomblob`) rather than as a crypto.randomUUID() per row, because the
+// row set is not known until execution time; matchmaking_history.id is an
+// opaque TEXT key that nothing joins on.
+export function recomputeMatchmakingHistoryStatements(db, sessionId) {
   const deleteStatement = db.prepare(`DELETE FROM matchmaking_history WHERE session_id = ?`).bind(sessionId)
 
-  const gamesResult = await db
-    .prepare(`SELECT id, team_a_id, team_b_id, finished_at FROM games WHERE session_id = ? AND status = 'FINISHED' ORDER BY finished_at ASC`)
-    .bind(sessionId)
-    .all()
-  const games = gamesResult.results || []
+  // Only reached for a FINISHED game with a NULL finished_at, which
+  // buildUpdateGameProjectionStatement never produces -- kept because
+  // last_game_at is NOT NULL and the previous implementation had the same
+  // `game.finished_at || nowIso()` fallback.
+  const fallbackTimestamp = nowIso()
 
-  const upsertStatements = []
-  for (const game of games) {
-    const participantsResult = await db
-      .prepare(
-        `SELECT gp.team_id, sp.player_id FROM game_participants gp
-         JOIN session_players sp ON sp.id = gp.session_player_id
-         WHERE gp.game_id = ?`,
-      )
-      .bind(game.id)
-      .all()
-    const participants = participantsResult.results || []
-    const teamAPlayers = participants.filter((p) => p.team_id === game.team_a_id).map((p) => p.player_id)
-    const teamBPlayers = participants.filter((p) => p.team_id === game.team_b_id).map((p) => p.player_id)
-    const timestamp = game.finished_at || nowIso()
+  const insertStatement = db
+    .prepare(
+      `INSERT INTO matchmaking_history (id, session_id, player_id, other_player_id, relation, pairing_count, last_game_at)
+       SELECT lower(hex(randomblob(16))), ?, pair.player_id, pair.other_player_id, pair.relation,
+              COUNT(*), MAX(pair.game_at)
+       FROM (
+         SELECT sp_self.player_id AS player_id,
+                sp_other.player_id AS other_player_id,
+                CASE WHEN gp_self.team_id = gp_other.team_id THEN 'PARTNER' ELSE 'OPPONENT' END AS relation,
+                COALESCE(g.finished_at, ?) AS game_at
+         FROM games g
+         JOIN game_participants gp_self ON gp_self.game_id = g.id
+         JOIN game_participants gp_other ON gp_other.game_id = g.id
+           AND gp_other.session_player_id <> gp_self.session_player_id
+         JOIN session_players sp_self ON sp_self.id = gp_self.session_player_id
+         JOIN session_players sp_other ON sp_other.id = gp_other.session_player_id
+         WHERE g.session_id = ? AND g.status = 'FINISHED'
+       ) AS pair
+       GROUP BY pair.player_id, pair.other_player_id, pair.relation`,
+    )
+    .bind(sessionId, fallbackTimestamp, sessionId)
 
-    for (const players of [teamAPlayers, teamBPlayers]) {
-      for (let i = 0; i < players.length; i += 1) {
-        for (let j = i + 1; j < players.length; j += 1) {
-          upsertStatements.push(
-            buildUpsertMatchmakingStatement(db, { sessionId, playerId: players[i], otherPlayerId: players[j], relation: 'PARTNER', timestamp }),
-            buildUpsertMatchmakingStatement(db, { sessionId, playerId: players[j], otherPlayerId: players[i], relation: 'PARTNER', timestamp }),
-          )
-        }
-      }
-    }
-    for (const playerA of teamAPlayers) {
-      for (const playerB of teamBPlayers) {
-        upsertStatements.push(
-          buildUpsertMatchmakingStatement(db, { sessionId, playerId: playerA, otherPlayerId: playerB, relation: 'OPPONENT', timestamp }),
-          buildUpsertMatchmakingStatement(db, { sessionId, playerId: playerB, otherPlayerId: playerA, relation: 'OPPONENT', timestamp }),
-        )
-      }
-    }
-  }
-
-  return [deleteStatement, ...upsertStatements]
+  return [deleteStatement, insertStatement]
 }
