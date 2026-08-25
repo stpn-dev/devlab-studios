@@ -280,3 +280,141 @@ test('reconnecting after a mutation gets a fully corrected snapshot with no resy
   // not just that some well-formed message arrived.
   expect(parsed.payload.session.status).toBe('OPEN_FOR_CHECKIN')
 })
+
+test('a check-in broadcasts to a connected operator client', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  const sessionId = await createLiveSessionForRealtimeTests(request, context, baseURL)
+
+  const playerResponse = await request.post('/api/pickleball/players', {
+    data: { displayName: `Check-in Broadcast Player ${Date.now()}` },
+  })
+  const playerId = (await playerResponse.json()).player.id
+  const registerResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })
+  expect(registerResponse.ok()).toBe(true)
+
+  // Same SameSite=Strict cookie requirement as the other operator-channel
+  // tests in this file (see the top-of-file comment).
+  await page.goto('/pickleball/app')
+
+  const wsUrl = `${baseURL.replace('http', 'ws')}/pickleball/rt/${sessionId}`
+
+  // buildSessionSnapshot's shape has no per-player check-in status (queue/
+  // courts/games only -- see src/worker/pickleball/sessionSnapshot.js), so
+  // the assertion below is structural: that a genuine SECOND broadcast
+  // fires (a new STATE message with an incremented seq) after the
+  // check-in, rather than on any property that happens to reflect
+  // check-in status.
+  const nextMessage = page.evaluate(
+    ({ url }) =>
+      new Promise((resolve) => {
+        const ws = new WebSocket(url)
+        let firstSeq = null
+        ws.onmessage = (event) => {
+          if (firstSeq === null) {
+            firstSeq = JSON.parse(event.data).seq // the accept-time snapshot; wait for the NEXT one
+            return
+          }
+          resolve({ data: event.data, firstSeq })
+        }
+      }),
+    { url: wsUrl },
+  )
+
+  // Give the socket a moment to finish its handshake and receive the
+  // accept-time snapshot before triggering the check-in that should
+  // produce a SECOND message.
+  await page.waitForTimeout(500)
+  const checkInResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+  expect(checkInResponse.ok()).toBe(true)
+
+  const { data, firstSeq } = await nextMessage
+  const parsed = JSON.parse(data)
+  expect(parsed.type).toBe('STATE')
+  expect(parsed.seq).toBe(firstSeq + 1)
+})
+
+test('a mutation broadcasts to a connected public client with the sanitized shape', async ({ page, request }) => {
+  const baseURL = test.info().project.use.baseURL
+
+  // A session's session_courts rows are auto-provisioned, one per venue
+  // court, at session-CREATION time (see the queue spec's "a new session
+  // auto-provisions one session_courts row per venue court" test) -- so the
+  // court must exist on the venue before the session is created, matching
+  // the "a rally recorded..." broadcast test's setup order above rather
+  // than createLiveSessionForRealtimeTests's (which creates the venue and
+  // session together, with no court).
+  await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Public Broadcast Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Public Broadcast Court' } })
+
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Public Broadcast Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-08-30T18:00:00.000Z', scheduledEnd: '2026-08-30T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  // Same court/players/game setup as the operator broadcast test above,
+  // needed here to get a real IN_PROGRESS game whose rally the DO will
+  // broadcast.
+  const sessionPlayerIds = []
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Public Broadcast Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+    sessionPlayerIds.push(sessionPlayerId)
+  }
+
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+  const startResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: { sessionCourtId, servingTeam: 'A', teamAStartingServerSessionPlayerId: sessionPlayerIds[0], teamBStartingServerSessionPlayerId: sessionPlayerIds[2] },
+  })
+  const gameId = (await startResponse.json()).game.id
+
+  // The public code isn't exposed on the session detail response yet (same
+  // as the public-channel test above) -- read it straight from D1 via
+  // wrangler, following this file's own established pattern.
+  const output = execSync(
+    `npx wrangler d1 execute devlab-pickleball --local --json --command "SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'"`,
+  ).toString()
+  const code = JSON.parse(output)[0].results[0].public_code
+
+  const wsUrl = `${baseURL.replace('http', 'ws')}/pickleball/rt/public/${code}`
+
+  const nextMessage = page.evaluate(
+    ({ url }) =>
+      new Promise((resolve) => {
+        const ws = new WebSocket(url)
+        let seenFirst = false
+        ws.onmessage = (event) => {
+          if (!seenFirst) {
+            seenFirst = true // the accept-time snapshot; wait for the NEXT one
+            return
+          }
+          resolve(event.data)
+        }
+      }),
+    { url: wsUrl },
+  )
+
+  // Give the socket a moment to finish its handshake and receive the
+  // accept-time snapshot before triggering the rally that should produce a
+  // SECOND message.
+  await page.waitForTimeout(500)
+  const rallyResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/rally`, { data: { winningTeam: 'A' } })
+  expect(rallyResponse.ok()).toBe(true)
+
+  const received = await nextMessage
+  const parsed = JSON.parse(received)
+  expect(parsed.payload.queue).toBeUndefined()
+  expect(parsed.payload.games[0].scoreA).toBe(1)
+})
