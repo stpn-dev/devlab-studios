@@ -57,6 +57,7 @@ import {
   recomputeMatchmakingHistoryStatements,
 } from '../repositories/pickleball/matchmakingHistory.js'
 import { buildSessionSnapshot } from './sessionSnapshot.js'
+import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
 import { selectNextPlayers, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { initialGameState } from '../../lib/pickleball/scoring/gameState'
@@ -134,8 +135,18 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     server.serializeAttachment({ sessionId, channel })
 
     const snapshot = await buildSessionSnapshot(this.env.PICKLEBALL_DB, sessionId)
+    // Type-only cast, no runtime check added: buildSessionSnapshot's plain-JS
+    // return type carries `session: {...} | null` because getSessionById can
+    // theoretically return null, but by the time ANY request reaches this
+    // fetch() handler, the calling Astro route (operator: [sessionId].ts;
+    // public: rt/public/[code].ts) has already resolved and 404'd on a
+    // missing session before ever invoking the DO -- see this task's plan
+    // notes. toPublicSessionView's allowlist type intentionally has no `|
+    // null` on `session` for the same reason every other allowlisted field
+    // is spelled out explicitly rather than inferred.
+    const payload = channel === 'public' ? toPublicSessionView(snapshot as Parameters<typeof toPublicSessionView>[0]) : snapshot
     this.seq += 1
-    server.send(JSON.stringify({ type: 'STATE', sessionId, seq: this.seq, payload: snapshot }))
+    server.send(JSON.stringify({ type: 'STATE', sessionId, seq: this.seq, payload }))
 
     return new Response(null, { status: 101, webSocket: client })
   }

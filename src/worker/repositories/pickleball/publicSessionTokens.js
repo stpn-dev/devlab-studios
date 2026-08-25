@@ -1,0 +1,49 @@
+// See this plan's Ruling C -- only what session-creation (Task 3 Step 6)
+// and the public routes (this task's Steps 7/8, Task 7) actually call.
+// Rotate/revoke can be added when a route needs one.
+
+function generatePublicCode() {
+  // ~40 bits of entropy -- plenty for a code that only needs to be
+  // unguessable-by-brute-force at conversational scale, backed by the
+  // table's real UNIQUE(public_code) constraint as the actual guarantee.
+  return crypto.randomUUID().replace(/-/g, '').slice(0, 10)
+}
+
+/**
+ * Unexecuted INSERT for a new public session token, generating its own code
+ * so a batch caller (session creation) never needs to pre-check uniqueness
+ * itself -- the table's UNIQUE(public_code) index is the real guarantee. A
+ * batched statement can't retry after a collision the way a standalone call
+ * could, but at 10 hex chars of entropy that's accepted as a non-issue.
+ */
+export function buildCreatePublicSessionTokenStatement(db, sessionId, timestamp) {
+  return db
+    .prepare(`INSERT INTO public_session_tokens (id, session_id, public_code, created_at) VALUES (?, ?, ?, ?)`)
+    .bind(crypto.randomUUID(), sessionId, generatePublicCode(), timestamp)
+}
+
+// Resolves a public code straight to a public-safe session shape in ONE
+// query -- deliberately NOT built on top of getSessionById/getSession, so
+// there is no code path here that could ever select (and so leak)
+// organization_id or created_by_user_id. Revoked or unknown codes both
+// resolve to null; callers 404 either way (spec: "revoked tokens 404").
+export async function getSessionByPublicCode(db, code) {
+  const row = await db
+    .prepare(
+      `SELECT s.id, s.name, s.session_type, s.status, s.public_view_enabled, s.public_leaderboard_enabled
+       FROM public_session_tokens t
+       JOIN pickleball_sessions s ON s.id = t.session_id
+       WHERE t.public_code = ? AND t.revoked_at IS NULL`,
+    )
+    .bind(code)
+    .first()
+  if (!row) return null
+  return {
+    id: row.id,
+    name: row.name,
+    sessionType: row.session_type,
+    status: row.status,
+    publicViewEnabled: Boolean(row.public_view_enabled),
+    publicLeaderboardEnabled: Boolean(row.public_leaderboard_enabled),
+  }
+}

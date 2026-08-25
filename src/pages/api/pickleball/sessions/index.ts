@@ -5,6 +5,7 @@ import { listSessions, getSession, getScoringRuleset, buildCreateSessionStatemen
 import { getVenue } from '../../../../worker/repositories/pickleball/venues.js'
 import { listCourtsForVenue } from '../../../../worker/repositories/pickleball/courts.js'
 import { buildSeedSessionCourtsStatements } from '../../../../worker/repositories/pickleball/sessionCourts.js'
+import { buildCreatePublicSessionTokenStatement } from '../../../../worker/repositories/pickleball/publicSessionTokens.js'
 import { createSessionSchema } from '../../../../lib/schemas/pickleball/sessions'
 import { getEnv } from '../../../../lib/env'
 import { jsonResponse, nowIso } from '../../../../worker/utils/responses.js'
@@ -64,13 +65,14 @@ export const POST: APIRoute = async ({ request }) => {
       timestamp,
       ...result.data,
     })
+    const publicTokenStatement = buildCreatePublicSessionTokenStatement(env.PICKLEBALL_DB, sessionId, timestamp)
 
     // A read, so it happens before the batch; a venue with zero courts is
     // legitimate and yields zero court statements below.
     const venueCourts = await listCourtsForVenue(env.PICKLEBALL_DB, result.data.venueId, session.activeOrgId)
     const courtStatements = buildSeedSessionCourtsStatements(env.PICKLEBALL_DB, sessionId, venueCourts)
 
-    await env.PICKLEBALL_DB.batch([sessionStatement, ...courtStatements])
+    await env.PICKLEBALL_DB.batch([sessionStatement, publicTokenStatement, ...courtStatements])
 
     const created = await getSession(env.PICKLEBALL_DB, sessionId, session.activeOrgId)
     if (!created) {

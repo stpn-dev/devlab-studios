@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { execSync } from 'node:child_process'
 
 // Playwright's `request` and `page` fixtures do NOT share a cookie jar in
 // this project's Playwright version -- confirmed by a diagnostic run where
@@ -69,4 +70,34 @@ test('operator channel completes a real WebSocket upgrade through the Astro rout
   expect(parsed.payload.courts).toEqual([])
   expect(parsed.payload.queue).toEqual([])
   expect(parsed.payload.games).toEqual([])
+})
+
+test('public channel resolves a code to a sanitized snapshot with no queue data', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  const sessionId = await createLiveSessionForRealtimeTests(request, context, baseURL)
+  const sessionResponse = await request.get(`/api/pickleball/sessions/${sessionId}`)
+  expect(sessionResponse.ok()).toBe(true)
+
+  // The public code isn't exposed on the session detail response yet (no
+  // route surfaces it -- that's a later sub-project's UI concern); read it
+  // straight from D1 via wrangler for this test only.
+  const output = execSync(
+    `npx wrangler d1 execute devlab-pickleball --local --json --command "SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'"`,
+  ).toString()
+  const code = JSON.parse(output)[0].results[0].public_code
+
+  const received = await page.evaluate(
+    ({ url }) =>
+      new Promise((resolve, reject) => {
+        const ws = new WebSocket(url)
+        ws.onmessage = (event) => resolve(event.data)
+        ws.onerror = () => reject(new Error('WebSocket error'))
+        setTimeout(() => reject(new Error('Timed out waiting for a message.')), 5000)
+      }),
+    { url: `${baseURL.replace('http', 'ws')}/pickleball/rt/public/${code}` },
+  )
+
+  const parsed = JSON.parse(received)
+  expect(parsed.payload.session.id).toBe(sessionId)
+  expect(parsed.payload.queue).toBeUndefined()
 })
