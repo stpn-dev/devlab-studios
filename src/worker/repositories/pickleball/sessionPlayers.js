@@ -135,6 +135,36 @@ export async function setAvailability(db, sessionId, playerId, status) {
   return getSessionPlayer(db, sessionId, playerId)
 }
 
+/**
+ * Unexecuted UPDATE setting availability by session-player id (not player id),
+ * which is what SessionCoordinatorDO works in. Scoped by session_id as well
+ * for defense in depth: `id` is already a globally unique primary key, but
+ * this guarantees a foreign session's row can never be touched even if a
+ * caller's upstream validation were ever weakened.
+ */
+export function buildSetAvailabilityByIdStatement(db, sessionId, sessionPlayerId, status) {
+  return db
+    .prepare(`UPDATE session_players SET availability_status = ?, updated_at = ? WHERE id = ? AND session_id = ?`)
+    .bind(status, nowIso(), sessionPlayerId, sessionId)
+}
+
+/**
+ * Unexecuted UPDATE incrementing a player's games-played counter.
+ *
+ * This counter is the PRIMARY fairness sort key in `selectNextPlayers`, so if
+ * nothing ever increments it the queue silently degrades to plain FIFO. Until
+ * Phase 4's game engine can increment it at game-finish time, Phase 3 does it
+ * when a court assignment ends (see SessionCoordinatorDO.releaseCourt).
+ */
+export function buildIncrementGamesPlayedStatement(db, sessionId, sessionPlayerId) {
+  return db
+    .prepare(
+      `UPDATE session_players SET games_played = games_played + 1, updated_at = ?
+       WHERE id = ? AND session_id = ?`,
+    )
+    .bind(nowIso(), sessionPlayerId, sessionId)
+}
+
 export async function leaveSession(db, sessionId, playerId) {
   const result = await db
     .prepare(

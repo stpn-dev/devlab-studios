@@ -22,6 +22,25 @@ export async function hasOpenQueueEntry(db, sessionId, sessionPlayerId) {
   return Boolean(row)
 }
 
+/**
+ * Unexecuted INSERT placing a player at the back of the queue.
+ *
+ * Unlike `joinQueue` below there is NO `hasOpenQueueEntry` guard, because this
+ * form exists for `db.batch()` callers that delete the player's existing
+ * entries earlier in the very same batch — a pre-read there would still see
+ * the not-yet-deleted row and wrongly skip the re-queue. Only use this when
+ * the same batch guarantees no open entry survives.
+ */
+export function buildJoinQueueStatement(db, { sessionId, sessionPlayerId }) {
+  const timestamp = nowIso()
+  return db
+    .prepare(
+      `INSERT INTO queue_entries (id, session_id, session_player_id, status, queued_at, created_at, updated_at)
+       VALUES (?, ?, ?, 'QUEUED', ?, ?, ?)`,
+    )
+    .bind(crypto.randomUUID(), sessionId, sessionPlayerId, timestamp, timestamp, timestamp)
+}
+
 export async function joinQueue(db, { sessionId, sessionPlayerId }) {
   const alreadyOpen = await hasOpenQueueEntry(db, sessionId, sessionPlayerId)
   if (alreadyOpen) return null
@@ -39,6 +58,23 @@ export async function joinQueue(db, { sessionId, sessionPlayerId }) {
 
   const row = await db.prepare(`SELECT * FROM queue_entries WHERE id = ?`).bind(id).first()
   return toQueueEntry(row)
+}
+
+/**
+ * True when the player holds an open assignment (ASSIGNED or PLAYING) in this
+ * session — i.e. they are really seated on a court right now. Distinct from
+ * "has a team": a player who played earlier and re-queued still has an old
+ * team but no open assignment.
+ */
+export async function hasOpenAssignment(db, sessionId, sessionPlayerId) {
+  const row = await db
+    .prepare(
+      `SELECT id FROM queue_entries
+       WHERE session_id = ? AND session_player_id = ? AND status IN ('ASSIGNED', 'PLAYING')`,
+    )
+    .bind(sessionId, sessionPlayerId)
+    .first()
+  return Boolean(row)
 }
 
 export async function leaveQueue(db, sessionId, sessionPlayerId) {
@@ -102,22 +138,39 @@ export async function listEligibleQueueCandidates(db, sessionId) {
   }))
 }
 
-export async function markAssigned(db, sessionId, sessionPlayerIds) {
-  if (!sessionPlayerIds.length) return
+/**
+ * Unexecuted UPDATE flipping QUEUED entries to ASSIGNED. Returns null for an
+ * empty id list so batch callers can filter it out.
+ */
+export function buildMarkAssignedStatement(db, sessionId, sessionPlayerIds) {
+  if (!sessionPlayerIds.length) return null
   const timestamp = nowIso()
   const placeholders = sessionPlayerIds.map(() => '?').join(', ')
-  await db
+  return db
     .prepare(
       `UPDATE queue_entries SET status = 'ASSIGNED', assigned_at = ?, updated_at = ?
        WHERE session_id = ? AND session_player_id IN (${placeholders}) AND status = 'QUEUED'`,
     )
     .bind(timestamp, timestamp, sessionId, ...sessionPlayerIds)
-    .run()
+}
+
+/**
+ * @returns {Promise<number>} rows actually flipped, so a caller can assert it
+ *   matches the number of players it expected to seat.
+ */
+export async function markAssigned(db, sessionId, sessionPlayerIds) {
+  const statement = buildMarkAssignedStatement(db, sessionId, sessionPlayerIds)
+  if (!statement) return 0
+  const result = await statement.run()
+  return result.meta.changes
+}
+
+export function buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId) {
+  return db
+    .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_player_id = ?`)
+    .bind(sessionId, sessionPlayerId)
 }
 
 export async function closeQueueEntry(db, sessionId, sessionPlayerId) {
-  await db
-    .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_player_id = ?`)
-    .bind(sessionId, sessionPlayerId)
-    .run()
+  await buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId).run()
 }

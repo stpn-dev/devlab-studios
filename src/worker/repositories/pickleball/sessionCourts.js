@@ -47,11 +47,15 @@ export async function setCourtEnabled(db, sessionId, sessionCourtId, enabled) {
   return getSessionCourt(db, sessionId, sessionCourtId)
 }
 
-export async function setCourtStatus(db, sessionId, sessionCourtId, status) {
-  const result = await db
+export function buildSetCourtStatusStatement(db, sessionId, sessionCourtId, status) {
+  return db
     .prepare(`UPDATE session_courts SET status = ?, updated_at = ? WHERE session_id = ? AND id = ?`)
     .bind(status, nowIso(), sessionId, sessionCourtId)
-    .run()
+}
+
+/** @returns the updated court, or null if no row matched. */
+export async function setCourtStatus(db, sessionId, sessionCourtId, status) {
+  const result = await buildSetCourtStatusStatement(db, sessionId, sessionCourtId, status).run()
   if (!result.meta.changes) return null
   return getSessionCourt(db, sessionId, sessionCourtId)
 }
