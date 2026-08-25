@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -30,38 +30,75 @@ function resolveWranglerBin() {
   return join(dirname(require.resolve('wrangler')), '..', 'bin', 'wrangler.js')
 }
 
-// This reader is a SECOND process opening the same local SQLite file miniflare
-// already holds open, so it can lose a race against an in-flight worker write
-// and come back SQLITE_BUSY -- a pure infrastructure flake with nothing to do
-// with the assertion being made, and more likely now that several tests in
-// this fully-parallel file read D1 directly. Retry a few times with a short
-// synchronous backoff (Atomics.wait, since execFileSync keeps this helper
-// synchronous for its callers) and only then give up.
+// Each of these reads is a SECOND process opening the local SQLite file
+// miniflare already holds open (exactly the hazard playwright.config.js's own
+// webServer comment describes), so it contends with in-flight worker writes:
+// the reader can come back SQLITE_BUSY, and -- worse, because it fails a test
+// that never touched D1 -- a worker write racing the reader can fail and
+// surface as a 500 from an unrelated API call in another spec. Two guards, both
+// pure test infrastructure with no bearing on any assertion:
+//
+//   * a cross-process lock directory, so at most ONE of these reader processes
+//     exists at a time no matter how many Playwright workers are running;
+//   * a bounded SQLITE_BUSY retry for the reader itself.
+//
+// The lock gives up waiting rather than hanging forever, so a crashed holder
+// degrades this to the unlocked behavior instead of wedging the suite.
 const D1_BUSY_RETRIES = 5
+const D1_LOCK_DIR = join(tmpdir(), 'pb-e2e-d1-read-lock')
+const D1_LOCK_WAIT_ATTEMPTS = 400
 
 function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+function withD1ReadLock(read) {
+  let held = false
+  for (let attempt = 0; attempt < D1_LOCK_WAIT_ATTEMPTS; attempt += 1) {
+    try {
+      mkdirSync(D1_LOCK_DIR)
+      held = true
+      break
+    } catch {
+      sleepSync(50)
+    }
+  }
+
+  try {
+    return read()
+  } finally {
+    if (held) {
+      try {
+        rmSync(D1_LOCK_DIR, { recursive: true, force: true })
+      } catch {
+        // Nothing to recover: the next caller's wait loop times out and
+        // proceeds anyway.
+      }
+    }
+  }
 }
 
 function queryD1(sql) {
   const sqlPath = join(mkdtempSync(join(tmpdir(), 'pb-games-e2e-')), 'query.sql')
   writeFileSync(sqlPath, sql, 'utf8')
 
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      const out = execFileSync(
-        process.execPath,
-        [resolveWranglerBin(), 'd1', 'execute', 'devlab-pickleball', '--local', '--json', `--file=${sqlPath}`],
-        { encoding: 'utf-8', windowsHide: true },
-      )
-      const parsed = JSON.parse(out)
-      return parsed[0]?.results || []
-    } catch (error) {
-      const busy = String(error?.message || '').includes('SQLITE_BUSY')
-      if (!busy || attempt >= D1_BUSY_RETRIES) throw error
-      sleepSync(200 * (attempt + 1))
+  return withD1ReadLock(() => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const out = execFileSync(
+          process.execPath,
+          [resolveWranglerBin(), 'd1', 'execute', 'devlab-pickleball', '--local', '--json', `--file=${sqlPath}`],
+          { encoding: 'utf-8', windowsHide: true },
+        )
+        const parsed = JSON.parse(out)
+        return parsed[0]?.results || []
+      } catch (error) {
+        const busy = String(error?.message || '').includes('SQLITE_BUSY')
+        if (!busy || attempt >= D1_BUSY_RETRIES) throw error
+        sleepSync(200 * (attempt + 1))
+      }
     }
-  }
+  })
 }
 
 // ---------------------------------------------------------------------------
