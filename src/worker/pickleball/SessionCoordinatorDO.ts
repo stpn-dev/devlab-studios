@@ -135,16 +135,28 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     server.serializeAttachment({ sessionId, channel })
 
     const snapshot = await buildSessionSnapshot(this.env.PICKLEBALL_DB, sessionId)
-    // Type-only cast, no runtime check added: buildSessionSnapshot's plain-JS
-    // return type carries `session: {...} | null` because getSessionById can
-    // theoretically return null, but by the time ANY request reaches this
-    // fetch() handler, the calling Astro route (operator: [sessionId].ts;
-    // public: rt/public/[code].ts) has already resolved and 404'd on a
-    // missing session before ever invoking the DO -- see this task's plan
-    // notes. toPublicSessionView's allowlist type intentionally has no `|
-    // null` on `session` for the same reason every other allowlisted field
-    // is spelled out explicitly rather than inferred.
-    const payload = channel === 'public' ? toPublicSessionView(snapshot as Parameters<typeof toPublicSessionView>[0]) : snapshot
+    // Runtime guard, not just a type-only cast: buildSessionSnapshot's
+    // plain-JS return type carries `session: {...} | null` because
+    // getSessionById can theoretically return null. By the time ANY request
+    // reaches this fetch() handler, the calling Astro route (operator:
+    // [sessionId].ts; public: rt/public/[code].ts) has already resolved and
+    // 404'd on a missing session before ever invoking the DO, so this branch
+    // is unreachable today -- but a future delete-session feature, or a bug
+    // that lets an upgrade reach the DO for a session removed mid-connection,
+    // would otherwise hit toPublicSessionView(snapshot) with `session: null`
+    // and throw reading `.id` off `null` mid-handshake. Failing loudly here
+    // keeps that a typed compile-time guarantee instead of a cast that
+    // silently discards it. Destructuring `session` out (rather than testing
+    // `snapshot.session` inline) is what lets the non-null narrowing below
+    // actually reach the `{ ...snapshot, session }` passed to
+    // toPublicSessionView -- TS narrows the checked expression, not
+    // `snapshot`'s own property type, so re-spreading with the narrowed
+    // local is required for this to type-check without a cast.
+    const { session } = snapshot
+    if (!session) {
+      return new Response('Session no longer exists.', { status: 404 })
+    }
+    const payload = channel === 'public' ? toPublicSessionView({ ...snapshot, session }) : snapshot
     this.seq += 1
     server.send(JSON.stringify({ type: 'STATE', sessionId, seq: this.seq, payload }))
 
