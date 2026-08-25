@@ -450,11 +450,44 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       teamBCurrentServerSessionPlayerId: nextIdentity.teamBCurrentServerId,
     })
 
+    // The post-mutation `game` is reconstructed in-memory here rather than
+    // re-fetched after the batch, so it can be included in BOTH the
+    // fresh-success result AND the idempotency-record value written in the
+    // SAME db.batch() call below (Ruling 8/9 -- see the block comment above
+    // this method). A post-batch re-fetch-then-separately-persist-into-the-
+    // idempotency-row would need a SECOND db.batch() call, reintroducing the
+    // exact "mutation committed, idempotency record not yet written" crash
+    // window Ruling 8/9 exists to eliminate -- and a cache hit that skipped
+    // `game` entirely (the bug this fixes) would let a retried call observe
+    // a DIFFERENT response shape than the original call ever produced. Every
+    // field below mirrors exactly what `projectionStatement`/`identityStatement`
+    // persist; `updatedAt` uses a timestamp captured here rather than the one
+    // `buildUpdateGameProjectionStatement` computes internally via its own
+    // `nowIso()` call a few lines up, so it may differ from the persisted
+    // column by a few milliseconds -- immaterial for a response snapshot,
+    // and it keeps this fix scoped to this file instead of also touching
+    // games.js's statement builder signature.
+    const timestamp = new Date().toISOString()
+    const updatedGame = {
+      ...game,
+      scoreA: after.scoreA,
+      scoreB: after.scoreB,
+      servingTeam: after.servingTeam,
+      serverNumber: after.serverNumber,
+      teamACurrentServerSessionPlayerId: nextIdentity.teamACurrentServerId,
+      teamBCurrentServerSessionPlayerId: nextIdentity.teamBCurrentServerId,
+      revision: sequence,
+      updatedAt: timestamp,
+    }
+
     // Computed purely in-memory BEFORE the batch runs (Ruling 8) -- this is
-    // exactly what a cache hit above returns, minus the fresh `game`
-    // re-fetch (a cache hit doesn't re-fetch `game`; see this method's
-    // report for the documented, deliberate shape difference).
-    const result = { ok: true as const, state: after, outcome, servingPlayerId: deriveServingPlayer(after, nextIdentity) }
+    // exactly what a cache hit above now returns too, since it's this same
+    // object (JSON round-tripped) that gets persisted as the idempotency
+    // record's value a few lines down. Cache hit and fresh success are
+    // therefore structurally identical: same keys, same types, and (for
+    // `game`) the snapshot as of the ORIGINAL successful call rather than a
+    // live re-fetch that could reflect later rallies recorded since then.
+    const result = { ok: true as const, state: after, outcome, servingPlayerId: deriveServingPlayer(after, nextIdentity), game: updatedGame }
 
     const statements = [eventStatement, projectionStatement, identityStatement]
     if (idempotencyKey) {
@@ -463,7 +496,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     await db.batch(statements)
 
-    return { ...result, game: await getGame(db, sessionId, gameId) }
+    return result
   }
 
   // Undo pops the most recent NOT-already-reversed rally by appending a
