@@ -34,7 +34,7 @@ import {
   listAssignedSessionPlayerIdsForCourt,
   getTeamWithMembers,
 } from '../repositories/pickleball/teams.js'
-import { buildSetAvailabilityByIdStatement } from '../repositories/pickleball/sessionPlayers.js'
+import { buildSetAvailabilityByIdStatement, buildIncrementGamesPlayedStatement } from '../repositories/pickleball/sessionPlayers.js'
 import {
   buildCreateGameStatement,
   buildUpdateGameProjectionStatement,
@@ -43,11 +43,14 @@ import {
 } from '../repositories/pickleball/games.js'
 import { getNextSequence, buildAppendScoreEventStatement, listScoreEventsForGame } from '../repositories/pickleball/scoreEvents.js'
 import { getIdempotentResult, buildRecordIdempotentResultStatement } from '../repositories/pickleball/idempotencyKeys.js'
+import { buildCreatePlayerGameStatStatement } from '../repositories/pickleball/playerGameStats.js'
+import { buildUpsertMatchmakingStatement } from '../repositories/pickleball/matchmakingHistory.js'
 import { selectNextPlayers, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
-import { hasGameBeenWon } from '../../lib/pickleball/scoring/display'
+import { hasGameBeenWon, isValidFinalScore } from '../../lib/pickleball/scoring/display'
 import { nextServerIdentity, deriveServingPlayer } from '../../lib/pickleball/scoring/serverRotation'
+import { gamePerformance } from '../../lib/pickleball/opi'
 
 function requiredPlayerCount(format: string): number {
   return format === 'SINGLES' ? 2 : 4
@@ -564,5 +567,179 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     await db.batch([reversalEvent, projectionStatement])
 
     return { ok: true as const, state: replayed.state, game: await getGame(db, sessionId, gameId) }
+  }
+
+  // Finishes a game AND releases its court in ONE db.batch() -- not a
+  // finish call followed by a separate this.releaseCourt(...) call. The
+  // release-side statements below are the SAME build*Statement functions
+  // releaseCourt itself uses, composed directly into this batch instead of
+  // going through a second, non-atomic DO call. Without this, there would be
+  // a window where the game is FINISHED but the court/queue still say
+  // otherwise (or vice versa, on a crash between the two calls). releaseCourt
+  // itself is UNCHANGED and remains independently callable -- e.g. a
+  // facilitator releasing a court that never had a game started on it.
+  //
+  // Idempotency mirrors recordRally's Ruling 8/9: the cached-result check
+  // happens before any mutation, and the record statement is only ever
+  // appended once every failure path (including the final-score validation
+  // below) has already returned. A retry after the score legitimately
+  // changes must not be poisoned by a cached validation failure, so a
+  // failed `isValidFinalScore` check returns WITHOUT writing any
+  // idempotency record at all.
+  async finishGame(sessionId: string, gameId: string, actorUserId: string, idempotencyKey?: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+
+    const db = this.env.PICKLEBALL_DB
+
+    if (idempotencyKey) {
+      const cached = await getIdempotentResult(db, { gameId, commandType: 'FINISH_GAME', key: idempotencyKey })
+      if (cached) return cached
+    }
+
+    const game = await getGame(db, sessionId, gameId)
+    if (!game) return failure('Game not found.')
+    if (game.status !== 'IN_PROGRESS') return failure('Game is not in progress.')
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+    const ruleset = await getScoringRuleset(db, session.scoringRulesetId, session.organizationId)
+    if (!ruleset) return failure('Scoring ruleset not found.')
+
+    if (!isValidFinalScore(game.scoreA, game.scoreB, ruleset)) {
+      // Do NOT record an idempotency result here -- see the block comment
+      // above. A retry with the same key after the score legitimately
+      // changes must not be poisoned by this failed attempt.
+      return failure(`${game.scoreA}-${game.scoreB} is not a valid final score for this ruleset.`)
+    }
+
+    const winningTeamId = game.scoreA > game.scoreB ? game.teamAId : game.teamBId
+    const sequence = await getNextSequence(db, gameId)
+
+    const finishedEvent = buildAppendScoreEventStatement(db, {
+      gameId, sequence, eventType: 'GAME_FINISHED', actorUserId,
+      payload: { finalScoreA: game.scoreA, finalScoreB: game.scoreB, winningTeamId },
+    })
+    const projectionStatement = buildUpdateGameProjectionStatement(db, gameId, {
+      scoreA: game.scoreA, scoreB: game.scoreB, servingTeam: game.servingTeam, serverNumber: game.serverNumber,
+      status: 'FINISHED', winningTeamId, finalScoreA: game.scoreA, finalScoreB: game.scoreB, revision: sequence,
+    })
+
+    const participantsResult = await db
+      .prepare(
+        `SELECT gp.session_player_id, gp.team_id, sp.player_id
+         FROM game_participants gp JOIN session_players sp ON sp.id = gp.session_player_id
+         WHERE gp.game_id = ?`,
+      )
+      .bind(gameId)
+      .all<{ session_player_id: string; team_id: string; player_id: string }>()
+    const participants = participantsResult.results || []
+
+    const timestamp = new Date().toISOString()
+    const statStatements = participants.map((p) => {
+      const isTeamA = p.team_id === game.teamAId
+      const pointsFor = isTeamA ? game.scoreA : game.scoreB
+      const pointsAgainst = isTeamA ? game.scoreB : game.scoreA
+      return buildCreatePlayerGameStatStatement(db, {
+        gameId, playerId: p.player_id, pointsFor, pointsAgainst,
+        gamePerformance: gamePerformance(pointsFor, pointsAgainst),
+        isWin: p.team_id === winningTeamId, eligibleForOpi: true,
+      })
+    })
+
+    const matchmakingStatements: unknown[] = []
+    const teamAPlayers = participants.filter((p) => p.team_id === game.teamAId).map((p) => p.player_id)
+    const teamBPlayers = participants.filter((p) => p.team_id === game.teamBId).map((p) => p.player_id)
+    for (const players of [teamAPlayers, teamBPlayers]) {
+      for (let i = 0; i < players.length; i += 1) {
+        for (let j = i + 1; j < players.length; j += 1) {
+          matchmakingStatements.push(
+            buildUpsertMatchmakingStatement(db, { sessionId, playerId: players[i], otherPlayerId: players[j], relation: 'PARTNER', timestamp }),
+            buildUpsertMatchmakingStatement(db, { sessionId, playerId: players[j], otherPlayerId: players[i], relation: 'PARTNER', timestamp }),
+          )
+        }
+      }
+    }
+    for (const playerA of teamAPlayers) {
+      for (const playerB of teamBPlayers) {
+        matchmakingStatements.push(
+          buildUpsertMatchmakingStatement(db, { sessionId, playerId: playerA, otherPlayerId: playerB, relation: 'OPPONENT', timestamp }),
+          buildUpsertMatchmakingStatement(db, { sessionId, playerId: playerB, otherPlayerId: playerA, relation: 'OPPONENT', timestamp }),
+        )
+      }
+    }
+
+    const gamesPlayedStatements = participants.map((p) => buildIncrementGamesPlayedStatement(db, sessionId, p.session_player_id))
+
+    // Atomic release: the SAME statements releaseCourt itself builds,
+    // composed directly into THIS batch rather than calling
+    // this.releaseCourt(...) as a second, separate DO call afterward -- no
+    // window where the game is FINISHED but the court/queue still say
+    // otherwise. releaseCourt itself remains independently callable (a
+    // facilitator can still release a court with no finished game behind it).
+    const releasedSessionPlayerIds = participants.map((p) => p.session_player_id)
+    const requeued = session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
+    const releaseStatements = releasedSessionPlayerIds.flatMap((sessionPlayerId) => [
+      buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId),
+      ...(requeued ? [buildJoinQueueStatement(db, { sessionId, sessionPlayerId })] : []),
+    ])
+    releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
+    releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
+
+    const result = {
+      ok: true as const, winningTeamId, finalScoreA: game.scoreA, finalScoreB: game.scoreB,
+      releasedSessionPlayerIds, requeued,
+    }
+
+    const statements = [finishedEvent, projectionStatement, ...statStatements, ...matchmakingStatements, ...gamesPlayedStatements, ...releaseStatements]
+    if (idempotencyKey) {
+      statements.push(buildRecordIdempotentResultStatement(db, { gameId, commandType: 'FINISH_GAME', key: idempotencyKey, result }))
+    }
+
+    await db.batch(statements)
+
+    return { ...result, game: await getGame(db, sessionId, gameId) }
+  }
+
+  // Abandons a game AND releases its court in ONE db.batch(), same atomicity
+  // principle as finishGame above. Deliberately skips player_game_stats,
+  // matchmaking_history, and the games_played increment entirely -- an
+  // abandoned game was never actually completed and is explicitly excluded
+  // from OPI (edge case #18), so none of finishGame's stat/matchmaking
+  // bookkeeping applies here.
+  async abandonGame(sessionId: string, gameId: string, actorUserId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+
+    const db = this.env.PICKLEBALL_DB
+
+    const game = await getGame(db, sessionId, gameId)
+    if (!game) return failure('Game not found.')
+    if (game.status !== 'IN_PROGRESS') return failure('Game is not in progress.')
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+
+    const sequence = await getNextSequence(db, gameId)
+    const abandonedEvent = buildAppendScoreEventStatement(db, { gameId, sequence, eventType: 'GAME_ABANDONED', actorUserId, payload: {} })
+    const projectionStatement = buildUpdateGameProjectionStatement(db, gameId, {
+      scoreA: game.scoreA, scoreB: game.scoreB, servingTeam: game.servingTeam, serverNumber: game.serverNumber,
+      status: 'ABANDONED', winningTeamId: null, finalScoreA: null, finalScoreB: null, revision: sequence,
+    })
+
+    // No player_game_stats, no matchmaking_history, no games_played increment
+    // -- an abandoned game is explicitly excluded from OPI (edge case #18) and
+    // was never actually completed. Court/queue release IS atomic with the
+    // abandonment, same principle as finishGame.
+    const sessionPlayerIds: string[] = await listAssignedSessionPlayerIdsForCourt(db, sessionId, game.sessionCourtId)
+    const requeued = session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
+    const releaseStatements = sessionPlayerIds.flatMap((sessionPlayerId) => [
+      buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId),
+      ...(requeued ? [buildJoinQueueStatement(db, { sessionId, sessionPlayerId })] : []),
+    ])
+    releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
+    releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
+
+    await db.batch([abandonedEvent, projectionStatement, ...releaseStatements])
+
+    return { ok: true as const, releasedSessionPlayerIds: sessionPlayerIds, requeued, game: await getGame(db, sessionId, gameId) }
   }
 }
