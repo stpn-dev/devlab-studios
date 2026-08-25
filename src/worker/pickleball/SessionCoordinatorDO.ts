@@ -24,6 +24,8 @@ import {
   buildMarkPlayingStatement,
   buildCloseQueueEntryStatement,
   buildJoinQueueStatement,
+  joinQueue as joinQueueRepo,
+  leaveQueue as leaveQueueRepo,
 } from '../repositories/pickleball/queueEntries.js'
 import {
   buildCreateTeamStatement,
@@ -39,6 +41,12 @@ import {
   buildSetAvailabilityByIdStatement,
   buildIncrementGamesPlayedStatement,
   buildRecomputeGamesPlayedStatement,
+  registerPlayer as registerPlayerRepo,
+  checkInPlayer,
+  bulkCheckIn,
+  setAvailability as setAvailabilityRepo,
+  cancelRegistration as cancelRegistrationRepo,
+  leaveSession as leaveSessionRepo,
 } from '../repositories/pickleball/sessionPlayers.js'
 import {
   buildCreateGameStatement,
