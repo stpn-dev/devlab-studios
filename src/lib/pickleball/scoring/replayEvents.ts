@@ -1,4 +1,5 @@
 import type { GameState, ScoringRulesetLike } from './gameState'
+import { initialGameState } from './gameState'
 import { recordRally } from './recordRally'
 
 export interface ReplayableEvent {
@@ -24,7 +25,15 @@ export function replayEvents(events: ReplayableEvent[], ruleset: ScoringRulesetL
       .map((e) => (e.payload as { reversedSequence: number }).reversedSequence),
   )
 
-  let state: GameState = { scoreA: 0, scoreB: 0, servingTeam: 'A', serverNumber: 2 }
+  // `initialGameState` is the SINGLE source of truth for a game's opening
+  // state -- shared with what startGame persists at creation time (see
+  // games.js's buildCreateGameStatement, which is handed the serverNumber
+  // this same function derives). Constructing the opening state inline here
+  // instead is how replay came to hardcode serverNumber 2 regardless of
+  // format, silently disagreeing with a live SINGLES game (serverNumber 1)
+  // and violating gameProjection.ts's invariant that a replay result must
+  // never differ from what the live command produced.
+  let state: GameState = initialGameState('A', ruleset.format)
   let status: ReplayResult['status'] = 'IN_PROGRESS'
   let winningTeamId: string | null = null
   let finalScoreA: number | null = null
@@ -33,7 +42,7 @@ export function replayEvents(events: ReplayableEvent[], ruleset: ScoringRulesetL
   for (const event of events) {
     if (event.eventType === 'GAME_STARTED') {
       const payload = event.payload as { servingTeam: 'A' | 'B' }
-      state = { scoreA: 0, scoreB: 0, servingTeam: payload.servingTeam, serverNumber: 2 }
+      state = initialGameState(payload.servingTeam, ruleset.format)
       continue
     }
 

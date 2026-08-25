@@ -39,8 +39,19 @@ const GAME_COLUMNS = `id, session_id, session_court_id, scoring_ruleset_id, form
   winning_team_id, final_score_a, final_score_b,
   started_at, finished_at, created_at, updated_at`
 
+/**
+ * Unexecuted INSERT for a brand-new IN_PROGRESS game.
+ *
+ * `serverNumber` is REQUIRED and comes from the caller, which derives it via
+ * `initialGameState(servingTeam, format)` in src/lib/pickleball/scoring/
+ * gameState.ts -- the single source of truth for a game's opening state,
+ * shared with `replayEvents`. This function deliberately does NOT re-derive it
+ * from `format`: a third independent copy of that rule is exactly how the
+ * DOUBLES-vs-SINGLES opening serverNumber came to disagree between the live
+ * command path and the replay path.
+ */
 export function buildCreateGameStatement(db, {
-  id, sessionId, sessionCourtId, scoringRulesetId, format, teamAId, teamBId, servingTeam,
+  id, sessionId, sessionCourtId, scoringRulesetId, format, teamAId, teamBId, servingTeam, serverNumber,
   teamAStartingServerSessionPlayerId, teamBStartingServerSessionPlayerId, timestamp,
 }) {
   return db
@@ -55,7 +66,7 @@ export function buildCreateGameStatement(db, {
     )
     .bind(
       id, sessionId, sessionCourtId, scoringRulesetId, format, teamAId, teamBId, servingTeam,
-      format === 'DOUBLES' ? 2 : 1,
+      serverNumber,
       teamAStartingServerSessionPlayerId, teamBStartingServerSessionPlayerId,
       teamAStartingServerSessionPlayerId, teamBStartingServerSessionPlayerId,
       timestamp, timestamp, timestamp,

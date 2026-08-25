@@ -58,6 +58,7 @@ import {
 } from '../repositories/pickleball/matchmakingHistory.js'
 import { selectNextPlayers, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
+import { initialGameState } from '../../lib/pickleball/scoring/gameState'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
 import { hasGameBeenWon, isValidFinalScore } from '../../lib/pickleball/scoring/display'
 import { nextServerIdentity, deriveServingPlayer } from '../../lib/pickleball/scoring/serverRotation'
@@ -388,9 +389,17 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     const gameId = crypto.randomUUID()
     const timestamp = new Date().toISOString()
 
+    // The opening state comes from `initialGameState` -- the SAME function
+    // replayEvents folds a GAME_STARTED event through -- so the row this
+    // INSERT writes and a later replay of this game's events can never
+    // disagree about the opening serverNumber (2 for doubles' traditional
+    // "0-0-2", 1 for singles, where the server-1/server-2 distinction does
+    // not exist). games.js no longer re-derives it.
+    const opening = initialGameState(servingTeam, ruleset.format)
+
     const gameStatement = buildCreateGameStatement(db, {
       id: gameId, sessionId, sessionCourtId, scoringRulesetId: ruleset.id, format: ruleset.format,
-      teamAId, teamBId, servingTeam,
+      teamAId, teamBId, servingTeam, serverNumber: opening.serverNumber,
       teamAStartingServerSessionPlayerId, teamBStartingServerSessionPlayerId, timestamp,
     })
 

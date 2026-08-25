@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { replayEvents } from './replayEvents'
+import { initialGameState } from './gameState'
 
 const RULESET = { format: 'DOUBLES' as const, targetScore: 11, winBy: 2 }
+const SINGLES_RULESET = { format: 'SINGLES' as const, targetScore: 11, winBy: 2 }
 
 function event(sequence: number, eventType: string, payload: unknown) {
   return { sequence, eventType, payload }
@@ -12,6 +14,28 @@ describe('replayEvents', () => {
     const result = replayEvents([event(1, 'GAME_STARTED', { servingTeam: 'A' })], RULESET)
     expect(result.state).toEqual({ scoreA: 0, scoreB: 0, servingTeam: 'A', serverNumber: 2 })
     expect(result.status).toBe('IN_PROGRESS')
+  })
+
+  // Regression test for the replay-vs-live-command disagreement: replay used
+  // to construct GAME_STARTED's state inline with a hardcoded serverNumber 2,
+  // which is wrong for SINGLES (no server-1/server-2 distinction exists, so it
+  // opens and stays on 1). `initialGameState` is now the single source of truth
+  // for BOTH sides -- replay here, and the games-row INSERT that startGame
+  // performs (SessionCoordinatorDO.startGame passes
+  // `initialGameState(servingTeam, ruleset.format).serverNumber` straight into
+  // buildCreateGameStatement, which no longer derives it itself). Asserting
+  // against initialGameState rather than a literal is the point: these two
+  // paths can no longer drift apart.
+  it('replays a SINGLES GAME_STARTED to serverNumber 1, exactly matching what startGame persists', () => {
+    const result = replayEvents([event(1, 'GAME_STARTED', { servingTeam: 'A' })], SINGLES_RULESET)
+    expect(result.state.serverNumber).toBe(1)
+    expect(result.state).toEqual(initialGameState('A', 'SINGLES'))
+  })
+
+  it('replays a DOUBLES GAME_STARTED to serverNumber 2, exactly matching what startGame persists', () => {
+    const result = replayEvents([event(1, 'GAME_STARTED', { servingTeam: 'B' })], RULESET)
+    expect(result.state.serverNumber).toBe(2)
+    expect(result.state).toEqual(initialGameState('B', 'DOUBLES'))
   })
 
   it('replays a sequence of rallies deterministically, same as calling recordRally directly', () => {
