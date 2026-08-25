@@ -20,6 +20,7 @@ function toGame(row) {
     teamBStartingServerSessionPlayerId: row.team_b_starting_server_session_player_id,
     teamACurrentServerSessionPlayerId: row.team_a_current_server_session_player_id,
     teamBCurrentServerSessionPlayerId: row.team_b_current_server_session_player_id,
+    correctionPending: Boolean(row.correction_pending),
     winningTeamId: row.winning_team_id,
     finalScoreA: row.final_score_a,
     finalScoreB: row.final_score_b,
@@ -34,6 +35,7 @@ const GAME_COLUMNS = `id, session_id, session_court_id, scoring_ruleset_id, form
   revision, score_a, score_b, serving_team, server_number,
   team_a_starting_server_session_player_id, team_b_starting_server_session_player_id,
   team_a_current_server_session_player_id, team_b_current_server_session_player_id,
+  correction_pending,
   winning_team_id, final_score_a, final_score_b,
   started_at, finished_at, created_at, updated_at`
 

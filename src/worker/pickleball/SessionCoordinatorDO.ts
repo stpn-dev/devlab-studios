@@ -35,12 +35,19 @@ import {
   getTeamWithMembers,
 } from '../repositories/pickleball/teams.js'
 import { buildSetAvailabilityByIdStatement } from '../repositories/pickleball/sessionPlayers.js'
-import { buildCreateGameStatement, buildUpdateGameProjectionStatement, getGame } from '../repositories/pickleball/games.js'
+import {
+  buildCreateGameStatement,
+  buildUpdateGameProjectionStatement,
+  buildUpdateServerIdentityStatement,
+  getGame,
+} from '../repositories/pickleball/games.js'
 import { getNextSequence, buildAppendScoreEventStatement, listScoreEventsForGame } from '../repositories/pickleball/scoreEvents.js'
 import { getIdempotentResult, buildRecordIdempotentResultStatement } from '../repositories/pickleball/idempotencyKeys.js'
 import { selectNextPlayers, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
-import { initialGameState } from '../../lib/pickleball/scoring/gameState'
+import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
+import { hasGameBeenWon } from '../../lib/pickleball/scoring/display'
+import { nextServerIdentity, deriveServingPlayer } from '../../lib/pickleball/scoring/serverRotation'
 
 function requiredPlayerCount(format: string): number {
   return format === 'SINGLES' ? 2 : 4
@@ -68,26 +75,6 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // losing mutual exclusion. This asserts the pairing instead of trusting it.
   private ownsSession(sessionId: string): boolean {
     return this.ctx.id.equals(this.env.SESSION_COORDINATOR.idFromName(sessionId))
-  }
-
-  // Every command that mutates a game accepts an optional client-generated
-  // idempotency key. If the same key is seen again (a duplicated/retried
-  // request, e.g. a scorekeeper double-tapping "Finish Game" on a flaky
-  // connection), the ORIGINAL result is returned unchanged instead of the
-  // command re-applying its effects a second time. The DO's own serialization
-  // makes this race-free: two "duplicate" requests can never both pass the
-  // `getIdempotentResult` check before either one's result is recorded.
-  private async withIdempotency<T>(gameId: string, idempotencyKey: string | undefined, run: () => Promise<T>): Promise<T> {
-    const db = this.env.PICKLEBALL_DB
-    if (idempotencyKey) {
-      const cached = await getIdempotentResult(db, idempotencyKey)
-      if (cached) return cached as T
-    }
-    const result = await run()
-    if (idempotencyKey) {
-      await buildRecordIdempotentResultStatement(db, { key: idempotencyKey, gameId, result }).run()
-    }
-    return result
   }
 
   async assignCourt(sessionId: string, sessionCourtId: string) {
@@ -390,49 +377,115 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // derived from the before/after state by `classifyRallyOutcome` and
   // recorded as the actual event type, so the score_events log always
   // reflects what really happened rather than a generic "rally recorded".
+  //
+  // Idempotency (an optional client-generated key, e.g. a scorekeeper
+  // double-tapping "Team A Won Rally" on a flaky connection) is handled
+  // INLINE rather than through a shared helper: the cached-result check is a
+  // cheap read that happens BEFORE any mutation, and -- per Ruling 8/9 --
+  // the idempotency-record write is folded into the SAME db.batch() call as
+  // the event/projection/identity writes below, so a crash between "mutation
+  // committed" and "idempotency key recorded" is impossible; there is no
+  // window where a domain-validation FAILURE gets cached, because the record
+  // statement is only ever built once we're already past every failure
+  // return and about to batch the real mutation. The DO's own serialization
+  // makes the read-then-batch race-free: two "duplicate" requests can never
+  // both pass the `getIdempotentResult` check before either one's result is
+  // recorded.
   async recordRally(sessionId: string, gameId: string, winningTeam: 'A' | 'B', actorUserId: string, idempotencyKey?: string) {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
-    return this.withIdempotency(gameId, idempotencyKey, async () => {
-      const db = this.env.PICKLEBALL_DB
+    const db = this.env.PICKLEBALL_DB
 
-      const game = await getGame(db, sessionId, gameId)
-      if (!game) return failure('Game not found.')
-      if (game.status !== 'IN_PROGRESS') return failure('Game is not in progress.')
+    if (idempotencyKey) {
+      const cached = await getIdempotentResult(db, { gameId, commandType: 'RECORD_RALLY', key: idempotencyKey })
+      if (cached) return cached
+    }
 
-      const session = await getSessionById(db, sessionId)
-      if (!session) return failure('Session not found.')
-      const ruleset = await getScoringRuleset(db, session.scoringRulesetId, session.organizationId)
-      if (!ruleset) return failure('Scoring ruleset not found.')
+    const game = await getGame(db, sessionId, gameId)
+    if (!game) return failure('Game not found.')
+    if (game.status !== 'IN_PROGRESS') return failure('Game is not in progress.')
+    if (game.correctionPending) return failure('This game is under correction; use correctGame instead of recording a new rally.')
 
-      const before = { scoreA: game.scoreA, scoreB: game.scoreB, servingTeam: game.servingTeam, serverNumber: game.serverNumber }
-      const after = recordRally(before, ruleset, winningTeam)
-      const outcome = classifyRallyOutcome(before, after)
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+    const ruleset = await getScoringRuleset(db, session.scoringRulesetId, session.organizationId)
+    if (!ruleset) return failure('Scoring ruleset not found.')
 
-      const sequence = await getNextSequence(db, gameId)
-      const eventStatement = buildAppendScoreEventStatement(db, {
-        gameId, sequence, eventType: outcome, actorUserId, payload: { winningTeam },
-      })
-      const projectionStatement = buildUpdateGameProjectionStatement(db, gameId, {
-        scoreA: after.scoreA, scoreB: after.scoreB, servingTeam: after.servingTeam, serverNumber: after.serverNumber,
-        status: game.status, winningTeamId: game.winningTeamId, finalScoreA: game.finalScoreA, finalScoreB: game.finalScoreB,
-        revision: sequence,
-      })
+    const before = { scoreA: game.scoreA, scoreB: game.scoreB, servingTeam: game.servingTeam, serverNumber: game.serverNumber }
 
-      await db.batch([eventStatement, projectionStatement])
+    // The terminal-score guard lives HERE, not inside the pure recordRally --
+    // see the plan's Ruling 3. A game that already reached a valid final
+    // score must not accept another rally; finishGame (or correctGame) is
+    // the only path forward from here.
+    if (hasGameBeenWon(before, ruleset)) {
+      return failure(`This game already has a final score (${before.scoreA}-${before.scoreB}) -- finish it instead of recording another rally.`)
+    }
 
-      return { ok: true as const, state: after, outcome, game: await getGame(db, sessionId, gameId) }
+    const after = recordRally(before, ruleset, winningTeam)
+    const outcome = classifyRallyOutcome(before, after)
+
+    // Server-rotation identity is tracked alongside (not derived from) the
+    // score/serve GameState -- see serverRotation.ts's Ruling 1. Each team's
+    // "other" member is whichever roster id is NOT the team's current
+    // server; that's the player who takes over on a same-team serve change
+    // or picks up serve on a side out.
+    const identity = { teamACurrentServerId: game.teamACurrentServerSessionPlayerId, teamBCurrentServerId: game.teamBCurrentServerSessionPlayerId }
+    const teamAMembers = await getTeamWithMembers(db, game.teamAId)
+    const teamBMembers = await getTeamWithMembers(db, game.teamBId)
+    const teamAOtherPlayerId = (teamAMembers?.members ?? []).map((m: { sessionPlayerId: string }) => m.sessionPlayerId).find((id: string) => id !== identity.teamACurrentServerId) ?? null
+    const teamBOtherPlayerId = (teamBMembers?.members ?? []).map((m: { sessionPlayerId: string }) => m.sessionPlayerId).find((id: string) => id !== identity.teamBCurrentServerId) ?? null
+    const nextIdentity = nextServerIdentity(identity, before, after, teamAOtherPlayerId, teamBOtherPlayerId)
+
+    const sequence = await getNextSequence(db, gameId)
+    const eventStatement = buildAppendScoreEventStatement(db, {
+      gameId, sequence, eventType: outcome, actorUserId, payload: { winningTeam },
     })
+    const projectionStatement = buildUpdateGameProjectionStatement(db, gameId, {
+      scoreA: after.scoreA, scoreB: after.scoreB, servingTeam: after.servingTeam, serverNumber: after.serverNumber,
+      status: game.status, winningTeamId: game.winningTeamId, finalScoreA: game.finalScoreA, finalScoreB: game.finalScoreB,
+      revision: sequence,
+    })
+    const identityStatement = buildUpdateServerIdentityStatement(db, gameId, {
+      teamACurrentServerSessionPlayerId: nextIdentity.teamACurrentServerId,
+      teamBCurrentServerSessionPlayerId: nextIdentity.teamBCurrentServerId,
+    })
+
+    // Computed purely in-memory BEFORE the batch runs (Ruling 8) -- this is
+    // exactly what a cache hit above returns, minus the fresh `game`
+    // re-fetch (a cache hit doesn't re-fetch `game`; see this method's
+    // report for the documented, deliberate shape difference).
+    const result = { ok: true as const, state: after, outcome, servingPlayerId: deriveServingPlayer(after, nextIdentity) }
+
+    const statements = [eventStatement, projectionStatement, identityStatement]
+    if (idempotencyKey) {
+      statements.push(buildRecordIdempotentResultStatement(db, { gameId, commandType: 'RECORD_RALLY', key: idempotencyKey, result }))
+    }
+
+    await db.batch(statements)
+
+    return { ...result, game: await getGame(db, sessionId, gameId) }
   }
 
   // Undo pops the most recent NOT-already-reversed rally by appending a
   // compensating POINT_REVERSED event rather than deleting or rewriting the
-  // original -- the score_events log stays append-only and auditable, and
-  // replayEvents() (Task 3) already knows how to skip a reversed sequence
-  // when reconstructing state from the full log. This method needs the
-  // recomputed state synchronously (to write the projection), so it performs
-  // the equivalent fold itself over just the remaining scoring events rather
-  // than calling replayEvents() over the whole log.
+  // original -- the score_events log stays append-only and auditable. This
+  // now calls the SAME canonical `replayEvents` that gameProjection.ts
+  // trusts, over the hypothetical event list with the new reversal already
+  // appended, rather than performing its own duplicated fold (see Ruling
+  // 5). The original per-base-plan-task-8 fold ignored SCORE_CORRECTED
+  // entirely, so an undo performed after a correction had silently
+  // recomputed state from the pre-correction history -- a real, confirmed
+  // gap this fixes.
+  //
+  // KNOWN LIMITATION: this does NOT roll back server-rotation identity.
+  // `team_a_current_server_session_player_id` / `team_b_current_server_
+  // session_player_id` keep reflecting the state as of the just-undone
+  // rally, not the rotation as it stood immediately before that rally.
+  // Recomputing identity backward through an undo would require replaying
+  // the identity rotation the same way `replayEvents` replays GameState,
+  // and `replayEvents`'s `ReplayResult` does not currently carry identity
+  // (it only folds GameState) -- extending it to do so is the natural fix,
+  // but is out of scope for this task.
   async undoLastRally(sessionId: string, gameId: string, actorUserId: string) {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
@@ -459,33 +512,24 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     const ruleset = await getScoringRuleset(db, session.scoringRulesetId, session.organizationId)
     if (!ruleset) return failure('Scoring ruleset not found.')
 
-    // Recompute by replaying every remaining scoring event -- the same fold
-    // Task 3's replayEvents() performs over the whole log, applied here to
-    // just the non-reversed scoring events. The true opening servingTeam
-    // comes from the actual GAME_STARTED event's payload, exactly as
-    // replayEvents.ts's own GAME_STARTED case reads it, rather than from any
-    // positional assumption about the log.
-    const startedEvent = events.find((e: ScoreEvent) => e.eventType === 'GAME_STARTED')
-    if (!startedEvent) return failure('Game has no GAME_STARTED event; cannot recompute state.')
-
-    const remainingScoringEvents = scoringEvents.filter((e: ScoreEvent) => e.sequence !== lastRally.sequence)
-    let state = initialGameState((startedEvent.payload as { servingTeam: 'A' | 'B' }).servingTeam, ruleset.format)
-    for (const event of remainingScoringEvents) {
-      state = recordRally(state, ruleset, (event.payload as { winningTeam: 'A' | 'B' }).winningTeam)
-    }
-
     const nextSequence = await getNextSequence(db, gameId)
+    const hypotheticalEvents = [
+      ...events.map((e: ScoreEvent) => ({ sequence: e.sequence, eventType: e.eventType, payload: e.payload })),
+      { sequence: nextSequence, eventType: 'POINT_REVERSED', payload: { reversedSequence: lastRally.sequence } },
+    ]
+    const replayed = replayEvents(hypotheticalEvents, ruleset)
+
     const reversalEvent = buildAppendScoreEventStatement(db, {
       gameId, sequence: nextSequence, eventType: 'POINT_REVERSED', actorUserId, payload: { reversedSequence: lastRally.sequence },
     })
     const projectionStatement = buildUpdateGameProjectionStatement(db, gameId, {
-      scoreA: state.scoreA, scoreB: state.scoreB, servingTeam: state.servingTeam, serverNumber: state.serverNumber,
-      status: game.status, winningTeamId: game.winningTeamId, finalScoreA: game.finalScoreA, finalScoreB: game.finalScoreB,
+      scoreA: replayed.state.scoreA, scoreB: replayed.state.scoreB, servingTeam: replayed.state.servingTeam, serverNumber: replayed.state.serverNumber,
+      status: replayed.status, winningTeamId: replayed.winningTeamId, finalScoreA: replayed.finalScoreA, finalScoreB: replayed.finalScoreB,
       revision: nextSequence,
     })
 
     await db.batch([reversalEvent, projectionStatement])
 
-    return { ok: true as const, state, game: await getGame(db, sessionId, gameId) }
+    return { ok: true as const, state: replayed.state, game: await getGame(db, sessionId, gameId) }
   }
 }
