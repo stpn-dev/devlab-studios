@@ -164,11 +164,17 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
-    // Task 4 adds real handling (RESYNC_REQUEST). For now, every inbound
-    // message is ignored — the DO never accepts a mutation over the socket
-    // (spec: all mutations stay REST/RPC).
-    void ws
-    void message
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(String(message))
+    } catch {
+      return
+    }
+    if (!parsed || typeof parsed !== 'object' || (parsed as { type?: string }).type !== 'RESYNC_REQUEST') return
+
+    const attachment = ws.deserializeAttachment() as { sessionId: string; channel: 'operator' | 'public' } | null
+    if (!attachment) return
+    await this.sendSnapshotTo(ws, attachment.sessionId, attachment.channel)
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
@@ -181,6 +187,72 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   async webSocketError(ws: WebSocket, error: unknown) {
     void error
     ws.close(1011, 'Internal error.')
+  }
+
+  // Serves a client-requested resync (RESYNC_REQUEST) with a fresh snapshot
+  // over the SAME socket that asked. Same non-null narrowing requirement as
+  // fetch() above (see that method's block comment for the full rationale):
+  // buildSessionSnapshot's `session` field is genuinely `T | null`, so the
+  // null case must be a real runtime guard, not a type-erasing cast. Unlike
+  // fetch() -- where a null session 404s an in-progress handshake -- this
+  // runs over an ALREADY-established connection, so there is no response to
+  // 404; skipping the send is the reasonable no-op (nothing valid exists to
+  // show, and the socket stays open for a future resync once the session
+  // exists again, if ever).
+  private async sendSnapshotTo(ws: WebSocket, sessionId: string, channel: 'operator' | 'public') {
+    const snapshot = await buildSessionSnapshot(this.env.PICKLEBALL_DB, sessionId)
+    const { session } = snapshot
+    if (!session) return
+    const payload = channel === 'public' ? toPublicSessionView({ ...snapshot, session }) : snapshot
+    this.seq += 1
+    ws.send(JSON.stringify({ type: 'STATE', sessionId, seq: this.seq, payload }))
+  }
+
+  // Called by every mutating method below, AFTER its own db.batch() (or
+  // single-statement write, for Task 6's thin wrappers) has already
+  // committed. A broadcast failure must never fail the mutation that
+  // triggered it -- the caller already has its own success/failure response
+  // to return regardless -- so this method swallows its own errors rather
+  // than letting them propagate into a `await this.broadcast(sessionId)`
+  // call site. console.error is used deliberately: this codebase has no
+  // logging library, and it's the platform-native way Workers surfaces
+  // errors to `wrangler tail`/dashboard logs, not application log noise.
+  private async broadcast(sessionId: string) {
+    try {
+      const sockets = this.ctx.getWebSockets()
+      if (!sockets.length) return
+
+      const snapshot = await buildSessionSnapshot(this.env.PICKLEBALL_DB, sessionId)
+      // Same non-null narrowing requirement as fetch()/sendSnapshotTo above:
+      // a real runtime guard, not a cast. Here there are potentially MANY
+      // connected sockets and nothing valid to send any of them, so the
+      // whole broadcast is skipped rather than fanning out incomplete data.
+      const { session } = snapshot
+      if (!session) {
+        console.error('broadcast: session no longer exists, skipping', sessionId)
+        return
+      }
+      const publicPayload = toPublicSessionView({ ...snapshot, session })
+      this.seq += 1
+      const seq = this.seq
+
+      for (const ws of sockets) {
+        const attachment = ws.deserializeAttachment() as { sessionId: string; channel: 'operator' | 'public' } | null
+        // Every socket this instance ever accepted was already checked
+        // against THIS sessionId at accept time (fetch()'s ownsSession
+        // guard), so attachment.sessionId should always match -- this check
+        // is defense in depth, not a real filter.
+        if (!attachment || attachment.sessionId !== sessionId) continue
+        const payload = attachment.channel === 'public' ? publicPayload : snapshot
+        try {
+          ws.send(JSON.stringify({ type: 'STATE', sessionId, seq, payload }))
+        } catch (error) {
+          console.error('broadcast: failed to send to one socket', error)
+        }
+      }
+    } catch (error) {
+      console.error('broadcast: failed to build/send snapshot', error)
+    }
   }
 
   // Shared release-safety guard for finishGame AND abandonGame.
@@ -297,6 +369,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       }
     }
 
+    await this.broadcast(sessionId)
+
     return {
       ok: true as const,
       // Re-read rather than reusing the batch result: the court projection
@@ -363,6 +437,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     await db.batch(statements)
 
+    await this.broadcast(sessionId)
+
     return { ok: true as const, teamId: team.id, incomingSessionPlayerId, outgoingSessionPlayerId }
   }
 
@@ -400,6 +476,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     statements.push(buildSetCourtStatusStatement(db, sessionId, sessionCourtId, 'AVAILABLE'))
 
     await db.batch(statements)
+
+    await this.broadcast(sessionId)
 
     return { ok: true as const, releasedSessionPlayerIds: sessionPlayerIds, requeued }
   }
@@ -517,6 +595,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     ].filter(Boolean)
 
     await db.batch(statements)
+
+    await this.broadcast(sessionId)
 
     return { ok: true as const, game: await getGame(db, sessionId, gameId) }
   }
@@ -661,6 +741,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     await db.batch(statements)
 
+    await this.broadcast(sessionId)
+
     return result
   }
 
@@ -733,6 +815,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     })
 
     await db.batch([reversalEvent, projectionStatement])
+
+    await this.broadcast(sessionId)
 
     return { ok: true as const, state: replayed.state, game: await getGame(db, sessionId, gameId) }
   }
@@ -907,6 +991,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
       await db.batch(statements)
 
+      await this.broadcast(sessionId)
+
       return result
     }
 
@@ -995,6 +1081,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     await db.batch(statements)
 
+    await this.broadcast(sessionId)
+
     return result
   }
 
@@ -1060,6 +1148,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     await db.batch([abandonedEvent, projectionStatement, ...releaseStatements])
 
+    await this.broadcast(sessionId)
+
     return { ok: true as const, releasedSessionPlayerIds: sessionPlayerIds, requeued, game: await getGame(db, sessionId, gameId) }
   }
 
@@ -1115,6 +1205,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       ...gamesPlayedStatements, ...matchmakingStatements,
     ])
 
+    await this.broadcast(sessionId)
+
     return { ok: true as const, game: await getGame(db, sessionId, gameId) }
   }
 
@@ -1149,6 +1241,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     })
 
     await db.batch([correctedEvent, projectionStatement])
+
+    await this.broadcast(sessionId)
 
     return { ok: true as const, game: await getGame(db, sessionId, gameId) }
   }

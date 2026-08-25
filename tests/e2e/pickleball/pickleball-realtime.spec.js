@@ -101,3 +101,88 @@ test('public channel resolves a code to a sanitized snapshot with no queue data'
   expect(parsed.payload.session.id).toBe(sessionId)
   expect(parsed.payload.queue).toBeUndefined()
 })
+
+test('a rally recorded via REST broadcasts an updated snapshot to a connected operator client', async ({ page, request }) => {
+  const baseURL = test.info().project.use.baseURL
+
+  // Same SameSite=Strict cookie requirement as the operator-channel test
+  // above: the WebSocket handshake below is initiated from `page`, which
+  // never shares a cookie jar with `request` (see this file's top-of-file
+  // comment) and starts at about:blank (an opaque, cross-site origin). Pull
+  // the login cookie onto `page`'s context explicitly and navigate `page`
+  // to same-origin content before opening the socket, exactly like
+  // createLiveSessionForRealtimeTests does above.
+  const loginResponse = await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+  const setCookie = loginResponse.headers()['set-cookie']
+  const [nameValue] = setCookie.split(';')
+  const separatorIndex = nameValue.indexOf('=')
+  const cookieName = nameValue.slice(0, separatorIndex)
+  const cookieValue = nameValue.slice(separatorIndex + 1)
+  await page.context().addCookies([{ name: cookieName, value: cookieValue, url: baseURL }])
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Broadcast Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Broadcast Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-08-30T18:00:00.000Z', scheduledEnd: '2026-08-30T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  const sessionPlayerIds = []
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Broadcast Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+    sessionPlayerIds.push(sessionPlayerId)
+  }
+
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+  const startResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: { sessionCourtId, servingTeam: 'A', teamAStartingServerSessionPlayerId: sessionPlayerIds[0], teamBStartingServerSessionPlayerId: sessionPlayerIds[2] },
+  })
+  const gameId = (await startResponse.json()).game.id
+
+  // Navigate to a same-origin page before opening the WebSocket, so the
+  // SameSite=Strict cookie added above is actually attached to the upgrade
+  // request (see the comment on the login step above).
+  await page.goto('/pickleball/app')
+
+  const wsUrl = `${baseURL.replace('http', 'ws')}/pickleball/rt/${sessionId}`
+
+  const nextMessage = page.evaluate(
+    ({ url }) =>
+      new Promise((resolve) => {
+        const ws = new WebSocket(url)
+        let seenFirst = false
+        ws.onmessage = (event) => {
+          if (!seenFirst) {
+            seenFirst = true // the accept-time snapshot; wait for the NEXT one
+            return
+          }
+          resolve(event.data)
+        }
+      }),
+    { url: wsUrl },
+  )
+
+  // Give the socket a moment to finish its handshake and receive the
+  // accept-time snapshot before triggering the rally that should produce a
+  // SECOND message.
+  await page.waitForTimeout(500)
+  const rallyResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/rally`, { data: { winningTeam: 'A' } })
+  expect(rallyResponse.ok()).toBe(true)
+
+  const received = await nextMessage
+  const parsed = JSON.parse(received)
+  expect(parsed.payload.games[0].scoreA).toBe(1)
+})
