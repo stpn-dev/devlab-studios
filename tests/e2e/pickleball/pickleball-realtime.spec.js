@@ -186,3 +186,97 @@ test('a rally recorded via REST broadcasts an updated snapshot to a connected op
   const parsed = JSON.parse(received)
   expect(parsed.payload.games[0].scoreA).toBe(1)
 })
+
+test('public REST polling fallback returns the same sanitized shape as the WebSocket channel', async ({ request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  const sessionId = await createLiveSessionForRealtimeTests(request, context, baseURL)
+  const output = execSync(
+    `npx wrangler d1 execute devlab-pickleball --local --json --command "SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'"`,
+  ).toString()
+  const code = JSON.parse(output)[0].results[0].public_code
+
+  const response = await request.get(`/api/pickleball/public/${code}/state`)
+  expect(response.ok()).toBe(true)
+  const body = await response.json()
+  expect(body.session.id).toBe(sessionId)
+  expect(body.queue).toBeUndefined()
+})
+
+test('public REST polling fallback 404s for a revoked-or-unknown code', async ({ request }) => {
+  const response = await request.get('/api/pickleball/public/does-not-exist/state')
+  expect(response.status()).toBe(404)
+})
+
+test('reconnecting after a mutation gets a fully corrected snapshot with no resync protocol needed', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+
+  // Same SameSite=Strict cookie requirement as the other operator-channel
+  // tests in this file (see the top-of-file comment): the WebSocket
+  // handshakes below are initiated from `page`, which never shares a
+  // cookie jar with `request`. Pull the login cookie onto `page`'s context
+  // explicitly and navigate `page` to same-origin content before opening
+  // either socket.
+  const loginResponse = await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+  const setCookie = loginResponse.headers()['set-cookie']
+  const [nameValue] = setCookie.split(';')
+  const separatorIndex = nameValue.indexOf('=')
+  const cookieName = nameValue.slice(0, separatorIndex)
+  const cookieValue = nameValue.slice(separatorIndex + 1)
+  await context.addCookies([{ name: cookieName, value: cookieValue, url: baseURL }])
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Reconnect Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Reconnect Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-08-30T18:00:00.000Z', scheduledEnd: '2026-08-30T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+
+  await page.goto('/pickleball/app')
+
+  const wsUrl = `${baseURL.replace('http', 'ws')}/pickleball/rt/${sessionId}`
+
+  // First connection, closed immediately after its accept-time snapshot —
+  // simulating a client that was open during the status transition below but
+  // disconnected before it happened. A freshly created session starts
+  // DRAFT (see sessionStateMachine.ts), so this snapshot's session.status
+  // is the pre-mutation baseline this test compares the reconnect against.
+  const beforeMutation = await page.evaluate(
+    ({ url }) => new Promise((resolve) => {
+      const ws = new WebSocket(url)
+      ws.onmessage = (event) => { ws.close(); resolve(event.data) }
+    }),
+    { url: wsUrl },
+  )
+  const beforeParsed = JSON.parse(beforeMutation)
+  expect(beforeParsed.payload.session.status).toBe('DRAFT')
+
+  // A mutation happens while nothing is connected. This goes through the
+  // plain REST status route (not the DO), which does NOT broadcast -- so
+  // the only way a reconnecting client can ever see it is by reading a
+  // fresh snapshot at accept time, exactly what this test is verifying.
+  const statusResponse = await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  expect(statusResponse.ok()).toBe(true)
+
+  // A fresh connection (not a "resume") should already reflect it, with no
+  // resync request, no gap-tracking, and no special "you missed something"
+  // framing -- there is nothing else for a reconnecting client to do.
+  const received = await page.evaluate(
+    ({ url }) => new Promise((resolve) => {
+      const ws = new WebSocket(url)
+      ws.onmessage = (event) => resolve(event.data)
+    }),
+    { url: wsUrl },
+  )
+  const parsed = JSON.parse(received)
+  expect(parsed.type).toBe('STATE')
+  expect(parsed.payload.session.id).toBe(sessionId)
+  // The real assertion: the fresh connection's snapshot reflects the
+  // mutation that happened while nothing was connected, proving a plain
+  // reconnect is a complete resync on its own (this plan's Decision 3) --
+  // not just that some well-formed message arrived.
+  expect(parsed.payload.session.status).toBe('OPEN_FOR_CHECKIN')
+})

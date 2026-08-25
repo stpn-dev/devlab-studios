@@ -17,6 +17,14 @@ const PICKLEBALL_PUBLIC_ROUTES = new Set([
   '/api/pickleball/auth/logout',
   '/api/pickleball/auth/test-login',
 ])
+// The public polling fallback (Task 8) is, by definition, for an
+// unauthenticated spectator whose socket is down -- it must be reachable
+// without a session cookie, same as the public WebSocket channel already is
+// by living outside this prefix entirely (/pickleball/rt/public/[code]).
+// Dynamic [code] segments don't fit PICKLEBALL_PUBLIC_ROUTES' exact-match
+// Set, so this is a prefix check instead; the route's own handler still
+// does the real authorization (public_view_enabled + revoked-code 404).
+const PICKLEBALL_PUBLIC_STATE_PREFIX = '/api/pickleball/public/'
 const MAINTENANCE_PAGE = '/maintenance'
 const MAINTENANCE_GATED_PATHS = new Set(['/', '/about', '/services', '/profile', '/insights'])
 
@@ -49,7 +57,11 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
   }
 
-  if (url.pathname.startsWith(PICKLEBALL_API_PREFIX) && !PICKLEBALL_PUBLIC_ROUTES.has(url.pathname)) {
+  if (
+    url.pathname.startsWith(PICKLEBALL_API_PREFIX) &&
+    !PICKLEBALL_PUBLIC_ROUTES.has(url.pathname) &&
+    !url.pathname.startsWith(PICKLEBALL_PUBLIC_STATE_PREFIX)
+  ) {
     try {
       await requirePickleballSession(context.request, getEnv())
     } catch (error: any) {
