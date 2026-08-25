@@ -21,6 +21,7 @@ import {
   listEligibleQueueCandidates,
   hasOpenAssignment,
   buildMarkAssignedStatement,
+  buildMarkPlayingStatement,
   buildCloseQueueEntryStatement,
   buildJoinQueueStatement,
 } from '../repositories/pickleball/queueEntries.js'
@@ -31,11 +32,11 @@ import {
   buildClearTeamCourtBindingStatement,
   getActiveTeamForSessionPlayer,
   listAssignedSessionPlayerIdsForCourt,
+  getTeamWithMembers,
 } from '../repositories/pickleball/teams.js'
-import {
-  buildSetAvailabilityByIdStatement,
-  buildIncrementGamesPlayedStatement,
-} from '../repositories/pickleball/sessionPlayers.js'
+import { buildSetAvailabilityByIdStatement } from '../repositories/pickleball/sessionPlayers.js'
+import { buildCreateGameStatement, getGame } from '../repositories/pickleball/games.js'
+import { buildAppendScoreEventStatement } from '../repositories/pickleball/scoreEvents.js'
 import { selectNextPlayers, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 
 function requiredPlayerCount(format: string): number {
@@ -210,7 +211,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     const court = await getSessionCourt(db, sessionId, sessionCourtId)
     if (!court) return failure('Court not found.')
-    if (court.status !== 'ASSIGNED') return failure('Court is not currently assigned.')
+    if (court.status !== 'ASSIGNED' && court.status !== 'PLAYING') return failure('Court is not currently assigned.')
 
     const session = await getSessionById(db, sessionId)
 
@@ -224,9 +225,6 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     const statements = sessionPlayerIds.flatMap((sessionPlayerId) => [
       buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId),
-      // Runs on both rotation policies: a player's games-played count reflects
-      // that their assignment ended, independent of whether they re-queue.
-      buildIncrementGamesPlayedStatement(db, sessionId, sessionPlayerId),
       ...(requeued ? [buildJoinQueueStatement(db, { sessionId, sessionPlayerId })] : []),
     ])
 
@@ -242,5 +240,80 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     await db.batch(statements)
 
     return { ok: true as const, releasedSessionPlayerIds: sessionPlayerIds, requeued }
+  }
+
+  async startGame(sessionId: string, sessionCourtId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+
+    const db = this.env.PICKLEBALL_DB
+
+    const court = await getSessionCourt(db, sessionId, sessionCourtId)
+    if (!court) return failure('Court not found.')
+    if (court.status !== 'ASSIGNED') return failure('Court has no pending assignment to start a game for.')
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+    const ruleset = await getScoringRuleset(db, session.scoringRulesetId, session.organizationId)
+    if (!ruleset) return failure('Scoring ruleset not found.')
+
+    const sessionPlayerIds = await listAssignedSessionPlayerIdsForCourt(db, sessionId, sessionCourtId)
+    if (!sessionPlayerIds.length) return failure('No players are currently assigned to this court.')
+
+    // The team bound to this court IS the assignment startGame is starting a
+    // game for -- resolve both sides from it rather than re-deriving rosters,
+    // so this can never disagree with what assignCourt actually seated.
+    const anyAssignedPlayerId = sessionPlayerIds[0]
+    const team = await getActiveTeamForSessionPlayer(db, sessionId, anyAssignedPlayerId)
+    if (!team || team.sessionCourtId !== sessionCourtId) {
+      return failure('Could not resolve the teams currently assigned to this court.')
+    }
+
+    // assignCourt always creates teamA then teamB for one court assignment;
+    // find the sibling by court binding rather than assuming id ordering.
+    const courtTeamsResult = await db
+      .prepare(`SELECT id FROM teams WHERE session_court_id = ? AND session_id = ?`)
+      .bind(sessionCourtId, sessionId)
+      .all<{ id: string }>()
+    const courtTeamIds: string[] = (courtTeamsResult.results || []).map((row) => row.id)
+    if (courtTeamIds.length !== 2) {
+      return failure(`Expected exactly 2 teams bound to this court, found ${courtTeamIds.length}.`)
+    }
+    const [teamAId, teamBId] = courtTeamIds
+
+    const gameId = crypto.randomUUID()
+    const timestamp = new Date().toISOString()
+    const servingTeam: 'A' | 'B' = 'A'
+
+    const gameStatement = buildCreateGameStatement(db, {
+      id: gameId, sessionId, sessionCourtId, scoringRulesetId: ruleset.id, format: ruleset.format,
+      teamAId, teamBId, servingTeam, timestamp,
+    })
+
+    const teamAMembers = await getTeamWithMembers(db, teamAId)
+    const teamBMembers = await getTeamWithMembers(db, teamBId)
+    const participantStatements = [
+      ...(teamAMembers?.members ?? []).map((m: { sessionPlayerId: string }) =>
+        db.prepare(`INSERT INTO game_participants (id, game_id, session_player_id, team_id) VALUES (?, ?, ?, ?)`)
+          .bind(crypto.randomUUID(), gameId, m.sessionPlayerId, teamAId)),
+      ...(teamBMembers?.members ?? []).map((m: { sessionPlayerId: string }) =>
+        db.prepare(`INSERT INTO game_participants (id, game_id, session_player_id, team_id) VALUES (?, ?, ?, ?)`)
+          .bind(crypto.randomUUID(), gameId, m.sessionPlayerId, teamBId)),
+    ]
+
+    const startedEvent = buildAppendScoreEventStatement(db, {
+      gameId, sequence: 1, eventType: 'GAME_STARTED', actorUserId: 'system', payload: { servingTeam },
+    })
+
+    const statements = [
+      gameStatement,
+      ...participantStatements,
+      startedEvent,
+      buildMarkPlayingStatement(db, sessionId, sessionPlayerIds),
+      buildSetCourtStatusStatement(db, sessionId, sessionCourtId, 'PLAYING'),
+    ].filter(Boolean)
+
+    await db.batch(statements)
+
+    return { ok: true as const, game: await getGame(db, sessionId, gameId) }
   }
 }

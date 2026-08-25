@@ -178,6 +178,22 @@ export function buildMarkAssignedStatement(db, sessionId, sessionPlayerIds) {
     .bind(timestamp, timestamp, sessionId, ...sessionPlayerIds)
 }
 
+/**
+ * Unexecuted UPDATE flipping ASSIGNED entries to PLAYING, once a game
+ * actually starts for the court those players were assigned to.
+ */
+export function buildMarkPlayingStatement(db, sessionId, sessionPlayerIds) {
+  if (!sessionPlayerIds.length) return null
+  const timestamp = nowIso()
+  const placeholders = sessionPlayerIds.map(() => '?').join(', ')
+  return db
+    .prepare(
+      `UPDATE queue_entries SET status = 'PLAYING', updated_at = ?
+       WHERE session_id = ? AND session_player_id IN (${placeholders}) AND status = 'ASSIGNED'`,
+    )
+    .bind(timestamp, sessionId, ...sessionPlayerIds)
+}
+
 export function buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId) {
   return db
     .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_player_id = ?`)
