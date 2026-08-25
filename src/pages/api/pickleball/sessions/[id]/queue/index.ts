@@ -5,6 +5,7 @@ import { getSession } from '../../../../../../worker/repositories/pickleball/ses
 import { listQueueForSession, listEligibleQueueCandidates, joinQueue } from '../../../../../../worker/repositories/pickleball/queueEntries.js'
 import { getSessionPlayerById } from '../../../../../../worker/repositories/pickleball/sessionPlayers.js'
 import { selectNextPlayers } from '../../../../../../lib/pickleball/queueEngine'
+import { isSessionOpenForQueueOrCourtChanges } from '../../../../../../lib/pickleball/sessionLifecycle'
 import { joinQueueSchema } from '../../../../../../lib/schemas/pickleball/queue'
 import { jsonResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
@@ -38,6 +39,10 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     if (!can(session.role, 'MANAGE_QUEUE')) {
       return jsonResponse({ error: 'Forbidden.' }, 403)
+    }
+
+    if (!isSessionOpenForQueueOrCourtChanges(pickleballSession.status)) {
+      return jsonResponse({ error: 'Session is not open for changes.' }, 409)
     }
 
     const result = joinQueueSchema.safeParse(await request.json().catch(() => null))

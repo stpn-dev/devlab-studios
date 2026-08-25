@@ -104,17 +104,35 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // court stayed AVAILABLE — stranding them where releaseCourt can't see them.
     const teamA = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind: 'AD_HOC' })
     const teamB = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind: 'AD_HOC' })
+    const markAssignedStatement = buildMarkAssignedStatement(db, sessionId, selected.map((p) => p.sessionPlayerId))
 
     const statements = [
       teamA.statement,
       ...teamAPlayers.map((player) => buildAddTeamMemberStatement(db, { teamId: teamA.id, sessionPlayerId: player.sessionPlayerId })),
       teamB.statement,
       ...teamBPlayers.map((player) => buildAddTeamMemberStatement(db, { teamId: teamB.id, sessionPlayerId: player.sessionPlayerId })),
-      buildMarkAssignedStatement(db, sessionId, selected.map((p) => p.sessionPlayerId)),
+      markAssignedStatement,
       buildSetCourtStatusStatement(db, sessionId, sessionCourtId, 'ASSIGNED'),
     ].filter(Boolean)
 
-    await db.batch(statements)
+    const results = await db.batch(statements)
+
+    // The batch already committed by this point (D1 batches don't support
+    // partial rollback), so this can't prevent an inconsistent write -- but a
+    // `leaveQueue` racing between the eligibility read above and this commit
+    // could shrink the QUEUED rows out from under `markAssignedStatement`'s
+    // `WHERE ... AND status = 'QUEUED'` clause, silently seating fewer players
+    // than the court's new roster (teamA/teamB rows) claims. Surface that as a
+    // hard failure instead of returning success over a state where the court
+    // says N players are seated but fewer than N were actually flipped to
+    // ASSIGNED.
+    if (markAssignedStatement) {
+      const markAssignedIndex = statements.indexOf(markAssignedStatement)
+      const seated = results[markAssignedIndex]?.meta?.changes ?? 0
+      if (seated !== needed) {
+        return failure(`Assignment failed: expected to seat ${needed} players, only ${seated} were queued at commit time.`)
+      }
+    }
 
     return {
       ok: true as const,

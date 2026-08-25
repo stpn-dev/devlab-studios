@@ -3,6 +3,7 @@ import { requirePickleballSession } from '../../../../../../worker/pickleball/au
 import { can } from '../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
 import { leaveQueue } from '../../../../../../worker/repositories/pickleball/queueEntries.js'
+import { isSessionOpenForQueueOrCourtChanges } from '../../../../../../lib/pickleball/sessionLifecycle'
 import { leaveQueueSchema } from '../../../../../../lib/schemas/pickleball/queue'
 import { jsonResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
@@ -16,6 +17,10 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     if (!can(session.role, 'MANAGE_QUEUE')) {
       return jsonResponse({ error: 'Forbidden.' }, 403)
+    }
+
+    if (!isSessionOpenForQueueOrCourtChanges(pickleballSession.status)) {
+      return jsonResponse({ error: 'Session is not open for changes.' }, 409)
     }
 
     const result = leaveQueueSchema.safeParse(await request.json().catch(() => null))

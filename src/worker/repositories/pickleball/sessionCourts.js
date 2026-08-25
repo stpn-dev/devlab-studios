@@ -52,10 +52,3 @@ export function buildSetCourtStatusStatement(db, sessionId, sessionCourtId, stat
     .prepare(`UPDATE session_courts SET status = ?, updated_at = ? WHERE session_id = ? AND id = ?`)
     .bind(status, nowIso(), sessionId, sessionCourtId)
 }
-
-/** @returns the updated court, or null if no row matched. */
-export async function setCourtStatus(db, sessionId, sessionCourtId, status) {
-  const result = await buildSetCourtStatusStatement(db, sessionId, sessionCourtId, status).run()
-  if (!result.meta.changes) return null
-  return getSessionCourt(db, sessionId, sessionCourtId)
-}

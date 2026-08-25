@@ -41,6 +41,19 @@ export function buildJoinQueueStatement(db, { sessionId, sessionPlayerId }) {
     .bind(crypto.randomUUID(), sessionId, sessionPlayerId, timestamp, timestamp, timestamp)
 }
 
+// True when a D1 write failed because of
+// idx_queue_entries_one_open_per_player (migrations/pickleball/0006) -- the
+// partial unique index that is the REAL enforcement of "at most one open
+// queue entry per session_player". D1 doesn't expose a typed error code here,
+// so this is a string match against the driver's SQLITE_CONSTRAINT message,
+// same as any other place in this codebase that has to distinguish a
+// constraint violation from an unrelated failure (there is no existing
+// precedent to follow -- this is the first).
+function isUniqueConstraintViolation(error) {
+  const message = String((error && error.message) || error || '')
+  return message.includes('UNIQUE constraint failed')
+}
+
 export async function joinQueue(db, { sessionId, sessionPlayerId }) {
   const alreadyOpen = await hasOpenQueueEntry(db, sessionId, sessionPlayerId)
   if (alreadyOpen) return null
@@ -48,13 +61,24 @@ export async function joinQueue(db, { sessionId, sessionPlayerId }) {
   const id = crypto.randomUUID()
   const timestamp = nowIso()
 
-  await db
-    .prepare(
-      `INSERT INTO queue_entries (id, session_id, session_player_id, status, queued_at, created_at, updated_at)
-       VALUES (?, ?, ?, 'QUEUED', ?, ?, ?)`,
-    )
-    .bind(id, sessionId, sessionPlayerId, timestamp, timestamp, timestamp)
-    .run()
+  try {
+    await db
+      .prepare(
+        `INSERT INTO queue_entries (id, session_id, session_player_id, status, queued_at, created_at, updated_at)
+         VALUES (?, ?, ?, 'QUEUED', ?, ?, ?)`,
+      )
+      .bind(id, sessionId, sessionPlayerId, timestamp, timestamp, timestamp)
+      .run()
+  } catch (error) {
+    // The `hasOpenQueueEntry` check above is only a fast-path optimization --
+    // it's a plain read-then-write with no serialization, so two concurrent
+    // or retried calls can both pass it and both reach this INSERT. The
+    // partial unique index rejects the second one at the DB level; treat that
+    // exactly like the pre-check catching it, so callers get one consistent
+    // "already has an open entry" signal regardless of which path caught it.
+    if (isUniqueConstraintViolation(error)) return null
+    throw error
+  }
 
   const row = await db.prepare(`SELECT * FROM queue_entries WHERE id = ?`).bind(id).first()
   return toQueueEntry(row)
@@ -154,23 +178,8 @@ export function buildMarkAssignedStatement(db, sessionId, sessionPlayerIds) {
     .bind(timestamp, timestamp, sessionId, ...sessionPlayerIds)
 }
 
-/**
- * @returns {Promise<number>} rows actually flipped, so a caller can assert it
- *   matches the number of players it expected to seat.
- */
-export async function markAssigned(db, sessionId, sessionPlayerIds) {
-  const statement = buildMarkAssignedStatement(db, sessionId, sessionPlayerIds)
-  if (!statement) return 0
-  const result = await statement.run()
-  return result.meta.changes
-}
-
 export function buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId) {
   return db
     .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_player_id = ?`)
     .bind(sessionId, sessionPlayerId)
-}
-
-export async function closeQueueEntry(db, sessionId, sessionPlayerId) {
-  await buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId).run()
 }

@@ -19,20 +19,10 @@ export function buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind }
   return { id, statement }
 }
 
-export async function createTeam(db, { sessionId, sessionCourtId, kind }) {
-  const { id, statement } = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind })
-  await statement.run()
-  return { id, sessionId, sessionCourtId: sessionCourtId ?? null, kind }
-}
-
 export function buildAddTeamMemberStatement(db, { teamId, sessionPlayerId }) {
   return db
     .prepare(`INSERT INTO team_members (id, team_id, session_player_id) VALUES (?, ?, ?)`)
     .bind(crypto.randomUUID(), teamId, sessionPlayerId)
-}
-
-export async function addTeamMember(db, { teamId, sessionPlayerId }) {
-  await buildAddTeamMemberStatement(db, { teamId, sessionPlayerId }).run()
 }
 
 /**

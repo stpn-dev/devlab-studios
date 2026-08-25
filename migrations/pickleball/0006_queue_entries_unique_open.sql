@@ -1,0 +1,36 @@
+-- Phase 3 final-review fix (Critical): a session_player could end up holding
+-- TWO open queue_entries rows (any combination of QUEUED/ASSIGNED/PLAYING),
+-- defeating the "never assigned twice" guarantee the whole phase is built
+-- around.
+--
+-- Root cause: `joinQueue` (src/worker/repositories/pickleball/queueEntries.js)
+-- is called directly from the `POST /sessions/:id/queue` route -- it does NOT
+-- go through SessionCoordinatorDO. It is a plain read-then-write
+-- (`hasOpenQueueEntry` check, then an INSERT) with no serialization and, until
+-- this migration, no DB constraint behind it. Two concurrent or retried POST
+-- calls for the same session_player could both pass the pre-check and both
+-- insert. `listEligibleQueueCandidates` returns one row per queue entry with
+-- no dedupe, so `selectNextPlayers` could then select that player twice --
+-- and because they'd hold two open entries, they could be ASSIGNED via one
+-- while still QUEUED via the other, remaining eligible for a second court
+-- assignment.
+--
+-- 0004_queue_and_teams.sql's comment on idx_queue_entries_session_player
+-- claims the "at most one open entry per player" invariant is "enforced at
+-- the application layer inside the DO's serialized command handlers, not a
+-- DB constraint". That was incorrect for the join-queue path described above,
+-- which never touches the DO at all -- nothing was serializing it. Left 0004
+-- untouched (it's an already-applied migration; editing DDL there is out of
+-- bounds, and even a comment-only edit risks confusion about what shipped in
+-- which migration) and is corrected here instead: THIS index is the real
+-- enforcement mechanism. A partial unique index works where a table-level
+-- UNIQUE constraint couldn't, because "open" spans three status values, not
+-- one fixed column value.
+--
+-- `joinQueue` now catches the resulting SQLITE_CONSTRAINT/UNIQUE failure and
+-- translates it into the same "already has an open entry" (`null` return ->
+-- 409) signal the pre-check already produced, so callers see one consistent
+-- behavior whichever path caught the race.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_queue_entries_one_open_per_player
+  ON queue_entries(session_id, session_player_id)
+  WHERE status IN ('QUEUED', 'ASSIGNED', 'PLAYING');
