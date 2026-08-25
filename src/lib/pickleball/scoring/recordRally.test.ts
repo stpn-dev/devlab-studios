@@ -32,7 +32,7 @@ describe('recordRally', () => {
   })
 
   it('the opening 0-0-2 loses immediately to one lost rally (side out, no point)', () => {
-    const opening = initialGameState('A')
+    const opening = initialGameState('A', 'DOUBLES')
     expect(opening).toEqual({ scoreA: 0, scoreB: 0, servingTeam: 'A', serverNumber: 2 })
     const next = recordRally(opening, DOUBLES, 'B')
     expect(next).toEqual({ scoreA: 0, scoreB: 0, servingTeam: 'B', serverNumber: 1 })

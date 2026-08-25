@@ -435,7 +435,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!startedEvent) return failure('Game has no GAME_STARTED event; cannot recompute state.')
 
     const remainingScoringEvents = scoringEvents.filter((e: ScoreEvent) => e.sequence !== lastRally.sequence)
-    let state = initialGameState((startedEvent.payload as { servingTeam: 'A' | 'B' }).servingTeam)
+    let state = initialGameState((startedEvent.payload as { servingTeam: 'A' | 'B' }).servingTeam, ruleset.format)
     for (const event of remainingScoringEvents) {
       state = recordRally(state, ruleset, (event.payload as { winningTeam: 'A' | 'B' }).winningTeam)
     }

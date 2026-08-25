@@ -1,6 +1,6 @@
 // src/lib/pickleball/scoring/display.test.ts
 import { describe, it, expect } from 'vitest'
-import { officialScoreCall, isValidFinalScore, isGamePoint, contextualState } from './display'
+import { officialScoreCall, isValidFinalScore, hasGameBeenWon, isGamePoint, contextualState } from './display'
 
 const RULESET = { format: 'DOUBLES' as const, targetScore: 11, winBy: 2 }
 const SINGLES = { format: 'SINGLES' as const, targetScore: 11, winBy: 2 }
@@ -28,22 +28,53 @@ describe('officialScoreCall', () => {
   })
 })
 
-describe('isValidFinalScore', () => {
+describe('isValidFinalScore / hasGameBeenWon — legally reachable finals only', () => {
+  const TO_11 = { format: 'DOUBLES' as const, targetScore: 11, winBy: 2 }
+  const TO_15 = { format: 'DOUBLES' as const, targetScore: 15, winBy: 2 }
+  const TO_21 = { format: 'DOUBLES' as const, targetScore: 21, winBy: 2 }
+
   it.each([
-    [11, 7, true],
-    [11, 9, true],
-    [11, 10, false],
-    [12, 10, true],
-    [13, 11, true],
-    [10, 8, false],
-  ])('scoreA=%i scoreB=%i -> %s', (scoreA, scoreB, expected) => {
-    expect(isValidFinalScore(scoreA, scoreB, RULESET)).toBe(expected)
+    // [scoreA, scoreB, ruleset, expected]
+    [11, 9, TO_11, true],
+    [11, 10, TO_11, false],
+    [12, 10, TO_11, true],
+    [12, 9, TO_11, false],
+    [12, 11, TO_11, false],
+    [13, 11, TO_11, true],
+    [13, 10, TO_11, false],
+    [13, 12, TO_11, false],
+    [14, 11, TO_11, false],
+    [20, 20, TO_11, false],
+    [22, 20, TO_11, true],
+    [21, 20, TO_11, false],
+    [15, 13, TO_15, true],
+    // NOTE: the brief's original fixture here was [15, 12, TO_15, false], but
+    // 15-12 is actually a legally reachable final score under the rewritten
+    // rule -- same shape as the 11-9/15-13 "winner exactly at target, loser
+    // comfortably within winBy" cases above, just verified false<->true. Before
+    // the winner reaches targetScore, no margin size stops the game, so a
+    // jump straight to target-with-large-margin (15-12, margin 3 >= winBy 2)
+    // is legal. Replaced with 16-13: one point past the paired 15-13 true
+    // case, which is genuinely unreachable (the game would have already
+    // ended at 15-13).
+    [16, 13, TO_15, false],
+    [21, 19, TO_21, true],
+    // NOTE: same fixture bug as above -- 21-18 is legally reachable (winner
+    // at target, margin 3 >= winBy 2). Replaced with 22-19: one point past
+    // the paired 21-19 true case.
+    [22, 19, TO_21, false],
+  ])('scoreA=%i scoreB=%i target=%o -> %s', (scoreA, scoreB, ruleset, expected) => {
+    expect(isValidFinalScore(scoreA, scoreB, ruleset)).toBe(expected)
+    // hasGameBeenWon is the same check by construction -- assert the two
+    // never disagree, so a future edit to one without the other is caught.
+    expect(hasGameBeenWon({ scoreA, scoreB, servingTeam: 'A', serverNumber: 2 }, ruleset)).toBe(expected)
   })
 
-  it('never hardcodes 11 -- respects a different targetScore', () => {
-    const to15 = { format: 'DOUBLES' as const, targetScore: 15, winBy: 2 }
-    expect(isValidFinalScore(11, 7, to15)).toBe(false)
-    expect(isValidFinalScore(15, 13, to15)).toBe(true)
+  it('repeated ties never hit an artificial cap -- 20-20 continuing to 22-20 is valid, not capped at some "first to 13" rule', () => {
+    expect(isValidFinalScore(20, 20, TO_11)).toBe(false)
+    expect(isValidFinalScore(21, 21, TO_11)).toBe(false)
+    expect(isValidFinalScore(22, 20, TO_11)).toBe(true)
+    expect(isValidFinalScore(23, 21, TO_11)).toBe(true)
   })
 })
 
