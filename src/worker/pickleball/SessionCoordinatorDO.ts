@@ -586,6 +586,15 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // changes must not be poisoned by a cached validation failure, so a
   // failed `isValidFinalScore` check returns WITHOUT writing any
   // idempotency record at all.
+  //
+  // Also mirroring recordRally (Ruling 8): the post-mutation `game` is
+  // reconstructed in-memory as `finishedGame` below, BEFORE the batch runs,
+  // rather than re-fetched via a post-batch getGame(...) call. That in-
+  // memory object is what goes into BOTH the fresh-success `result` AND the
+  // idempotency-record value persisted in the SAME db.batch() -- so a cache
+  // hit on retry returns exactly the same shape (including `game`) as the
+  // original call did, instead of silently omitting `game` the way this
+  // method used to on the cache-hit path.
   async finishGame(sessionId: string, gameId: string, actorUserId: string, idempotencyKey?: string) {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
@@ -685,9 +694,36 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
     releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
 
+    // Built purely in-memory BEFORE the batch runs, mirroring recordRally's
+    // `updatedGame` (Ruling 8). Every field mirrors exactly what
+    // `projectionStatement` persists. `finishedAt`/`updatedAt` reuse the
+    // `timestamp` captured above rather than the `nowIso()` calls
+    // `buildUpdateGameProjectionStatement` makes internally, so they may
+    // differ from the persisted columns by a few milliseconds --
+    // immaterial for a response snapshot, and it keeps this fix scoped to
+    // this file instead of also touching games.js's statement builder.
+    const finishedGame = {
+      ...game,
+      status: 'FINISHED' as const,
+      winningTeamId,
+      finalScoreA: game.scoreA,
+      finalScoreB: game.scoreB,
+      revision: sequence,
+      finishedAt: timestamp,
+      updatedAt: timestamp,
+    }
+
+    // Computed purely in-memory BEFORE the batch runs (Ruling 8) -- this is
+    // exactly what a cache hit above now returns too, since it's this same
+    // object (JSON round-tripped) that gets persisted as the idempotency
+    // record's value a few lines down. Cache hit and fresh success are
+    // therefore structurally identical: same keys, same types, and (for
+    // `game`) the snapshot as of the ORIGINAL successful call rather than a
+    // live re-fetch that could reflect a later correction/abandon recorded
+    // since then.
     const result = {
       ok: true as const, winningTeamId, finalScoreA: game.scoreA, finalScoreB: game.scoreB,
-      releasedSessionPlayerIds, requeued,
+      releasedSessionPlayerIds, requeued, game: finishedGame,
     }
 
     const statements = [finishedEvent, projectionStatement, ...statStatements, ...matchmakingStatements, ...gamesPlayedStatements, ...releaseStatements]
@@ -697,7 +733,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     await db.batch(statements)
 
-    return { ...result, game: await getGame(db, sessionId, gameId) }
+    return result
   }
 
   // Abandons a game AND releases its court in ONE db.batch(), same atomicity
