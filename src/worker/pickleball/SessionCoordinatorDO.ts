@@ -35,9 +35,12 @@ import {
   getTeamWithMembers,
 } from '../repositories/pickleball/teams.js'
 import { buildSetAvailabilityByIdStatement } from '../repositories/pickleball/sessionPlayers.js'
-import { buildCreateGameStatement, getGame } from '../repositories/pickleball/games.js'
-import { buildAppendScoreEventStatement } from '../repositories/pickleball/scoreEvents.js'
+import { buildCreateGameStatement, buildUpdateGameProjectionStatement, getGame } from '../repositories/pickleball/games.js'
+import { getNextSequence, buildAppendScoreEventStatement, listScoreEventsForGame } from '../repositories/pickleball/scoreEvents.js'
+import { getIdempotentResult, buildRecordIdempotentResultStatement } from '../repositories/pickleball/idempotencyKeys.js'
 import { selectNextPlayers, type QueueCandidate } from '../../lib/pickleball/queueEngine'
+import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
+import { initialGameState } from '../../lib/pickleball/scoring/gameState'
 
 function requiredPlayerCount(format: string): number {
   return format === 'SINGLES' ? 2 : 4
@@ -45,6 +48,16 @@ function requiredPlayerCount(format: string): number {
 
 function failure(error: string) {
   return { ok: false as const, error }
+}
+
+// Mirrors gameProjection.ts's local ScoreEvent shape: listScoreEventsForGame
+// lives in a plain .js repository module, so its element type isn't inferred
+// precisely enough for the filter/map/find callbacks below without this.
+interface ScoreEvent {
+  sequence: number
+  eventType: string
+  payload: unknown
+  [key: string]: unknown
 }
 
 export class SessionCoordinatorDO extends DurableObject<Env> {
@@ -55,6 +68,26 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // losing mutual exclusion. This asserts the pairing instead of trusting it.
   private ownsSession(sessionId: string): boolean {
     return this.ctx.id.equals(this.env.SESSION_COORDINATOR.idFromName(sessionId))
+  }
+
+  // Every command that mutates a game accepts an optional client-generated
+  // idempotency key. If the same key is seen again (a duplicated/retried
+  // request, e.g. a scorekeeper double-tapping "Finish Game" on a flaky
+  // connection), the ORIGINAL result is returned unchanged instead of the
+  // command re-applying its effects a second time. The DO's own serialization
+  // makes this race-free: two "duplicate" requests can never both pass the
+  // `getIdempotentResult` check before either one's result is recorded.
+  private async withIdempotency<T>(gameId: string, idempotencyKey: string | undefined, run: () => Promise<T>): Promise<T> {
+    const db = this.env.PICKLEBALL_DB
+    if (idempotencyKey) {
+      const cached = await getIdempotentResult(db, idempotencyKey)
+      if (cached) return cached as T
+    }
+    const result = await run()
+    if (idempotencyKey) {
+      await buildRecordIdempotentResultStatement(db, { key: idempotencyKey, gameId, result }).run()
+    }
+    return result
   }
 
   async assignCourt(sessionId: string, sessionCourtId: string) {
@@ -315,5 +348,110 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     await db.batch(statements)
 
     return { ok: true as const, game: await getGame(db, sessionId, gameId) }
+  }
+
+  // The single command every "Team A/B Won Rally" button calls (spec §7.1).
+  // It does not know or care whether the rally scored a point, advanced
+  // doubles' serve-change step, or side-out'd -- that classification is
+  // derived from the before/after state by `classifyRallyOutcome` and
+  // recorded as the actual event type, so the score_events log always
+  // reflects what really happened rather than a generic "rally recorded".
+  async recordRally(sessionId: string, gameId: string, winningTeam: 'A' | 'B', actorUserId: string, idempotencyKey?: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+
+    return this.withIdempotency(gameId, idempotencyKey, async () => {
+      const db = this.env.PICKLEBALL_DB
+
+      const game = await getGame(db, sessionId, gameId)
+      if (!game) return failure('Game not found.')
+      if (game.status !== 'IN_PROGRESS') return failure('Game is not in progress.')
+
+      const session = await getSessionById(db, sessionId)
+      if (!session) return failure('Session not found.')
+      const ruleset = await getScoringRuleset(db, session.scoringRulesetId, session.organizationId)
+      if (!ruleset) return failure('Scoring ruleset not found.')
+
+      const before = { scoreA: game.scoreA, scoreB: game.scoreB, servingTeam: game.servingTeam, serverNumber: game.serverNumber }
+      const after = recordRally(before, ruleset, winningTeam)
+      const outcome = classifyRallyOutcome(before, after)
+
+      const sequence = await getNextSequence(db, gameId)
+      const eventStatement = buildAppendScoreEventStatement(db, {
+        gameId, sequence, eventType: outcome, actorUserId, payload: { winningTeam },
+      })
+      const projectionStatement = buildUpdateGameProjectionStatement(db, gameId, {
+        scoreA: after.scoreA, scoreB: after.scoreB, servingTeam: after.servingTeam, serverNumber: after.serverNumber,
+        status: game.status, winningTeamId: game.winningTeamId, finalScoreA: game.finalScoreA, finalScoreB: game.finalScoreB,
+        revision: sequence,
+      })
+
+      await db.batch([eventStatement, projectionStatement])
+
+      return { ok: true as const, state: after, outcome, game: await getGame(db, sessionId, gameId) }
+    })
+  }
+
+  // Undo pops the most recent NOT-already-reversed rally by appending a
+  // compensating POINT_REVERSED event rather than deleting or rewriting the
+  // original -- the score_events log stays append-only and auditable, and
+  // replayEvents() (Task 3) already knows how to skip a reversed sequence
+  // when reconstructing state from the full log. This method needs the
+  // recomputed state synchronously (to write the projection), so it performs
+  // the equivalent fold itself over just the remaining scoring events rather
+  // than calling replayEvents() over the whole log.
+  async undoLastRally(sessionId: string, gameId: string, actorUserId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+
+    const db = this.env.PICKLEBALL_DB
+
+    const game = await getGame(db, sessionId, gameId)
+    if (!game) return failure('Game not found.')
+    if (game.status !== 'IN_PROGRESS') return failure('Game is not in progress.')
+
+    const events: ScoreEvent[] = await listScoreEventsForGame(db, gameId)
+    const alreadyReversed = new Set(
+      events
+        .filter((e: ScoreEvent) => e.eventType === 'POINT_REVERSED')
+        .map((e: ScoreEvent) => (e.payload as { reversedSequence: number }).reversedSequence),
+    )
+    const scoringEvents = events.filter(
+      (e: ScoreEvent) => ['POINT_AWARDED', 'SERVE_CHANGED', 'SIDE_OUT'].includes(e.eventType) && !alreadyReversed.has(e.sequence),
+    )
+    const lastRally = scoringEvents.at(-1)
+    if (!lastRally) return failure('There is no rally to undo.')
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+    const ruleset = await getScoringRuleset(db, session.scoringRulesetId, session.organizationId)
+    if (!ruleset) return failure('Scoring ruleset not found.')
+
+    // Recompute by replaying every remaining scoring event -- the same fold
+    // Task 3's replayEvents() performs over the whole log, applied here to
+    // just the non-reversed scoring events. The true opening servingTeam
+    // comes from the actual GAME_STARTED event's payload, exactly as
+    // replayEvents.ts's own GAME_STARTED case reads it, rather than from any
+    // positional assumption about the log.
+    const startedEvent = events.find((e: ScoreEvent) => e.eventType === 'GAME_STARTED')
+    if (!startedEvent) return failure('Game has no GAME_STARTED event; cannot recompute state.')
+
+    const remainingScoringEvents = scoringEvents.filter((e: ScoreEvent) => e.sequence !== lastRally.sequence)
+    let state = initialGameState((startedEvent.payload as { servingTeam: 'A' | 'B' }).servingTeam)
+    for (const event of remainingScoringEvents) {
+      state = recordRally(state, ruleset, (event.payload as { winningTeam: 'A' | 'B' }).winningTeam)
+    }
+
+    const nextSequence = await getNextSequence(db, gameId)
+    const reversalEvent = buildAppendScoreEventStatement(db, {
+      gameId, sequence: nextSequence, eventType: 'POINT_REVERSED', actorUserId, payload: { reversedSequence: lastRally.sequence },
+    })
+    const projectionStatement = buildUpdateGameProjectionStatement(db, gameId, {
+      scoreA: state.scoreA, scoreB: state.scoreB, servingTeam: state.servingTeam, serverNumber: state.serverNumber,
+      status: game.status, winningTeamId: game.winningTeamId, finalScoreA: game.finalScoreA, finalScoreB: game.finalScoreB,
+      revision: nextSequence,
+    })
+
+    await db.batch([reversalEvent, projectionStatement])
+
+    return { ok: true as const, state, game: await getGame(db, sessionId, gameId) }
   }
 }
