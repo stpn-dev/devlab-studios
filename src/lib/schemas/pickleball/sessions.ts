@@ -9,4 +9,9 @@ export const createSessionSchema = z.object({
   scheduledEnd: z.string().datetime(),
 })
 
+export const sessionStatusSchema = z.object({
+  status: z.enum(['DRAFT', 'OPEN_FOR_CHECKIN', 'LIVE', 'PAUSED', 'COMPLETED', 'CANCELLED']),
+})
+
 export type CreateSessionInput = z.infer<typeof createSessionSchema>
+export type SessionStatusInput = z.infer<typeof sessionStatusSchema>

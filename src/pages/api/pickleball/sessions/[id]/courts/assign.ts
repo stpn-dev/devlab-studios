@@ -10,6 +10,15 @@ export const POST: APIRoute = async ({ request, params }) => {
   const env = getEnv()
   try {
     const session = await requirePickleballSession(request, env)
+
+    // Drained unconditionally, before any early return below, so a 404/403
+    // response never leaves this POST's JSON body unread — locally, that
+    // combination crashes wrangler dev's miniflare loopback outright
+    // ("Network connection lost" on every later request in the same run;
+    // see tests/e2e/pickleball/pickleball-attendance.spec.js). Response
+    // codes/ordering are unchanged; only when the body is consumed moves.
+    const body = await request.json().catch(() => null)
+
     const pickleballSession = await getSession(env.PICKLEBALL_DB, params.id, session.activeOrgId)
     if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
 
@@ -17,7 +26,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       return jsonResponse({ error: 'Forbidden.' }, 403)
     }
 
-    const result = assignCourtSchema.safeParse(await request.json().catch(() => null))
+    const result = assignCourtSchema.safeParse(body)
     if (!result.success) {
       return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
     }

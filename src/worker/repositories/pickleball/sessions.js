@@ -90,6 +90,15 @@ export async function getScoringRuleset(db, id, organizationId) {
   return toScoringRuleset(row)
 }
 
+export async function updateSessionStatus(db, id, organizationId, status) {
+  const result = await db
+    .prepare(`UPDATE pickleball_sessions SET status = ?, updated_at = ? WHERE id = ? AND organization_id = ?`)
+    .bind(status, nowIso(), id, organizationId)
+    .run()
+  if (!result.meta.changes) return null
+  return getSession(db, id, organizationId)
+}
+
 export async function createSession(db, {
   organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId,
 }) {

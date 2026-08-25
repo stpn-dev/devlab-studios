@@ -1,66 +1,30 @@
 import { test, expect } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import process from 'node:process'
 
-// Mirrors scripts/pickleball/apply-e2e-fixtures.mjs's wrangler-bin resolution:
-// invoked as a plain JS entry under the current node binary rather than via
-// `npx`, since Node refuses to spawn a Windows `.cmd` shim without `shell:
-// true` (EINVAL), and a shell would only add path-quoting problems here.
-function resolveWranglerBin() {
-  const require = createRequire(import.meta.url)
-  return join(dirname(require.resolve('wrangler')), '..', 'bin', 'wrangler.js')
-}
+async function createDraftSessionWithCourts(request, courtCount) {
+  await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
 
-// Phase 3 has no API route that transitions a session's status, and none that
-// creates `session_courts` rows — confirmed by grep across
-// src/pages/api/pickleball, and independently confirmed in Task 6's and Task
-// 7's own verification reports, which call this out explicitly as an accepted
-// gap ("session_courts and the session LIVE status transition have no API
-// route yet ... those belong to later tasks per the plan") and work around it
-// in their own manual HTTP verification the same way this does: writing
-// directly to local D1 via `wrangler d1 execute --local` while `wrangler dev`
-// is already running. This is the one piece of setup no route in this phase
-// can perform, so it is done here exactly once per fixture (a single batched
-// `--file` execution, not one call per statement) to keep the number of
-// external writes against the shared SQLite file as small as possible.
-//
-// Measured directly while writing this spec: this second process racing
-// wrangler dev's own open handle on the same SQLite file intermittently fails
-// with `SQLITE_BUSY: database is locked` — a transient lock-contention error
-// from two processes touching one file, not anything to do with the code
-// under test. A short retry-with-backoff is the correct, honest response to
-// that specific error; anything else (e.g. treating a resulting test failure
-// as a DO concurrency signal) would be misdiagnosing infrastructure flakiness
-// as a product bug. This retry loop must NEVER swallow any other error.
-function applyDirectD1Sql(sql, attemptsRemaining = 5) {
-  const sqlPath = join(mkdtempSync(join(tmpdir(), 'pb-queue-e2e-')), 'setup.sql')
-  writeFileSync(sqlPath, sql, 'utf8')
+  const venueResponse = await request.post('/api/pickleball/venues', {
+    data: { name: `Lifecycle Test Venue ${Date.now()}-${Math.random().toString(36).slice(2)}` },
+  })
+  const venueId = (await venueResponse.json()).venue.id
 
-  try {
-    execFileSync(
-      process.execPath,
-      [resolveWranglerBin(), 'd1', 'execute', 'devlab-pickleball', '--local', `--file=${sqlPath}`],
-      { stdio: 'pipe', windowsHide: true },
-    )
-  } catch (error) {
-    const output = `${error?.stdout || ''}${error?.stderr || ''}`
-    const isLockContention = output.includes('SQLITE_BUSY') || output.includes('database is locked')
-    if (!isLockContention || attemptsRemaining <= 1) throw error
-
-    const backoffMs = 200 * (6 - attemptsRemaining)
-    const deadline = Date.now() + backoffMs
-    while (Date.now() < deadline) {
-      // Synchronous busy-wait: execFileSync's call site here has no
-      // async-friendly retry path, and the backoff windows involved (200ms
-      // to 1s total) are short enough that this is not worth restructuring
-      // every caller to async/await around a setTimeout for.
-    }
-    applyDirectD1Sql(sql, attemptsRemaining - 1)
+  for (let i = 0; i < courtCount; i += 1) {
+    await request.post('/api/pickleball/courts', { data: { venueId, name: `Court ${i + 1}` } })
   }
+
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId,
+      name: `Lifecycle Test Session ${Date.now()}`,
+      sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-08-30T18:00:00.000Z',
+      scheduledEnd: '2026-08-30T22:00:00.000Z',
+    },
+  })
+  const session = (await sessionResponse.json()).session
+
+  return { sessionId: session.id, session }
 }
 
 async function createSessionWithCheckedInPlayers(request, playerCount) {
@@ -71,12 +35,13 @@ async function createSessionWithCheckedInPlayers(request, playerCount) {
   })
   const venueId = (await venueResponse.json()).venue.id
 
-  const courtIds = []
   for (let i = 0; i < 2; i += 1) {
-    const courtResponse = await request.post('/api/pickleball/courts', { data: { venueId, name: `Court ${i + 1}` } })
-    courtIds.push((await courtResponse.json()).court.id)
+    await request.post('/api/pickleball/courts', { data: { venueId, name: `Court ${i + 1}` } })
   }
 
+  // Courts are created on the venue BEFORE the session so that session
+  // creation's auto-provisioning (seedSessionCourtsFromVenue) has courts to
+  // seed session_courts rows from.
   const sessionResponse = await request.post('/api/pickleball/sessions', {
     data: {
       venueId,
@@ -90,20 +55,10 @@ async function createSessionWithCheckedInPlayers(request, playerCount) {
   const sessionId = (await sessionResponse.json()).session.id
 
   // SessionCoordinatorDO.assignCourt requires session.status === 'LIVE'
-  // (SessionCoordinatorDO.ts:72), and assignCourt/replaceAssignedPlayer/
-  // releaseCourt all require an existing session_courts row for the court in
-  // question (getSessionCourt lookups). Neither can be produced through the
-  // API in this phase, so both are set directly below.
-  const timestamp = new Date().toISOString()
-  const sessionCourtInserts = courtIds
-    .map((courtId) => {
-      const sessionCourtId = crypto.randomUUID()
-      return `INSERT INTO session_courts (id, session_id, court_id, enabled, status, created_at, updated_at) VALUES ('${sessionCourtId}', '${sessionId}', '${courtId}', 1, 'AVAILABLE', '${timestamp}', '${timestamp}');`
-    })
-    .join('\n')
-  applyDirectD1Sql(
-    `UPDATE pickleball_sessions SET status = 'LIVE', updated_at = '${timestamp}' WHERE id = '${sessionId}';\n${sessionCourtInserts}`,
-  )
+  // (SessionCoordinatorDO.ts:72). The state machine requires the
+  // intermediate OPEN_FOR_CHECKIN hop — DRAFT cannot jump straight to LIVE.
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
 
   const courtsListResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts`)
   const sessionCourts = (await courtsListResponse.json()).courts
@@ -126,17 +81,6 @@ async function createSessionWithCheckedInPlayers(request, playerCount) {
 
   return { sessionId, sessionCourts, sessionPlayerIds }
 }
-
-// Serial rather than fullyParallel: each test's setup shells out once to
-// `wrangler d1 execute --local` against the same local D1 SQLite file that
-// the already-running `wrangler dev` webServer has open (see
-// applyDirectD1Sql above and apply-e2e-fixtures.mjs's header comment on why
-// that combination is risky under concurrent load). Serializing this file's
-// tests keeps those writes from overlapping each other; it does not affect
-// the CONCURRENCY test below, whose two simultaneous requests are ordinary
-// HTTP calls into the already-running worker, not D1 writes from a second
-// process.
-test.describe.configure({ mode: 'serial' })
 
 test.describe('Pickleball queue and court assignment', () => {
   test('lists the queue with explainable reasons for each player', async ({ request }) => {
@@ -253,6 +197,82 @@ test.describe('Pickleball queue and court assignment', () => {
     const queueResponse = await request.get(`/api/pickleball/sessions/${sessionId}/queue`)
     const queue = (await queueResponse.json()).queue
     expect(queue.filter((e) => e.status === 'QUEUED')).toHaveLength(4)
+  })
+
+  test('a new session auto-provisions one session_courts row per venue court, already AVAILABLE with zero status transitions', async ({ request }) => {
+    const { sessionId, session } = await createDraftSessionWithCourts(request, 3)
+    expect(session.status).toBe('DRAFT')
+
+    const courtsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts`)
+    expect(courtsResponse.status()).toBe(200)
+    const courts = (await courtsResponse.json()).courts
+    expect(courts).toHaveLength(3)
+    for (const court of courts) {
+      expect(court.enabled).toBe(true)
+      expect(court.status).toBe('AVAILABLE')
+    }
+  })
+
+  test('the session status state machine gates court assignment through the real API', async ({ request }) => {
+    const { sessionId } = await createDraftSessionWithCourts(request, 1)
+    const courtsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts`)
+    const preLiveCourts = (await courtsResponse.json()).courts
+
+    // assignCourt on a DRAFT session still 409s via SessionCoordinatorDO's own gate.
+    const draftAssignResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: preLiveCourts[0].id },
+    })
+    expect(draftAssignResponse.status()).toBe(409)
+
+    // Illegal transition: DRAFT straight to LIVE.
+    const illegalDirectResponse = await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+    expect(illegalDirectResponse.status()).toBe(409)
+
+    // Legal path: DRAFT -> OPEN_FOR_CHECKIN -> LIVE.
+    const openResponse = await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+    expect(openResponse.status()).toBe(200)
+    expect((await openResponse.json()).session.status).toBe('OPEN_FOR_CHECKIN')
+
+    const liveResponse = await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+    expect(liveResponse.status()).toBe(200)
+    expect((await liveResponse.json()).session.status).toBe('LIVE')
+
+    // Illegal transition: LIVE back to DRAFT.
+    const illegalBackwardResponse = await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'DRAFT' } })
+    expect(illegalBackwardResponse.status()).toBe(409)
+
+    // Now that the session is LIVE, assignCourt succeeds. Enough checked-in,
+    // queued players are needed for a DOUBLES assignment; reuse the same
+    // registration/check-in/queue flow the other tests use.
+    for (let i = 0; i < 4; i += 1) {
+      const playerResponse = await request.post('/api/pickleball/players', {
+        data: { displayName: `Lifecycle Player ${Date.now()}-${i}-${Math.random().toString(36).slice(2)}` },
+      })
+      const playerId = (await playerResponse.json()).player.id
+      const registerResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })
+      const sessionPlayerId = (await registerResponse.json()).sessionPlayer.id
+      await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+      await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+    }
+
+    const liveAssignResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: preLiveCourts[0].id },
+    })
+    expect(liveAssignResponse.status()).toBe(200)
+  })
+
+  test('a SCOREKEEPER cannot call the session status route', async ({ request }) => {
+    const { sessionId } = await createDraftSessionWithCourts(request, 1)
+
+    const sessionInfoResponse = await request.get('/api/pickleball/auth/session')
+    const { activeOrgId } = await sessionInfoResponse.json()
+    await request.post(`/api/pickleball/organizations/${activeOrgId}/memberships`, {
+      data: { invitedEmail: 'scorekeeper-status@example.com', role: 'SCOREKEEPER' },
+    })
+    await request.post('/api/pickleball/auth/test-login', { data: { email: 'scorekeeper-status@example.com' } })
+
+    const response = await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+    expect(response.status()).toBe(403)
   })
 
   test('a SCOREKEEPER cannot assign a court', async ({ request }) => {

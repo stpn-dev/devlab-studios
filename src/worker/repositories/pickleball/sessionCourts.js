@@ -47,6 +47,20 @@ export async function setCourtEnabled(db, sessionId, sessionCourtId, enabled) {
   return getSessionCourt(db, sessionId, sessionCourtId)
 }
 
+export async function seedSessionCourtsFromVenue(db, sessionId, courts) {
+  if (!courts.length) return
+  const timestamp = nowIso()
+  const statements = courts.map((court) =>
+    db
+      .prepare(
+        `INSERT INTO session_courts (id, session_id, court_id, enabled, status, created_at, updated_at)
+         VALUES (?, ?, ?, 1, 'AVAILABLE', ?, ?)`,
+      )
+      .bind(crypto.randomUUID(), sessionId, court.id, timestamp, timestamp),
+  )
+  await db.batch(statements)
+}
+
 export function buildSetCourtStatusStatement(db, sessionId, sessionCourtId, status) {
   return db
     .prepare(`UPDATE session_courts SET status = ?, updated_at = ? WHERE session_id = ? AND id = ?`)
