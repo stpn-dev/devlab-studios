@@ -47,18 +47,31 @@ export async function setCourtEnabled(db, sessionId, sessionCourtId, enabled) {
   return getSessionCourt(db, sessionId, sessionCourtId)
 }
 
+// Prepared-but-not-yet-run INSERT for one session_courts row, following the
+// same build*Statement convention as buildSetCourtStatusStatement below and
+// SessionCoordinatorDO.ts, so a caller can compose several of these into a
+// single db.batch() alongside statements from other repositories (e.g. the
+// session-creation INSERT in sessions.js).
+export function buildCreateSessionCourtStatement(db, sessionId, court, timestamp) {
+  return db
+    .prepare(
+      `INSERT INTO session_courts (id, session_id, court_id, enabled, status, created_at, updated_at)
+       VALUES (?, ?, ?, 1, 'AVAILABLE', ?, ?)`,
+    )
+    .bind(crypto.randomUUID(), sessionId, court.id, timestamp, timestamp)
+}
+
+// One statement per venue court, ready to append to the caller's own batch.
+// Returns an empty array for a venue with zero courts — callers must not
+// treat that as an error, just nothing to seed.
+export function buildSeedSessionCourtsStatements(db, sessionId, courts) {
+  const timestamp = nowIso()
+  return courts.map((court) => buildCreateSessionCourtStatement(db, sessionId, court, timestamp))
+}
+
 export async function seedSessionCourtsFromVenue(db, sessionId, courts) {
   if (!courts.length) return
-  const timestamp = nowIso()
-  const statements = courts.map((court) =>
-    db
-      .prepare(
-        `INSERT INTO session_courts (id, session_id, court_id, enabled, status, created_at, updated_at)
-         VALUES (?, ?, ?, 1, 'AVAILABLE', ?, ?)`,
-      )
-      .bind(crypto.randomUUID(), sessionId, court.id, timestamp, timestamp),
-  )
-  await db.batch(statements)
+  await db.batch(buildSeedSessionCourtsStatements(db, sessionId, courts))
 }
 
 export function buildSetCourtStatusStatement(db, sessionId, sessionCourtId, status) {

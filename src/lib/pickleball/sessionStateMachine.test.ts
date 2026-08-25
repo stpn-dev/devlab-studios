@@ -14,12 +14,22 @@ function session(status: string) {
 }
 
 function expectThrowsWithStatus(fn: () => unknown, expectedStatus: number) {
+  // `expect(fn).toThrow()` is try/catch-safe internally, so it fails with a
+  // clear "expected to throw but did not" message on its own — unlike a
+  // hand-rolled try/catch where a sentinel error thrown after a non-throwing
+  // fn() would be caught by the SAME catch block and misreported as an
+  // `error.status` mismatch instead. The actual thrown error is then
+  // captured separately, outside any try scope that could swallow it, so we
+  // can assert on its `status`.
+  expect(fn).toThrow()
+
+  let caughtError: any
   try {
     fn()
-    throw new Error('Expected function to throw but it did not.')
   } catch (error: any) {
-    expect(error.status).toBe(expectedStatus)
+    caughtError = error
   }
+  expect(caughtError.status).toBe(expectedStatus)
 }
 
 describe('sessionStateMachine', () => {

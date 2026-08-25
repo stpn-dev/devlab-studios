@@ -35,7 +35,17 @@ export const POST: APIRoute = async ({ request, params }) => {
     }
 
     const nextStatus = transitionSession(record, result.data.status)
-    const updated = await updateSessionStatus(env.PICKLEBALL_DB, params.id as string, session.activeOrgId, nextStatus)
+    // Compare-and-swap against the status this route just validated against
+    // (`record.status`), not an unconditional write — otherwise two
+    // concurrent requests that both read the same starting status could both
+    // pass the state-machine check above and both write, with the
+    // last write silently clobbering the other's transition. A null result
+    // means another transition already moved the row past `record.status`
+    // between our read and this write, so the update never applied.
+    const updated = await updateSessionStatus(env.PICKLEBALL_DB, params.id as string, session.activeOrgId, record.status, nextStatus)
+    if (!updated) {
+      return jsonResponse({ error: 'Session status changed before this update could be applied. Refresh and try again.' }, 409)
+    }
     return jsonResponse({ session: updated }, 200)
   } catch (error: any) {
     return jsonResponse({ error: error.message }, error.status || 500)

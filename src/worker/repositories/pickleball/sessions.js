@@ -90,22 +90,33 @@ export async function getScoringRuleset(db, id, organizationId) {
   return toScoringRuleset(row)
 }
 
-export async function updateSessionStatus(db, id, organizationId, status) {
+// Compare-and-swap: the caller (the status route) has already read the
+// session and validated the state-machine transition against `fromStatus` a
+// moment earlier. Binding `fromStatus` into the WHERE clause means a second,
+// concurrent transition that raced against the same stale read cannot also
+// win — only the request whose `fromStatus` still matches the row's current
+// status at write time succeeds. A changes-count of 0 means either the row
+// vanished or (far more commonly) another transition already moved it past
+// `fromStatus`; both collapse to `null`, which is fine because the caller
+// already knows the row existed a moment earlier and can respond 409.
+export async function updateSessionStatus(db, id, organizationId, fromStatus, toStatus) {
   const result = await db
-    .prepare(`UPDATE pickleball_sessions SET status = ?, updated_at = ? WHERE id = ? AND organization_id = ?`)
-    .bind(status, nowIso(), id, organizationId)
+    .prepare(`UPDATE pickleball_sessions SET status = ?, updated_at = ? WHERE id = ? AND organization_id = ? AND status = ?`)
+    .bind(toStatus, nowIso(), id, organizationId, fromStatus)
     .run()
   if (!result.meta.changes) return null
   return getSession(db, id, organizationId)
 }
 
-export async function createSession(db, {
-  organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId,
+// Returns a prepared-but-not-yet-run INSERT statement so the route can
+// compose it into one `db.batch([...])` alongside the session-courts seed
+// statements — see SessionCoordinatorDO.ts for the established build*Statement
+// convention this follows. Running this statement alone (via `createSession`
+// below) remains a valid, supported use.
+export function buildCreateSessionStatement(db, {
+  id, organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId, timestamp,
 }) {
-  const id = crypto.randomUUID()
-  const timestamp = nowIso()
-
-  await db
+  return db
     .prepare(
       `INSERT INTO pickleball_sessions (
         id, organization_id, venue_id, name, session_type, status, scoring_ruleset_id,
@@ -114,7 +125,17 @@ export async function createSession(db, {
       ) VALUES (?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, 'AUTO_REQUEUE_ALL', 3, 1, 1, ?, ?, ?)`,
     )
     .bind(id, organizationId, venueId, name.trim(), sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId, timestamp, timestamp)
-    .run()
+}
+
+export async function createSession(db, {
+  organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId,
+}) {
+  const id = crypto.randomUUID()
+  const timestamp = nowIso()
+
+  await buildCreateSessionStatement(db, {
+    id, organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId, timestamp,
+  }).run()
 
   return getSession(db, id, organizationId)
 }

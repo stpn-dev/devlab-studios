@@ -6,10 +6,12 @@ async function createDraftSessionWithCourts(request, courtCount) {
   const venueResponse = await request.post('/api/pickleball/venues', {
     data: { name: `Lifecycle Test Venue ${Date.now()}-${Math.random().toString(36).slice(2)}` },
   })
+  expect(venueResponse.ok()).toBe(true)
   const venueId = (await venueResponse.json()).venue.id
 
   for (let i = 0; i < courtCount; i += 1) {
-    await request.post('/api/pickleball/courts', { data: { venueId, name: `Court ${i + 1}` } })
+    const courtResponse = await request.post('/api/pickleball/courts', { data: { venueId, name: `Court ${i + 1}` } })
+    expect(courtResponse.ok()).toBe(true)
   }
 
   const sessionResponse = await request.post('/api/pickleball/sessions', {
@@ -22,6 +24,7 @@ async function createDraftSessionWithCourts(request, courtCount) {
       scheduledEnd: '2026-08-30T22:00:00.000Z',
     },
   })
+  expect(sessionResponse.ok()).toBe(true)
   const session = (await sessionResponse.json()).session
 
   return { sessionId: session.id, session }
@@ -33,10 +36,12 @@ async function createSessionWithCheckedInPlayers(request, playerCount) {
   const venueResponse = await request.post('/api/pickleball/venues', {
     data: { name: `Queue Test Venue ${Date.now()}-${Math.random().toString(36).slice(2)}` },
   })
+  expect(venueResponse.ok()).toBe(true)
   const venueId = (await venueResponse.json()).venue.id
 
   for (let i = 0; i < 2; i += 1) {
-    await request.post('/api/pickleball/courts', { data: { venueId, name: `Court ${i + 1}` } })
+    const courtResponse = await request.post('/api/pickleball/courts', { data: { venueId, name: `Court ${i + 1}` } })
+    expect(courtResponse.ok()).toBe(true)
   }
 
   // Courts are created on the venue BEFORE the session so that session
@@ -52,6 +57,7 @@ async function createSessionWithCheckedInPlayers(request, playerCount) {
       scheduledEnd: '2026-08-30T22:00:00.000Z',
     },
   })
+  expect(sessionResponse.ok()).toBe(true)
   const sessionId = (await sessionResponse.json()).session.id
 
   // SessionCoordinatorDO.assignCourt requires session.status === 'LIVE'
@@ -223,6 +229,10 @@ test.describe('Pickleball queue and court assignment', () => {
       data: { sessionCourtId: preLiveCourts[0].id },
     })
     expect(draftAssignResponse.status()).toBe(409)
+    // Assert on the message, not just the status code — a 409 here would
+    // equally pass on "Court not found." as on the "Session is not live."
+    // this test is actually meant to prove.
+    expect((await draftAssignResponse.json()).error).toContain('not live')
 
     // Illegal transition: DRAFT straight to LIVE.
     const illegalDirectResponse = await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })

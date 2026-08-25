@@ -1,13 +1,13 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../worker/pickleball/authContext.js'
 import { can } from '../../../../lib/pickleball/permissions'
-import { listSessions, createSession, getScoringRuleset } from '../../../../worker/repositories/pickleball/sessions.js'
+import { listSessions, getSession, getScoringRuleset, buildCreateSessionStatement } from '../../../../worker/repositories/pickleball/sessions.js'
 import { getVenue } from '../../../../worker/repositories/pickleball/venues.js'
 import { listCourtsForVenue } from '../../../../worker/repositories/pickleball/courts.js'
-import { seedSessionCourtsFromVenue } from '../../../../worker/repositories/pickleball/sessionCourts.js'
+import { buildSeedSessionCourtsStatements } from '../../../../worker/repositories/pickleball/sessionCourts.js'
 import { createSessionSchema } from '../../../../lib/schemas/pickleball/sessions'
 import { getEnv } from '../../../../lib/env'
-import { jsonResponse } from '../../../../worker/utils/responses.js'
+import { jsonResponse, nowIso } from '../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
@@ -46,21 +46,36 @@ export const POST: APIRoute = async ({ request }) => {
       return jsonResponse({ error: 'Scoring ruleset not found in this organization.' }, 400)
     }
 
-    const created = await createSession(env.PICKLEBALL_DB, {
+    // Session creation and court seeding must commit or fail together — a
+    // court-seed failure after a standalone session INSERT already committed
+    // would leave a permanent session with zero session_courts rows and no
+    // way to add them later, exactly the failure mode this feature exists to
+    // prevent. The id/timestamp are generated up front so both the session
+    // statement and every court statement can be composed into one
+    // db.batch() call, following the same build*Statement convention as
+    // SessionCoordinatorDO.ts.
+    const sessionId = crypto.randomUUID()
+    const timestamp = nowIso()
+
+    const sessionStatement = buildCreateSessionStatement(env.PICKLEBALL_DB, {
+      id: sessionId,
       organizationId: session.activeOrgId,
       createdByUserId: session.userId,
+      timestamp,
       ...result.data,
     })
+
+    // A read, so it happens before the batch; a venue with zero courts is
+    // legitimate and yields zero court statements below.
+    const venueCourts = await listCourtsForVenue(env.PICKLEBALL_DB, result.data.venueId, session.activeOrgId)
+    const courtStatements = buildSeedSessionCourtsStatements(env.PICKLEBALL_DB, sessionId, venueCourts)
+
+    await env.PICKLEBALL_DB.batch([sessionStatement, ...courtStatements])
+
+    const created = await getSession(env.PICKLEBALL_DB, sessionId, session.activeOrgId)
     if (!created) {
       return jsonResponse({ error: 'Failed to create session.' }, 500)
     }
-
-    // Seed one session_courts row per court already defined on the venue so
-    // the queue/court-assignment feature has courts to assign to as soon as
-    // the session goes LIVE — a venue with zero courts is legitimate and
-    // seeds zero rows.
-    const venueCourts = await listCourtsForVenue(env.PICKLEBALL_DB, result.data.venueId, session.activeOrgId)
-    await seedSessionCourtsFromVenue(env.PICKLEBALL_DB, created.id, venueCourts)
 
     return jsonResponse({ session: created }, 201)
   } catch (error: any) {
