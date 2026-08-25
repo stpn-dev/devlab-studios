@@ -275,7 +275,13 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     return { ok: true as const, releasedSessionPlayerIds: sessionPlayerIds, requeued }
   }
 
-  async startGame(sessionId: string, sessionCourtId: string) {
+  async startGame(
+    sessionId: string,
+    sessionCourtId: string,
+    servingTeam: 'A' | 'B',
+    teamAStartingServerSessionPlayerId: string,
+    teamBStartingServerSessionPlayerId: string,
+  ) {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
     const db = this.env.PICKLEBALL_DB
@@ -311,30 +317,58 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (courtTeamIds.length !== 2) {
       return failure(`Expected exactly 2 teams bound to this court, found ${courtTeamIds.length}.`)
     }
-    const [teamAId, teamBId] = courtTeamIds
+    const [firstTeamId, secondTeamId] = courtTeamIds
+
+    const firstTeamMembers = await getTeamWithMembers(db, firstTeamId)
+    const secondTeamMembers = await getTeamWithMembers(db, secondTeamId)
+
+    // The court binding doesn't itself distinguish "team A" from "team B" --
+    // that label only matters for which of the two supplied starting-server
+    // ids belongs to which side, so resolve by MEMBERSHIP: whichever team
+    // actually contains teamAStartingServerSessionPlayerId is team A.
+    const firstContainsA = (firstTeamMembers?.members ?? []).some((m: { sessionPlayerId: string }) => m.sessionPlayerId === teamAStartingServerSessionPlayerId)
+    const secondContainsA = (secondTeamMembers?.members ?? []).some((m: { sessionPlayerId: string }) => m.sessionPlayerId === teamAStartingServerSessionPlayerId)
+    if (firstContainsA === secondContainsA) {
+      // Either neither team contains it (invalid id) or both do (shouldn't be
+      // possible given team_members are exclusive, but treat ambiguity the
+      // same as an invalid id -- fail closed).
+      return failure('teamAStartingServerSessionPlayerId does not belong to exactly one of the two teams on this court.')
+    }
+    const teamAId = firstContainsA ? firstTeamId : secondTeamId
+    const teamBId = firstContainsA ? secondTeamId : firstTeamId
+    const teamAMembers = firstContainsA ? firstTeamMembers : secondTeamMembers
+    const teamBMembers = firstContainsA ? secondTeamMembers : firstTeamMembers
+
+    const teamAMemberIds = (teamAMembers?.members ?? []).map((m: { sessionPlayerId: string }) => m.sessionPlayerId)
+    const teamBMemberIds = (teamBMembers?.members ?? []).map((m: { sessionPlayerId: string }) => m.sessionPlayerId)
+    if (!teamBMemberIds.includes(teamBStartingServerSessionPlayerId)) {
+      return failure('teamBStartingServerSessionPlayerId does not belong to team B on this court.')
+    }
+    if (ruleset.format === 'SINGLES' && (teamAMemberIds.length !== 1 || teamBMemberIds.length !== 1)) {
+      return failure('Singles requires exactly one player per team.')
+    }
 
     const gameId = crypto.randomUUID()
     const timestamp = new Date().toISOString()
-    const servingTeam: 'A' | 'B' = 'A'
 
     const gameStatement = buildCreateGameStatement(db, {
       id: gameId, sessionId, sessionCourtId, scoringRulesetId: ruleset.id, format: ruleset.format,
-      teamAId, teamBId, servingTeam, timestamp,
+      teamAId, teamBId, servingTeam,
+      teamAStartingServerSessionPlayerId, teamBStartingServerSessionPlayerId, timestamp,
     })
 
-    const teamAMembers = await getTeamWithMembers(db, teamAId)
-    const teamBMembers = await getTeamWithMembers(db, teamBId)
     const participantStatements = [
-      ...(teamAMembers?.members ?? []).map((m: { sessionPlayerId: string }) =>
+      ...teamAMemberIds.map((sessionPlayerId: string) =>
         db.prepare(`INSERT INTO game_participants (id, game_id, session_player_id, team_id) VALUES (?, ?, ?, ?)`)
-          .bind(crypto.randomUUID(), gameId, m.sessionPlayerId, teamAId)),
-      ...(teamBMembers?.members ?? []).map((m: { sessionPlayerId: string }) =>
+          .bind(crypto.randomUUID(), gameId, sessionPlayerId, teamAId)),
+      ...teamBMemberIds.map((sessionPlayerId: string) =>
         db.prepare(`INSERT INTO game_participants (id, game_id, session_player_id, team_id) VALUES (?, ?, ?, ?)`)
-          .bind(crypto.randomUUID(), gameId, m.sessionPlayerId, teamBId)),
+          .bind(crypto.randomUUID(), gameId, sessionPlayerId, teamBId)),
     ]
 
     const startedEvent = buildAppendScoreEventStatement(db, {
-      gameId, sequence: 1, eventType: 'GAME_STARTED', actorUserId: 'system', payload: { servingTeam },
+      gameId, sequence: 1, eventType: 'GAME_STARTED', actorUserId: 'system',
+      payload: { servingTeam, teamAStartingServerSessionPlayerId, teamBStartingServerSessionPlayerId },
     })
 
     const statements = [

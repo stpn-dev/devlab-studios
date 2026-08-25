@@ -16,6 +16,10 @@ function toGame(row) {
     scoreB: row.score_b,
     servingTeam: row.serving_team,
     serverNumber: row.server_number,
+    teamAStartingServerSessionPlayerId: row.team_a_starting_server_session_player_id,
+    teamBStartingServerSessionPlayerId: row.team_b_starting_server_session_player_id,
+    teamACurrentServerSessionPlayerId: row.team_a_current_server_session_player_id,
+    teamBCurrentServerSessionPlayerId: row.team_b_current_server_session_player_id,
     winningTeamId: row.winning_team_id,
     finalScoreA: row.final_score_a,
     finalScoreB: row.final_score_b,
@@ -27,18 +31,39 @@ function toGame(row) {
 }
 
 const GAME_COLUMNS = `id, session_id, session_court_id, scoring_ruleset_id, format, status, team_a_id, team_b_id,
-  revision, score_a, score_b, serving_team, server_number, winning_team_id, final_score_a, final_score_b,
+  revision, score_a, score_b, serving_team, server_number,
+  team_a_starting_server_session_player_id, team_b_starting_server_session_player_id,
+  team_a_current_server_session_player_id, team_b_current_server_session_player_id,
+  winning_team_id, final_score_a, final_score_b,
   started_at, finished_at, created_at, updated_at`
 
-export function buildCreateGameStatement(db, { id, sessionId, sessionCourtId, scoringRulesetId, format, teamAId, teamBId, servingTeam, timestamp }) {
+export function buildCreateGameStatement(db, {
+  id, sessionId, sessionCourtId, scoringRulesetId, format, teamAId, teamBId, servingTeam,
+  teamAStartingServerSessionPlayerId, teamBStartingServerSessionPlayerId, timestamp,
+}) {
   return db
     .prepare(
       `INSERT INTO games (
         id, session_id, session_court_id, scoring_ruleset_id, format, status, team_a_id, team_b_id,
-        revision, score_a, score_b, serving_team, server_number, started_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 'IN_PROGRESS', ?, ?, 1, 0, 0, ?, 2, ?, ?, ?)`,
+        revision, score_a, score_b, serving_team, server_number,
+        team_a_starting_server_session_player_id, team_b_starting_server_session_player_id,
+        team_a_current_server_session_player_id, team_b_current_server_session_player_id,
+        started_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'IN_PROGRESS', ?, ?, 1, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(id, sessionId, sessionCourtId, scoringRulesetId, format, teamAId, teamBId, servingTeam, timestamp, timestamp, timestamp)
+    .bind(
+      id, sessionId, sessionCourtId, scoringRulesetId, format, teamAId, teamBId, servingTeam,
+      format === 'DOUBLES' ? 2 : 1,
+      teamAStartingServerSessionPlayerId, teamBStartingServerSessionPlayerId,
+      teamAStartingServerSessionPlayerId, teamBStartingServerSessionPlayerId,
+      timestamp, timestamp, timestamp,
+    )
+}
+
+export function buildUpdateServerIdentityStatement(db, gameId, { teamACurrentServerSessionPlayerId, teamBCurrentServerSessionPlayerId }) {
+  return db
+    .prepare(`UPDATE games SET team_a_current_server_session_player_id = ?, team_b_current_server_session_player_id = ? WHERE id = ?`)
+    .bind(teamACurrentServerSessionPlayerId, teamBCurrentServerSessionPlayerId, gameId)
 }
 
 export async function getGame(db, sessionId, gameId) {
