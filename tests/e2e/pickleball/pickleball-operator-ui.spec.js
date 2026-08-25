@@ -30,3 +30,37 @@ test('creates a player through the Players page and it appears in the list', asy
   await page.reload()
   await expect(page.getByTestId('players-list').getByText(name)).toBeVisible()
 })
+
+test('creates a venue and adds a court to it through the Venues page', async ({ page, request, baseURL }) => {
+  const loginResponse = await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+
+  const setCookieHeader = loginResponse.headers()['set-cookie']
+  const nameValuePair = setCookieHeader.split(';')[0]
+  const separatorIndex = nameValuePair.indexOf('=')
+  const cookieName = nameValuePair.slice(0, separatorIndex)
+  const cookieValue = nameValuePair.slice(separatorIndex + 1)
+  await page.context().addCookies([{ name: cookieName, value: cookieValue, url: baseURL }])
+
+  await page.goto('/pickleball/app/venues')
+  await expect(page.getByRole('heading', { name: 'Venues' })).toBeVisible()
+
+  const venueName = `UI Test Venue ${Date.now()}`
+  await page.getByPlaceholder('New venue name').fill(venueName)
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByTestId('venues-list').getByText(venueName)).toBeVisible()
+
+  await expect(page.getByRole('heading', { name: `${venueName} — Courts` })).toBeVisible()
+  const courtName = `Court ${Date.now()}`
+  await page.getByPlaceholder('New court name').fill(courtName)
+  await page.getByRole('button', { name: 'Add Court' }).click()
+  await expect(page.getByTestId('courts-list').getByText(courtName)).toBeVisible()
+
+  // Reload and re-select the venue to prove both the venue and the court
+  // were actually persisted server-side, not just held in local component
+  // state.
+  await page.reload()
+  await expect(page.getByTestId('venues-list').getByText(venueName)).toBeVisible()
+  await page.getByTestId('venues-list').getByText(venueName).click()
+  await expect(page.getByRole('heading', { name: `${venueName} — Courts` })).toBeVisible()
+  await expect(page.getByTestId('courts-list').getByText(courtName)).toBeVisible()
+})

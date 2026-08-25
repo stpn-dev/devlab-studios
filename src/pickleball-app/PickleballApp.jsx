@@ -4,6 +4,7 @@ import AppShell from './components/AppShell'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import PlayersPage from './pages/PlayersPage'
+import VenuesPage from './pages/VenuesPage'
 
 function buildRouter(session, organizations, onSwitchOrg, onLogout) {
   return createBrowserRouter([
@@ -13,6 +14,7 @@ function buildRouter(session, organizations, onSwitchOrg, onLogout) {
       children: [
         { index: true, element: <DashboardPage /> },
         { path: 'players', element: <PlayersPage /> },
+        { path: 'venues', element: <VenuesPage /> },
       ],
     },
   ])
