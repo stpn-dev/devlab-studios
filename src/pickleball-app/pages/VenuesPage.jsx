@@ -79,8 +79,10 @@ export default function VenuesPage() {
               key={venue.id}
               type="button"
               onClick={() => {
-                setCourts([])
-                setSelected(venue)
+                if (selected?.id !== venue.id) {
+                  setCourts([])
+                  setSelected(venue)
+                }
               }}
               className={`block w-full rounded-lg border px-3 py-2 text-left text-sm ${selected?.id === venue.id ? 'border-brand bg-brand/10 font-semibold' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
             >
