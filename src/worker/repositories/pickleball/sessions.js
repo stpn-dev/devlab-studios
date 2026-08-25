@@ -44,6 +44,23 @@ export async function getSession(db, id, organizationId) {
   return toSession(row)
 }
 
+// TRUSTED-INTERNAL ONLY — no organization_id filter. Safe only because its
+// sole caller is Task 6's SessionCoordinatorDO, which has no notion of
+// "organization" at all: the DO is keyed by session_id and the org check
+// already happened one layer up, in the API route that resolved the
+// session_id from the authenticated user's org before ever messaging the
+// DO. Do NOT export this from, or call this from, any API route directly —
+// a route must keep using `getSession(db, id, organizationId)` above, which
+// enforces tenancy. This function exists purely so the DO (which cannot
+// apply that filter itself) can still load session state by id.
+export async function getSessionById(db, id) {
+  const row = await db
+    .prepare(`SELECT ${SESSION_COLUMNS} FROM pickleball_sessions WHERE id = ?`)
+    .bind(id)
+    .first()
+  return toSession(row)
+}
+
 function toScoringRuleset(row) {
   if (!row) return null
   return {

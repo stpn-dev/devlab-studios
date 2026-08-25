@@ -48,6 +48,19 @@ export async function getSessionPlayer(db, sessionId, playerId) {
   return toSessionPlayer(row)
 }
 
+export async function getSessionPlayerById(db, sessionId, sessionPlayerId) {
+  const row = await db
+    .prepare(
+      `SELECT ${SESSION_PLAYER_COLUMNS}
+       FROM session_players sp
+       JOIN players p ON p.id = sp.player_id
+       WHERE sp.session_id = ? AND sp.id = ?`,
+    )
+    .bind(sessionId, sessionPlayerId)
+    .first()
+  return toSessionPlayer(row)
+}
+
 export async function registerPlayer(db, { sessionId, playerId }) {
   const id = crypto.randomUUID()
   const timestamp = nowIso()
