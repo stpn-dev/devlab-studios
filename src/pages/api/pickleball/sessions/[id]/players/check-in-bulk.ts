@@ -2,7 +2,6 @@ import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../../worker/pickleball/authContext.js'
 import { can } from '../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
-import { bulkCheckIn } from '../../../../../../worker/repositories/pickleball/sessionPlayers.js'
 import { bulkCheckInSchema } from '../../../../../../lib/schemas/pickleball/sessionPlayers'
 import { jsonResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
@@ -25,8 +24,11 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     // Silently skips ineligible ids (already checked in, cancelled) rather
     // than erroring — "check all" must be safe to click more than once.
-    const checkedInPlayerIds = await bulkCheckIn(env.PICKLEBALL_DB, params.id, result.data.playerIds)
-    return jsonResponse({ checkedInPlayerIds }, 200)
+    const sessionId = params.id as string
+    const stub = env.SESSION_COORDINATOR.get(env.SESSION_COORDINATOR.idFromName(sessionId))
+    const outcome = await stub.checkInBulk(sessionId, result.data.playerIds)
+    if (!outcome.ok) return jsonResponse({ error: outcome.error }, 409)
+    return jsonResponse(outcome, 200)
   } catch (error: any) {
     return jsonResponse({ error: error.message }, error.status || 500)
   }

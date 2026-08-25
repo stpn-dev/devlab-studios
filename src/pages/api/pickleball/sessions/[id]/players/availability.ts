@@ -2,7 +2,6 @@ import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../../worker/pickleball/authContext.js'
 import { can } from '../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
-import { setAvailability } from '../../../../../../worker/repositories/pickleball/sessionPlayers.js'
 import { setAvailabilitySchema } from '../../../../../../lib/schemas/pickleball/sessionPlayers'
 import { jsonResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
@@ -23,12 +22,25 @@ export const POST: APIRoute = async ({ request, params }) => {
       return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
     }
 
-    const sessionPlayer = await setAvailability(env.PICKLEBALL_DB, params.id, result.data.playerId, result.data.status)
-    if (!sessionPlayer) {
-      return jsonResponse({ error: 'Player must be checked in to change availability.' }, 409)
+    const sessionId = params.id as string
+    const stub = env.SESSION_COORDINATOR.get(env.SESSION_COORDINATOR.idFromName(sessionId))
+    // Cast: setAvailabilitySchema allows a third status, 'RESTING', that
+    // Task 6's DO method signature doesn't type ('AVAILABLE' |
+    // 'TEMPORARILY_UNAVAILABLE' only) — the underlying repository call was
+    // always untyped JS and accepted it, and this route's own e2e coverage
+    // (pickleball-attendance.spec.js) exercises RESTING end-to-end. This is a
+    // type-only widening to preserve that existing behavior; it changes
+    // nothing at runtime.
+    const outcome = await stub.setAvailability(
+      sessionId,
+      result.data.playerId,
+      result.data.status as 'AVAILABLE' | 'TEMPORARILY_UNAVAILABLE',
+    )
+    if (!outcome.ok) {
+      return jsonResponse({ error: outcome.error }, 409)
     }
 
-    return jsonResponse({ sessionPlayer }, 200)
+    return jsonResponse(outcome, 200)
   } catch (error: any) {
     return jsonResponse({ error: error.message }, error.status || 500)
   }

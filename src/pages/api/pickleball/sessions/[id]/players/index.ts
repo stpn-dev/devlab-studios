@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../../worker/pickleball/authContext.js'
 import { can } from '../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
-import { listSessionPlayers, registerPlayer } from '../../../../../../worker/repositories/pickleball/sessionPlayers.js'
+import { listSessionPlayers } from '../../../../../../worker/repositories/pickleball/sessionPlayers.js'
 import { getPlayer } from '../../../../../../worker/repositories/pickleball/players.js'
 import { registerPlayerSchema } from '../../../../../../lib/schemas/pickleball/sessionPlayers'
 import { summarizeAttendance } from '../../../../../../lib/pickleball/attendance'
@@ -53,8 +53,11 @@ export const POST: APIRoute = async ({ request, params }) => {
       return jsonResponse({ error: 'Player is not active.' }, 400)
     }
 
-    const sessionPlayer = await registerPlayer(env.PICKLEBALL_DB, { sessionId: params.id, playerId: result.data.playerId })
-    return jsonResponse({ sessionPlayer }, 201)
+    const sessionId = params.id as string
+    const stub = env.SESSION_COORDINATOR.get(env.SESSION_COORDINATOR.idFromName(sessionId))
+    const outcome = await stub.registerPlayer(sessionId, result.data.playerId)
+    if (!outcome.ok) return jsonResponse({ error: outcome.error }, 409)
+    return jsonResponse(outcome, 201)
   } catch (error: any) {
     return jsonResponse({ error: error.message }, error.status || 500)
   }

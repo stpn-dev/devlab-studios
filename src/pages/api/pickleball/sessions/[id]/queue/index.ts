@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../../worker/pickleball/authContext.js'
 import { can } from '../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
-import { listQueueForSession, listEligibleQueueCandidates, joinQueue } from '../../../../../../worker/repositories/pickleball/queueEntries.js'
+import { listQueueForSession, listEligibleQueueCandidates } from '../../../../../../worker/repositories/pickleball/queueEntries.js'
 import { getSessionPlayerById } from '../../../../../../worker/repositories/pickleball/sessionPlayers.js'
 import { selectNextPlayers } from '../../../../../../lib/pickleball/queueEngine'
 import { isSessionOpenForQueueOrCourtChanges } from '../../../../../../lib/pickleball/sessionLifecycle'
@@ -58,12 +58,14 @@ export const POST: APIRoute = async ({ request, params }) => {
       return jsonResponse({ error: 'Session player not found in this session.' }, 400)
     }
 
-    const entry = await joinQueue(env.PICKLEBALL_DB, { sessionId: params.id, sessionPlayerId: result.data.sessionPlayerId })
-    if (!entry) {
-      return jsonResponse({ error: 'Player already has an open queue entry for this session.' }, 409)
+    const sessionId = params.id as string
+    const stub = env.SESSION_COORDINATOR.get(env.SESSION_COORDINATOR.idFromName(sessionId))
+    const outcome = await stub.joinQueue(sessionId, result.data.sessionPlayerId)
+    if (!outcome.ok) {
+      return jsonResponse({ error: outcome.error }, 409)
     }
 
-    return jsonResponse({ queueEntry: entry }, 201)
+    return jsonResponse(outcome, 201)
   } catch (error: any) {
     return jsonResponse({ error: error.message }, error.status || 500)
   }
