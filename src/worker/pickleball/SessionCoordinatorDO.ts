@@ -404,7 +404,22 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // makes the read-then-batch race-free: two "duplicate" requests can never
   // both pass the `getIdempotentResult` check before either one's result is
   // recorded.
-  async recordRally(sessionId: string, gameId: string, winningTeam: 'A' | 'B', actorUserId: string, idempotencyKey?: string) {
+  // Explicit return type -- same TS2589 workaround as finishGame above (see
+  // that method's comment): a caller narrowing on `outcome.ok` (rally.ts)
+  // otherwise blows the RPC provider's type-instantiation depth on this
+  // method's richly-inferred `state`/`outcome`/`servingPlayerId`/`game`
+  // fields. No behavior change; `unknown` is used for fields no caller reads
+  // in a typed way.
+  async recordRally(
+    sessionId: string,
+    gameId: string,
+    winningTeam: 'A' | 'B',
+    actorUserId: string,
+    idempotencyKey?: string,
+  ): Promise<
+    | { ok: false; error: string }
+    | { ok: true; state: unknown; outcome: string; servingPlayerId: unknown; game: unknown }
+  > {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
     const db = this.env.PICKLEBALL_DB
@@ -532,7 +547,13 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // and `replayEvents`'s `ReplayResult` does not currently carry identity
   // (it only folds GameState) -- extending it to do so is the natural fix,
   // but is out of scope for this task.
-  async undoLastRally(sessionId: string, gameId: string, actorUserId: string) {
+  // Explicit return type -- same TS2589 workaround as finishGame/recordRally
+  // above.
+  async undoLastRally(
+    sessionId: string,
+    gameId: string,
+    actorUserId: string,
+  ): Promise<{ ok: false; error: string } | { ok: true; state: unknown; game: unknown }> {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
     const db = this.env.PICKLEBALL_DB
@@ -605,7 +626,33 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // hit on retry returns exactly the same shape (including `game`) as the
   // original call did, instead of silently omitting `game` the way this
   // method used to on the cache-hit path.
-  async finishGame(sessionId: string, gameId: string, actorUserId: string, idempotencyKey?: string) {
+  // Explicit return type (added by this hardening task's Task 8, type-only --
+  // no behavior change): this method's two success branches (the
+  // correctionPending re-finish path and the normal path) build structurally
+  // different inline `result` object literals. Left inferred, that union --
+  // once run through DurableObjectStub's RPC provider type mapping -- blows
+  // up into TS2589 "Type instantiation is excessively deep and possibly
+  // infinite" the moment a caller narrows on `outcome.ok` (see finish.ts).
+  // `game` is typed `unknown` here rather than re-declaring games.js's
+  // ~24-field projection shape, since no caller needs typed access to it --
+  // every route just forwards the whole outcome object into jsonResponse.
+  async finishGame(
+    sessionId: string,
+    gameId: string,
+    actorUserId: string,
+    idempotencyKey?: string,
+  ): Promise<
+    | { ok: false; error: string }
+    | {
+        ok: true
+        winningTeamId: string
+        finalScoreA: number
+        finalScoreB: number
+        releasedSessionPlayerIds: string[]
+        requeued: boolean
+        game: unknown
+      }
+  > {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
     const db = this.env.PICKLEBALL_DB
@@ -802,7 +849,16 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // abandoned game was never actually completed and is explicitly excluded
   // from OPI (edge case #18), so none of finishGame's stat/matchmaking
   // bookkeeping applies here.
-  async abandonGame(sessionId: string, gameId: string, actorUserId: string) {
+  // Explicit return type -- same TS2589 workaround as finishGame/recordRally
+  // above.
+  async abandonGame(
+    sessionId: string,
+    gameId: string,
+    actorUserId: string,
+  ): Promise<
+    | { ok: false; error: string }
+    | { ok: true; releasedSessionPlayerIds: string[]; requeued: boolean; game: unknown }
+  > {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
     const db = this.env.PICKLEBALL_DB
@@ -847,7 +903,13 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // `status` keep working unchanged) but `correction_pending = 1` is the real
   // signal: recordRally checks this flag and refuses ordinary rallies against
   // a reopened game until correctGame + a re-finish clear it again.
-  async reopenGame(sessionId: string, gameId: string, actorUserId: string) {
+  // Explicit return type -- same TS2589 workaround as finishGame/recordRally
+  // above.
+  async reopenGame(
+    sessionId: string,
+    gameId: string,
+    actorUserId: string,
+  ): Promise<{ ok: false; error: string } | { ok: true; game: unknown }> {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
     const db = this.env.PICKLEBALL_DB
@@ -892,12 +954,14 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // to be set -- see section 7 of the hardening plan: correcting a mistake
   // while a game is still physically IN_PROGRESS does not require going
   // through reopenGame first.
+  // Explicit return type -- same TS2589 workaround as finishGame/recordRally
+  // above.
   async correctGame(
     sessionId: string,
     gameId: string,
     actorUserId: string,
     correctedState: { scoreA: number; scoreB: number; servingTeam: 'A' | 'B'; serverNumber: 1 | 2 },
-  ) {
+  ): Promise<{ ok: false; error: string } | { ok: true; game: unknown }> {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
     const db = this.env.PICKLEBALL_DB

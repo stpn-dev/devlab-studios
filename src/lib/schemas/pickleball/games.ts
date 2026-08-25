@@ -14,3 +14,33 @@ export const startGameSchema = z.object({
   teamAStartingServerSessionPlayerId: z.string().uuid(),
   teamBStartingServerSessionPlayerId: z.string().uuid(),
 })
+
+const idempotencyKeySchema = z.string().min(1).max(100).optional()
+
+export const rallySchema = z.object({
+  winningTeam: z.enum(['A', 'B']),
+  idempotencyKey: idempotencyKeySchema,
+})
+
+export const finishGameSchema = z.object({
+  idempotencyKey: idempotencyKeySchema,
+})
+
+export const abandonGameSchema = z.object({}).strict()
+
+export const reopenGameSchema = z.object({}).strict()
+
+export const correctGameSchema = z.object({
+  scoreA: z.number().int().min(0),
+  scoreB: z.number().int().min(0),
+  servingTeam: z.enum(['A', 'B']),
+  serverNumber: z.union([z.literal(1), z.literal(2)]),
+})
+
+export const grantOperatorSchema = z.object({
+  userId: z.string().uuid(),
+})
+
+export const revokeOperatorSchema = z.object({
+  userId: z.string().uuid(),
+})
