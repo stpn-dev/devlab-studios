@@ -56,6 +56,7 @@ import {
   buildUpsertMatchmakingStatement,
   recomputeMatchmakingHistoryStatements,
 } from '../repositories/pickleball/matchmakingHistory.js'
+import { buildSessionSnapshot } from './sessionSnapshot.js'
 import { selectNextPlayers, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { initialGameState } from '../../lib/pickleball/scoring/gameState'
@@ -83,6 +84,13 @@ interface ScoreEvent {
 }
 
 export class SessionCoordinatorDO extends DurableObject<Env> {
+  // In-memory monotonic counter, informational only — see the realtime
+  // spec's Decision 3. It resets to 0 whenever the DO hibernates and wakes
+  // fresh; that is harmless because every broadcast carries a COMPLETE
+  // snapshot, never a diff a client would need to reconcile against a prior
+  // seq.
+  private seq = 0
+
   // The entire concurrency guarantee rests on every caller deriving this stub
   // via `idFromName(sessionId)` for the SAME sessionId it then passes in.
   // Nothing in the platform enforces that pairing, so a caller that mixed them
@@ -125,10 +133,9 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     this.ctx.acceptWebSocket(server, [channel])
     server.serializeAttachment({ sessionId, channel })
 
-    // Placeholder until Task 2 replaces this with a real buildSessionSnapshot
-    // call — proves the round trip without any snapshot logic to debug
-    // around yet.
-    server.send(JSON.stringify({ type: 'STATE', sessionId, seq: 0, payload: { placeholder: true } }))
+    const snapshot = await buildSessionSnapshot(this.env.PICKLEBALL_DB, sessionId)
+    this.seq += 1
+    server.send(JSON.stringify({ type: 'STATE', sessionId, seq: this.seq, payload: snapshot }))
 
     return new Response(null, { status: 101, webSocket: client })
   }

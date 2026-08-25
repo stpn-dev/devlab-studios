@@ -65,4 +65,8 @@ test('operator channel completes a real WebSocket upgrade through the Astro rout
   const parsed = JSON.parse(received)
   expect(parsed.type).toBe('STATE')
   expect(parsed.sessionId).toBe(sessionId)
+  expect(parsed.payload.session.id).toBe(sessionId)
+  expect(parsed.payload.courts).toEqual([])
+  expect(parsed.payload.queue).toEqual([])
+  expect(parsed.payload.games).toEqual([])
 })
