@@ -58,6 +58,20 @@ function robotsTagFor(pathname: string): string | null {
  * safety net for the genuinely-static leftovers (robots.txt, /_astro/*, ...).
  */
 export function applySecurityHeaders(response: Response, pathname: string, hostname: string): Response {
+  // A WebSocket upgrade response (status 101, carrying Cloudflare's
+  // Workers-Runtime-only `webSocket` property alongside it) cannot go
+  // through `new Response(...)` below at all -- the Fetch spec's Response
+  // constructor rejects any status outside 200-599, so reconstructing it
+  // here throws a RangeError before the handshake ever reaches the client.
+  // Even setting that aside, a plain `new Response(...)` would silently
+  // drop the `webSocket` property, breaking the upgrade just as badly.
+  // Security headers are meaningless on a 101 handshake response anyway, so
+  // it passes through completely untouched. See src/worker/pickleball/
+  // SessionCoordinatorDO.ts's fetch() for the response this guards.
+  if (response.status === 101) {
+    return response
+  }
+
   const headers = new Headers(response.headers)
   const isLocalhost = LOCALHOST_HOSTNAMES.has(hostname)
 

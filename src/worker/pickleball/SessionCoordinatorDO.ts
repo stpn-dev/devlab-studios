@@ -92,6 +92,67 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     return this.ctx.id.equals(this.env.SESSION_COORDINATOR.idFromName(sessionId))
   }
 
+  // Entry point for the two realtime channels (spec §9). Reachable only via
+  // env.SESSION_COORDINATOR.get(...).fetch() from the two Astro routes below
+  // — never directly from the internet — so the headers those routes set
+  // are trusted the same way every RPC method's sessionId parameter is
+  // trusted, with the same ownsSession self-check as defense in depth.
+  async fetch(request: Request): Promise<Response> {
+    if (request.headers.get('Upgrade') !== 'websocket') {
+      return new Response('Expected a WebSocket upgrade request.', { status: 400 })
+    }
+
+    const sessionId = request.headers.get('X-Pickleball-Session-Id')
+    if (!sessionId || !this.ownsSession(sessionId)) {
+      return new Response('Coordinator/session mismatch.', { status: 400 })
+    }
+
+    const channel = request.headers.get('X-Pickleball-Channel')
+    if (channel !== 'operator' && channel !== 'public') {
+      return new Response('Missing or invalid X-Pickleball-Channel header.', { status: 400 })
+    }
+
+    const pair = new WebSocketPair()
+    const [client, server] = Object.values(pair)
+
+    // Hibernation API: the DO can evict from memory between messages instead
+    // of staying pinned for every open connection (spec's Decision 4). The
+    // tag lets broadcast() (Task 4) target one channel without deserializing
+    // every socket's attachment; the attachment (set right below) carries the
+    // sessionId/channel pair itself, since one DO instance never needs to
+    // hold a trusted "this.sessionId" field of its own (see ownsSession's
+    // comment on why nothing here is ever assumed rather than checked).
+    this.ctx.acceptWebSocket(server, [channel])
+    server.serializeAttachment({ sessionId, channel })
+
+    // Placeholder until Task 2 replaces this with a real buildSessionSnapshot
+    // call — proves the round trip without any snapshot logic to debug
+    // around yet.
+    server.send(JSON.stringify({ type: 'STATE', sessionId, seq: 0, payload: { placeholder: true } }))
+
+    return new Response(null, { status: 101, webSocket: client })
+  }
+
+  async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
+    // Task 4 adds real handling (RESYNC_REQUEST). For now, every inbound
+    // message is ignored — the DO never accepts a mutation over the socket
+    // (spec: all mutations stay REST/RPC).
+    void ws
+    void message
+  }
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+    // Hibernation API removes a closed socket from ctx.getWebSockets()
+    // automatically; there is no other per-socket state to clean up.
+    void wasClean
+    ws.close(code, reason)
+  }
+
+  async webSocketError(ws: WebSocket, error: unknown) {
+    void error
+    ws.close(1011, 'Internal error.')
+  }
+
   // Shared release-safety guard for finishGame AND abandonGame.
   //
   // Both of those compose court-release statements (clear the team-court
