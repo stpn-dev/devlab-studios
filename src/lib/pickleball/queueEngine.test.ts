@@ -57,7 +57,7 @@ describe('selectNextPlayers', () => {
       candidate({ sessionPlayerId: 'b', gamesPlayed: 3, queuedAt: '2026-08-25T18:00:00.000Z' }),
     ]
     const result = selectNextPlayers(candidates, 1, NOW)
-    const reason = result.reasons.find((r) => r.sessionPlayerId === 'a')
+    const reason = result.reasons.find((r) => r.sessionPlayerId === 'a')!
     expect(reason.reasons).toContain('Games played: 1')
     expect(reason.reasons).toContain('Queue wait: 15 minutes')
     expect(reason.reasons).toContain('Fewer games than 1 other eligible player')
