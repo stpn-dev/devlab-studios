@@ -45,6 +45,7 @@ export default function VenuesPage() {
       const { venue } = await pickleballApi.post('/api/pickleball/venues', { name: newVenueName })
       setVenues((current) => [...current, venue])
       setNewVenueName('')
+      setCourts([])
       setSelected(venue)
       setMessage({ type: 'success', text: 'Venue added.' })
     } catch (error) {
@@ -77,7 +78,10 @@ export default function VenuesPage() {
             <button
               key={venue.id}
               type="button"
-              onClick={() => setSelected(venue)}
+              onClick={() => {
+                setCourts([])
+                setSelected(venue)
+              }}
               className={`block w-full rounded-lg border px-3 py-2 text-left text-sm ${selected?.id === venue.id ? 'border-brand bg-brand/10 font-semibold' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
             >
               {venue.name}
