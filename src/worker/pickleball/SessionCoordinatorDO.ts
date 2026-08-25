@@ -189,7 +189,11 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // Hibernation API removes a closed socket from ctx.getWebSockets()
     // automatically; there is no other per-socket state to clean up.
     void wasClean
-    ws.close(code, reason)
+    // 1005/1006 are reserved "no status was actually present" codes and can
+    // never be sent explicitly -- a client's bare ws.close() (the
+    // overwhelmingly common client-initiated close) reports as 1005, which
+    // would otherwise throw here on every ordinary close.
+    ws.close(code === 1005 || code === 1006 ? 1000 : code, reason)
   }
 
   async webSocketError(ws: WebSocket, error: unknown) {
@@ -360,10 +364,16 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     const results = await db.batch(statements)
 
-    // The batch already committed by this point (D1 batches don't support
-    // partial rollback), so this can't prevent an inconsistent write -- but a
-    // `leaveQueue` racing between the eligibility read above and this commit
-    // could shrink the QUEUED rows out from under `markAssignedStatement`'s
+    // The batch has already committed at this point either way (D1 batches
+    // don't support partial rollback), so connected clients need to hear
+    // about it regardless of whether the seat-count check below succeeds or
+    // fails -- broadcast unconditionally right after the commit, before that
+    // check can short-circuit this method with an early return.
+    await this.broadcast(sessionId)
+
+    // This can't prevent an inconsistent write -- but a `leaveQueue` racing
+    // between the eligibility read above and this commit could shrink the
+    // QUEUED rows out from under `markAssignedStatement`'s
     // `WHERE ... AND status = 'QUEUED'` clause, silently seating fewer players
     // than the court's new roster (teamA/teamB rows) claims. Surface that as a
     // hard failure instead of returning success over a state where the court
@@ -376,8 +386,6 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
         return failure(`Assignment failed: expected to seat ${needed} players, only ${seated} were queued at commit time.`)
       }
     }
-
-    await this.broadcast(sessionId)
 
     return {
       ok: true as const,
@@ -1291,7 +1299,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     return { ok: true as const, checkedInPlayerIds }
   }
 
-  async setAvailability(sessionId: string, playerId: string, status: 'AVAILABLE' | 'TEMPORARILY_UNAVAILABLE') {
+  async setAvailability(sessionId: string, playerId: string, status: 'AVAILABLE' | 'TEMPORARILY_UNAVAILABLE' | 'RESTING') {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
     const sessionPlayer = await setAvailabilityRepo(this.env.PICKLEBALL_DB, sessionId, playerId, status)
     if (!sessionPlayer) return failure('Player is not eligible for an availability change.')

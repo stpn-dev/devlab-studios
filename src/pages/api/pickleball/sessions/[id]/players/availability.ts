@@ -24,18 +24,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     const sessionId = params.id as string
     const stub = env.SESSION_COORDINATOR.get(env.SESSION_COORDINATOR.idFromName(sessionId))
-    // Cast: setAvailabilitySchema allows a third status, 'RESTING', that
-    // Task 6's DO method signature doesn't type ('AVAILABLE' |
-    // 'TEMPORARILY_UNAVAILABLE' only) — the underlying repository call was
-    // always untyped JS and accepted it, and this route's own e2e coverage
-    // (pickleball-attendance.spec.js) exercises RESTING end-to-end. This is a
-    // type-only widening to preserve that existing behavior; it changes
-    // nothing at runtime.
-    const outcome = await stub.setAvailability(
-      sessionId,
-      result.data.playerId,
-      result.data.status as 'AVAILABLE' | 'TEMPORARILY_UNAVAILABLE',
-    )
+    const outcome = await stub.setAvailability(sessionId, result.data.playerId, result.data.status)
     if (!outcome.ok) {
       return jsonResponse({ error: outcome.error }, 409)
     }
