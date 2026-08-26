@@ -496,3 +496,59 @@ test('shows the official score call and contextual banner on the Scorekeeper pag
   await expect(page.getByTestId('scorekeeper-score')).toHaveText('10 – 0', { timeout: 10000 })
   await expect(page.getByTestId('contextual-banner')).toHaveText('Game point', { timeout: 10000 })
 })
+
+test('records rallies, undoes the last one, and finishes a game from the Scorekeeper page', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Scorekeeper Controls Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Scorekeeper Controls Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Scorekeeper Controls Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+  const teams = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`)).json()).teams
+  const startResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: {
+      sessionCourtId, servingTeam: 'A',
+      teamAStartingServerSessionPlayerId: teams[0].members[0].sessionPlayerId,
+      teamBStartingServerSessionPlayerId: teams[1].members[0].sessionPlayerId,
+    },
+  })
+  const gameId = (await startResponse.json()).game.id
+
+  await page.goto(`/pickleball/app/sessions/${sessionId}/games/${gameId}`)
+  await expect(page.getByTestId('scorekeeper-score')).toHaveText('0 – 0')
+
+  await page.getByRole('button', { name: 'TEAM A WON RALLY' }).click()
+  await expect(page.getByTestId('scorekeeper-score')).toHaveText('1 – 0', { timeout: 10000 })
+
+  await page.getByRole('button', { name: 'UNDO LAST RALLY' }).click()
+  await expect(page.getByTestId('scorekeeper-score')).toHaveText('0 – 0', { timeout: 10000 })
+
+  for (let i = 0; i < 11; i += 1) {
+    const rallyResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/rally`, { data: { winningTeam: 'A' } })
+    expect(rallyResponse.ok()).toBe(true)
+  }
+
+  await expect(page.getByTestId('scorekeeper-score')).toHaveText('11 – 0', { timeout: 10000 })
+  await expect(page.getByRole('button', { name: 'Finish game' })).toBeVisible()
+  await page.getByRole('button', { name: 'Finish game' }).click()
+  await expect(page.getByText('Game finished: 11 – 0.')).toBeVisible({ timeout: 10000 })
+})
