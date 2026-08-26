@@ -8,6 +8,7 @@ import VenuesPage from './pages/VenuesPage'
 import SessionsListPage from './pages/SessionsListPage'
 import SessionLayout from './components/SessionLayout'
 import SessionControlPage from './pages/SessionControlPage'
+import CheckInPage from './pages/CheckInPage'
 
 function buildRouter(session, organizations, onSwitchOrg, onLogout) {
   return createBrowserRouter([
@@ -22,7 +23,10 @@ function buildRouter(session, organizations, onSwitchOrg, onLogout) {
         {
           path: 'sessions/:sessionId',
           element: <SessionLayout />,
-          children: [{ index: true, element: <SessionControlPage /> }],
+          children: [
+            { index: true, element: <SessionControlPage /> },
+            { path: 'check-in', element: <CheckInPage /> },
+          ],
         },
       ],
     },

@@ -130,3 +130,28 @@ test('SessionControlPage shows Live status and its queue count updates from a br
 
   await expect(page.getByTestId('queue-count')).toHaveText('1', { timeout: 10000 })
 })
+
+test('checks in a registered player through the Check-in page', async ({ page, request, baseURL }) => {
+  await loginAsOperator(request, page.context(), baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Checkin UI Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Checkin UI Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  const playerName = `Checkin UI Player ${Date.now()}`
+  const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: playerName } })).json()).player.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })
+
+  await page.goto(`/pickleball/app/sessions/${sessionId}/check-in`)
+  await expect(page.getByTestId('checkin-list').getByText(playerName)).toBeVisible()
+  await expect(page.getByTestId('checkin-list').getByText('NOT_CHECKED_IN')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Check in' }).click()
+  await expect(page.getByTestId('checkin-list').getByText('CHECKED_IN')).toBeVisible({ timeout: 10000 })
+})
