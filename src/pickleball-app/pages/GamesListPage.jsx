@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 
 function StartGameForm({ sessionId, court, onStarted }) {
@@ -128,10 +128,14 @@ export default function GamesListPage() {
         <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">Games</h2>
         <div className="space-y-2" data-testid="games-list">
           {snapshot.games.map((game) => (
-            <div key={game.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
+            <Link
+              key={game.id}
+              to={game.id}
+              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm hover:border-slate-300"
+            >
               <span>{game.scoreA} – {game.scoreB}</span>
               <span className="text-slate-500">{game.status}</span>
-            </div>
+            </Link>
           ))}
           {!snapshot.games.length ? <p className="text-sm text-slate-500">No games yet.</p> : null}
         </div>

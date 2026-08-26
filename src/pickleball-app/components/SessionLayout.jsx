@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useParams } from 'react-router-dom'
+import { NavLink, Outlet, useOutletContext, useParams } from 'react-router-dom'
 import { useSessionRealtime } from '../lib/useSessionRealtime'
 import { pickleballApi } from '../lib/pickleballApi'
 
@@ -13,6 +13,7 @@ const SUB_NAV = [
 
 export default function SessionLayout() {
   const { sessionId } = useParams()
+  const { authRole } = useOutletContext()
   const [session, setSession] = useState(null)
   const [loadError, setLoadError] = useState(false)
 
@@ -67,7 +68,7 @@ export default function SessionLayout() {
             ))}
           </nav>
 
-          <Outlet context={{ sessionId, session, status, snapshot, error }} />
+          <Outlet context={{ sessionId, session, status, snapshot, error, authRole }} />
         </>
       )}
     </div>
