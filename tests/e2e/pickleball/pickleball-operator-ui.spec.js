@@ -196,3 +196,38 @@ test('a queued player appears on the Queue page and can leave the queue', async 
   await page.getByRole('button', { name: 'Leave queue' }).click()
   await expect(page.getByTestId('queue-waiting-list').getByText('Nobody waiting.')).toBeVisible({ timeout: 10000 })
 })
+
+test('assigns and releases a court through the Courts page', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Courts UI Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Courts UI Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Courts UI Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+  }
+
+  await page.goto(`/pickleball/app/sessions/${sessionId}/courts`)
+  await expect(page.getByTestId('courts-grid').getByText('AVAILABLE')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Assign' }).click()
+  await expect(page.getByTestId('courts-grid').getByText('ASSIGNED')).toBeVisible({ timeout: 10000 })
+
+  await page.getByRole('button', { name: 'Release' }).click()
+  await expect(page.getByTestId('courts-grid').getByText('AVAILABLE')).toBeVisible({ timeout: 10000 })
+})

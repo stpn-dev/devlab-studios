@@ -10,6 +10,7 @@ import SessionLayout from './components/SessionLayout'
 import SessionControlPage from './pages/SessionControlPage'
 import CheckInPage from './pages/CheckInPage'
 import QueuePage from './pages/QueuePage'
+import CourtsPage from './pages/CourtsPage'
 
 function buildRouter(session, organizations, onSwitchOrg, onLogout) {
   return createBrowserRouter([
@@ -28,6 +29,7 @@ function buildRouter(session, organizations, onSwitchOrg, onLogout) {
             { index: true, element: <SessionControlPage /> },
             { path: 'check-in', element: <CheckInPage /> },
             { path: 'queue', element: <QueuePage /> },
+            { path: 'courts', element: <CourtsPage /> },
           ],
         },
       ],
