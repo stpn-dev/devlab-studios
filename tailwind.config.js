@@ -8,6 +8,7 @@ export default {
       },
       colors: {
         brand: {
+          DEFAULT: '#4500ff',
           ink: '#11142a',
           teal: '#4500ff',
           mint: '#eeefff',

@@ -32,7 +32,7 @@ export default function SessionLayout() {
   }, [sessionId])
 
   const wsUrl = `${window.location.origin.replace('http', 'ws')}/pickleball/rt/${sessionId}`
-  const { status, snapshot, error } = useSessionRealtime(wsUrl)
+  const { status, snapshot, error } = useSessionRealtime(loadError ? null : wsUrl)
 
   return (
     <div className="space-y-4">

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { execSync } from 'node:child_process'
+import { loginAsOperator } from './helpers.js'
 
 // Playwright's `request` and `page` fixtures do NOT share a cookie jar in
 // this project's Playwright version -- confirmed by a diagnostic run where
@@ -8,16 +9,11 @@ import { execSync } from 'node:child_process'
 // succeeded. The brief's Step 4 anticipated exactly this and named the
 // fallback: pull the Set-Cookie header off the login response and hand it to
 // `page.context().addCookies([...])` explicitly before the WebSocket ever
-// opens in the page. Every later realtime spec that logs in via `request`
-// and then opens a socket via `page` should reuse this same helper.
+// opens in the page -- see loginAsOperator in ./helpers.js. Every later
+// realtime spec that logs in via `request` and then opens a socket via
+// `page` should reuse that same helper.
 async function createLiveSessionForRealtimeTests(request, context, baseURL) {
-  const loginResponse = await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
-  const setCookie = loginResponse.headers()['set-cookie']
-  const [nameValue] = setCookie.split(';')
-  const separatorIndex = nameValue.indexOf('=')
-  const name = nameValue.slice(0, separatorIndex)
-  const value = nameValue.slice(separatorIndex + 1)
-  await context.addCookies([{ name, value, url: baseURL }])
+  await loginAsOperator(request, context, baseURL)
 
   const venueResponse = await request.post('/api/pickleball/venues', {
     data: { name: `Realtime Test Venue ${Date.now()}-${Math.random().toString(36).slice(2)}` },
@@ -112,13 +108,7 @@ test('a rally recorded via REST broadcasts an updated snapshot to a connected op
   // the login cookie onto `page`'s context explicitly and navigate `page`
   // to same-origin content before opening the socket, exactly like
   // createLiveSessionForRealtimeTests does above.
-  const loginResponse = await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
-  const setCookie = loginResponse.headers()['set-cookie']
-  const [nameValue] = setCookie.split(';')
-  const separatorIndex = nameValue.indexOf('=')
-  const cookieName = nameValue.slice(0, separatorIndex)
-  const cookieValue = nameValue.slice(separatorIndex + 1)
-  await page.context().addCookies([{ name: cookieName, value: cookieValue, url: baseURL }])
+  await loginAsOperator(request, page.context(), baseURL)
 
   const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Broadcast Venue ${Date.now()}` } })
   const venueId = (await venueResponse.json()).venue.id
@@ -216,13 +206,7 @@ test('reconnecting after a mutation gets a fully corrected snapshot with no resy
   // cookie jar with `request`. Pull the login cookie onto `page`'s context
   // explicitly and navigate `page` to same-origin content before opening
   // either socket.
-  const loginResponse = await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
-  const setCookie = loginResponse.headers()['set-cookie']
-  const [nameValue] = setCookie.split(';')
-  const separatorIndex = nameValue.indexOf('=')
-  const cookieName = nameValue.slice(0, separatorIndex)
-  const cookieValue = nameValue.slice(separatorIndex + 1)
-  await context.addCookies([{ name: cookieName, value: cookieValue, url: baseURL }])
+  await loginAsOperator(request, context, baseURL)
 
   const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Reconnect Venue ${Date.now()}` } })
   const venueId = (await venueResponse.json()).venue.id

@@ -31,9 +31,14 @@ export default function VenuesPage() {
       return
     }
     let ignore = false
-    pickleballApi.get(`/api/pickleball/courts?venueId=${selected.id}`).then((data) => {
-      if (!ignore) setCourts(data.courts)
-    })
+    pickleballApi
+      .get(`/api/pickleball/courts?venueId=${selected.id}`)
+      .then((data) => {
+        if (!ignore) setCourts(data.courts)
+      })
+      .catch(() => {
+        if (!ignore) setMessage({ type: 'error', text: 'Could not load courts.' })
+      })
     return () => {
       ignore = true
     }

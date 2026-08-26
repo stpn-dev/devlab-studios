@@ -72,7 +72,7 @@ export default function SessionsListPage() {
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-700">Venue</span>
-            <select value={form.venueId} onChange={(e) => setForm({ ...form, venueId: e.target.value })} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <select data-testid="session-venue-select" value={form.venueId} onChange={(e) => setForm({ ...form, venueId: e.target.value })} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
               <option value="">Select a venue</option>
               {venues.map((v) => (
                 <option key={v.id} value={v.id}>{v.name}</option>
@@ -81,7 +81,7 @@ export default function SessionsListPage() {
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-700">Scoring ruleset</span>
-            <select value={form.scoringRulesetId} onChange={(e) => setForm({ ...form, scoringRulesetId: e.target.value })} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <select data-testid="session-ruleset-select" value={form.scoringRulesetId} onChange={(e) => setForm({ ...form, scoringRulesetId: e.target.value })} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
               <option value="">Select a ruleset</option>
               {rulesets.map((r) => (
                 <option key={r.id} value={r.id}>{r.name}</option>

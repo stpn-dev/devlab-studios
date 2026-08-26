@@ -18,7 +18,7 @@ export default function SessionControlPage() {
         </div>
         <div>
           <dt className="text-xs font-medium uppercase text-slate-500">Queued</dt>
-          <dd className="text-lg font-semibold text-slate-900" data-testid="queue-count">{snapshot ? snapshot.queue.length : '—'}</dd>
+          <dd className="text-lg font-semibold text-slate-900" data-testid="queue-count">{snapshot ? snapshot.queue.filter((entry) => entry.status === 'QUEUED').length : '—'}</dd>
         </div>
         <div>
           <dt className="text-xs font-medium uppercase text-slate-500">Courts</dt>
