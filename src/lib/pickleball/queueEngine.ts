@@ -39,6 +39,7 @@ export function selectNextPlayers(
   })
 
   let selected = sorted.slice(0, Math.max(0, count))
+  let repeatAvoidanceReplacementId: string | null = null
 
   // Repeat-avoidance tiebreak (spec §5 rule 3): only among candidates tied
   // on rule 1 (identical gamesPlayed) at the selection boundary, and only
@@ -64,14 +65,22 @@ export function selectNextPlayers(
 
     if (repeatIndex !== -1) {
       const repeatCandidate = selected[repeatIndex]
+      // The candidate about to be removed no longer counts as "selected" for
+      // conflict-checking purposes -- a replacement whose own lastPairedWith
+      // happens to BE repeatCandidate is not actually a conflict once
+      // repeatCandidate is gone. It still counts for "not already in the
+      // group" purposes (the first condition below), since it hasn't been
+      // removed yet at evaluation time.
+      const remainingSelectedIds = new Set([...selectedIds].filter((id) => id !== repeatCandidate.sessionPlayerId))
       const replacement = sorted.find(
         (candidate) =>
           !selectedIds.has(candidate.sessionPlayerId) &&
           candidate.gamesPlayed === repeatCandidate.gamesPlayed &&
-          !(lastPairedWith[candidate.sessionPlayerId] && selectedIds.has(lastPairedWith[candidate.sessionPlayerId]!)),
+          !(lastPairedWith[candidate.sessionPlayerId] && remainingSelectedIds.has(lastPairedWith[candidate.sessionPlayerId]!)),
       )
       if (replacement) {
         selected = selected.map((candidate, index) => (index === repeatIndex ? replacement : candidate))
+        repeatAvoidanceReplacementId = replacement.sessionPlayerId
       }
     }
   }
@@ -89,6 +98,10 @@ export function selectNextPlayers(
 
     if (fewerGamesThan > 0) {
       lines.push(`Fewer games than ${fewerGamesThan} other eligible ${pluralize(fewerGamesThan, 'player', 'players')}`)
+    }
+
+    if (candidate.sessionPlayerId === repeatAvoidanceReplacementId) {
+      lines.push('Selected instead of a recently paired player to avoid an immediate repeat')
     }
 
     return { sessionPlayerId: candidate.sessionPlayerId, reasons: lines }

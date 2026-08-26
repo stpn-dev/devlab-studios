@@ -131,6 +131,42 @@ describe('selectNextPlayers repeat-avoidance tiebreak', () => {
     // which is the simplest possible proof it didn't try to do anything.
     expect(result.selected.map((p) => p.sessionPlayerId).sort()).toEqual(['p1', 'p2', 'p3', 'p4'])
   })
+
+  it('includes a repeat-avoidance reason on the swapped-in candidate', () => {
+    const candidates = [
+      { sessionPlayerId: 'p1', playerId: 'p1', displayName: 'p1', gamesPlayed: 0, queuedAt: now },
+      { sessionPlayerId: 'p2', playerId: 'p2', displayName: 'p2', gamesPlayed: 0, queuedAt: now },
+      { sessionPlayerId: 'p3', playerId: 'p3', displayName: 'p3', gamesPlayed: 0, queuedAt: now },
+      { sessionPlayerId: 'p4', playerId: 'p4', displayName: 'p4', gamesPlayed: 0, queuedAt: now },
+      { sessionPlayerId: 'p5', playerId: 'p5', displayName: 'p5', gamesPlayed: 0, queuedAt: '2026-01-01T12:00:01.000Z' },
+    ]
+    const lastPairedWith = { p1: 'p2', p2: 'p1' }
+    const result = selectNextPlayers(candidates, 4, now, lastPairedWith)
+    const p5Reasons = result.reasons.find((r) => r.sessionPlayerId === 'p5')
+    expect(p5Reasons?.reasons).toContain('Selected instead of a recently paired player to avoid an immediate repeat')
+    const p1Reasons = result.reasons.find((r) => r.sessionPlayerId === 'p1')
+    expect(p1Reasons?.reasons).not.toContain('Selected instead of a recently paired player to avoid an immediate repeat')
+  })
+
+  it('accepts a replacement whose own lastPairedWith is the departing candidate (Fix 3)', () => {
+    // p1 and p2 conflict with each other (mutual repeat). p5 is the only
+    // available replacement, but p5's OWN lastPairedWith happens to be p2 --
+    // the candidate about to be removed. Before the fix this wrongly rejected
+    // p5 as "still conflicting" even though p2 is leaving the selection.
+    const candidates = [
+      { sessionPlayerId: 'p1', playerId: 'p1', displayName: 'p1', gamesPlayed: 0, queuedAt: now },
+      { sessionPlayerId: 'p2', playerId: 'p2', displayName: 'p2', gamesPlayed: 0, queuedAt: now },
+      { sessionPlayerId: 'p3', playerId: 'p3', displayName: 'p3', gamesPlayed: 0, queuedAt: now },
+      { sessionPlayerId: 'p4', playerId: 'p4', displayName: 'p4', gamesPlayed: 0, queuedAt: now },
+      { sessionPlayerId: 'p5', playerId: 'p5', displayName: 'p5', gamesPlayed: 0, queuedAt: '2026-01-01T12:00:01.000Z' },
+    ]
+    const lastPairedWith = { p1: 'p2', p2: 'p1', p5: 'p2' }
+    const result = selectNextPlayers(candidates, 4, now, lastPairedWith)
+    const ids = result.selected.map((p) => p.sessionPlayerId)
+    expect(ids).toContain('p1')
+    expect(ids).toContain('p5')
+    expect(ids).not.toContain('p2')
+  })
 })
 
 describe('balanceTeams', () => {
