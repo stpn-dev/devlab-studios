@@ -13,9 +13,13 @@ export default function CourtsPage() {
   }
 
   useEffect(() => {
-    loadEnabledFlags().catch(() => {})
+    loadEnabledFlags().catch(() => setMessage({ type: 'error', text: 'Could not load court status.' }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
+
+  useEffect(() => {
+    setEnabledByCourtId({})
+  }, [snapshot])
 
   async function runAction(actionPromise, { refreshEnabled } = {}) {
     setMessage(null)
@@ -36,7 +40,7 @@ export default function CourtsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="courts-grid">
         {snapshot.courts.map((court) => {
-          const enabled = enabledByCourtId[court.id]
+          const enabled = court.id in enabledByCourtId ? enabledByCourtId[court.id] : court.enabled
           return (
             <div key={court.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
@@ -44,7 +48,7 @@ export default function CourtsPage() {
                 <span className="text-xs text-slate-500">{court.status}</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {court.status === 'AVAILABLE' ? (
+                {court.status === 'AVAILABLE' && enabled !== false ? (
                   <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { sessionCourtId: court.id }))} className="rounded bg-brand px-3 py-1 text-xs font-semibold text-white hover:brightness-95">
                     Assign
                   </button>

@@ -232,6 +232,35 @@ test('assigns and releases a court through the Courts page', async ({ page, requ
   await expect(page.getByTestId('courts-grid').getByText('AVAILABLE')).toBeVisible({ timeout: 10000 })
 })
 
+test('enables and disables a court through the Courts page', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Courts UI Enable Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Courts UI Enable Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+
+  await page.goto(`/pickleball/app/sessions/${sessionId}/courts`)
+  await expect(page.getByTestId('courts-grid').getByText('AVAILABLE')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Disable' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Disable' }).click()
+  await expect(page.getByRole('button', { name: 'Enable' })).toBeVisible({ timeout: 10000 })
+
+  await page.getByRole('button', { name: 'Enable' }).click()
+  await expect(page.getByRole('button', { name: 'Disable' })).toBeVisible({ timeout: 10000 })
+})
+
 test('starts a game through the Games page and it appears in the games list', async ({ page, request, context }) => {
   const baseURL = test.info().project.use.baseURL
   await loginAsOperator(request, context, baseURL)
@@ -270,4 +299,104 @@ test('starts a game through the Games page and it appears in the games list', as
 
   await expect(page.getByTestId('games-list').getByText('IN_PROGRESS')).toBeVisible({ timeout: 10000 })
   await expect(page.getByTestId('games-list').getByText('0 – 0')).toBeVisible()
+})
+
+test('StartGameForm does not re-fetch teams when an unrelated broadcast re-renders the games list', async ({ page, request, context }) => {
+  // Coverage for the render-body-fetch bug fixed in StartGameForm: the form
+  // used to call its teams-fetch directly in the render body, so it would
+  // re-fire on every re-render while `teams` was still null -- including
+  // re-renders driven by unrelated WebSocket broadcasts landing on
+  // GamesListPage's parent snapshot, since StartGameForm is a child of that
+  // list.
+  //
+  // The brief allows either (a) forcing a genuine server-side error on the
+  // teams fetch (e.g. by racing a court release) or (b) proving the
+  // correct-path behavior directly: no duplicate GET .../teams calls when
+  // another broadcast fires while the form is open. Approach (a) requires
+  // winning a race against the server that isn't guaranteed to land the
+  // same way every run in this harness (the release could complete before
+  // or after the teams fetch, non-deterministically flipping between a 404
+  // and a normal load), so it risks being flaky. Approach (b) is fully
+  // deterministic -- it uses a real, unrelated mutation (registering a new
+  // player) to trigger a real broadcast and snapshot update while directly
+  // counting the actual network calls Playwright observes -- so that's the
+  // one used here.
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Games UI No-Refetch Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Games UI No-Refetch Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `No-Refetch Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+
+  const teamsRequestUrl = `/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`
+  let teamsRequestCount = 0
+  page.on('request', (req) => {
+    if (req.method() === 'GET' && req.url().includes(teamsRequestUrl)) {
+      teamsRequestCount += 1
+    }
+  })
+
+  // Listen for inbound WebSocket frames directly, rather than relying on a
+  // UI element elsewhere in the app, so we have independent proof that a
+  // broadcast actually reached this page (and therefore re-rendered
+  // GamesListPage/StartGameForm) rather than just assuming it did.
+  let wsMessageCount = 0
+  page.on('websocket', (ws) => {
+    ws.on('framereceived', () => {
+      wsMessageCount += 1
+    })
+  })
+
+  await page.goto(`/pickleball/app/sessions/${sessionId}/games`)
+  await expect(page.getByTestId('realtime-status')).toHaveText('Live', { timeout: 10000 })
+  await expect(page.getByText('Court 1 — assigned, no game started')).toBeVisible()
+  await page.getByText('Court 1 — assigned, no game started').click()
+
+  // Confirm the form actually finished its one legitimate load.
+  await expect(page.getByTestId('team-a-server-select')).toBeVisible()
+  expect(teamsRequestCount).toBe(1)
+
+  const wsMessageCountBeforeBroadcast = wsMessageCount
+
+  // Fire an unrelated mutation so a broadcast lands on the session snapshot
+  // while the start-game form is still open, forcing GamesListPage (and its
+  // StartGameForm child) to re-render.
+  const extraPlayerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `No-Refetch Extra Player ${Date.now()}` } })).json()).player.id
+  const extraSessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId: extraPlayerId } })).json()).sessionPlayer.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId: extraPlayerId } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId: extraSessionPlayerId } })
+
+  // Prove the broadcast actually reached this page's WebSocket before
+  // asserting on the request count -- otherwise a lack of re-fetch would be
+  // meaningless (it could just mean the broadcast never arrived).
+  await expect.poll(() => wsMessageCount, { timeout: 10000 }).toBeGreaterThan(wsMessageCountBeforeBroadcast)
+
+  // Give any errant re-fetch a chance to fire, then assert it didn't.
+  await page.waitForTimeout(1000)
+  expect(teamsRequestCount).toBe(1)
+
+  // The form itself should still be intact and usable, not stuck reloading.
+  await expect(page.getByTestId('team-a-server-select')).toBeVisible()
+  await page.getByTestId('team-a-server-select').selectOption({ index: 1 })
+  await page.getByTestId('team-b-server-select').selectOption({ index: 1 })
+  await expect(page.getByRole('button', { name: 'Start game' })).toBeEnabled()
 })

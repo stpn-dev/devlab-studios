@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 
@@ -9,14 +9,27 @@ function StartGameForm({ sessionId, court, onStarted }) {
   const [teamBServerId, setTeamBServerId] = useState('')
   const [message, setMessage] = useState(null)
 
-  async function loadTeams() {
-    const data = await pickleballApi.get(`/api/pickleball/sessions/${sessionId}/courts/${court.id}/teams`)
-    setTeams(data.teams)
-  }
+  useEffect(() => {
+    let ignore = false
+    pickleballApi
+      .get(`/api/pickleball/sessions/${sessionId}/courts/${court.id}/teams`)
+      .then((data) => {
+        if (!ignore) setTeams(data.teams)
+      })
+      .catch(() => {
+        if (!ignore) setMessage({ type: 'error', text: "Could not load this court's teams." })
+      })
+    return () => {
+      ignore = true
+    }
+  }, [sessionId, court.id])
 
   if (teams === null) {
-    loadTeams().catch(() => setMessage({ type: 'error', text: 'Could not load this court\'s teams.' }))
-    return <p className="text-sm text-slate-500">Loading teams…</p>
+    return (
+      <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        {message ? <p className="text-sm text-rose-600">{message.text}</p> : <p className="text-sm text-slate-500">Loading teams…</p>}
+      </div>
+    )
   }
 
   const [teamA, teamB] = teams
