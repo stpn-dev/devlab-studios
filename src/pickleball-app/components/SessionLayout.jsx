@@ -14,12 +14,18 @@ const SUB_NAV = [
 export default function SessionLayout() {
   const { sessionId } = useParams()
   const [session, setSession] = useState(null)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     let ignore = false
-    pickleballApi.get(`/api/pickleball/sessions/${sessionId}`).then((data) => {
-      if (!ignore) setSession(data.session)
-    })
+    pickleballApi
+      .get(`/api/pickleball/sessions/${sessionId}`)
+      .then((data) => {
+        if (!ignore) setSession(data.session)
+      })
+      .catch(() => {
+        if (!ignore) setLoadError(true)
+      })
     return () => {
       ignore = true
     }
@@ -31,29 +37,39 @@ export default function SessionLayout() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-        <h1 className="text-xl font-semibold text-slate-900">{session ? session.name : 'Loading…'}</h1>
-        <span
-          data-testid="realtime-status"
-          className={`rounded-full px-2 py-1 text-xs font-medium ${status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
-        >
-          {status === 'open' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
-        </span>
+        <h1 className="text-xl font-semibold text-slate-900">
+          {loadError ? 'Could not load this session.' : session ? session.name : 'Loading…'}
+        </h1>
+        {loadError ? null : (
+          <span
+            data-testid="realtime-status"
+            className={`rounded-full px-2 py-1 text-xs font-medium ${status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
+          >
+            {status === 'open' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
+          </span>
+        )}
       </div>
 
-      <nav className="flex gap-1 border-b border-slate-200 pb-2">
-        {SUB_NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) => `rounded px-3 py-1.5 text-sm ${isActive ? 'bg-brand/10 font-semibold text-brand' : 'text-slate-600 hover:bg-slate-100'}`}
-          >
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
+      {loadError ? (
+        <p className="text-sm text-rose-600">Could not load this session. It may not exist, or you may not have access to it.</p>
+      ) : (
+        <>
+          <nav className="flex gap-1 border-b border-slate-200 pb-2">
+            {SUB_NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => `rounded px-3 py-1.5 text-sm ${isActive ? 'bg-brand/10 font-semibold text-brand' : 'text-slate-600 hover:bg-slate-100'}`}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
 
-      <Outlet context={{ sessionId, session, status, snapshot, error }} />
+          <Outlet context={{ sessionId, session, status, snapshot, error }} />
+        </>
+      )}
     </div>
   )
 }
