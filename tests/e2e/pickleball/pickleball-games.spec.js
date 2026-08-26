@@ -765,11 +765,9 @@ test.describe('Pickleball games', () => {
   // sync with player_game_stats across the full finish -> reopen -> correct
   // -> re-finish cycle, all inside the SAME db.batch() as the write/delete
   // that changed player_game_stats (SessionCoordinatorDO's finishGame and
-  // reopenGame). GET /api/pickleball/players/:id/stats is built by Task 7 of
-  // this same plan and does not exist yet, so this is written against its
-  // documented contract and skipped until that route lands.
-  // enabled once Task 7's GET /api/pickleball/players/:id/stats route exists
-  test.skip('finishing a game creates a snapshot, reopening it removes the snapshot contribution, and re-finishing restores it', async ({ request }) => {
+  // reopenGame). Verified end-to-end via Task 7's GET
+  // /api/pickleball/players/:id/stats route.
+  test('finishing a game creates a snapshot, reopening it removes the snapshot contribution, and re-finishing restores it', async ({ request }) => {
     const { sessionId, sessionCourts } = await createLiveSessionWithPlayers(request, 4)
     const sessionCourtId = sessionCourts[0].id
     const assignBody = await assignCourt(request, sessionId, sessionCourtId)
