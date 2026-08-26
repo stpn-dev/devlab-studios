@@ -14,8 +14,15 @@ export const GET: APIRoute = async ({ request, params, url }) => {
     const pickleballSession = await getSession(env.PICKLEBALL_DB, sessionId, session.activeOrgId)
     if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
 
+    // Number(null) is 0 (finite), so a naive isFinite guard would let an
+    // ABSENT param through as an explicit "0" instead of the session's real
+    // default -- the null check must come first. A present-but-garbage value
+    // (e.g. "abc") parses to NaN and falls back to the session default too,
+    // rather than silently comparing against SQL NULL and returning an
+    // empty leaderboard that's indistinguishable from "nobody qualifies."
     const minGamesParam = url.searchParams.get('minGames')
-    const minGames = minGamesParam !== null ? Number(minGamesParam) : pickleballSession.leaderboardMinGames
+    const parsedMinGames = minGamesParam === null ? NaN : Number(minGamesParam)
+    const minGames = Number.isFinite(parsedMinGames) && parsedMinGames >= 0 ? parsedMinGames : pickleballSession.leaderboardMinGames
 
     const rows = await listLeaderboard(env.PICKLEBALL_DB, session.activeOrgId, 'SESSION', sessionId, minGames)
     const leaderboard = rows.map((row: { playerId: string; displayName: string; opi: number; eligibleGamesCount: number }) => ({
