@@ -698,6 +698,9 @@ test('a rally recorded by an operator through the Scorekeeper page appears on th
   await publicPage.goto(`/pickleball/live/${code}`)
   // Wait for the court to be visible to confirm the public view is loaded
   await expect(publicPage.getByText('Court 1')).toBeVisible({ timeout: 10000 })
+  // Capture the baseline score on the public view before any rally is recorded,
+  // so the later assertion proves a transition rather than a post-hoc snapshot.
+  await expect(publicPage.getByTestId('live-courts').getByText('0 – 0')).toBeVisible({ timeout: 10000 })
 
   // First, navigate the operator's page to the Scorekeeper so its WebSocket connects
   await page.goto(`/pickleball/app/sessions/${sessionId}/games/${gameId}`)
@@ -711,7 +714,7 @@ test('a rally recorded by an operator through the Scorekeeper page appears on th
   // anywhere in this test, and no interaction with `publicPage` at all
   // between its initial `goto` and this assertion.
   // The broadcast updates the live-courts element with the new score
-  await expect(publicPage.getByTestId('live-courts')).toContainText('1', { timeout: 10000 })
+  await expect(publicPage.getByTestId('live-courts').getByText('1 – 0')).toBeVisible({ timeout: 10000 })
 
   await publicContext.close()
 })

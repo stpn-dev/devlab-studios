@@ -79,3 +79,16 @@ export function buildSetCourtStatusStatement(db, sessionId, sessionCourtId, stat
     .prepare(`UPDATE session_courts SET status = ?, updated_at = ? WHERE session_id = ? AND id = ?`)
     .bind(status, nowIso(), sessionId, sessionCourtId)
 }
+
+// Keeps session_courts.current_game_id in sync with which game (if any) is
+// currently being played on a court -- the public live view (Task 6/7) reads
+// this column to find the game to render for each court, so it must be set
+// the moment a game starts and cleared the moment the court is released
+// (finish, abandon, or a direct release), or the public view would show
+// either the wrong game or "no game in progress" indefinitely. Pass `null`
+// to clear it.
+export function buildSetCourtCurrentGameStatement(db, sessionId, sessionCourtId, gameId) {
+  return db
+    .prepare(`UPDATE session_courts SET current_game_id = ?, updated_at = ? WHERE session_id = ? AND id = ?`)
+    .bind(gameId, nowIso(), sessionId, sessionCourtId)
+}

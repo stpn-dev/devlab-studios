@@ -16,7 +16,7 @@
 // `getSessionById` is correct here and the org-scoped `getSession` is not.
 import { DurableObject } from 'cloudflare:workers'
 import { getSessionById, getScoringRuleset } from '../repositories/pickleball/sessions.js'
-import { getSessionCourt, buildSetCourtStatusStatement } from '../repositories/pickleball/sessionCourts.js'
+import { getSessionCourt, buildSetCourtStatusStatement, buildSetCourtCurrentGameStatement } from '../repositories/pickleball/sessionCourts.js'
 import {
   listEligibleQueueCandidates,
   hasOpenAssignment,
@@ -490,6 +490,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // the read above already happened.
     statements.push(buildClearTeamCourtBindingStatement(db, sessionId, sessionCourtId))
     statements.push(buildSetCourtStatusStatement(db, sessionId, sessionCourtId, 'AVAILABLE'))
+    statements.push(buildSetCourtCurrentGameStatement(db, sessionId, sessionCourtId, null))
 
     await db.batch(statements)
 
@@ -608,6 +609,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       startedEvent,
       buildMarkPlayingStatement(db, sessionId, sessionPlayerIds),
       buildSetCourtStatusStatement(db, sessionId, sessionCourtId, 'PLAYING'),
+      buildSetCourtCurrentGameStatement(db, sessionId, sessionCourtId, gameId),
     ].filter(Boolean)
 
     await db.batch(statements)
@@ -1056,6 +1058,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (holdsCourt) {
       releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
       releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
+      releaseStatements.push(buildSetCourtCurrentGameStatement(db, sessionId, game.sessionCourtId, null))
     }
 
     // Built purely in-memory BEFORE the batch runs, mirroring recordRally's
@@ -1160,6 +1163,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (holdsCourt) {
       releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
       releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
+      releaseStatements.push(buildSetCourtCurrentGameStatement(db, sessionId, game.sessionCourtId, null))
     }
 
     await db.batch([abandonedEvent, projectionStatement, ...releaseStatements])
