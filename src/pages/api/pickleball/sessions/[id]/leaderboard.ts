@@ -18,7 +18,7 @@ export const GET: APIRoute = async ({ request, params, url }) => {
     const minGames = minGamesParam !== null ? Number(minGamesParam) : pickleballSession.leaderboardMinGames
 
     const rows = await listLeaderboard(env.PICKLEBALL_DB, session.activeOrgId, 'SESSION', sessionId, minGames)
-    const leaderboard = rows.map((row) => ({
+    const leaderboard = rows.map((row: { playerId: string; displayName: string; opi: number; eligibleGamesCount: number }) => ({
       playerId: row.playerId,
       displayName: row.displayName,
       opi: row.opi,
