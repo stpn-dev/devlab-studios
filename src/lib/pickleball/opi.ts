@@ -1,8 +1,20 @@
-// PHASE 5 SEAM: this file holds only the per-game formula, the one piece
-// Phase 4's finishGame needs to populate player_game_stats.game_performance.
-// Phase 5 adds opi(games) (the mean-aggregation function) and
-// recomputePlayerSnapshots to this SAME file -- do not reimplement the
-// formula anywhere else (spec §38's single-source-of-truth requirement).
+// PHASE 5 SEAM (now filled): gamePerformance is the per-game formula Phase 4
+// uses to populate player_game_stats.game_performance. opi() is the
+// mean-aggregation function and confidenceTier() the display-tier function --
+// both live in this SAME file per spec §38's single-source-of-truth
+// requirement; do not reimplement either elsewhere.
 export function gamePerformance(pointsFor: number, pointsAgainst: number): number {
   return (pointsFor / (pointsFor + pointsAgainst)) * 100
+}
+
+export function opi(gamePerformances: number[]): number {
+  return gamePerformances.reduce((sum, value) => sum + value, 0) / gamePerformances.length
+}
+
+export type ConfidenceTier = 'PROVISIONAL' | 'DEVELOPING' | 'ESTABLISHED'
+
+export function confidenceTier(eligibleGamesCount: number): ConfidenceTier {
+  if (eligibleGamesCount >= 10) return 'ESTABLISHED'
+  if (eligibleGamesCount >= 3) return 'DEVELOPING'
+  return 'PROVISIONAL'
 }
