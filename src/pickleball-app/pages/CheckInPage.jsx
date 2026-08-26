@@ -33,14 +33,17 @@ export default function CheckInPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
-  const registeredPlayerIds = new Set(sessionPlayers.map((p) => p.playerId))
+  const registeredPlayerIds = new Set(
+    sessionPlayers.filter((p) => p.registrationStatus === 'REGISTERED').map((p) => p.playerId)
+  )
   const registerableOrgPlayers = orgPlayers.filter((p) => p.active && !registeredPlayerIds.has(p.id))
 
-  async function runAction(actionPromise) {
+  async function runAction(actionPromise, onSuccess) {
     setMessage(null)
     try {
       await actionPromise
       await reload()
+      if (onSuccess) onSuccess()
     } catch (error) {
       setMessage({ type: 'error', text: error.message })
     }
@@ -76,7 +79,7 @@ export default function CheckInPage() {
         <button
           type="button"
           disabled={!selectedNewPlayerId}
-          onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players`, { playerId: selectedNewPlayerId })).then(() => setSelectedNewPlayerId(''))}
+          onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players`, { playerId: selectedNewPlayerId }), () => setSelectedNewPlayerId(''))}
           className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-50"
         >
           Register
@@ -92,7 +95,7 @@ export default function CheckInPage() {
               <span className="text-slate-500">{AVAILABILITY_LABELS[player.availabilityStatus] || player.availabilityStatus}</span>
             ) : null}
             <div className="ml-auto flex gap-2">
-              {player.attendanceStatus === 'NOT_CHECKED_IN' ? (
+              {player.registrationStatus === 'REGISTERED' && player.attendanceStatus === 'NOT_CHECKED_IN' ? (
                 <>
                   <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { playerId: player.playerId }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
                     Check in
@@ -102,7 +105,7 @@ export default function CheckInPage() {
                   </button>
                 </>
               ) : null}
-              {player.attendanceStatus === 'CHECKED_IN' ? (
+              {player.registrationStatus === 'REGISTERED' && player.attendanceStatus === 'CHECKED_IN' ? (
                 <>
                   {player.availabilityStatus !== 'AVAILABLE' ? (
                     <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/availability`, { playerId: player.playerId, status: 'AVAILABLE' }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">

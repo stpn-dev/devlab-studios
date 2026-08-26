@@ -154,4 +154,16 @@ test('checks in a registered player through the Check-in page', async ({ page, r
 
   await page.getByRole('button', { name: 'Check in' }).click()
   await expect(page.getByTestId('checkin-list').getByText('CHECKED_IN')).toBeVisible({ timeout: 10000 })
+
+  const cancelledPlayerName = `Checkin UI Cancelled Player ${Date.now()}`
+  const cancelledPlayerId = (await (await request.post('/api/pickleball/players', { data: { displayName: cancelledPlayerName } })).json()).player.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId: cancelledPlayerId } })
+  await page.reload()
+  await expect(page.getByTestId('register-player-select').getByRole('option', { name: cancelledPlayerName })).toHaveCount(0)
+
+  const cancelResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players/cancel`, { data: { playerId: cancelledPlayerId } })
+  expect(cancelResponse.ok()).toBeTruthy()
+  await page.reload()
+  await expect(page.getByTestId('checkin-list').getByText(cancelledPlayerName)).toBeVisible()
+  await expect(page.getByTestId('register-player-select').getByRole('option', { name: cancelledPlayerName })).toHaveCount(1)
 })
