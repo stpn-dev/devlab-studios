@@ -651,3 +651,67 @@ test('the public live view shows a session\'s courts and games without authentic
   await expect(publicPage.getByTestId('live-courts').getByText('No game in progress.')).toBeVisible()
   await publicContext.close()
 })
+
+test('a rally recorded by an operator through the Scorekeeper page appears on the public live view without a reload', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Two Context Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Two Context Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Two Context Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+  const teams = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`)).json()).teams
+  const startResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: {
+      sessionCourtId, servingTeam: 'A',
+      teamAStartingServerSessionPlayerId: teams[0].members[0].sessionPlayerId,
+      teamBStartingServerSessionPlayerId: teams[1].members[0].sessionPlayerId,
+    },
+  })
+  const gameId = (await startResponse.json()).game.id
+
+  const code = (await (await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)).json()).code
+
+  // Second, fully independent browser context: no cookies, no shared state
+  // with the operator's `page`/`context` at all -- this is the "second
+  // connected client" the spec's Testing section describes.
+  const publicContext = await context.browser().newContext()
+  const publicPage = await publicContext.newPage()
+  await publicPage.goto(`/pickleball/live/${code}`)
+  // Wait for the court to be visible to confirm the public view is loaded
+  await expect(publicPage.getByText('Court 1')).toBeVisible({ timeout: 10000 })
+
+  // First, navigate the operator's page to the Scorekeeper so its WebSocket connects
+  await page.goto(`/pickleball/app/sessions/${sessionId}/games/${gameId}`)
+  await expect(page.getByTestId('scorekeeper-score')).toHaveText('0 – 0', { timeout: 10000 })
+
+  // The operator records a rally through the actual Scorekeeper UI.
+  await page.getByRole('button', { name: 'TEAM A WON RALLY' }).click()
+  await expect(page.getByTestId('scorekeeper-score')).toHaveText('1 – 0', { timeout: 10000 })
+
+  // The public viewer's own DOM updates from its own broadcast -- no reload
+  // anywhere in this test, and no interaction with `publicPage` at all
+  // between its initial `goto` and this assertion.
+  // The broadcast updates the live-courts element with the new score
+  await expect(publicPage.getByTestId('live-courts')).toContainText('1', { timeout: 10000 })
+
+  await publicContext.close()
+})
