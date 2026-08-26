@@ -760,4 +760,43 @@ test.describe('Pickleball games', () => {
     expect((await reopenGame(request, sessionId, gameId)).status()).toBe(403)
     expect((await correctGame(request, sessionId, gameId, { scoreA: 5, scoreB: 5, servingTeam: 'A', serverNumber: 1 })).status()).toBe(403)
   })
+
+  // Phase 5 (Performance/OPI): proves player_performance_snapshots stays in
+  // sync with player_game_stats across the full finish -> reopen -> correct
+  // -> re-finish cycle, all inside the SAME db.batch() as the write/delete
+  // that changed player_game_stats (SessionCoordinatorDO's finishGame and
+  // reopenGame). GET /api/pickleball/players/:id/stats is built by Task 7 of
+  // this same plan and does not exist yet, so this is written against its
+  // documented contract and skipped until that route lands.
+  // enabled once Task 7's GET /api/pickleball/players/:id/stats route exists
+  test.skip('finishing a game creates a snapshot, reopening it removes the snapshot contribution, and re-finishing restores it', async ({ request }) => {
+    const { sessionId, sessionCourts } = await createLiveSessionWithPlayers(request, 4)
+    const sessionCourtId = sessionCourts[0].id
+    const assignBody = await assignCourt(request, sessionId, sessionCourtId)
+    const startResponse = await startGame(request, sessionId, sessionCourtId, assignBody, 'A')
+    expect(startResponse.status()).toBe(201)
+    const gameId = (await startResponse.json()).game.id
+    const teamAPlayerIds = assignBody.teamA.players.map((p) => p.playerId)
+
+    await playSequence(request, sessionId, gameId, Array(11).fill('A'))
+    const finishResponse = await finishGame(request, sessionId, gameId)
+    expect(finishResponse.ok()).toBe(true)
+
+    const beforeReopen = await request.get(`/api/pickleball/players/${teamAPlayerIds[0]}/stats`)
+    expect((await beforeReopen.json()).allTime.eligibleGamesCount).toBe(1)
+
+    await reopenGame(request, sessionId, gameId)
+    const afterReopen = await request.get(`/api/pickleball/players/${teamAPlayerIds[0]}/stats`)
+    const afterReopenBody = await afterReopen.json()
+    expect(afterReopenBody.allTime).toBeNull()
+
+    await correctGame(request, sessionId, gameId, { scoreA: 11, scoreB: 3, servingTeam: 'A', serverNumber: 2 })
+    const refinishResponse = await finishGame(request, sessionId, gameId)
+    expect(refinishResponse.ok()).toBe(true)
+
+    const afterRefinish = await request.get(`/api/pickleball/players/${teamAPlayerIds[0]}/stats`)
+    const afterRefinishBody = await afterRefinish.json()
+    expect(afterRefinishBody.allTime.eligibleGamesCount).toBe(1)
+    expect(afterRefinishBody.allTime.opi).toBeCloseTo((11 / 14) * 100, 5)
+  })
 })

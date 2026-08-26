@@ -64,6 +64,7 @@ import {
   buildUpsertMatchmakingStatement,
   recomputeMatchmakingHistoryStatements,
 } from '../repositories/pickleball/matchmakingHistory.js'
+import { buildRecomputePlayerSnapshotsStatements } from '../repositories/pickleball/playerPerformanceSnapshots.js'
 import { buildSessionSnapshot } from './sessionSnapshot.js'
 import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
 import { selectNextPlayers, type QueueCandidate } from '../../lib/pickleball/queueEngine'
@@ -950,6 +951,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
         isWin: p.team_id === winningTeamId, eligibleForOpi: true,
       })
     })
+    const affectedPlayerIds = participants.map((p) => p.player_id)
 
     // Re-finish after a historical correction (issue #12): the court was
     // already released and its players already moved on when this game
@@ -1002,6 +1004,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       const statements = [
         finishedEvent, projectionStatement, clearCorrectionStatement, ...statStatements,
         ...gamesPlayedStatements, ...matchmakingRecomputeStatements,
+        ...buildRecomputePlayerSnapshotsStatements(db, affectedPlayerIds, sessionId),
       ]
       if (idempotencyKey) {
         statements.push(buildRecordIdempotentResultStatement(db, { gameId, commandType: 'FINISH_GAME', key: idempotencyKey, result }))
@@ -1093,7 +1096,10 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       releasedSessionPlayerIds, requeued, game: finishedGame,
     }
 
-    const statements = [finishedEvent, projectionStatement, ...statStatements, ...matchmakingStatements, ...gamesPlayedStatements, ...releaseStatements]
+    const statements = [
+      finishedEvent, projectionStatement, ...statStatements, ...matchmakingStatements, ...gamesPlayedStatements, ...releaseStatements,
+      ...buildRecomputePlayerSnapshotsStatements(db, affectedPlayerIds, sessionId),
+    ]
     if (idempotencyKey) {
       statements.push(buildRecordIdempotentResultStatement(db, { gameId, commandType: 'FINISH_GAME', key: idempotencyKey, result }))
     }
@@ -1220,9 +1226,23 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // `projectionStatement` has already moved this game off FINISHED.
     const matchmakingStatements = recomputeMatchmakingHistoryStatements(db, sessionId)
 
+    // Fetched separately from `sessionPlayerIds` above (which carries
+    // session_player_id for games_played recomputation) because the snapshot
+    // recompute keys off the org-level player_id instead.
+    const affectedPlayersResult = await db
+      .prepare(
+        `SELECT sp.player_id
+         FROM game_participants gp JOIN session_players sp ON sp.id = gp.session_player_id
+         WHERE gp.game_id = ?`,
+      )
+      .bind(gameId)
+      .all<{ player_id: string }>()
+    const affectedPlayerIds = (affectedPlayersResult.results || []).map((p) => p.player_id)
+
     await db.batch([
       reopenedEvent, projectionStatement, correctionFlagStatement, invalidateStatsStatement,
       ...gamesPlayedStatements, ...matchmakingStatements,
+      ...buildRecomputePlayerSnapshotsStatements(db, affectedPlayerIds, sessionId),
     ])
 
     await this.broadcast(sessionId)

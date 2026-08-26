@@ -38,7 +38,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['astro.config.mjs', 'postcss.config.js', 'tailwind.config.js', 'playwright.config.js'],
+    files: ['astro.config.mjs', 'postcss.config.js', 'tailwind.config.js', 'playwright.config.js', 'tests/e2e/**/*.js', 'scripts/**/*.{js,mjs}'],
     languageOptions: { globals: globals.node },
   },
 ])
