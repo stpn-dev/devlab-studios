@@ -799,4 +799,143 @@ test.describe('Pickleball games', () => {
     expect(afterRefinishBody.allTime.eligibleGamesCount).toBe(1)
     expect(afterRefinishBody.allTime.opi).toBeCloseTo((11 / 14) * 100, 5)
   })
+
+  // Phase 5 (Performance/OPI), Task 5: proves assignCourt's real OPI-balanced
+  // pairing (queueEngine.ts's balanceTeams, wired in by this same task)
+  // actually drives court assignment end-to-end -- not just the isolated
+  // unit test. Two throwaway players are seeded, TOGETHER as one team, to a
+  // real ALL_TIME opi of 100 (a clean 11-0 shutout win), and two more,
+  // together as one team, to a real ALL_TIME opi of 0 (a clean 0-11 shutout
+  // loss) -- via just two isolated one-off seeding sessions (not four; the
+  // two players sharing each seeding game don't need to be kept apart from
+  // each other, only from the OTHER pair's seeding game and from the later
+  // shared session, so pairing them up here keeps this test's own request
+  // volume down against the local D1 concurrency this file's header already
+  // documents as fragile under parallel workers). player_performance_snapshots
+  // is keyed by player_id alone (playerPerformanceSnapshots.js's
+  // getPlayerSnapshot takes no session filter), so those snapshots persist
+  // and are visible from a completely different session afterward -- exactly
+  // what assignCourt's getPlayerSnapshot(db, player.playerId, 'ALL_TIME',
+  // null) call reads.
+  test('assignCourt splits players by real OPI balance, not queue order', async ({ request }) => {
+    function uniqueName(prefix) {
+      return `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2)}`
+    }
+
+    async function createThrowawaySession() {
+      await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+      const venueResponse = await request.post('/api/pickleball/venues', { data: { name: uniqueName('Balance Venue') } })
+      expect(venueResponse.ok()).toBe(true)
+      const venueId = (await venueResponse.json()).venue.id
+      const courtResponse = await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+      expect(courtResponse.ok()).toBe(true)
+      const sessionResponse = await request.post('/api/pickleball/sessions', {
+        data: {
+          venueId,
+          name: uniqueName('Balance Session'),
+          sessionType: 'OPEN_PLAY',
+          scoringRulesetId: 'usap-2026-sideout-11-doubles',
+          scheduledStart: '2026-08-30T18:00:00.000Z',
+          scheduledEnd: '2026-08-30T22:00:00.000Z',
+        },
+      })
+      expect(sessionResponse.ok()).toBe(true)
+      const sessionId = (await sessionResponse.json()).session.id
+      await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+      await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+      const courtsListResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts`)
+      const sessionCourtId = (await courtsListResponse.json()).courts[0].id
+      return { sessionId, sessionCourtId }
+    }
+
+    // Creates one brand-new player and registers/checks-in/queues it into
+    // `sessionId`, in that call order -- matching createLiveSessionWithPlayers'
+    // own per-player sequence above. Returns both ids: callers need `playerId`
+    // to re-register the SAME underlying player into a later session, and
+    // `sessionPlayerId` to queue/assign it in THIS one.
+    async function createAndQueuePlayer(sessionId, label) {
+      const playerResponse = await request.post('/api/pickleball/players', { data: { displayName: uniqueName(label) } })
+      expect(playerResponse.ok()).toBe(true)
+      const playerId = (await playerResponse.json()).player.id
+      const registerResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })
+      expect(registerResponse.ok()).toBe(true)
+      const sessionPlayerId = (await registerResponse.json()).sessionPlayer.id
+      await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+      await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+      return { playerId, sessionPlayerId }
+    }
+
+    // Seeds TWO players, as partners on the same team, to a real ALL_TIME opi
+    // of 100 (`won: true`) or 0 (`won: false`) via one isolated, throwaway
+    // session -- a clean 11-0 shutout either way. The two targets are always
+    // queued FIRST among 4 brand-new (opi-default-50) players, so
+    // assignCourt's own degenerate tie (every candidate at 50 -- see
+    // balanceTeams' partitions[0]-wins-ties fallback) deterministically seats
+    // BOTH of them on team A together; `won` then just picks which team
+    // serves and sweeps every rally.
+    async function seedAllTimeOpiPair(won, label) {
+      const { sessionId, sessionCourtId } = await createThrowawaySession()
+      const target1 = await createAndQueuePlayer(sessionId, `${label} Target1`)
+      const target2 = await createAndQueuePlayer(sessionId, `${label} Target2`)
+      await createAndQueuePlayer(sessionId, `${label} OppA`)
+      await createAndQueuePlayer(sessionId, `${label} OppB`)
+
+      const assignBody = await assignCourt(request, sessionId, sessionCourtId)
+      const servingTeam = won ? 'A' : 'B'
+      const startResponse = await startGame(request, sessionId, sessionCourtId, assignBody, servingTeam)
+      expect(startResponse.status()).toBe(201)
+      const gameId = (await startResponse.json()).game.id
+
+      await playSequence(request, sessionId, gameId, Array(11).fill(servingTeam))
+      expect((await finishGame(request, sessionId, gameId)).status()).toBe(200)
+
+      return [target1.playerId, target2.playerId]
+    }
+
+    const [winner1, winner2] = await seedAllTimeOpiPair(true, 'Winners')
+    const [loser1, loser2] = await seedAllTimeOpiPair(false, 'Losers')
+
+    const { sessionId, sessionCourtId } = await createThrowawaySession()
+
+    async function registerExisting(playerId) {
+      const registerResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })
+      expect(registerResponse.ok()).toBe(true)
+      const sessionPlayerId = (await registerResponse.json()).sessionPlayer.id
+      await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+      await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+      return sessionPlayerId
+    }
+
+    // Registration order IS queue order here (each call queues immediately
+    // after registering), and every one of these session_players starts at
+    // games_played = 0 regardless of what the underlying player did in its
+    // own throwaway session above -- so selectNextPlayers' fairness selection
+    // ties on games_played and falls straight through to its queue-order
+    // tiebreak, in exactly this sequence: [winner1, winner2, loser1, loser2].
+    const winner1SessionPlayerId = await registerExisting(winner1)
+    const winner2SessionPlayerId = await registerExisting(winner2)
+    const loser1SessionPlayerId = await registerExisting(loser1)
+    const loser2SessionPlayerId = await registerExisting(loser2)
+
+    const assignResponse = await assignCourt(request, sessionId, sessionCourtId)
+    expect(assignResponse.ok).toBe(true)
+
+    const teamsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`)
+    expect(teamsResponse.status()).toBe(200)
+    const teams = (await teamsResponse.json()).teams
+    expect(teams).toHaveLength(2)
+
+    const memberSets = teams.map((team) => team.members.map((m) => m.sessionPlayerId).sort())
+    // The old placeholder midpoint split would have grouped [winner1, winner2]
+    // (both opi 100) against [loser1, loser2] (both opi 0) -- a maximally
+    // lopsided 200-vs-0 "team". The real balanceTeams instead finds the
+    // OPI-neutral partition (100 vs 100): one winner paired with one loser on
+    // each side. Per balanceTeams' own tie-break order (queueEngine.ts checks
+    // [a,c|b,d] -- strictly beating the first partition's 200-vs-0 diff --
+    // before its equally-good [a,d|b,c] partition is ever reached, and a tie
+    // never overwrites the current best), that partition is specifically
+    // [winner1, loser1] vs [winner2, loser2].
+    expect(memberSets).toContainEqual([winner1SessionPlayerId, loser1SessionPlayerId].sort())
+    expect(memberSets).toContainEqual([winner2SessionPlayerId, loser2SessionPlayerId].sort())
+  })
 })

@@ -64,10 +64,10 @@ import {
   buildUpsertMatchmakingStatement,
   recomputeMatchmakingHistoryStatements,
 } from '../repositories/pickleball/matchmakingHistory.js'
-import { buildRecomputePlayerSnapshotsStatements } from '../repositories/pickleball/playerPerformanceSnapshots.js'
+import { buildRecomputePlayerSnapshotsStatements, getPlayerSnapshot } from '../repositories/pickleball/playerPerformanceSnapshots.js'
 import { buildSessionSnapshot } from './sessionSnapshot.js'
 import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
-import { selectNextPlayers, type QueueCandidate } from '../../lib/pickleball/queueEngine'
+import { selectNextPlayers, balanceTeams, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { initialGameState } from '../../lib/pickleball/scoring/gameState'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
@@ -335,16 +335,24 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     const nowIso = new Date().toISOString()
     const { selected, reasons } = selectNextPlayers(candidates, needed, nowIso)
 
-    // PHASE 5 SEAM — placeholder pairing, NOT a finished feature. This splits
-    // the fairness-selected group at its midpoint (first half vs second half,
-    // in selection order) purely so two teams exist; it does no match
-    // balancing whatsoever, because OPI doesn't exist until Phase 5. Phase 5
-    // should replace ONLY this pairing step (not the fairness selection above
-    // it) with a real balanceTeams() call, per spec §55's
+    // PHASE 5 SEAM (now filled): this used to split the fairness-selected
+    // group at its midpoint (first half vs second half, in selection order)
+    // purely so two teams existed, doing no match balancing whatsoever
+    // because OPI didn't exist yet. It now reads each selected player's
+    // current ALL_TIME OPI (defaulting to a neutral 50 for a player with no
+    // snapshot yet) and hands the group to balanceTeams -- ONLY this pairing
+    // step, not the fairness selection above it -- per spec §55's
     // queue-fairness-vs-match-balancing separation.
-    const half = Math.floor(selected.length / 2)
-    const teamAPlayers = selected.slice(0, half)
-    const teamBPlayers = selected.slice(half)
+    const candidatesWithOpi = await Promise.all(
+      selected.map(async (player) => {
+        const snapshot = await getPlayerSnapshot(db, player.playerId, 'ALL_TIME', null)
+        return { sessionPlayerId: player.sessionPlayerId, opi: snapshot ? snapshot.opi : 50 }
+      }),
+    )
+    const { teamA: teamASide, teamB: teamBSide } = balanceTeams(candidatesWithOpi)
+    const teamAIds = new Set(teamASide.map((p) => p.sessionPlayerId))
+    const teamAPlayers = selected.filter((player) => teamAIds.has(player.sessionPlayerId))
+    const teamBPlayers = selected.filter((player) => !teamAIds.has(player.sessionPlayerId))
 
     // Every id is generated client-side before any statement runs, so the whole
     // assignment fits in one all-or-nothing batch. Executed piecemeal, a

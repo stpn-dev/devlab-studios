@@ -61,3 +61,44 @@ export function selectNextPlayers(candidates: QueueCandidate[], count: number, n
 
   return { selected, reasons }
 }
+
+export interface OpiCandidate {
+  sessionPlayerId: string
+  opi: number
+}
+
+// PHASE 5 SEAM (now filled): replaces assignCourt's placeholder midpoint
+// split (SessionCoordinatorDO.ts, marked "PHASE 5 SEAM -- placeholder
+// pairing, NOT a finished feature"). `candidates.length` is always exactly 2
+// (singles) or 4 (doubles) -- requiredPlayerCount() never returns any other
+// value -- so brute-forcing every into-two-sides partition is cheap and
+// exact; no combinatorial explosion risk. This is intentionally separate
+// from selectNextPlayers (spec §5 point 4): fairness selection decides WHO
+// plays, this decides how the selected group splits into two competitive
+// sides.
+export function balanceTeams(candidates: OpiCandidate[]): { teamA: OpiCandidate[]; teamB: OpiCandidate[] } {
+  if (candidates.length === 2) {
+    return { teamA: [candidates[0]], teamB: [candidates[1]] }
+  }
+
+  const [a, b, c, d] = candidates
+  const partitions: [OpiCandidate[], OpiCandidate[]][] = [
+    [[a, b], [c, d]],
+    [[a, c], [b, d]],
+    [[a, d], [b, c]],
+  ]
+
+  let best = partitions[0]
+  let bestDiff = Infinity
+  for (const [teamA, teamB] of partitions) {
+    const sumA = teamA.reduce((sum, p) => sum + p.opi, 0)
+    const sumB = teamB.reduce((sum, p) => sum + p.opi, 0)
+    const diff = Math.abs(sumA - sumB)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = [teamA, teamB]
+    }
+  }
+
+  return { teamA: best[0], teamB: best[1] }
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { selectNextPlayers } from './queueEngine'
+import { selectNextPlayers, balanceTeams } from './queueEngine'
 
 const NOW = '2026-08-25T18:30:00.000Z'
 
@@ -71,5 +71,34 @@ describe('selectNextPlayers', () => {
         expect(line).not.toMatch(/score\s*[:=]\s*[\d.]+/i)
       }
     }
+  })
+})
+
+describe('balanceTeams', () => {
+  it('singles: splits the two candidates one per side', () => {
+    const result = balanceTeams([
+      { sessionPlayerId: 'p1', opi: 80 },
+      { sessionPlayerId: 'p2', opi: 40 },
+    ])
+    expect(result.teamA.map((p) => p.sessionPlayerId)).toEqual(['p1'])
+    expect(result.teamB.map((p) => p.sessionPlayerId)).toEqual(['p2'])
+  })
+
+  it('doubles: picks the partition that minimizes the OPI-sum difference', () => {
+    // Candidates at 90, 80, 20, 10. The midpoint-split placeholder would pair
+    // (90,80) vs (20,10) -- sums 170 vs 30, a huge imbalance. The balanced
+    // partition pairs (90,10) vs (80,20) -- sums 100 vs 100, a perfect match.
+    const result = balanceTeams([
+      { sessionPlayerId: 'a', opi: 90 },
+      { sessionPlayerId: 'b', opi: 80 },
+      { sessionPlayerId: 'c', opi: 20 },
+      { sessionPlayerId: 'd', opi: 10 },
+    ])
+    const teamAIds = result.teamA.map((p) => p.sessionPlayerId).sort()
+    const teamBIds = result.teamB.map((p) => p.sessionPlayerId).sort()
+    const sumA = result.teamA.reduce((sum, p) => sum + p.opi, 0)
+    const sumB = result.teamB.reduce((sum, p) => sum + p.opi, 0)
+    expect(Math.abs(sumA - sumB)).toBe(0)
+    expect([teamAIds, teamBIds].flat().sort()).toEqual(['a', 'b', 'c', 'd'])
   })
 })
