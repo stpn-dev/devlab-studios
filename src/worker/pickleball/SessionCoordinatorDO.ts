@@ -380,7 +380,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
         return { sessionPlayerId: player.sessionPlayerId, opi: snapshot ? snapshot.opi : 50 }
       }),
     )
-    const { teamA: teamASide, teamB: teamBSide } = balanceTeams(candidatesWithOpi)
+    const { teamA: teamASide } = balanceTeams(candidatesWithOpi)
     const teamAIds = new Set(teamASide.map((p) => p.sessionPlayerId))
     const teamAPlayers = selected.filter((player) => teamAIds.has(player.sessionPlayerId))
     const teamBPlayers = selected.filter((player) => !teamAIds.has(player.sessionPlayerId))
