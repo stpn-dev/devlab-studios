@@ -231,3 +231,43 @@ test('assigns and releases a court through the Courts page', async ({ page, requ
   await page.getByRole('button', { name: 'Release' }).click()
   await expect(page.getByTestId('courts-grid').getByText('AVAILABLE')).toBeVisible({ timeout: 10000 })
 })
+
+test('starts a game through the Games page and it appears in the games list', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Games UI Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Games UI Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Games UI Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+
+  await page.goto(`/pickleball/app/sessions/${sessionId}/games`)
+  await expect(page.getByText('Court 1 — assigned, no game started')).toBeVisible()
+  await page.getByText('Court 1 — assigned, no game started').click()
+
+  await expect(page.getByTestId('team-a-server-select')).toBeVisible()
+  await page.getByTestId('team-a-server-select').selectOption({ index: 1 })
+  await page.getByTestId('team-b-server-select').selectOption({ index: 1 })
+  await page.getByRole('button', { name: 'Start game' }).click()
+
+  await expect(page.getByTestId('games-list').getByText('IN_PROGRESS')).toBeVisible({ timeout: 10000 })
+  await expect(page.getByTestId('games-list').getByText('0 – 0')).toBeVisible()
+})

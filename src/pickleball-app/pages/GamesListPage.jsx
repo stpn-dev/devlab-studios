@@ -1,0 +1,128 @@
+import { useState } from 'react'
+import { useOutletContext } from 'react-router-dom'
+import { pickleballApi } from '../lib/pickleballApi'
+
+function StartGameForm({ sessionId, court, onStarted }) {
+  const [teams, setTeams] = useState(null)
+  const [servingTeam, setServingTeam] = useState('A')
+  const [teamAServerId, setTeamAServerId] = useState('')
+  const [teamBServerId, setTeamBServerId] = useState('')
+  const [message, setMessage] = useState(null)
+
+  async function loadTeams() {
+    const data = await pickleballApi.get(`/api/pickleball/sessions/${sessionId}/courts/${court.id}/teams`)
+    setTeams(data.teams)
+  }
+
+  if (teams === null) {
+    loadTeams().catch(() => setMessage({ type: 'error', text: 'Could not load this court\'s teams.' }))
+    return <p className="text-sm text-slate-500">Loading teams…</p>
+  }
+
+  const [teamA, teamB] = teams
+
+  async function handleStart() {
+    setMessage(null)
+    try {
+      await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+        sessionCourtId: court.id,
+        servingTeam,
+        teamAStartingServerSessionPlayerId: teamAServerId,
+        teamBStartingServerSessionPlayerId: teamBServerId,
+      })
+      onStarted()
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message })
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid={`start-game-form-${court.id}`}>
+      <p className="font-semibold text-slate-900">Start a game on {court.courtName}</p>
+      {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium text-slate-700">Serving team</span>
+        <select value={servingTeam} onChange={(event) => setServingTeam(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <option value="A">Team A</option>
+          <option value="B">Team B</option>
+        </select>
+      </label>
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium text-slate-700">Team A starting server</span>
+        <select value={teamAServerId} onChange={(event) => setTeamAServerId(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" data-testid="team-a-server-select">
+          <option value="">Select…</option>
+          {(teamA?.members || []).map((m) => (
+            <option key={m.sessionPlayerId} value={m.sessionPlayerId}>{m.displayName}</option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium text-slate-700">Team B starting server</span>
+        <select value={teamBServerId} onChange={(event) => setTeamBServerId(event.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" data-testid="team-b-server-select">
+          <option value="">Select…</option>
+          {(teamB?.members || []).map((m) => (
+            <option key={m.sessionPlayerId} value={m.sessionPlayerId}>{m.displayName}</option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        disabled={!teamAServerId || !teamBServerId}
+        onClick={handleStart}
+        className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-50"
+      >
+        Start game
+      </button>
+    </div>
+  )
+}
+
+export default function GamesListPage() {
+  const { sessionId, snapshot } = useOutletContext()
+  const [startingCourtId, setStartingCourtId] = useState(null)
+
+  if (!snapshot) return <p className="text-sm text-slate-500">Loading…</p>
+
+  const assignedCourtsWithoutGame = snapshot.courts.filter((c) => c.status === 'ASSIGNED')
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-semibold text-slate-900">Games</h1>
+
+      {assignedCourtsWithoutGame.length ? (
+        <div>
+          <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">Ready to start</h2>
+          <div className="space-y-2">
+            {assignedCourtsWithoutGame.map((court) =>
+              startingCourtId === court.id ? (
+                <StartGameForm key={court.id} sessionId={sessionId} court={court} onStarted={() => setStartingCourtId(null)} />
+              ) : (
+                <button
+                  key={court.id}
+                  type="button"
+                  onClick={() => setStartingCourtId(court.id)}
+                  className="block w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm hover:border-slate-300"
+                >
+                  {court.courtName} — assigned, no game started
+                </button>
+              ),
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">Games</h2>
+        <div className="space-y-2" data-testid="games-list">
+          {snapshot.games.map((game) => (
+            <div key={game.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
+              <span>{game.scoreA} – {game.scoreB}</span>
+              <span className="text-slate-500">{game.status}</span>
+            </div>
+          ))}
+          {!snapshot.games.length ? <p className="text-sm text-slate-500">No games yet.</p> : null}
+        </div>
+      </div>
+    </div>
+  )
+}

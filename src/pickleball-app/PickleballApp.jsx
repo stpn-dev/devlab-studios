@@ -11,6 +11,7 @@ import SessionControlPage from './pages/SessionControlPage'
 import CheckInPage from './pages/CheckInPage'
 import QueuePage from './pages/QueuePage'
 import CourtsPage from './pages/CourtsPage'
+import GamesListPage from './pages/GamesListPage'
 
 function buildRouter(session, organizations, onSwitchOrg, onLogout) {
   return createBrowserRouter([
@@ -30,6 +31,7 @@ function buildRouter(session, organizations, onSwitchOrg, onLogout) {
             { path: 'check-in', element: <CheckInPage /> },
             { path: 'queue', element: <QueuePage /> },
             { path: 'courts', element: <CourtsPage /> },
+            { path: 'games', element: <GamesListPage /> },
           ],
         },
       ],
