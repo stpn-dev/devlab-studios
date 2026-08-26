@@ -4,10 +4,11 @@ import { pickleballApi } from '../lib/pickleballApi'
 import { officialScoreCall, contextualState, hasGameBeenWon } from '../../lib/pickleball/scoring/display'
 import ContextualBanner from '../components/ContextualBanner'
 import ScorekeeperControls from '../components/ScorekeeperControls'
+import CorrectionPanel from '../components/CorrectionPanel'
 
 export default function ScorekeeperPage() {
   const { gameId } = useParams()
-  const { sessionId, snapshot } = useOutletContext()
+  const { sessionId, snapshot, authRole } = useOutletContext()
   const [rulesets, setRulesets] = useState(null)
   const [message, setMessage] = useState(null)
   const [lastOutcome, setLastOutcome] = useState(null)
@@ -39,6 +40,7 @@ export default function ScorekeeperPage() {
   const gameWon = hasGameBeenWon(state, ruleset)
   const activeOutcome = lastOutcome && lastOutcome.revision === game.revision ? lastOutcome.outcome : null
   const banner = contextualState(state, ruleset, activeOutcome)
+  const canCorrect = authRole === 'ADMIN' || authRole === 'SESSION_FACILITATOR'
 
   async function handleRally(winningTeam) {
     setMessage(null)
@@ -69,6 +71,24 @@ export default function ScorekeeperPage() {
     }
   }
 
+  async function handleReopen() {
+    setMessage(null)
+    try {
+      await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/reopen`, {})
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message })
+    }
+  }
+
+  async function handleCorrect(correctedState) {
+    setMessage(null)
+    try {
+      await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/correct`, correctedState)
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-slate-900">Scorekeeper</h1>
@@ -89,6 +109,7 @@ export default function ScorekeeperPage() {
       {game.status === 'FINISHED' ? (
         <p className="text-sm text-slate-600">Game finished: {game.finalScoreA} – {game.finalScoreB}.</p>
       ) : null}
+      {canCorrect ? <CorrectionPanel game={game} onReopen={handleReopen} onCorrect={handleCorrect} /> : null}
     </div>
   )
 }

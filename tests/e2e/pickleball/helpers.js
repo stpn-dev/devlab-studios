@@ -7,8 +7,8 @@
 // before the WebSocket ever opens in the page. Every spec that logs in via
 // `request` and then opens a socket (or navigates) via `page` should reuse
 // this same helper rather than re-implementing the cookie-bridging inline.
-export async function loginAsOperator(request, context, baseURL) {
-  const loginResponse = await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+export async function loginAs(request, context, baseURL, email) {
+  const loginResponse = await request.post('/api/pickleball/auth/test-login', { data: { email } })
   const setCookie = loginResponse.headers()['set-cookie']
   const [nameValue] = setCookie.split(';')
   const separatorIndex = nameValue.indexOf('=')
@@ -16,4 +16,8 @@ export async function loginAsOperator(request, context, baseURL) {
   const value = nameValue.slice(separatorIndex + 1)
   await context.addCookies([{ name, value, url: baseURL }])
   return loginResponse
+}
+
+export async function loginAsOperator(request, context, baseURL) {
+  return loginAs(request, context, baseURL, 'operator@example.com')
 }
