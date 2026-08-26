@@ -1,7 +1,23 @@
+import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
+import { pickleballApi } from '../lib/pickleballApi'
 
 export default function SessionControlPage() {
-  const { session, snapshot } = useOutletContext()
+  const { sessionId, session, snapshot } = useOutletContext()
+  const [publicCode, setPublicCode] = useState(null)
+
+  useEffect(() => {
+    let ignore = false
+    pickleballApi
+      .get(`/api/pickleball/sessions/${sessionId}/public-code`)
+      .then((data) => {
+        if (!ignore) setPublicCode(data.code)
+      })
+      .catch(() => {})
+    return () => {
+      ignore = true
+    }
+  }, [sessionId])
 
   if (!session) return <p className="text-sm text-slate-500">Loading…</p>
 
@@ -25,6 +41,20 @@ export default function SessionControlPage() {
           <dd className="text-lg font-semibold text-slate-900" data-testid="courts-count">{snapshot ? snapshot.courts.length : '—'}</dd>
         </div>
       </dl>
+      {publicCode ? (
+        <p className="text-sm text-slate-500">
+          Public live view:{' '}
+          <a
+            data-testid="public-live-link"
+            href={`/pickleball/live/${publicCode}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-brand underline"
+          >
+            /pickleball/live/{publicCode}
+          </a>
+        </p>
+      ) : null}
     </div>
   )
 }

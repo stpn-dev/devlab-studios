@@ -620,3 +620,34 @@ test('the correction panel is visible to an ADMIN, hidden from a SCOREKEEPER, an
   await expect(scorekeeperPage.getByTestId('correction-panel')).toHaveCount(0)
   await scorekeeperContext.close()
 })
+
+test('the public live view shows a session\'s courts and games without authentication', async ({ request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Public View Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Public View Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+
+  const codeResponse = await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)
+  expect(codeResponse.ok()).toBe(true)
+  const { code } = await codeResponse.json()
+
+  // A brand-new, unauthenticated browser context -- no cookies at all --
+  // proves this page genuinely needs no login.
+  const publicContext = await context.browser().newContext()
+  const publicPage = await publicContext.newPage()
+  await publicPage.goto(`/pickleball/live/${code}`)
+
+  await expect(publicPage.getByText('Court 1')).toBeVisible({ timeout: 10000 })
+  await expect(publicPage.getByTestId('live-courts').getByText('No game in progress.')).toBeVisible()
+  await publicContext.close()
+})

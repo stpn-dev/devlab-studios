@@ -47,3 +47,20 @@ export async function getSessionByPublicCode(db, code) {
     publicLeaderboardEnabled: Boolean(row.public_leaderboard_enabled),
   }
 }
+
+// Tenancy-safe lookup for the operator UI: joins through pickleball_sessions
+// so a caller can never resolve another org's session's code by guessing a
+// session id -- same tenancy pattern as getSession's own organization_id
+// filter.
+export async function getPublicCodeForSession(db, sessionId, organizationId) {
+  const row = await db
+    .prepare(
+      `SELECT t.public_code
+       FROM public_session_tokens t
+       JOIN pickleball_sessions s ON s.id = t.session_id
+       WHERE t.session_id = ? AND s.organization_id = ? AND t.revoked_at IS NULL`,
+    )
+    .bind(sessionId, organizationId)
+    .first()
+  return row ? row.public_code : null
+}
