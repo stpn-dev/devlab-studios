@@ -601,10 +601,14 @@ test('the correction panel is visible to an ADMIN, hidden from a SCOREKEEPER, an
   await page.getByRole('button', { name: 'Reopen game' }).click()
   await expect(page.getByText('This game is under correction.')).toBeVisible({ timeout: 10000 })
 
-  await page.getByTestId('correction-score-a').fill('9')
-  await page.getByTestId('correction-score-b').fill('7')
+  await page.getByTestId('correction-score-a').fill('11')
+  await page.getByTestId('correction-score-b').fill('9')
   await page.getByRole('button', { name: 'Save correction' }).click()
-  await expect(page.getByTestId('scorekeeper-score')).toHaveText('9 – 7', { timeout: 10000 })
+  await expect(page.getByTestId('scorekeeper-score')).toHaveText('11 – 9', { timeout: 10000 })
+
+  await expect(page.getByRole('button', { name: 'Finish game' })).toBeVisible({ timeout: 10000 })
+  await page.getByRole('button', { name: 'Finish game' }).click()
+  await expect(page.getByText('Game finished: 11 – 9.')).toBeVisible({ timeout: 10000 })
 
   const sessionInfo = await (await request.get('/api/pickleball/auth/session')).json()
   const inviteResponse = await request.post(`/api/pickleball/organizations/${sessionInfo.activeOrgId}/memberships`, {
@@ -619,6 +623,109 @@ test('the correction panel is visible to an ADMIN, hidden from a SCOREKEEPER, an
   await expect(scorekeeperPage.getByTestId('scorekeeper-score')).toBeVisible({ timeout: 10000 })
   await expect(scorekeeperPage.getByTestId('correction-panel')).toHaveCount(0)
   await scorekeeperContext.close()
+})
+
+test('the public live view returns to "No game in progress" once a game finishes', async ({ request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Public Clear Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Public Clear Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Public Clear Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+  const teams = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`)).json()).teams
+  const startResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: {
+      sessionCourtId, servingTeam: 'A',
+      teamAStartingServerSessionPlayerId: teams[0].members[0].sessionPlayerId,
+      teamBStartingServerSessionPlayerId: teams[1].members[0].sessionPlayerId,
+    },
+  })
+  const gameId = (await startResponse.json()).game.id
+  const code = (await (await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)).json()).code
+
+  const publicContext = await context.browser().newContext()
+  const publicPage = await publicContext.newPage()
+  await publicPage.goto(`/pickleball/live/${code}`)
+  await expect(publicPage.getByTestId('live-courts').getByText('0 – 0')).toBeVisible({ timeout: 10000 })
+
+  for (let i = 0; i < 11; i += 1) {
+    await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/rally`, { data: { winningTeam: 'A' } })
+  }
+  const finishResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/finish`, { data: {} })
+  expect(finishResponse.ok()).toBe(true)
+
+  await expect(publicPage.getByTestId('live-courts').getByText('No game in progress.')).toBeVisible({ timeout: 10000 })
+  await publicContext.close()
+})
+
+test('shows fixed Team A/Team B rows on the Scorekeeper page with a moving serving indicator', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Fixed Rows Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Fixed Rows Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Fixed Rows Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+  const teams = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`)).json()).teams
+  const startResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: {
+      sessionCourtId, servingTeam: 'A',
+      teamAStartingServerSessionPlayerId: teams[0].members[0].sessionPlayerId,
+      teamBStartingServerSessionPlayerId: teams[1].members[0].sessionPlayerId,
+    },
+  })
+  const gameId = (await startResponse.json()).game.id
+
+  await page.goto(`/pickleball/app/sessions/${sessionId}/games/${gameId}`)
+  await expect(page.getByTestId('scorekeeper-team-a-row')).toContainText('Team A')
+  await expect(page.getByTestId('scorekeeper-team-a-row')).toContainText('Serving')
+  await expect(page.getByTestId('scorekeeper-team-b-row')).toContainText('Team B')
+  await expect(page.getByTestId('scorekeeper-team-b-row')).not.toContainText('Serving')
+
+  const rallyResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/rally`, { data: { winningTeam: 'B' } })
+  expect(rallyResponse.ok()).toBe(true)
+
+  await expect(page.getByTestId('scorekeeper-team-b-row')).toContainText('Serving', { timeout: 10000 })
+  await expect(page.getByTestId('scorekeeper-team-a-row')).not.toContainText('Serving')
+  await expect(page.getByTestId('scorekeeper-team-a-row')).toContainText('Team A')
+  await expect(page.getByTestId('scorekeeper-team-b-row')).toContainText('Team B')
 })
 
 test('the public live view shows a session\'s courts and games without authentication', async ({ request, context }) => {

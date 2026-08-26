@@ -20,6 +20,8 @@ export default function CorrectionPanel({ game, onReopen, onCorrect }) {
     <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4" data-testid="correction-panel">
       <p className="text-sm font-semibold text-amber-900">Correction panel</p>
 
+      {game.status === 'ABANDONED' ? <p className="text-sm text-amber-800">This game was abandoned; there is nothing to correct.</p> : null}
+
       {game.status === 'FINISHED' ? (
         <button
           type="button"
