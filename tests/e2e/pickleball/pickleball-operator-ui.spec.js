@@ -110,3 +110,50 @@ test('creates a session through the Sessions page with a real venue and ruleset'
   await page.reload()
   await expect(page.getByTestId('sessions-list').getByText(sessionName)).toBeVisible()
 })
+
+test('SessionControlPage shows Live status and its queue count updates from a broadcast without a reload', async ({ page, request, baseURL }) => {
+  const loginResponse = await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+
+  // Same cookie-bridging requirement as every other test in this file (see
+  // the comment on the first test above): `request` and `page` don't share
+  // a cookie jar, so the session cookie has to be copied over explicitly
+  // before `page.goto` navigates to the session route and its layout opens
+  // the WebSocket.
+  const setCookieHeader = loginResponse.headers()['set-cookie']
+  const nameValuePair = setCookieHeader.split(';')[0]
+  const separatorIndex = nameValuePair.indexOf('=')
+  const cookieName = nameValuePair.slice(0, separatorIndex)
+  const cookieValue = nameValuePair.slice(separatorIndex + 1)
+  await page.context().addCookies([{ name: cookieName, value: cookieValue, url: baseURL }])
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Control UI Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId,
+      name: `Control UI Session ${Date.now()}`,
+      sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z',
+      scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+
+  await page.goto(`/pickleball/app/sessions/${sessionId}`)
+  await expect(page.getByTestId('realtime-status')).toHaveText('Live', { timeout: 10000 })
+  await expect(page.getByTestId('queue-count')).toHaveText('0')
+
+  // Trigger the mutation from a SEPARATE `request` context after the page's
+  // own WebSocket has already reached 'open' (asserted above) -- this is
+  // the actual proof that a live broadcast, not a reload or an initial
+  // fetch, is what updates the on-screen count.
+  const playerResponse = await request.post('/api/pickleball/players', { data: { displayName: `Control UI Player ${Date.now()}` } })
+  const playerId = (await playerResponse.json()).player.id
+  const registerResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })
+  const sessionPlayerId = (await registerResponse.json()).sessionPlayer.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+
+  await expect(page.getByTestId('queue-count')).toHaveText('1', { timeout: 10000 })
+})

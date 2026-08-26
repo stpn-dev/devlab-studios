@@ -6,6 +6,8 @@ import DashboardPage from './pages/DashboardPage'
 import PlayersPage from './pages/PlayersPage'
 import VenuesPage from './pages/VenuesPage'
 import SessionsListPage from './pages/SessionsListPage'
+import SessionLayout from './components/SessionLayout'
+import SessionControlPage from './pages/SessionControlPage'
 
 function buildRouter(session, organizations, onSwitchOrg, onLogout) {
   return createBrowserRouter([
@@ -17,6 +19,11 @@ function buildRouter(session, organizations, onSwitchOrg, onLogout) {
         { path: 'players', element: <PlayersPage /> },
         { path: 'venues', element: <VenuesPage /> },
         { path: 'sessions', element: <SessionsListPage /> },
+        {
+          path: 'sessions/:sessionId',
+          element: <SessionLayout />,
+          children: [{ index: true, element: <SessionControlPage /> }],
+        },
       ],
     },
   ])
