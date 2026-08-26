@@ -225,3 +225,37 @@ test('lists scoring rulesets, including the global seeded ones', async ({ reques
   expect(Array.isArray(body.rulesets)).toBe(true)
   expect(body.rulesets.some((r) => r.id === 'usap-2026-sideout-11-doubles')).toBe(true)
 })
+
+test('lists the two teams currently assigned to a court', async ({ request }) => {
+  await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Teams Route Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Teams Route Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Teams Route Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+
+  const response = await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`)
+  expect(response.ok()).toBe(true)
+  const body = await response.json()
+  expect(body.teams).toHaveLength(2)
+  expect(body.teams[0].members).toHaveLength(2)
+  expect(body.teams[1].members).toHaveLength(2)
+})

@@ -117,6 +117,21 @@ export async function getTeamWithMembers(db, teamId) {
   }
 }
 
+// Both teams currently bound to a court, each with its full member roster —
+// the same lookup startGame's inline SQL already does (SessionCoordinatorDO.ts),
+// extracted here so a read-only route can serve it without duplicating the
+// query. Returns 0, 1, or 2 teams depending on the court's actual state; a
+// normally ASSIGNED/PLAYING court has exactly 2.
+export async function listTeamsForCourt(db, sessionId, sessionCourtId) {
+  const result = await db
+    .prepare(`SELECT id FROM teams WHERE session_court_id = ? AND session_id = ?`)
+    .bind(sessionCourtId, sessionId)
+    .all()
+  const teamIds = (result.results || []).map((row) => row.id)
+  const teams = await Promise.all(teamIds.map((id) => getTeamWithMembers(db, id)))
+  return teams.filter(Boolean)
+}
+
 // NOTE: "active" here means only "most recently created team containing this
 // player" — it does NOT prove the player is currently seated on a court.
 // Callers that act on a live assignment (SessionCoordinatorDO) must
