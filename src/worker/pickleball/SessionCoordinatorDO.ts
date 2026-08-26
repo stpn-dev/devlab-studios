@@ -333,7 +333,38 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     }
 
     const nowIso = new Date().toISOString()
-    const { selected, reasons } = selectNextPlayers(candidates, needed, nowIso)
+
+    // Repeat-avoidance tiebreak input (spec §5 rule 3, queueEngine.ts): for
+    // each current candidate, find the sessionPlayerId of the one other
+    // CURRENTLY-ELIGIBLE candidate they were most recently partnered or
+    // opposed with, per matchmaking_history. matchmaking_history has no
+    // direct session_id-scoped session_player_id -- it's keyed by
+    // (session_id, player_id) -- so the join through session_players on
+    // (player_id, session_id) is what resolves a player's identity within
+    // THIS session specifically. Only meaningful once candidates.length >= 5
+    // (matching selectNextPlayers' own internal guard), but harmless to
+    // always compute since the pure function no-ops below that threshold.
+    const candidateSessionPlayerIds = candidates.map((c) => c.sessionPlayerId)
+    const lastPairedWith: Record<string, string | null> = {}
+    if (candidateSessionPlayerIds.length >= 5) {
+      const placeholders = candidateSessionPlayerIds.map(() => '?').join(',')
+      const historyResult = await db
+        .prepare(
+          `SELECT sp1.id AS session_player_id, sp2.id AS other_session_player_id, mh.last_game_at
+           FROM matchmaking_history mh
+           JOIN session_players sp1 ON sp1.player_id = mh.player_id AND sp1.session_id = ?
+           JOIN session_players sp2 ON sp2.player_id = mh.other_player_id AND sp2.session_id = ?
+           WHERE mh.session_id = ? AND sp1.id IN (${placeholders}) AND sp2.id IN (${placeholders})
+           ORDER BY mh.last_game_at DESC`,
+        )
+        .bind(sessionId, sessionId, sessionId, ...candidateSessionPlayerIds, ...candidateSessionPlayerIds)
+        .all<{ session_player_id: string; other_session_player_id: string; last_game_at: string }>()
+      for (const row of historyResult.results || []) {
+        if (!(row.session_player_id in lastPairedWith)) lastPairedWith[row.session_player_id] = row.other_session_player_id
+      }
+    }
+
+    const { selected, reasons } = selectNextPlayers(candidates, needed, nowIso, lastPairedWith)
 
     // PHASE 5 SEAM (now filled): this used to split the fairness-selected
     // group at its midpoint (first half vs second half, in selection order)

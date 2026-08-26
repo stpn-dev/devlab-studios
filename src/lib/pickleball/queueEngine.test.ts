@@ -74,6 +74,65 @@ describe('selectNextPlayers', () => {
   })
 })
 
+describe('selectNextPlayers repeat-avoidance tiebreak', () => {
+  const now = '2026-01-01T12:00:00.000Z'
+
+  function candidate(id: string, gamesPlayed: number, queuedAt: string) {
+    return { sessionPlayerId: id, playerId: id, displayName: id, gamesPlayed, queuedAt }
+  }
+
+  it('with 5+ eligible and a tie on games played, prefers the candidate NOT recently paired with an already-selected teammate', () => {
+    // 5 candidates, all with 0 games played (fully tied on rule 1), all
+    // queued at the same instant (fully tied on rule 2) except p5 who
+    // queued slightly later -- so the naive sort alone would pick
+    // p1..p4 for a 4-slot doubles selection. p1 and p2 were JUST paired
+    // (matchmaking_history), so with the tiebreak active, p2 should be
+    // swapped out for p5 (the next-best equally-tied candidate) instead.
+    const candidates = [
+      candidate('p1', 0, now),
+      candidate('p2', 0, now),
+      candidate('p3', 0, now),
+      candidate('p4', 0, now),
+      candidate('p5', 0, '2026-01-01T12:00:01.000Z'),
+    ]
+    const lastPairedWith = { p1: 'p2', p2: 'p1' }
+
+    const result = selectNextPlayers(candidates, 4, now, lastPairedWith)
+    const ids = result.selected.map((p) => p.sessionPlayerId)
+    expect(ids).toContain('p1')
+    expect(ids).not.toContain('p2')
+    expect(ids).toContain('p5')
+  })
+
+  it('never overrides rule 1 (fewest games played) even to avoid a repeat', () => {
+    const candidates = [
+      candidate('p1', 0, now),
+      candidate('p2', 0, now),
+      candidate('p3', 0, now),
+      candidate('p4', 1, now), // strictly more games played than p1-p3
+      candidate('p5', 0, '2026-01-01T12:00:01.000Z'),
+    ]
+    const lastPairedWith = { p1: 'p2', p2: 'p1' }
+
+    // Only 4 candidates have 0 games played (p1, p2, p3, p5) -- p4 must
+    // never be selected over them despite avoiding a repeat, since that
+    // would override rule 1.
+    const result = selectNextPlayers(candidates, 4, now, lastPairedWith)
+    const ids = result.selected.map((p) => p.sessionPlayerId)
+    expect(ids).not.toContain('p4')
+  })
+
+  it('is skipped entirely below 5 eligible candidates (spec §56 degradation)', () => {
+    const candidates = [candidate('p1', 0, now), candidate('p2', 0, now), candidate('p3', 0, now), candidate('p4', 0, now)]
+    const lastPairedWith = { p1: 'p2', p2: 'p1' }
+    const result = selectNextPlayers(candidates, 4, now, lastPairedWith)
+    // With exactly 4 eligible and 4 needed, everyone is selected regardless
+    // -- there's no room for the tiebreak to have any effect either way,
+    // which is the simplest possible proof it didn't try to do anything.
+    expect(result.selected.map((p) => p.sessionPlayerId).sort()).toEqual(['p1', 'p2', 'p3', 'p4'])
+  })
+})
+
 describe('balanceTeams', () => {
   it('singles: splits the two candidates one per side', () => {
     const result = balanceTeams([

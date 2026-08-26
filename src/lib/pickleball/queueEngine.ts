@@ -20,27 +20,62 @@ function pluralize(count: number, singular: string, plural: string): string {
   return count === 1 ? singular : plural
 }
 
-export function selectNextPlayers(candidates: QueueCandidate[], count: number, nowIso: string): QueueSelectionResult {
+export function selectNextPlayers(
+  candidates: QueueCandidate[],
+  count: number,
+  nowIso: string,
+  lastPairedWith?: Record<string, string | null | undefined>,
+): QueueSelectionResult {
   // Sorts by fewest games played first (primary fairness key, spec §5 rule
   // 1), then by longest queue wait as the tiebreak (rule 2). Rule 3 --
-  // repeat-avoidance (avoid re-pairing players/opponents from
-  // matchmaking_history) -- remains out of scope here (base plan's Ruling 4).
-  //
-  // TODO(Phase 5 or 7): wire matchmaking_history's repeat-avoidance tiebreak
-  // here once a phase actually owns this read side. Phase 4 owns the WRITE
-  // side: finishGame upserts a game's PARTNER/OPPONENT pairs (both relations,
-  // both directions) as it finishes, and every transition that invalidates or
-  // restores a game's contribution -- reopenGame, and finishGame's re-finish
-  // after a correction -- rebuilds the whole session's rows from the currently
-  // FINISHED games instead (recomputeMatchmakingHistoryStatements). So the
-  // table reflects finished games as of the last such transition; only the
-  // read/tiebreak logic is missing.
+  // repeat-avoidance -- is applied below as a swap-in tiebreak: it only ever
+  // trades a selected candidate for another one tied on the EXACT same
+  // gamesPlayed value, so it can never override rule 1, and it only kicks in
+  // once there are enough eligible candidates for a real alternative to
+  // exist (spec §56's 5-candidate degradation threshold).
   const sorted = [...candidates].sort((a, b) => {
     if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed
     return Date.parse(a.queuedAt) - Date.parse(b.queuedAt)
   })
 
-  const selected = sorted.slice(0, Math.max(0, count))
+  let selected = sorted.slice(0, Math.max(0, count))
+
+  // Repeat-avoidance tiebreak (spec §5 rule 3): only among candidates tied
+  // on rule 1 (identical gamesPlayed) at the selection boundary, and only
+  // once at least 5 candidates are eligible (spec §56's degradation
+  // threshold -- below that there usually isn't a real alternative to swap
+  // in anyway). Never touches rule 1 itself: a replacement candidate is only
+  // ever drawn from the pool sharing the EXACT gamesPlayed value of the
+  // selected candidate being replaced.
+  if (lastPairedWith && candidates.length >= 5 && selected.length === count) {
+    const selectedIds = new Set(selected.map((p) => p.sessionPlayerId))
+    // Scan from the back of the selection: within a tied pair, both members
+    // flag each other as a conflict, so scanning from the end swaps out
+    // whichever of the two was ranked LATER by rules 1/2 (the weaker of the
+    // tied pair) and keeps the one ranked earlier.
+    let repeatIndex = -1
+    for (let index = selected.length - 1; index >= 0; index -= 1) {
+      const pairedWith = lastPairedWith[selected[index].sessionPlayerId]
+      if (pairedWith && selectedIds.has(pairedWith)) {
+        repeatIndex = index
+        break
+      }
+    }
+
+    if (repeatIndex !== -1) {
+      const repeatCandidate = selected[repeatIndex]
+      const replacement = sorted.find(
+        (candidate) =>
+          !selectedIds.has(candidate.sessionPlayerId) &&
+          candidate.gamesPlayed === repeatCandidate.gamesPlayed &&
+          !(lastPairedWith[candidate.sessionPlayerId] && selectedIds.has(lastPairedWith[candidate.sessionPlayerId]!)),
+      )
+      if (replacement) {
+        selected = selected.map((candidate, index) => (index === repeatIndex ? replacement : candidate))
+      }
+    }
+  }
+
   const now = Date.parse(nowIso)
 
   const reasons: SelectionReason[] = selected.map((candidate) => {

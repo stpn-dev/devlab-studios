@@ -938,4 +938,139 @@ test.describe('Pickleball games', () => {
     expect(memberSets).toContainEqual([winner1SessionPlayerId, loser1SessionPlayerId].sort())
     expect(memberSets).toContainEqual([winner2SessionPlayerId, loser2SessionPlayerId].sort())
   })
+
+  // Phase 5 (Performance/OPI), Task 6: proves assignCourt's repeat-avoidance
+  // tiebreak (queueEngine.ts's selectNextPlayers 4th argument, wired in by
+  // this task from a real matchmaking_history read) actually stops a pair
+  // who just finished a game together from being re-selected together --
+  // not just the isolated unit test.
+  //
+  // Setup, in order:
+  //   1. TargetA/TargetB finish a real doubles game as PARTNERS (the same
+  //      OPI-tie first-partition-wins convention the test above documents
+  //      deterministically seats the first two queued players, TargetA and
+  //      TargetB, on the same team), creating a real matchmaking_history
+  //      PARTNER row scoped to this session. AUTO_REQUEUE_ALL (this
+  //      session's default policy) puts both straight back in the queue.
+  //   2. Their two opponents are removed from the queue entirely with
+  //      queue/leave. This isn't cleanup -- it's load-bearing: those
+  //      opponents' same-timestamp OPPONENT rows against TargetA/TargetB
+  //      would otherwise sit in matchmaking_history at the exact same
+  //      last_game_at as the TargetA/TargetB PARTNER row, and nothing in
+  //      this test wants to depend on how SQLite orders a tie there.
+  //      Excluding them from the eligible pool entirely sidesteps the
+  //      question: assignCourt's own query only resolves relations between
+  //      CURRENTLY eligible candidates, so an excluded player's rows never
+  //      match.
+  //   3. A completely unrelated player, SpareKeeper, is separately seeded to
+  //      the SAME games_played value (1) via its own isolated throwaway
+  //      game -- its own disposable opponents removed the same way -- so it
+  //      carries no matchmaking_history relation to anyone still eligible.
+  //      It's the one clean, equally-tied candidate the tiebreak can swap
+  //      in.
+  //   4. Two brand-new, never-played players (games_played 0) are added
+  //      last, purely to occupy the two fewest-games slots ahead of the
+  //      tied group. Without the tiebreak, fairness selection alone would
+  //      land on exactly [Fresh1, Fresh2, TargetA, TargetB] -- reproducing
+  //      the exact repeat pairing this task exists to prevent.
+  test('assignCourt avoids reselecting two players who just finished a game together', async ({ request }) => {
+    test.setTimeout(120_000)
+
+    function uniqueName(prefix) {
+      return `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2)}`
+    }
+
+    async function addQueuedPlayer(sessionId, label) {
+      const playerResponse = await request.post('/api/pickleball/players', { data: { displayName: uniqueName(label) } })
+      expect(playerResponse.ok()).toBe(true)
+      const playerId = (await playerResponse.json()).player.id
+      const registerResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })
+      expect(registerResponse.ok()).toBe(true)
+      const sessionPlayerId = (await registerResponse.json()).sessionPlayer.id
+      await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+      await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+      return sessionPlayerId
+    }
+
+    async function leaveTheQueue(sessionId, sessionPlayerId) {
+      const response = await request.post(`/api/pickleball/sessions/${sessionId}/queue/leave`, { data: { sessionPlayerId } })
+      expect(response.ok()).toBe(true)
+    }
+
+    // Plays a full 4-player doubles game (team A sweeping every rally) to a
+    // clean 11-0 finish on the given court, using this file's own
+    // startGame/playSequence/finishGame helpers exactly as the happy-path
+    // test above does.
+    async function playFullGame(sessionId, sessionCourtId, assignBody) {
+      const startResponse = await startGame(request, sessionId, sessionCourtId, assignBody, 'A')
+      expect(startResponse.status()).toBe(201)
+      const gameId = (await startResponse.json()).game.id
+      await playSequence(request, sessionId, gameId, Array(11).fill('A'))
+      const finishResponse = await finishGame(request, sessionId, gameId)
+      expect(finishResponse.status()).toBe(200)
+    }
+
+    // Step 1: TargetA/TargetB finish a doubles game as partners.
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createLiveSessionWithPlayers(request, 4)
+    const sessionCourtId = sessionCourts[0].id
+    const [targetASessionPlayerId, targetBSessionPlayerId, throwCSessionPlayerId, throwDSessionPlayerId] = sessionPlayerIds
+
+    const assignBody1 = await assignCourt(request, sessionId, sessionCourtId)
+    // Sanity-check the premise before relying on it: TargetA/TargetB really
+    // did land on the same team (the OPI-tie first-partition-wins
+    // convention documented on the test above).
+    const team1MemberSets = [assignBody1.teamA, assignBody1.teamB].map((t) => t.players.map((p) => p.sessionPlayerId).sort())
+    expect(team1MemberSets).toContainEqual([targetASessionPlayerId, targetBSessionPlayerId].sort())
+
+    await playFullGame(sessionId, sessionCourtId, assignBody1)
+
+    // Step 2: remove their opponents from the queue entirely.
+    await leaveTheQueue(sessionId, throwCSessionPlayerId)
+    await leaveTheQueue(sessionId, throwDSessionPlayerId)
+
+    // Step 3: seed one completely unrelated player, SpareKeeper, to the same
+    // games_played value via its own isolated throwaway game.
+    const spareKeeperSessionPlayerId = await addQueuedPlayer(sessionId, 'Spare Keeper')
+    const disposableSessionPlayerIds = [
+      await addQueuedPlayer(sessionId, 'Disposable 1'),
+      await addQueuedPlayer(sessionId, 'Disposable 2'),
+      await addQueuedPlayer(sessionId, 'Disposable 3'),
+    ]
+    // All four are the only games_played=0 candidates in the pool right now
+    // (TargetA/TargetB are already at 1), so this assignCourt call is
+    // guaranteed to seat exactly this foursome regardless of any tiebreak.
+    const assignBody2 = await assignCourt(request, sessionId, sessionCourtId)
+    await playFullGame(sessionId, sessionCourtId, assignBody2)
+    for (const disposableSessionPlayerId of disposableSessionPlayerIds) {
+      await leaveTheQueue(sessionId, disposableSessionPlayerId)
+    }
+
+    // Step 4: two brand-new, never-played players join last.
+    const fresh1SessionPlayerId = await addQueuedPlayer(sessionId, 'Fresh1')
+    const fresh2SessionPlayerId = await addQueuedPlayer(sessionId, 'Fresh2')
+
+    // The eligible pool is now exactly 5: Fresh1/Fresh2 (0 games), and
+    // TargetA/TargetB/SpareKeeper (1 game each, tied) -- the repeat-avoidance
+    // tiebreak's own 5-candidate degradation threshold, satisfied for real.
+    const finalAssignResponse = await assignCourt(request, sessionId, sessionCourtId)
+    expect(finalAssignResponse.ok).toBe(true)
+
+    const teamsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`)
+    expect(teamsResponse.status()).toBe(200)
+    const teams = (await teamsResponse.json()).teams
+    const selectedSessionPlayerIds = teams.flatMap((team) => team.members.map((m) => m.sessionPlayerId))
+
+    // Without the tiebreak, fairness selection alone (fewest games played,
+    // then longest wait) would have picked exactly [Fresh1, Fresh2, TargetA,
+    // TargetB] -- re-pairing the two players who just played together. The
+    // tiebreak instead swaps TargetB out for SpareKeeper (the one equally
+    // -tied, conflict-free candidate): TargetA is still selected (rule 1/2
+    // is never overridden), but TargetB is not, so the two of them are never
+    // selected together again.
+    expect(selectedSessionPlayerIds).toContain(targetASessionPlayerId)
+    expect(selectedSessionPlayerIds).toContain(fresh1SessionPlayerId)
+    expect(selectedSessionPlayerIds).toContain(fresh2SessionPlayerId)
+    expect(selectedSessionPlayerIds).toContain(spareKeeperSessionPlayerId)
+    expect(selectedSessionPlayerIds).not.toContain(targetBSessionPlayerId)
+  })
 })
