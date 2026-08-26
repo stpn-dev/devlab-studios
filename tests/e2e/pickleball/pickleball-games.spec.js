@@ -1071,4 +1071,41 @@ test.describe('Pickleball games', () => {
     expect(selectedSessionPlayerIds).toContain(spareKeeperSessionPlayerId)
     expect(selectedSessionPlayerIds).not.toContain(targetBSessionPlayerId)
   })
+
+  // Phase 5 (Performance/OPI): the leaderboard route (GET
+  // /api/pickleball/sessions/:id/leaderboard) has never had any automated
+  // coverage before this fix wave. A clean 4-player doubles shutout gives
+  // every participant a real SESSION-scoped snapshot (eligibleGamesCount 1),
+  // which is below this session's default leaderboardMinGames of 3 -- so
+  // this proves both the default-fallback path (no minGames param) and the
+  // explicit-override path (?minGames=1) in one test, matching this file's
+  // existing snapshot-cycle test's setup shape.
+  test('leaderboard: defaults to the session minGames, and an explicit override returns all players ordered by opi desc', async ({ request }) => {
+    const { sessionId, sessionCourts } = await createLiveSessionWithPlayers(request, 4)
+    const sessionCourtId = sessionCourts[0].id
+    const assignBody = await assignCourt(request, sessionId, sessionCourtId)
+    const startResponse = await startGame(request, sessionId, sessionCourtId, assignBody, 'A')
+    expect(startResponse.status()).toBe(201)
+    const gameId = (await startResponse.json()).game.id
+
+    await playSequence(request, sessionId, gameId, Array(11).fill('A'))
+    const finishResponse = await finishGame(request, sessionId, gameId)
+    expect(finishResponse.ok()).toBe(true)
+
+    // No minGames param: the session's own default (3, per the
+    // session-creation schema) applies, and every player here only has
+    // eligibleGamesCount 1 -- so nobody qualifies yet.
+    const defaultResponse = await request.get(`/api/pickleball/sessions/${sessionId}/leaderboard`)
+    expect(defaultResponse.status()).toBe(200)
+    expect(await defaultResponse.json()).toEqual({ leaderboard: [] })
+
+    // Explicit override: all 4 participants now qualify, ordered by opi
+    // descending (the two winners at 100, the two losers at 0).
+    const overrideResponse = await request.get(`/api/pickleball/sessions/${sessionId}/leaderboard?minGames=1`)
+    expect(overrideResponse.status()).toBe(200)
+    const overrideBody = await overrideResponse.json()
+    expect(overrideBody.leaderboard).toHaveLength(4)
+    const opiValues = overrideBody.leaderboard.map((row) => row.opi)
+    expect(opiValues).toEqual([...opiValues].sort((a, b) => b - a))
+  })
 })
