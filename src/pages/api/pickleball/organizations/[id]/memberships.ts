@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../worker/pickleball/authContext.js'
 import { can } from '../../../../../lib/pickleball/permissions'
-import { createMembership, listMembershipsForOrganization } from '../../../../../worker/repositories/pickleball/memberships.js'
+import { createMembership, getMembershipByEmail, listMembershipsForOrganization } from '../../../../../worker/repositories/pickleball/memberships.js'
+import { recordAuditEvent } from '../../../../../worker/repositories/pickleball/auditEvents.js'
 import { inviteMembershipSchema } from '../../../../../lib/schemas/pickleball/organizations'
 import { getEnv } from '../../../../../lib/env'
 import { jsonResponse } from '../../../../../worker/utils/responses.js'
@@ -41,7 +42,22 @@ export const POST: APIRoute = async ({ request, params }) => {
       return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
     }
 
-    const membership = await createMembership(env.PICKLEBALL_DB, { organizationId: params.id, ...result.data })
+    const organizationId = params.id as string
+    const existing = await getMembershipByEmail(env.PICKLEBALL_DB, organizationId, result.data.invitedEmail)
+    const membership = await createMembership(env.PICKLEBALL_DB, { organizationId, ...result.data })
+
+    await recordAuditEvent(env.PICKLEBALL_DB, {
+      organizationId,
+      sessionId: null,
+      actorUserId: session.userId,
+      action: existing ? 'OPERATOR_ROLE_CHANGED' : 'OPERATOR_INVITED',
+      entityType: 'organization_membership',
+      entityId: membership.id,
+      previousState: existing,
+      newState: membership,
+      metadata: {},
+    })
+
     return jsonResponse({ membership }, 201)
   } catch (error: any) {
     return jsonResponse({ error: error.message }, error.status || 500)

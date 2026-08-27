@@ -71,3 +71,27 @@ export async function linkMembershipUser(db, { organizationId, invitedEmail, use
     .bind(userId, nowIso(), organizationId, String(invitedEmail).trim().toLowerCase())
     .run()
 }
+
+export async function getMembershipByEmail(db, organizationId, invitedEmail) {
+  const row = await db
+    .prepare(`SELECT ${MEMBERSHIP_COLUMNS} FROM organization_memberships WHERE organization_id = ? AND invited_email = ?`)
+    .bind(organizationId, String(invitedEmail).trim().toLowerCase())
+    .first()
+  return toMembership(row)
+}
+
+export async function getMembershipById(db, organizationId, membershipId) {
+  const row = await db
+    .prepare(`SELECT ${MEMBERSHIP_COLUMNS} FROM organization_memberships WHERE id = ? AND organization_id = ?`)
+    .bind(membershipId, organizationId)
+    .first()
+  return toMembership(row)
+}
+
+export async function revokeMembership(db, organizationId, membershipId) {
+  const result = await db
+    .prepare(`UPDATE organization_memberships SET status = 'REVOKED', updated_at = ? WHERE id = ? AND organization_id = ? AND status = 'ACTIVE'`)
+    .bind(nowIso(), membershipId, organizationId)
+    .run()
+  return result.meta.changes > 0
+}

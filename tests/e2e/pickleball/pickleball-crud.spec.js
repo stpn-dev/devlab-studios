@@ -107,6 +107,49 @@ test.describe('Pickleball CRUD (authenticated)', () => {
     expect(body.page).toBe(0)
     expect(body.pageSize).toBe(50)
   })
+
+  test('revokes an operator membership and rejects the revoked email', async ({ request, baseURL }) => {
+    const sessionResponse = await request.get('/api/pickleball/auth/session')
+    const { activeOrgId } = await sessionResponse.json()
+
+    const inviteResponse = await request.post(`/api/pickleball/organizations/${activeOrgId}/memberships`, {
+      data: { invitedEmail: 'revoke-target@example.com', role: 'SCOREKEEPER' },
+    })
+    expect(inviteResponse.ok()).toBe(true)
+    const { membership } = await inviteResponse.json()
+
+    // An explicit Origin header is required — Astro's CSRF check rejects a
+    // bodyless request.delete() with none (same pattern as admin.spec.js).
+    const revokeResponse = await request.delete(`/api/pickleball/organizations/${activeOrgId}/memberships/${membership.id}`, {
+      headers: { Origin: baseURL },
+    })
+    expect(revokeResponse.ok()).toBe(true)
+
+    // test-login's "no active membership" branch returns 403 ("No active
+    // membership for that email."), not 401 — confirmed by reading
+    // src/pages/api/pickleball/auth/test-login.ts rather than assuming.
+    const loginResponse = await request.post('/api/pickleball/auth/test-login', { data: { email: 'revoke-target@example.com' } })
+    expect(loginResponse.status()).toBe(403)
+  })
+
+  test('a SCOREKEEPER cannot revoke an operator membership (no MANAGE_OPERATORS permission)', async ({ request, baseURL }) => {
+    const sessionResponse = await request.get('/api/pickleball/auth/session')
+    const { activeOrgId } = await sessionResponse.json()
+
+    const inviteResponse = await request.post(`/api/pickleball/organizations/${activeOrgId}/memberships`, {
+      data: { invitedEmail: 'scorekeeper-2@example.com', role: 'SCOREKEEPER' },
+    })
+    const { membership } = await inviteResponse.json()
+
+    await request.post('/api/pickleball/auth/test-login', { data: { email: 'scorekeeper-2@example.com' } })
+
+    // Same Origin-header requirement as above — without it this would be a
+    // 403 from Astro's CSRF check rather than the permission check under test.
+    const revokeResponse = await request.delete(`/api/pickleball/organizations/${activeOrgId}/memberships/${membership.id}`, {
+      headers: { Origin: baseURL },
+    })
+    expect(revokeResponse.status()).toBe(403)
+  })
 })
 
 // Organization isolation is this phase's core invariant, and the two real bugs
