@@ -876,3 +876,52 @@ test('SessionControlPage shows a QR code and TV display link for the public view
   await expect(page.getByTestId('public-link-qr').locator('svg')).toBeVisible()
   await expect(page.getByText('TV display:')).toBeVisible()
 })
+
+test('shows the session leaderboard with the show-provisional toggle', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Leaderboard Page Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Leaderboard Page Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Leaderboard Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+  const teams = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`)).json()).teams
+  const startResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: {
+      sessionCourtId, servingTeam: 'A',
+      teamAStartingServerSessionPlayerId: teams[0].members[0].sessionPlayerId,
+      teamBStartingServerSessionPlayerId: teams[1].members[0].sessionPlayerId,
+    },
+  })
+  const gameId = (await startResponse.json()).game.id
+  for (let i = 0; i < 11; i += 1) {
+    await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/rally`, { data: { winningTeam: 'A' } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/finish`, { data: {} })
+
+  await page.goto(`/pickleball/app/sessions/${sessionId}/leaderboard`)
+  await expect(page.getByText('No qualifying players yet.')).toBeVisible()
+
+  await page.getByLabel('Show provisional players').check()
+  await expect(page.getByTestId('leaderboard-list')).toBeVisible({ timeout: 10000 })
+  const rows = page.getByTestId('leaderboard-list').locator('> div')
+  await expect(rows).toHaveCount(4)
+})

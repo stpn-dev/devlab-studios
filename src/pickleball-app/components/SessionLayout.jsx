@@ -9,6 +9,7 @@ const SUB_NAV = [
   { to: 'queue', label: 'Queue' },
   { to: 'courts', label: 'Courts' },
   { to: 'games', label: 'Games' },
+  { to: 'leaderboard', label: 'Leaderboard' },
 ]
 
 export default function SessionLayout() {
