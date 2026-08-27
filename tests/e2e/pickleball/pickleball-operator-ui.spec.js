@@ -1039,6 +1039,37 @@ test('the Audit Log page shows an event after a game correction', async ({ page,
   await expect(eventRow).toContainText('GAME_CORRECTED', { timeout: 10000 })
 })
 
+test('the Dashboard shows a live session and admin-only links', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  // The brief pointed at createLiveSessionForRealtimeTests (from
+  // pickleball-realtime.spec.js), but that helper is neither exported/
+  // importable here nor actually LIVE -- despite its name it only creates a
+  // bare DRAFT session (see the comment on this file's own Audit Log test,
+  // Task 6, immediately below). Reuse that same manual venue/session/status
+  // bootstrap instead, since it's the current working pattern in this exact
+  // file for getting a session into LIVE state.
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Dashboard Page Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  const sessionName = `Dashboard Page Session ${Date.now()}`
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: sessionName, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+
+  await page.goto('/pickleball/app')
+  await expect(page.getByTestId('dashboard-live-sessions').getByText(sessionName)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Manage operators' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View audit log' })).toBeVisible()
+})
+
 test('invites and revokes an operator from the Operators page', async ({ page, request }) => {
   const baseURL = test.info().project.use.baseURL
   await loginAsOperator(request, page.context(), baseURL)
