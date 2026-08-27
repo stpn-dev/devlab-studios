@@ -4,9 +4,17 @@ import { pickleballApi } from '../lib/pickleballApi'
 
 export default function LeaderboardPage() {
   const { sessionId } = useOutletContext()
-  const [rows, setRows] = useState([])
+  const [rows, setRows] = useState(null)
   const [showAll, setShowAll] = useState(false)
   const [message, setMessage] = useState(null)
+  const [fetchKey, setFetchKey] = useState(null)
+
+  const currentKey = `${sessionId}:${showAll}`
+  if (fetchKey !== currentKey) {
+    setFetchKey(currentKey)
+    setRows(null)
+    setMessage(null)
+  }
 
   useEffect(() => {
     let ignore = false
@@ -34,8 +42,9 @@ export default function LeaderboardPage() {
         </label>
       </div>
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
-      {!rows.length ? <p className="text-sm text-slate-500">No qualifying players yet.</p> : null}
-      {rows.length ? (
+      {rows === null ? <p className="text-sm text-slate-500">Loading…</p> : null}
+      {rows && !rows.length ? <p className="text-sm text-slate-500">No qualifying players yet.</p> : null}
+      {rows && rows.length ? (
         <div className="space-y-2" data-testid="leaderboard-list">
           {rows.map((row, index) => (
             <div key={row.playerId} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
