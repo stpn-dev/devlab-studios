@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 
 const EMPTY_PLAYER = { id: null, displayName: '' }
@@ -27,11 +28,6 @@ export default function PlayersPage() {
 
   function startNew() {
     setSelected({ ...EMPTY_PLAYER })
-    setMessage(null)
-  }
-
-  function selectPlayer(player) {
-    setSelected(player)
     setMessage(null)
   }
 
@@ -68,14 +64,13 @@ export default function PlayersPage() {
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <div className="space-y-2" data-testid="players-list">
           {players.map((player) => (
-            <button
+            <Link
               key={player.id}
-              type="button"
-              onClick={() => selectPlayer(player)}
-              className={`block w-full rounded-lg border px-3 py-2 text-left text-sm ${selected?.id === player.id ? 'border-brand bg-brand/10 font-semibold' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
+              to={player.id}
+              className="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-600 hover:border-slate-300"
             >
               {player.displayName}
-            </button>
+            </Link>
           ))}
           {!players.length && status === 'ready' ? <p className="text-sm text-slate-500">No players yet.</p> : null}
         </div>

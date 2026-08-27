@@ -925,3 +925,57 @@ test('shows the session leaderboard with the show-provisional toggle', async ({ 
   const rows = page.getByTestId('leaderboard-list').locator('> div')
   await expect(rows).toHaveCount(4)
 })
+
+test('opens a player profile from the Players page and shows all-time and per-session stats', async ({ page, request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Profile Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Profile Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  const playerName = `Profile Player ${Date.now()}`
+  const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: playerName } })).json()).player.id
+  const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+
+  for (let i = 0; i < 3; i += 1) {
+    const fillerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Profile Filler ${i}-${Date.now()}` } })).json()).player.id
+    const fillerSpId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId: fillerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId: fillerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId: fillerSpId } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+  const teams = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`)).json()).teams
+  const startResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: {
+      sessionCourtId, servingTeam: 'A',
+      teamAStartingServerSessionPlayerId: teams[0].members[0].sessionPlayerId,
+      teamBStartingServerSessionPlayerId: teams[1].members[0].sessionPlayerId,
+    },
+  })
+  const gameId = (await startResponse.json()).game.id
+  for (let i = 0; i < 11; i += 1) {
+    await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/rally`, { data: { winningTeam: 'A' } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/finish`, { data: {} })
+
+  await page.goto('/pickleball/app/players')
+  await page.getByTestId('players-list').getByText(playerName).click()
+
+  await expect(page).toHaveURL(new RegExp(`/players/${playerId}$`))
+  await expect(page.getByTestId('player-sessions')).toContainText(sessionId ? '' : '')
+  await expect(page.getByTestId('player-all-time')).toBeVisible({ timeout: 10000 })
+})

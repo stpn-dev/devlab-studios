@@ -4,6 +4,7 @@ import AppShell from './components/AppShell'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import PlayersPage from './pages/PlayersPage'
+import PlayerProfilePage from './pages/PlayerProfilePage'
 import VenuesPage from './pages/VenuesPage'
 import SessionsListPage from './pages/SessionsListPage'
 import SessionLayout from './components/SessionLayout'
@@ -23,6 +24,7 @@ function buildRouter(session, organizations, onSwitchOrg, onLogout) {
       children: [
         { index: true, element: <DashboardPage /> },
         { path: 'players', element: <PlayersPage /> },
+        { path: 'players/:playerId', element: <PlayerProfilePage /> },
         { path: 'venues', element: <VenuesPage /> },
         { path: 'sessions', element: <SessionsListPage /> },
         {
