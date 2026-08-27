@@ -853,3 +853,26 @@ test('the TV display shows a session\'s courts and games without authentication'
   await expect(publicPage.getByTestId('tv-courts').getByText('No game in progress.')).toBeVisible()
   await publicContext.close()
 })
+
+test('SessionControlPage shows a QR code and TV display link for the public view', async ({ page, request, baseURL }) => {
+  await loginAsOperator(request, page.context(), baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `QR Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId,
+      name: `QR Session ${Date.now()}`,
+      sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z',
+      scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+
+  await page.goto(`/pickleball/app/sessions/${sessionId}`)
+  await expect(page.getByTestId('public-link-qr')).toBeVisible({ timeout: 10000 })
+  await expect(page.getByTestId('public-link-qr').locator('svg')).toBeVisible()
+  await expect(page.getByText('TV display:')).toBeVisible()
+})

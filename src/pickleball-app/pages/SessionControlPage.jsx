@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import PublicLinkQRCode from '../components/PublicLinkQRCode'
 
 export default function SessionControlPage() {
   const { sessionId, session, snapshot } = useOutletContext()
@@ -20,6 +21,8 @@ export default function SessionControlPage() {
   }, [sessionId])
 
   if (!session) return <p className="text-sm text-slate-500">Loading…</p>
+
+  const publicUrl = publicCode ? `${window.location.origin}/pickleball/live/${publicCode}` : null
 
   return (
     <div className="space-y-4">
@@ -41,19 +44,23 @@ export default function SessionControlPage() {
           <dd className="text-lg font-semibold text-slate-900" data-testid="courts-count">{snapshot ? snapshot.courts.length : '—'}</dd>
         </div>
       </dl>
-      {publicCode ? (
-        <p className="text-sm text-slate-500">
-          Public live view:{' '}
-          <a
-            data-testid="public-live-link"
-            href={`/pickleball/live/${publicCode}`}
-            target="_blank"
-            rel="noreferrer"
-            className="font-medium text-brand underline"
-          >
-            /pickleball/live/{publicCode}
-          </a>
-        </p>
+      {publicUrl ? (
+        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4">
+          <PublicLinkQRCode url={publicUrl} />
+          <div className="space-y-1 text-sm text-slate-500">
+            <p>Public live view:</p>
+            <a
+              data-testid="public-live-link"
+              href={`/pickleball/live/${publicCode}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-brand underline"
+            >
+              /pickleball/live/{publicCode}
+            </a>
+            <p>TV display: <a href={`/pickleball/live/${publicCode}/display`} target="_blank" rel="noreferrer" className="font-medium text-brand underline">/pickleball/live/{publicCode}/display</a></p>
+          </div>
+        </div>
       ) : null}
     </div>
   )
