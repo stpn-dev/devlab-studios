@@ -26,9 +26,12 @@ DO was chosen over, e.g., D1 optimistic locking.
   a `?code=` query parameter. Carries a strictly sanitized DTO built by a
   dedicated `toPublicSessionView(state)` allowlist mapper (never the
   internal shape with fields stripped — so a newly added internal field can
-  never leak by omission): court states, team display names, scores,
-  serving side, session name/status, and a sanitized leaderboard (display
-  name, OPI, rank, confidence tier only).
+  never leak by omission): session id/name/type/status, court id/name/status/current
+  game id, and per-game id/court/format/status/scores/serving side/final
+  result. No player-identifying fields (no session_player ids, no display
+  names) and no queue or leaderboard data are exposed — the public
+  sanitized leaderboard named in `architecture.md`'s "Deliberately not
+  built" list is a disclosed future increment, not part of this DTO today.
 
 ## Wire format
 

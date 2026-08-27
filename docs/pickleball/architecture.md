@@ -68,12 +68,12 @@ full role→permission matrix.
 | 4 | Game engine — rulesets, side-out scoring, event log, undo, finalization, reopen/correction | Complete |
 | 5 | Performance — `player_game_stats`, OPI v1, snapshots, leaderboards, player profile | Complete |
 | 6 | Realtime & public — WebSocket broadcast, public live view, TV/kiosk display, QR sharing, methodology page | Complete |
-| 7 | Polish — audit log, operator management UI, dashboard consolidation, documentation | Complete (this plan) |
+| 7 | Polish — audit log, operator management UI, dashboard consolidation, documentation | Complete |
 
 **Deliberately not built** (disclosed, not overlooked): `pair_stats` /
 `FIXED_PAIRS` session-type support (a full future feature, not a stats-layer
-addition — see Phase 5's plan); the public sanitized leaderboard extension to
+addition — deferred, a full future feature, not a stats-layer addition); the public sanitized leaderboard extension to
 `toPublicSessionView` (spec §9 — deferred, requires a backend change out of
 scope for the UI-only plan that shipped the rest of Phase 6); a `/settings`
 page for "system defaults" (the spec reserves the route and a permission but
-never defines a single concrete setting — see this plan's Global Constraints).
+never defines a single concrete setting).

@@ -44,6 +44,15 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     const organizationId = params.id as string
     const existing = await getMembershipByEmail(env.PICKLEBALL_DB, organizationId, result.data.invitedEmail)
+
+    // Mirrors the DELETE route's self-revoke guard: a sole ADMIN downgrading
+    // their own membership via this upsert-based invite endpoint would
+    // permanently lock the organization out of MANAGE_OPERATORS and
+    // VIEW_AUDIT_LOG, with no recovery path (memberships are invite-only).
+    if (existing && existing.userId === session.userId && result.data.role !== 'ADMIN') {
+      return jsonResponse({ error: 'You cannot change your own role away from ADMIN.' }, 400)
+    }
+
     const membership = await createMembership(env.PICKLEBALL_DB, { organizationId, ...result.data })
 
     await recordAuditEvent(env.PICKLEBALL_DB, {

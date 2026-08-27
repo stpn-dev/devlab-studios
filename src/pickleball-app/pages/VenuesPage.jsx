@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 
 export default function VenuesPage() {
+  const { activeOrgId } = useOutletContext()
   const [venues, setVenues] = useState([])
   const [status, setStatus] = useState('loading')
   const [selected, setSelected] = useState(null)
@@ -9,6 +11,16 @@ export default function VenuesPage() {
   const [newVenueName, setNewVenueName] = useState('')
   const [newCourtName, setNewCourtName] = useState('')
   const [message, setMessage] = useState(null)
+  const [fetchKey, setFetchKey] = useState(null)
+
+  if (fetchKey !== activeOrgId) {
+    setFetchKey(activeOrgId)
+    setVenues([])
+    setStatus('loading')
+    setSelected(null)
+    setCourts([])
+    setMessage(null)
+  }
 
   useEffect(() => {
     let ignore = false
@@ -24,7 +36,7 @@ export default function VenuesPage() {
     return () => {
       ignore = true
     }
-  }, [])
+  }, [activeOrgId])
 
   useEffect(() => {
     if (!selected) {

@@ -14,9 +14,17 @@ const SUB_NAV = [
 
 export default function SessionLayout() {
   const { sessionId } = useParams()
-  const { authRole } = useOutletContext()
+  const { authRole, activeOrgId } = useOutletContext()
   const [session, setSession] = useState(null)
   const [loadError, setLoadError] = useState(false)
+  const [fetchKey, setFetchKey] = useState(null)
+
+  const currentKey = `${sessionId}:${activeOrgId}`
+  if (fetchKey !== currentKey) {
+    setFetchKey(currentKey)
+    setSession(null)
+    setLoadError(false)
+  }
 
   useEffect(() => {
     let ignore = false
@@ -31,7 +39,7 @@ export default function SessionLayout() {
     return () => {
       ignore = true
     }
-  }, [sessionId])
+  }, [sessionId, activeOrgId])
 
   const wsUrl = `${window.location.origin.replace('http', 'ws')}/pickleball/rt/${sessionId}`
   const { status, snapshot, error } = useSessionRealtime(loadError ? null : wsUrl)

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { loginAsOperator, loginAs } from './helpers.js'
+import { ORG_B_ID, ORG_B_ADMIN_EMAIL } from '../../../scripts/pickleball/apply-e2e-fixtures.mjs'
 
 test('creates a player through the Players page and it appears in the list', async ({ page, request, baseURL }) => {
   // The `request` fixture uses its own APIRequestContext and does not share
@@ -49,6 +50,42 @@ test('creates a venue and adds a court to it through the Venues page', async ({ 
   await page.getByTestId('venues-list').getByText(venueName).click()
   await expect(page.getByRole('heading', { name: `${venueName} — Courts` })).toBeVisible()
   await expect(page.getByTestId('courts-list').getByText(courtName)).toBeVisible()
+})
+
+test('switching organizations refreshes the venues list', async ({ page, request }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, page.context(), baseURL)
+
+  const initialSession = await (await request.get('/api/pickleball/auth/session')).json()
+  const homeOrgId = initialSession.activeOrgId
+
+  const venueName = `Org Switch Venue ${Date.now()}`
+  const venueResponse = await request.post('/api/pickleball/venues', {
+    data: { name: venueName, address: '1 A St', timezone: 'America/Denver' },
+  })
+  expect(venueResponse.ok()).toBe(true)
+
+  const orgBLogin = await request.post('/api/pickleball/auth/test-login', { data: { email: ORG_B_ADMIN_EMAIL } })
+  expect(orgBLogin.ok()).toBe(true)
+  const inviteResponse = await request.post(`/api/pickleball/organizations/${ORG_B_ID}/memberships`, {
+    data: { invitedEmail: 'operator@example.com', role: 'ADMIN' },
+  })
+  expect(inviteResponse.ok()).toBe(true)
+
+  await loginAsOperator(request, page.context(), baseURL)
+  const dualSession = await (await request.get('/api/pickleball/auth/session')).json()
+  expect(dualSession.organizations.length).toBe(2)
+  // resolveActiveOrgId picks the caller's existing membership when no org
+  // was explicitly requested (see authContext.js), which should still be
+  // the home org here -- assert this rather than assume it, since the rest
+  // of the test depends on it.
+  expect(dualSession.activeOrgId).toBe(homeOrgId)
+
+  await page.goto('/pickleball/app/venues')
+  await expect(page.getByTestId('venues-list').getByText(venueName)).toBeVisible()
+
+  await page.locator('select').selectOption(ORG_B_ID)
+  await expect(page.getByTestId('venues-list').getByText(venueName)).not.toBeVisible({ timeout: 10000 })
 })
 
 test('creates a session through the Sessions page with a real venue and ruleset', async ({ page, request, baseURL }) => {

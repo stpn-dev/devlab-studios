@@ -150,6 +150,16 @@ test.describe('Pickleball CRUD (authenticated)', () => {
     })
     expect(revokeResponse.status()).toBe(403)
   })
+
+  test('an ADMIN cannot demote their own membership away from ADMIN via invite', async ({ request }) => {
+    const sessionResponse = await request.get('/api/pickleball/auth/session')
+    const { activeOrgId } = await sessionResponse.json()
+
+    const response = await request.post(`/api/pickleball/organizations/${activeOrgId}/memberships`, {
+      data: { invitedEmail: 'operator@example.com', role: 'SCOREKEEPER' },
+    })
+    expect(response.status()).toBe(400)
+  })
 })
 
 // Organization isolation is this phase's core invariant, and the two real bugs
