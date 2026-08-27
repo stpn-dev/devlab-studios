@@ -7,6 +7,7 @@ import PlayersPage from './pages/PlayersPage'
 import PlayerProfilePage from './pages/PlayerProfilePage'
 import VenuesPage from './pages/VenuesPage'
 import SessionsListPage from './pages/SessionsListPage'
+import OperatorsPage from './pages/OperatorsPage'
 import SessionLayout from './components/SessionLayout'
 import SessionControlPage from './pages/SessionControlPage'
 import CheckInPage from './pages/CheckInPage'
@@ -27,6 +28,7 @@ function buildRouter(session, organizations, onSwitchOrg, onLogout) {
         { path: 'players/:playerId', element: <PlayerProfilePage /> },
         { path: 'venues', element: <VenuesPage /> },
         { path: 'sessions', element: <SessionsListPage /> },
+        { path: 'operators', element: <OperatorsPage /> },
         {
           path: 'sessions/:sessionId',
           element: <SessionLayout />,

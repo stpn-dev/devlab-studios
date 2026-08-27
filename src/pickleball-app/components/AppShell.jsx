@@ -1,19 +1,24 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { can } from '../../lib/pickleball/permissions'
 
 const NAV_ITEMS = [
   { to: '/pickleball/app', label: 'Dashboard', end: true },
   { to: '/pickleball/app/players', label: 'Players' },
   { to: '/pickleball/app/venues', label: 'Venues' },
   { to: '/pickleball/app/sessions', label: 'Sessions' },
+  { to: '/pickleball/app/operators', label: 'Operators', permission: 'MANAGE_OPERATORS' },
+  { to: '/pickleball/app/audit', label: 'Audit Log', permission: 'VIEW_AUDIT_LOG' },
 ]
 
 export default function AppShell({ session, organizations, onSwitchOrg, onLogout }) {
+  const visibleNavItems = NAV_ITEMS.filter((item) => !item.permission || can(session.role, item.permission))
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <aside className="w-56 shrink-0 border-r border-slate-200 bg-white p-4">
         <p className="mb-4 text-sm font-semibold text-slate-900">Devlab Pickleball</p>
         <nav className="space-y-1">
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -44,7 +49,7 @@ export default function AppShell({ session, organizations, onSwitchOrg, onLogout
         </button>
       </aside>
       <main className="flex-1 p-6">
-        <Outlet context={{ authRole: session.role }} />
+        <Outlet context={{ authRole: session.role, activeOrgId: session.activeOrgId }} />
       </main>
     </div>
   )

@@ -980,3 +980,18 @@ test('opens a player profile from the Players page and shows all-time and per-se
   await expect(page.getByTestId('player-sessions')).toContainText(sessionName)
   await expect(page.getByTestId('player-all-time')).toBeVisible({ timeout: 10000 })
 })
+
+test('invites and revokes an operator from the Operators page', async ({ page, request }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, page.context(), baseURL)
+
+  const email = `operator-ui-${Date.now()}@example.com`
+  await page.goto('/pickleball/app/operators')
+  await page.getByLabel('Email').fill(email)
+  await page.locator('button', { hasText: 'Invite' }).click()
+  await expect(page.getByTestId('operators-list').getByText(email)).toBeVisible()
+
+  const row = page.getByTestId('operators-list').locator('div', { has: page.getByText(email) }).first()
+  await row.getByRole('button', { name: 'Revoke' }).click()
+  await expect(row.getByText('Revoked')).toBeVisible()
+})
