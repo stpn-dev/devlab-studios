@@ -5,6 +5,7 @@ import { getSession } from '../../../../../../../worker/repositories/pickleball/
 import { getGame } from '../../../../../../../worker/repositories/pickleball/games.js'
 import { jsonResponse } from '../../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../../lib/env'
+import { recordAuditEvent } from '../../../../../../../worker/repositories/pickleball/auditEvents.js'
 
 export const POST: APIRoute = async ({ request, params }) => {
   const env = getEnv()
@@ -28,6 +29,19 @@ export const POST: APIRoute = async ({ request, params }) => {
     const outcome = await stub.reopenGame(sessionId, gameId, session.userId)
 
     if (!outcome.ok) return jsonResponse({ error: outcome.error }, 409)
+
+    await recordAuditEvent(env.PICKLEBALL_DB, {
+      organizationId: session.activeOrgId,
+      sessionId,
+      actorUserId: session.userId,
+      action: 'GAME_REOPENED',
+      entityType: 'game',
+      entityId: gameId,
+      previousState: game,
+      newState: outcome.game,
+      metadata: {},
+    })
+
     return jsonResponse(outcome, 200)
   } catch (error: any) {
     return jsonResponse({ error: error.message }, error.status || 500)

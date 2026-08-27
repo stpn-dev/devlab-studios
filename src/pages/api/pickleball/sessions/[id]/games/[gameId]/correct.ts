@@ -6,6 +6,7 @@ import { getGame } from '../../../../../../../worker/repositories/pickleball/gam
 import { correctGameSchema } from '../../../../../../../lib/schemas/pickleball/games'
 import { jsonResponse } from '../../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../../lib/env'
+import { recordAuditEvent } from '../../../../../../../worker/repositories/pickleball/auditEvents.js'
 
 export const POST: APIRoute = async ({ request, params }) => {
   const env = getEnv()
@@ -37,6 +38,19 @@ export const POST: APIRoute = async ({ request, params }) => {
     })
 
     if (!outcome.ok) return jsonResponse({ error: outcome.error }, 409)
+
+    await recordAuditEvent(env.PICKLEBALL_DB, {
+      organizationId: session.activeOrgId,
+      sessionId,
+      actorUserId: session.userId,
+      action: 'GAME_CORRECTED',
+      entityType: 'game',
+      entityId: gameId,
+      previousState: game,
+      newState: outcome.game,
+      metadata: {},
+    })
+
     return jsonResponse(outcome, 200)
   } catch (error: any) {
     return jsonResponse({ error: error.message }, error.status || 500)

@@ -402,3 +402,61 @@ test('a mutation broadcasts to a connected public client with the sanitized shap
   expect(parsed.payload.queue).toBeUndefined()
   expect(parsed.payload.games[0].scoreA).toBe(1)
 })
+
+test('correcting a game writes a retrievable audit event', async ({ request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  // Same full venue/court/session/player bootstrapping as the "a mutation
+  // broadcasts to a connected public client..." test above -- createLiveSessionForRealtimeTests
+  // only creates a DRAFT session with no court, so a real IN_PROGRESS game
+  // (required by correctGame -- see SessionCoordinatorDO.correctGame) needs
+  // this file's other, fuller setup instead.
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Audit Event Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `Audit Event Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-08-30T18:00:00.000Z', scheduledEnd: '2026-08-30T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+
+  const sessionCourtId = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts[0].id
+
+  for (let i = 0; i < 4; i += 1) {
+    const playerId = (await (await request.post('/api/pickleball/players', { data: { displayName: `Audit Event Player ${i}-${Date.now()}` } })).json()).player.id
+    const sessionPlayerId = (await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })).json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+  }
+  await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+
+  const teams = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourtId}/teams`)).json()).teams
+  const startResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: {
+      sessionCourtId, servingTeam: 'A',
+      teamAStartingServerSessionPlayerId: teams[0].members[0].sessionPlayerId,
+      teamBStartingServerSessionPlayerId: teams[1].members[0].sessionPlayerId,
+    },
+  })
+  const gameId = (await startResponse.json()).game.id
+
+  const correctResponse = await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/correct`, {
+    data: { scoreA: 3, scoreB: 1, servingTeam: 'A', serverNumber: 1 },
+  })
+  expect(correctResponse.ok()).toBe(true)
+
+  const sessionInfo = await (await request.get('/api/pickleball/auth/session')).json()
+  const auditResponse = await request.get(`/api/pickleball/organizations/${sessionInfo.activeOrgId}/audit-events`)
+  expect(auditResponse.ok()).toBe(true)
+  const { events } = await auditResponse.json()
+  const correctionEvent = events.find((event) => event.action === 'GAME_CORRECTED' && event.entityId === gameId)
+  expect(correctionEvent).toBeTruthy()
+  expect(correctionEvent.newState.scoreA).toBe(3)
+})
