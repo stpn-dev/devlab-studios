@@ -825,3 +825,31 @@ test('a rally recorded by an operator through the Scorekeeper page appears on th
 
   await publicContext.close()
 })
+
+test('the TV display shows a session\'s courts and games without authentication', async ({ request, context }) => {
+  const baseURL = test.info().project.use.baseURL
+  await loginAsOperator(request, context, baseURL)
+
+  const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `TV Display Venue ${Date.now()}` } })
+  const venueId = (await venueResponse.json()).venue.id
+  await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId, name: `TV Display Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
+    },
+  })
+  const sessionId = (await sessionResponse.json()).session.id
+
+  const codeResponse = await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)
+  const { code } = await codeResponse.json()
+
+  const publicContext = await context.browser().newContext()
+  const publicPage = await publicContext.newPage()
+  await publicPage.goto(`/pickleball/live/${code}/display`)
+
+  await expect(publicPage.getByText('Court 1')).toBeVisible({ timeout: 10000 })
+  await expect(publicPage.getByTestId('tv-courts').getByText('No game in progress.')).toBeVisible()
+  await publicContext.close()
+})
