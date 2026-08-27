@@ -4,23 +4,30 @@ import { pickleballApi } from '../lib/pickleballApi'
 
 export default function PlayerProfilePage() {
   const { playerId } = useParams()
+  const [player, setPlayer] = useState(null)
   const [stats, setStats] = useState(null)
   const [message, setMessage] = useState(null)
   const [fetchKey, setFetchKey] = useState(null)
 
-  const currentKey = `${playerId}`
+  const currentKey = playerId
   if (fetchKey !== currentKey) {
     setFetchKey(currentKey)
+    setPlayer(null)
     setStats(null)
     setMessage(null)
   }
 
   useEffect(() => {
     let ignore = false
-    pickleballApi
-      .get(`/api/pickleball/players/${playerId}/stats`)
-      .then((data) => {
-        if (!ignore) setStats(data)
+    Promise.all([
+      pickleballApi.get(`/api/pickleball/players/${playerId}`),
+      pickleballApi.get(`/api/pickleball/players/${playerId}/stats`),
+    ])
+      .then(([playerData, statsData]) => {
+        if (!ignore) {
+          setPlayer(playerData.player)
+          setStats(statsData)
+        }
       })
       .catch((error) => {
         if (!ignore) setMessage({ type: 'error', text: error.message })
@@ -31,11 +38,16 @@ export default function PlayerProfilePage() {
   }, [playerId])
 
   if (message) return <p className="text-sm text-rose-600">{message.text}</p>
-  if (!stats) return <p className="text-sm text-slate-500">Loading…</p>
+  if (!stats || !player) return <p className="text-sm text-slate-500">Loading…</p>
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Player Profile</h1>
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">{player.displayName}</h1>
+        <a href="/pickleball/methodology" className="text-xs text-slate-400 underline hover:text-slate-600">
+          How OPI and confidence tiers work
+        </a>
+      </div>
       <div className="rounded-xl border border-slate-200 bg-white p-6" data-testid="player-all-time">
         <p className="text-xs font-medium uppercase text-slate-500">All-time OPI</p>
         {stats.allTime ? (

@@ -8,6 +8,12 @@ import QRCode from 'qrcode'
 // is safe here.
 export default function PublicLinkQRCode({ url }) {
   const [svgMarkup, setSvgMarkup] = useState(null)
+  const [renderedUrl, setRenderedUrl] = useState(null)
+
+  if (renderedUrl !== url) {
+    setRenderedUrl(url)
+    setSvgMarkup(null)
+  }
 
   useEffect(() => {
     let ignore = false

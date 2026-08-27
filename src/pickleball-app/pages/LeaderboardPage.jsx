@@ -41,8 +41,13 @@ export default function LeaderboardPage() {
           Show provisional players
         </label>
       </div>
+      <p className="text-xs text-slate-400">
+        <a href="/pickleball/methodology" className="underline hover:text-slate-600">
+          How OPI and confidence tiers work
+        </a>
+      </p>
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
-      {rows === null ? <p className="text-sm text-slate-500">Loading…</p> : null}
+      {rows === null && !message ? <p className="text-sm text-slate-500">Loading…</p> : null}
       {rows && !rows.length ? <p className="text-sm text-slate-500">No qualifying players yet.</p> : null}
       {rows && rows.length ? (
         <div className="space-y-2" data-testid="leaderboard-list">

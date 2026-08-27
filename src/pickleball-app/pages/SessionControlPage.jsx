@@ -6,6 +6,13 @@ import PublicLinkQRCode from '../components/PublicLinkQRCode'
 export default function SessionControlPage() {
   const { sessionId, session, snapshot } = useOutletContext()
   const [publicCode, setPublicCode] = useState(null)
+  const [fetchKey, setFetchKey] = useState(null)
+
+  const currentKey = sessionId
+  if (fetchKey !== currentKey) {
+    setFetchKey(currentKey)
+    setPublicCode(null)
+  }
 
   useEffect(() => {
     let ignore = false

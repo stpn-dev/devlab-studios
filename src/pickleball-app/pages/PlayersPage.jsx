@@ -31,6 +31,11 @@ export default function PlayersPage() {
     setMessage(null)
   }
 
+  function selectPlayer(player) {
+    setSelected({ ...player })
+    setMessage(null)
+  }
+
   async function handleSave() {
     setMessage(null)
     try {
@@ -64,13 +69,21 @@ export default function PlayersPage() {
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <div className="space-y-2" data-testid="players-list">
           {players.map((player) => (
-            <Link
-              key={player.id}
-              to={player.id}
-              className="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-600 hover:border-slate-300"
-            >
-              {player.displayName}
-            </Link>
+            <div key={player.id} className="flex items-center gap-2">
+              <Link
+                to={player.id}
+                className={`block flex-1 rounded-lg border px-3 py-2 text-left text-sm ${selected?.id === player.id ? 'border-brand bg-brand/10 font-semibold text-slate-900' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
+              >
+                {player.displayName}
+              </Link>
+              <button
+                type="button"
+                onClick={() => selectPlayer(player)}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium text-slate-500 hover:border-slate-300"
+              >
+                Edit
+              </button>
+            </div>
           ))}
           {!players.length && status === 'ready' ? <p className="text-sm text-slate-500">No players yet.</p> : null}
         </div>
@@ -95,7 +108,7 @@ export default function PlayersPage() {
               </button>
             </div>
           ) : (
-            <p className="text-sm text-slate-500">Add a new player, or click a player in the list to view their profile.</p>
+            <p className="text-sm text-slate-500">Add a new player, or click Edit next to a player to update their name.</p>
           )}
         </div>
       </div>
