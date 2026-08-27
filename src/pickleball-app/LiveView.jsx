@@ -1,31 +1,7 @@
-import { useEffect, useState } from 'react'
-import { useSessionRealtime } from './lib/useSessionRealtime'
+import { usePublicSessionView } from './lib/usePublicSessionView'
 
 export default function LiveView({ code }) {
-  const [initial, setInitial] = useState(null)
-  const [loadError, setLoadError] = useState(false)
-
-  useEffect(() => {
-    let ignore = false
-    fetch(`/api/pickleball/public/${code}/state`)
-      .then((response) => {
-        if (!response.ok) throw new Error('Not found.')
-        return response.json()
-      })
-      .then((data) => {
-        if (!ignore) setInitial(data)
-      })
-      .catch(() => {
-        if (!ignore) setLoadError(true)
-      })
-    return () => {
-      ignore = true
-    }
-  }, [code])
-
-  const wsUrl = loadError ? null : `${window.location.origin.replace('http', 'ws')}/pickleball/rt/public/${code}`
-  const { snapshot } = useSessionRealtime(wsUrl)
-  const view = snapshot || initial
+  const { view, loadError } = usePublicSessionView(code)
 
   if (loadError) {
     return <p className="p-6 text-sm text-rose-300">This live view is not available.</p>
