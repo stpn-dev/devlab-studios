@@ -95,7 +95,7 @@ export default function PlayersPage() {
               </button>
             </div>
           ) : (
-            <p className="text-sm text-slate-500">Select a player to edit, or add a new one.</p>
+            <p className="text-sm text-slate-500">Add a new player, or click a player in the list to view their profile.</p>
           )}
         </div>
       </div>

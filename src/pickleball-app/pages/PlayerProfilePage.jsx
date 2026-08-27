@@ -6,6 +6,14 @@ export default function PlayerProfilePage() {
   const { playerId } = useParams()
   const [stats, setStats] = useState(null)
   const [message, setMessage] = useState(null)
+  const [fetchKey, setFetchKey] = useState(null)
+
+  const currentKey = `${playerId}`
+  if (fetchKey !== currentKey) {
+    setFetchKey(currentKey)
+    setStats(null)
+    setMessage(null)
+  }
 
   useEffect(() => {
     let ignore = false

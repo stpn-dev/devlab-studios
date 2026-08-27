@@ -933,9 +933,10 @@ test('opens a player profile from the Players page and shows all-time and per-se
   const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Profile Venue ${Date.now()}` } })
   const venueId = (await venueResponse.json()).venue.id
   await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
+  const sessionName = `Profile Session ${Date.now()}`
   const sessionResponse = await request.post('/api/pickleball/sessions', {
     data: {
-      venueId, name: `Profile Session ${Date.now()}`, sessionType: 'OPEN_PLAY',
+      venueId, name: sessionName, sessionType: 'OPEN_PLAY',
       scoringRulesetId: 'usap-2026-sideout-11-doubles',
       scheduledStart: '2026-09-01T18:00:00.000Z', scheduledEnd: '2026-09-01T22:00:00.000Z',
     },
@@ -976,6 +977,6 @@ test('opens a player profile from the Players page and shows all-time and per-se
   await page.getByTestId('players-list').getByText(playerName).click()
 
   await expect(page).toHaveURL(new RegExp(`/players/${playerId}$`))
-  await expect(page.getByTestId('player-sessions')).toContainText(sessionId ? '' : '')
+  await expect(page.getByTestId('player-sessions')).toContainText(sessionName)
   await expect(page.getByTestId('player-all-time')).toBeVisible({ timeout: 10000 })
 })
