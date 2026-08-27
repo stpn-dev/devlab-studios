@@ -80,6 +80,33 @@ test.describe('Pickleball CRUD (authenticated)', () => {
     const response = await request.get(`/api/pickleball/organizations/${activeOrgId}/memberships`)
     expect(response.status()).toBe(403)
   })
+
+  test('a SCOREKEEPER cannot read the audit log (no VIEW_AUDIT_LOG permission)', async ({ request }) => {
+    const sessionResponse = await request.get('/api/pickleball/auth/session')
+    const { activeOrgId } = await sessionResponse.json()
+
+    const inviteResponse = await request.post(`/api/pickleball/organizations/${activeOrgId}/memberships`, {
+      data: { invitedEmail: 'scorekeeper-3@example.com', role: 'SCOREKEEPER' },
+    })
+    expect(inviteResponse.ok()).toBe(true)
+
+    await request.post('/api/pickleball/auth/test-login', { data: { email: 'scorekeeper-3@example.com' } })
+
+    const response = await request.get(`/api/pickleball/organizations/${activeOrgId}/audit-events`)
+    expect(response.status()).toBe(403)
+  })
+
+  test('an ADMIN reads an empty audit log for a fresh organization', async ({ request }) => {
+    const sessionResponse = await request.get('/api/pickleball/auth/session')
+    const { activeOrgId } = await sessionResponse.json()
+
+    const response = await request.get(`/api/pickleball/organizations/${activeOrgId}/audit-events`)
+    expect(response.ok()).toBe(true)
+    const body = await response.json()
+    expect(Array.isArray(body.events)).toBe(true)
+    expect(body.page).toBe(0)
+    expect(body.pageSize).toBe(50)
+  })
 })
 
 // Organization isolation is this phase's core invariant, and the two real bugs
