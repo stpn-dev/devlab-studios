@@ -5,7 +5,7 @@ import { getSession, updateSessionStatus } from '../../../../../worker/repositor
 import { transitionSession } from '../../../../../lib/pickleball/sessionStateMachine'
 import { sessionStatusSchema } from '../../../../../lib/schemas/pickleball/sessions'
 import { getEnv } from '../../../../../lib/env'
-import { jsonResponse } from '../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../worker/utils/responses.js'
 
 export const POST: APIRoute = async ({ request, params }) => {
   const env = getEnv()
@@ -47,7 +47,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       return jsonResponse({ error: 'Session status changed before this update could be applied. Refresh and try again.' }, 409)
     }
     return jsonResponse({ session: updated }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

@@ -3,7 +3,7 @@ import { requirePickleballSession } from '../../../../../worker/pickleball/authC
 import { getSession } from '../../../../../worker/repositories/pickleball/sessions.js'
 import { listLeaderboard } from '../../../../../worker/repositories/pickleball/playerPerformanceSnapshots.js'
 import { confidenceTier } from '../../../../../lib/pickleball/opi'
-import { jsonResponse } from '../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../lib/env'
 
 export const GET: APIRoute = async ({ request, params, url }) => {
@@ -34,7 +34,7 @@ export const GET: APIRoute = async ({ request, params, url }) => {
     }))
 
     return jsonResponse({ leaderboard }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

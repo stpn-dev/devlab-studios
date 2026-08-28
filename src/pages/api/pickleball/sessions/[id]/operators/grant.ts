@@ -5,7 +5,7 @@ import { getSession } from '../../../../../../worker/repositories/pickleball/ses
 import { getMembership } from '../../../../../../worker/repositories/pickleball/memberships.js'
 import { grantSessionOperator } from '../../../../../../worker/repositories/pickleball/sessionOperatorGrants.js'
 import { grantOperatorSchema } from '../../../../../../lib/schemas/pickleball/games'
-import { jsonResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -39,7 +39,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     })
 
     return jsonResponse({ ok: true }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

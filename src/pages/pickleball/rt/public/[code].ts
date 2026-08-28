@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { getSessionByPublicCode } from '../../../../worker/repositories/pickleball/publicSessionTokens.js'
-import { jsonResponse } from '../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../lib/env'
 
 export const GET: APIRoute = async ({ request, params }) => {
@@ -21,7 +21,7 @@ export const GET: APIRoute = async ({ request, params }) => {
 
     const stub = env.SESSION_COORDINATOR.get(env.SESSION_COORDINATOR.idFromName(publicSession.id))
     return stub.fetch(forwardRequest)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

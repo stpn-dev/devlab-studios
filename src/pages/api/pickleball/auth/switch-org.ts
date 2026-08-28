@@ -5,7 +5,7 @@ import { listActiveMembershipsForEmail, linkMembershipUser } from '../../../../w
 import { resolveActiveOrgId } from '../../../../worker/pickleball/authContext.js'
 import { signSession, buildSetCookieHeader, SESSION_COOKIE_NAME } from '../../../../worker/pickleball/session.js'
 import { getEnv } from '../../../../lib/env'
-import { jsonResponse } from '../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../worker/utils/responses.js'
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8
 
@@ -55,7 +55,7 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonResponse({ ok: true, activeOrgId }, 200, {
       'Set-Cookie': buildSetCookieHeader(SESSION_COOKIE_NAME, token, { secure, maxAgeSeconds: SESSION_MAX_AGE_SECONDS }),
     })
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

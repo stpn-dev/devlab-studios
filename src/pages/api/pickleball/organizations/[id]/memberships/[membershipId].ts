@@ -3,7 +3,7 @@ import { requirePickleballSession } from '../../../../../../worker/pickleball/au
 import { can } from '../../../../../../lib/pickleball/permissions'
 import { getMembershipById, revokeMembership } from '../../../../../../worker/repositories/pickleball/memberships.js'
 import { recordAuditEvent } from '../../../../../../worker/repositories/pickleball/auditEvents.js'
-import { jsonResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const DELETE: APIRoute = async ({ request, params }) => {
@@ -44,7 +44,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
     })
 
     return jsonResponse({ ok: true }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

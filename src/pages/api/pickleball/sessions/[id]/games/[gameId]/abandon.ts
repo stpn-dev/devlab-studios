@@ -4,7 +4,7 @@ import { can } from '../../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../../worker/repositories/pickleball/sessions.js'
 import { getGame } from '../../../../../../../worker/repositories/pickleball/games.js'
 import { hasSessionOperatorGrant } from '../../../../../../../worker/repositories/pickleball/sessionOperatorGrants.js'
-import { jsonResponse } from '../../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../../lib/env'
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -34,7 +34,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     if (!outcome.ok) return jsonResponse({ error: outcome.error }, 409)
     return jsonResponse(outcome, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

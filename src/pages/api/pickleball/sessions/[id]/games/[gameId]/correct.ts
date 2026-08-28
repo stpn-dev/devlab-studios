@@ -4,7 +4,7 @@ import { can } from '../../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../../worker/repositories/pickleball/sessions.js'
 import { getGame } from '../../../../../../../worker/repositories/pickleball/games.js'
 import { correctGameSchema } from '../../../../../../../lib/schemas/pickleball/games'
-import { jsonResponse } from '../../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../../lib/env'
 import { recordAuditEvent } from '../../../../../../../worker/repositories/pickleball/auditEvents.js'
 
@@ -52,7 +52,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     })
 
     return jsonResponse(outcome, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

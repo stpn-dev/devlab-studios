@@ -5,7 +5,7 @@ import { listCourtsForVenue, createCourt } from '../../../../worker/repositories
 import { getVenue } from '../../../../worker/repositories/pickleball/venues.js'
 import { createCourtSchema } from '../../../../lib/schemas/pickleball/courts'
 import { getEnv } from '../../../../lib/env'
-import { jsonResponse } from '../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request, url }) => {
   const env = getEnv()
@@ -15,8 +15,8 @@ export const GET: APIRoute = async ({ request, url }) => {
     if (!venueId) return jsonResponse({ error: 'venueId query param is required.' }, 400)
     const courts = await listCourtsForVenue(env.PICKLEBALL_DB, venueId, session.activeOrgId)
     return jsonResponse({ courts }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }
 
@@ -40,7 +40,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     const court = await createCourt(env.PICKLEBALL_DB, { organizationId: session.activeOrgId, ...result.data })
     return jsonResponse({ court }, 201)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

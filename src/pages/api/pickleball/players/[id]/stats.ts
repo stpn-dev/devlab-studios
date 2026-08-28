@@ -3,7 +3,7 @@ import { requirePickleballSession } from '../../../../../worker/pickleball/authC
 import { getPlayer } from '../../../../../worker/repositories/pickleball/players.js'
 import { getPlayerSnapshot } from '../../../../../worker/repositories/pickleball/playerPerformanceSnapshots.js'
 import { confidenceTier } from '../../../../../lib/pickleball/opi'
-import { jsonResponse } from '../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../lib/env'
 
 function toDto(snapshot: { opi: number; eligibleGamesCount: number } | null, extra: Record<string, unknown> = {}) {
@@ -41,7 +41,7 @@ export const GET: APIRoute = async ({ request, params }) => {
     }))
 
     return jsonResponse({ allTime: toDto(allTimeSnapshot), sessions }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

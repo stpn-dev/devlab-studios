@@ -8,7 +8,7 @@ import { buildSeedSessionCourtsStatements } from '../../../../worker/repositorie
 import { buildCreatePublicSessionTokenStatement } from '../../../../worker/repositories/pickleball/publicSessionTokens.js'
 import { createSessionSchema } from '../../../../lib/schemas/pickleball/sessions'
 import { getEnv } from '../../../../lib/env'
-import { jsonResponse, nowIso } from '../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, nowIso } from '../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
@@ -16,8 +16,8 @@ export const GET: APIRoute = async ({ request }) => {
     const session = await requirePickleballSession(request, env)
     const sessions = await listSessions(env.PICKLEBALL_DB, session.activeOrgId)
     return jsonResponse({ sessions }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }
 
@@ -80,7 +80,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     return jsonResponse({ session: created }, 201)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }
