@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { getSessionByPublicCode } from '../../../../../worker/repositories/pickleball/publicSessionTokens.js'
-import { buildSessionSnapshot } from '../../../../../worker/pickleball/sessionSnapshot.js'
+import { buildSessionSnapshot, buildPublicSnapshotExtras } from '../../../../../worker/pickleball/sessionSnapshot.js'
 import { toPublicSessionView } from '../../../../../lib/pickleball/publicSessionView'
 import { jsonResponse } from '../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../lib/env'
@@ -30,8 +30,13 @@ export const GET: APIRoute = async ({ params }) => {
     // already enforce.
     const { session } = snapshot
     if (!session) return jsonResponse({ error: 'Not found.' }, 404)
-    return jsonResponse(toPublicSessionView({ ...snapshot, session }), 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+    const extras = await buildPublicSnapshotExtras(env.PICKLEBALL_DB, session, snapshot.games)
+    return jsonResponse(toPublicSessionView({ ...snapshot, session, ...extras }), 200)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unexpected error.'
+    const status = error instanceof Error && 'status' in error && typeof (error as { status?: unknown }).status === 'number'
+      ? (error as { status: number }).status
+      : 500
+    return jsonResponse({ error: message }, status)
   }
 }

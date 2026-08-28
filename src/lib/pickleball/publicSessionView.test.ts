@@ -25,6 +25,11 @@ const snapshot = {
     correctionPending: false, winningTeamId: null, finalScoreA: null, finalScoreB: null,
     startedAt: '2026-08-25T17:05:00.000Z', finishedAt: null, createdAt: '2026-08-25T17:05:00.000Z', updatedAt: '2026-08-25T17:20:00.000Z',
   }],
+  teamNames: { ta1: 'Jordan Lee / Sam Patel', tb1: 'Casey Kim / Morgan Diaz' },
+  leaderboard: [
+    { displayName: 'Jordan Lee', opi: 61.11, rank: 1, confidenceTier: 'DEVELOPING' },
+    { displayName: 'Sam Patel', opi: 45, rank: 2, confidenceTier: 'PROVISIONAL' },
+  ],
 }
 
 describe('toPublicSessionView', () => {
@@ -57,13 +62,33 @@ describe('toPublicSessionView', () => {
     expect(JSON.stringify(view)).not.toContain('Alex Rivera')
   })
 
-  it('allowlists games to score/serving/status fields, never session_player ids', () => {
+  it('allowlists games to score/serving/status fields plus team names, never session_player ids', () => {
     const view = toPublicSessionView(snapshot)
     expect(view.games).toEqual([{
       id: 'g1', sessionCourtId: 'c1', format: 'DOUBLES', status: 'IN_PROGRESS',
       scoreA: 5, scoreB: 3, servingTeam: 'A', serverNumber: 2,
       winningTeamId: null, finalScoreA: null, finalScoreB: null,
+      teamAName: 'Jordan Lee / Sam Patel', teamBName: 'Casey Kim / Morgan Diaz',
     }])
     expect(JSON.stringify(view.games)).not.toContain('sp1')
+  })
+
+  it('includes the sanitized leaderboard as-provided (display name, opi, rank, confidence tier only)', () => {
+    const view = toPublicSessionView(snapshot)
+    expect(view.leaderboard).toEqual([
+      { displayName: 'Jordan Lee', opi: 61.11, rank: 1, confidenceTier: 'DEVELOPING' },
+      { displayName: 'Sam Patel', opi: 45, rank: 2, confidenceTier: 'PROVISIONAL' },
+    ])
+  })
+
+  it('omits the leaderboard (null) when the snapshot carries none, e.g. publicLeaderboardEnabled is false', () => {
+    const view = toPublicSessionView({ ...snapshot, leaderboard: null })
+    expect(view.leaderboard).toBeNull()
+  })
+
+  it('falls back to null team names for a team id with no entry in teamNames', () => {
+    const view = toPublicSessionView({ ...snapshot, teamNames: {} })
+    expect(view.games[0].teamAName).toBeNull()
+    expect(view.games[0].teamBName).toBeNull()
   })
 })
