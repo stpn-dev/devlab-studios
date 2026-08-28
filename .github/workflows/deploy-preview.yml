@@ -71,10 +71,3 @@ jobs:
           CLOUDFLARE_ENV: preview
           PICKLEBALL_SESSION_SECRET: ${{ secrets.TEMP_PICKLEBALL_SESSION_SECRET }}
           PICKLEBALL_TEST_AUTH_ENABLED: "true"
-
-      - name: TEMP - seed a test organization + admin membership on preview D1
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: db49443cea6f0725d848254f17bcdab5
-          command: d1 execute devlab-pickleball-preview --remote --env preview --file=scripts/pickleball/.tmp-seed-preview-org.sql
