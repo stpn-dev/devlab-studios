@@ -32,6 +32,26 @@
     If you start `wrangler dev` yourself and let Playwright reuse it, run the script once by hand
     first: `node scripts/pickleball/apply-e2e-fixtures.mjs`.
 
+## Demo data
+
+`scripts/pickleball/seed/generate-demo-seed.mjs` prints a fresh-DB-only demo dataset (spec §13) —
+mirrors `scripts/cms/generate-project-seed.mjs`'s pattern (print SQL, apply with `wrangler d1
+execute --file=`), not idempotent (plain INSERTs, no `ON CONFLICT`). Produces 1 organization, 1
+venue, 4 courts, 16 players, 1 DRAFT session, 1 LIVE session with a populated queue (8 players) and
+two finished games, plus an extra completed history session whose games are there purely to give
+different players eligible-games counts spanning all three OPI confidence tiers (PROVISIONAL,
+DEVELOPING, ESTABLISHED). Also seeds one org-scoped custom scoring ruleset, demoing the Settings
+page.
+
+```bash
+npm run pickleball:seed:demo -- your-email@example.com   # writes scripts/pickleball/seed/demo-seed.sql
+npx wrangler d1 execute devlab-pickleball --local --file=scripts/pickleball/seed/demo-seed.sql
+```
+
+The email argument becomes the seeded organization's ADMIN `invited_email` (defaults to
+`admin@example.com`) — sign in with that Google account to reach it. Only ever run this against a
+database that doesn't already have `seed-org` in it.
+
 ## Notes
 
 - `PICKLEBALL_TEST_AUTH_ENABLED` must never be set in `wrangler.jsonc`'s committed `vars` — it exists only for local/CI `.dev.vars`.

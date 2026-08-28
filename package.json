@@ -20,7 +20,8 @@
     "cms:seed:projects": "node scripts/cms/generate-project-seed.mjs > scripts/cms/seed/project-seed.sql",
     "cms:upload:project-media": "node scripts/cms/upload-project-media.mjs",
     "cms:hash-admin-password": "node scripts/cms/hash-admin-password.mjs",
-    "pickleball:create-organization": "node scripts/pickleball/create-organization.mjs"
+    "pickleball:create-organization": "node scripts/pickleball/create-organization.mjs",
+    "pickleball:seed:demo": "node scripts/pickleball/seed/generate-demo-seed.mjs > scripts/pickleball/seed/demo-seed.sql"
   },
   "lint-staged": {
     "*.{js,jsx}": "eslint --fix",
