@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/pickleball/app/sessions', label: 'Sessions' },
   { to: '/pickleball/app/operators', label: 'Operators', permission: 'MANAGE_OPERATORS' },
   { to: '/pickleball/app/audit', label: 'Audit Log', permission: 'VIEW_AUDIT_LOG' },
+  { to: '/pickleball/app/settings', label: 'Settings', permission: 'CONFIGURE_SYSTEM_DEFAULTS' },
 ]
 
 export default function AppShell({ session, organizations, onSwitchOrg, onLogout }) {

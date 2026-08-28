@@ -65,7 +65,7 @@ import {
   recomputeMatchmakingHistoryStatements,
 } from '../repositories/pickleball/matchmakingHistory.js'
 import { buildRecomputePlayerSnapshotsStatements, getPlayerSnapshot } from '../repositories/pickleball/playerPerformanceSnapshots.js'
-import { buildSessionSnapshot } from './sessionSnapshot.js'
+import { buildSessionSnapshot, buildPublicSnapshotExtras } from './sessionSnapshot.js'
 import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
 import { selectNextPlayers, balanceTeams, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
@@ -165,7 +165,9 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!session) {
       return new Response('Session no longer exists.', { status: 404 })
     }
-    const payload = channel === 'public' ? toPublicSessionView({ ...snapshot, session }) : snapshot
+    const payload = channel === 'public'
+      ? toPublicSessionView({ ...snapshot, session, ...(await buildPublicSnapshotExtras(this.env.PICKLEBALL_DB, session, snapshot.games)) })
+      : snapshot
     this.seq += 1
     server.send(JSON.stringify({ type: 'STATE', sessionId, seq: this.seq, payload }))
 
@@ -216,7 +218,9 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     const snapshot = await buildSessionSnapshot(this.env.PICKLEBALL_DB, sessionId)
     const { session } = snapshot
     if (!session) return
-    const payload = channel === 'public' ? toPublicSessionView({ ...snapshot, session }) : snapshot
+    const payload = channel === 'public'
+      ? toPublicSessionView({ ...snapshot, session, ...(await buildPublicSnapshotExtras(this.env.PICKLEBALL_DB, session, snapshot.games)) })
+      : snapshot
     this.seq += 1
     ws.send(JSON.stringify({ type: 'STATE', sessionId, seq: this.seq, payload }))
   }
@@ -245,7 +249,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
         console.error('broadcast: session no longer exists, skipping', sessionId)
         return
       }
-      const publicPayload = toPublicSessionView({ ...snapshot, session })
+      const publicExtras = await buildPublicSnapshotExtras(this.env.PICKLEBALL_DB, session, snapshot.games)
+      const publicPayload = toPublicSessionView({ ...snapshot, session, ...publicExtras })
       this.seq += 1
       const seq = this.seq
 

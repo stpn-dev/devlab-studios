@@ -23,13 +23,13 @@ function expectThrowsWithStatus(fn: () => unknown, expectedStatus: number) {
   // can assert on its `status`.
   expect(fn).toThrow()
 
-  let caughtError: any
+  let caughtError: (Error & { status?: unknown }) | undefined
   try {
     fn()
-  } catch (error: any) {
-    caughtError = error
+  } catch (error: unknown) {
+    caughtError = error as Error & { status?: unknown }
   }
-  expect(caughtError.status).toBe(expectedStatus)
+  expect(caughtError?.status).toBe(expectedStatus)
 }
 
 describe('sessionStateMachine', () => {

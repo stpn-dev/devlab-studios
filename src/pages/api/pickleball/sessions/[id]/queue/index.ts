@@ -7,7 +7,7 @@ import { getSessionPlayerById } from '../../../../../../worker/repositories/pick
 import { selectNextPlayers } from '../../../../../../lib/pickleball/queueEngine'
 import { isSessionOpenForQueueOrCourtChanges } from '../../../../../../lib/pickleball/sessionLifecycle'
 import { joinQueueSchema } from '../../../../../../lib/schemas/pickleball/queue'
-import { jsonResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const GET: APIRoute = async ({ request, params }) => {
@@ -25,8 +25,8 @@ export const GET: APIRoute = async ({ request, params }) => {
     return jsonResponse({
       queue: queue.map((entry: { sessionPlayerId: string }) => ({ ...entry, reasons: reasonsBySessionPlayerId[entry.sessionPlayerId] || [] })),
     }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }
 
@@ -66,7 +66,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     }
 
     return jsonResponse(outcome, 201)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

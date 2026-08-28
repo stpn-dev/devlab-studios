@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../worker/pickleball/authContext.js'
 import { can } from '../../../../../lib/pickleball/permissions'
 import { listAuditEvents } from '../../../../../worker/repositories/pickleball/auditEvents.js'
-import { jsonResponse } from '../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../lib/env'
 
 const PAGE_SIZE = 50
@@ -20,7 +20,7 @@ export const GET: APIRoute = async ({ request, params, url }) => {
     const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 0
     const events = await listAuditEvents(env.PICKLEBALL_DB, organizationId, { limit: PAGE_SIZE, offset: page * PAGE_SIZE })
     return jsonResponse({ events, page, pageSize: PAGE_SIZE }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

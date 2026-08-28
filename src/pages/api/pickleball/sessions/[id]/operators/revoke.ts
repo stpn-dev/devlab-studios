@@ -4,7 +4,7 @@ import { can } from '../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
 import { revokeSessionOperator } from '../../../../../../worker/repositories/pickleball/sessionOperatorGrants.js'
 import { revokeOperatorSchema } from '../../../../../../lib/schemas/pickleball/games'
-import { jsonResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -32,7 +32,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     await revokeSessionOperator(env.PICKLEBALL_DB, sessionId, result.data.userId)
 
     return jsonResponse({ ok: true }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

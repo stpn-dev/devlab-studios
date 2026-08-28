@@ -4,7 +4,7 @@ import { can } from '../../../../lib/pickleball/permissions'
 import { listVenues, createVenue } from '../../../../worker/repositories/pickleball/venues.js'
 import { createVenueSchema } from '../../../../lib/schemas/pickleball/venues'
 import { getEnv } from '../../../../lib/env'
-import { jsonResponse } from '../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
@@ -12,8 +12,8 @@ export const GET: APIRoute = async ({ request }) => {
     const session = await requirePickleballSession(request, env)
     const venues = await listVenues(env.PICKLEBALL_DB, session.activeOrgId)
     return jsonResponse({ venues }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }
 
@@ -32,7 +32,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     const venue = await createVenue(env.PICKLEBALL_DB, { organizationId: session.activeOrgId, ...result.data })
     return jsonResponse({ venue }, 201)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

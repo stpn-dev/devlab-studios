@@ -5,7 +5,7 @@ import { createMembership, getMembershipByEmail, listMembershipsForOrganization 
 import { recordAuditEvent } from '../../../../../worker/repositories/pickleball/auditEvents.js'
 import { inviteMembershipSchema } from '../../../../../lib/schemas/pickleball/organizations'
 import { getEnv } from '../../../../../lib/env'
-import { jsonResponse } from '../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request, params }) => {
   const env = getEnv()
@@ -23,8 +23,8 @@ export const GET: APIRoute = async ({ request, params }) => {
     }
     const memberships = await listMembershipsForOrganization(env.PICKLEBALL_DB, params.id)
     return jsonResponse({ memberships }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }
 
@@ -68,7 +68,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     })
 
     return jsonResponse({ membership }, 201)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

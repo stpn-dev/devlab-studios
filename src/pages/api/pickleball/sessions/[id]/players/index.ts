@@ -6,7 +6,7 @@ import { listSessionPlayers } from '../../../../../../worker/repositories/pickle
 import { getPlayer } from '../../../../../../worker/repositories/pickleball/players.js'
 import { registerPlayerSchema } from '../../../../../../lib/schemas/pickleball/sessionPlayers'
 import { summarizeAttendance } from '../../../../../../lib/pickleball/attendance'
-import { jsonResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const GET: APIRoute = async ({ request, params }) => {
@@ -19,8 +19,8 @@ export const GET: APIRoute = async ({ request, params }) => {
     const players = await listSessionPlayers(env.PICKLEBALL_DB, params.id)
     const counts = summarizeAttendance(players)
     return jsonResponse({ players, counts }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }
 
@@ -58,7 +58,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     const outcome = await stub.registerPlayer(sessionId, result.data.playerId)
     if (!outcome.ok) return jsonResponse({ error: outcome.error }, 409)
     return jsonResponse(outcome, 201)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

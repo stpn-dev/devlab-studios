@@ -5,7 +5,7 @@ import { getSession } from '../../../../../../worker/repositories/pickleball/ses
 import { setCourtEnabled } from '../../../../../../worker/repositories/pickleball/sessionCourts.js'
 import { isSessionOpenForQueueOrCourtChanges } from '../../../../../../lib/pickleball/sessionLifecycle'
 import { assignCourtSchema } from '../../../../../../lib/schemas/pickleball/queue'
-import { jsonResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -32,7 +32,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     if (!court) return jsonResponse({ error: 'Court not found in this session.' }, 404)
 
     return jsonResponse({ court }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

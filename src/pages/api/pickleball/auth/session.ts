@@ -3,7 +3,7 @@ import { requirePickleballSession } from '../../../../worker/pickleball/authCont
 import { getEnv } from '../../../../lib/env'
 import { getUserByGoogleSub } from '../../../../worker/repositories/pickleball/users.js'
 import { listActiveMembershipsForEmail } from '../../../../worker/repositories/pickleball/memberships.js'
-import { jsonResponse } from '../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
@@ -28,7 +28,7 @@ export const GET: APIRoute = async ({ request }) => {
       },
       200,
     )
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

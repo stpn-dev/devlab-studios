@@ -9,6 +9,7 @@ import VenuesPage from './pages/VenuesPage'
 import SessionsListPage from './pages/SessionsListPage'
 import OperatorsPage from './pages/OperatorsPage'
 import AuditPage from './pages/AuditPage'
+import SettingsPage from './pages/SettingsPage'
 import SessionLayout from './components/SessionLayout'
 import SessionControlPage from './pages/SessionControlPage'
 import CheckInPage from './pages/CheckInPage'
@@ -31,6 +32,7 @@ function buildRouter(session, organizations, onSwitchOrg, onLogout) {
         { path: 'sessions', element: <SessionsListPage /> },
         { path: 'operators', element: <OperatorsPage /> },
         { path: 'audit', element: <AuditPage /> },
+        { path: 'settings', element: <SettingsPage /> },
         {
           path: 'sessions/:sessionId',
           element: <SessionLayout />,

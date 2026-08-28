@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../../worker/pickleball/authContext.js'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
 import { listGamesForSession } from '../../../../../../worker/repositories/pickleball/games.js'
-import { jsonResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const GET: APIRoute = async ({ request, params }) => {
@@ -16,7 +16,7 @@ export const GET: APIRoute = async ({ request, params }) => {
 
     const games = await listGamesForSession(env.PICKLEBALL_DB, sessionId)
     return jsonResponse({ games }, 200)
-  } catch (error: any) {
-    return jsonResponse({ error: error.message }, error.status || 500)
+  } catch (error) {
+    return apiErrorResponse(error)
   }
 }

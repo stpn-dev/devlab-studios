@@ -26,7 +26,10 @@ USA-Pickleball-certified.
    migrations folder `migrations/pickleball/`, own repositories
    `src/worker/repositories/pickleball/`, own Zod schemas
    `src/lib/schemas/pickleball/`.
-3. **Auth** — Google OAuth 2.0 + PKCE via `arctic`. A stateless
+3. **Auth** — Google OAuth 2.0 + PKCE, hand-rolled against `fetch` and the
+   Web Crypto API (no `arctic` dependency — matches `adminAuth.js`'s own
+   hand-rolled-crypto convention; see the Phase 1 foundation plan for the
+   rationale). A stateless
    HMAC-SHA256-signed session cookie (`devlab_pb_session`), independent of
    the Admin CMS's password-based session. Memberships are invite-only: an
    ADMIN creates a membership row for an email before that person ever

@@ -64,9 +64,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
   ) {
     try {
       await requirePickleballSession(context.request, getEnv())
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unexpected error.'
+      const rawStatus = error instanceof Error ? (error as Error & { status?: unknown }).status : undefined
+      const status = typeof rawStatus === 'number' ? rawStatus : 500
       return applySecurityHeaders(
-        new Response(JSON.stringify({ error: error.message }), { status: error.status || 500 }),
+        new Response(JSON.stringify({ error: message }), { status }),
         url.pathname,
         url.hostname,
       )
