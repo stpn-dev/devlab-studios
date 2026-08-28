@@ -46,26 +46,3 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: db49443cea6f0725d848254f17bcdab5
           command: deploy --env preview
-
-      # ONE-OFF, TEMPORARY: first-time preview setup for the pickleball
-      # feature. Remove these two steps once confirmed working — see chat
-      # for context (2026-08-26).
-      - name: TEMP - apply pickleball migrations to preview D1
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: db49443cea6f0725d848254f17bcdab5
-          command: d1 migrations apply devlab-pickleball-preview --remote --env preview
-
-      - name: TEMP - set pickleball preview secrets
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: db49443cea6f0725d848254f17bcdab5
-          secrets: |
-            PICKLEBALL_SESSION_SECRET
-            PICKLEBALL_TEST_AUTH_ENABLED
-          command: --version
-        env:
-          PICKLEBALL_SESSION_SECRET: ${{ secrets.TEMP_PICKLEBALL_SESSION_SECRET }}
-          PICKLEBALL_TEST_AUTH_ENABLED: "true"
