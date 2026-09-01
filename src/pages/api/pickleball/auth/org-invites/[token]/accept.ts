@@ -1,7 +1,7 @@
 // src/pages/api/pickleball/auth/org-invites/[token]/accept.ts
 import type { APIRoute } from 'astro'
 import { requireGoogleIdentity } from '../../../../../../worker/pickleball/authContext.js'
-import { getInviteByToken, markInviteAccepted } from '../../../../../../worker/repositories/pickleball/organizationInvites.js'
+import { getInviteByToken, markInviteAccepted, setInviteOrganizationId } from '../../../../../../worker/repositories/pickleball/organizationInvites.js'
 import { createOrganization } from '../../../../../../worker/repositories/pickleball/organizations.js'
 import { createMembership, linkMembershipUser } from '../../../../../../worker/repositories/pickleball/memberships.js'
 import { getUserByGoogleSub } from '../../../../../../worker/repositories/pickleball/users.js'
@@ -36,6 +36,16 @@ export const POST: APIRoute = async ({ request, params }) => {
       return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
     }
 
+    // Claim the invite (CAS on status = 'PENDING') before doing any writes
+    // that create real resources. Two concurrent/retried accept requests for
+    // the same token both pass the checks above, but only one of them can
+    // win this claim -- the loser is told the invite was already used
+    // instead of also creating a duplicate organization.
+    const claimed = await markInviteAccepted(env.PICKLEBALL_DB, invite.id)
+    if (!claimed) {
+      return jsonResponse({ error: 'This invite has already been used.' }, 409)
+    }
+
     const organization = await createOrganization(env.PICKLEBALL_DB, {
       name: result.data.name,
       slug: result.data.slug,
@@ -54,7 +64,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     // subsequent request as unauthorized, same as google/callback.ts and
     // test-login.ts do immediately after resolving a membership at sign-in.
     await linkMembershipUser(env.PICKLEBALL_DB, { organizationId: organization.id, invitedEmail: user.email, userId: user.id })
-    await markInviteAccepted(env.PICKLEBALL_DB, invite.id, organization.id)
+    await setInviteOrganizationId(env.PICKLEBALL_DB, invite.id, organization.id)
 
     const now = Math.floor(Date.now() / 1000)
     const token = await signSession(

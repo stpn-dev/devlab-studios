@@ -79,10 +79,28 @@ export async function getPendingInviteForEmail(db, email) {
   return toInvite(row)
 }
 
-export async function markInviteAccepted(db, inviteId, organizationId) {
-  await db
-    .prepare(`UPDATE organization_invites SET status = 'ACCEPTED', organization_id = ?, accepted_at = ? WHERE id = ?`)
+// Compare-and-swap claim: only succeeds if the invite is still PENDING, so
+// two concurrent accept requests for the same token can't both redeem it
+// (mirrors revokeInvite's WHERE ... AND status = 'PENDING' pattern below).
+// organizationId is optional because the caller claims the invite BEFORE the
+// organization exists (see accept.ts) -- pass it once known, or set it
+// afterwards via setInviteOrganizationId.
+export async function markInviteAccepted(db, inviteId, organizationId = null) {
+  const result = await db
+    .prepare(`UPDATE organization_invites SET status = 'ACCEPTED', organization_id = ?, accepted_at = ? WHERE id = ? AND status = 'PENDING'`)
     .bind(organizationId, nowIso(), inviteId)
+    .run()
+  return result.meta.changes > 0
+}
+
+// Sets organization_id on an already-ACCEPTED invite, once the organization
+// it was claimed for has actually been created. Kept separate from
+// markInviteAccepted's CAS so the claim itself doesn't need to wait on org
+// creation to be atomic.
+export async function setInviteOrganizationId(db, inviteId, organizationId) {
+  await db
+    .prepare(`UPDATE organization_invites SET organization_id = ? WHERE id = ?`)
+    .bind(organizationId, inviteId)
     .run()
 }
 
