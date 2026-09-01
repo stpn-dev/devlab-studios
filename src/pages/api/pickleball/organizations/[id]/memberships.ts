@@ -1,7 +1,9 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../worker/pickleball/authContext.js'
 import { hasPermission } from '../../../../../lib/pickleball/permissions'
+import { canAddOperator } from '../../../../../lib/pickleball/quota'
 import { createMembership, getMembershipByEmail, listMembershipsForOrganization } from '../../../../../worker/repositories/pickleball/memberships.js'
+import { countActiveMembershipsByRole, getOrganization } from '../../../../../worker/repositories/pickleball/organizations.js'
 import { recordAuditEvent } from '../../../../../worker/repositories/pickleball/auditEvents.js'
 import { inviteMembershipSchema } from '../../../../../lib/schemas/pickleball/organizations'
 import { getEnv } from '../../../../../lib/env'
@@ -51,6 +53,21 @@ export const POST: APIRoute = async ({ request, params }) => {
     // VIEW_AUDIT_LOG, with no recovery path (memberships are invite-only).
     if (existing && existing.userId === session.userId && result.data.role !== 'ADMIN') {
       return jsonResponse({ error: 'You cannot change your own role away from ADMIN.' }, 400)
+    }
+
+    // Only checked when this invite would add a NEW active operator of that
+    // role — an existing ACTIVE member being re-invited to the SAME role is
+    // a no-op re-send, not a new seat, so it must not be blocked by a cap
+    // that's already at capacity because of that very member.
+    const isNewActiveSeatForRole = !existing || existing.status !== 'ACTIVE' || existing.role !== result.data.role
+    if (isNewActiveSeatForRole) {
+      const organization = await getOrganization(env.PICKLEBALL_DB, organizationId)
+      if (organization) {
+        const currentCount = await countActiveMembershipsByRole(env.PICKLEBALL_DB, organizationId, result.data.role)
+        if (!canAddOperator(organization, result.data.role, currentCount)) {
+          return jsonResponse({ error: `Role quota reached for this organization (${result.data.role}).` }, 409)
+        }
+      }
     }
 
     const membership = await createMembership(env.PICKLEBALL_DB, { organizationId, ...result.data })
