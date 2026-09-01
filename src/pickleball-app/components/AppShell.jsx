@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { can } from '../../lib/pickleball/permissions'
+import { hasPermission } from '../../lib/pickleball/permissions'
 
 const NAV_ITEMS = [
   { to: '/pickleball/app', label: 'Dashboard', end: true },
@@ -9,10 +9,13 @@ const NAV_ITEMS = [
   { to: '/pickleball/app/operators', label: 'Operators', permission: 'MANAGE_OPERATORS' },
   { to: '/pickleball/app/audit', label: 'Audit Log', permission: 'VIEW_AUDIT_LOG' },
   { to: '/pickleball/app/settings', label: 'Settings', permission: 'CONFIGURE_SYSTEM_DEFAULTS' },
+  { to: '/pickleball/app/platform', label: 'Platform', platformAdminOnly: true },
 ]
 
 export default function AppShell({ session, organizations, onSwitchOrg, onLogout }) {
-  const visibleNavItems = NAV_ITEMS.filter((item) => !item.permission || can(session.role, item.permission))
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => (!item.permission || hasPermission(session, item.permission)) && (!item.platformAdminOnly || session.isPlatformAdmin),
+  )
 
   return (
     <div className="flex min-h-screen">

@@ -20,6 +20,7 @@ import GamesListPage from './pages/GamesListPage'
 import ScorekeeperPage from './pages/ScorekeeperPage'
 import LeaderboardPage from './pages/LeaderboardPage'
 import AcceptOrgInvitePage from './pages/AcceptOrgInvitePage'
+import PlatformPage from './pages/PlatformPage'
 
 function buildRouter(session, organizations, onSwitchOrg, onLogout) {
   return createBrowserRouter([
@@ -39,6 +40,7 @@ function buildRouter(session, organizations, onSwitchOrg, onLogout) {
         { path: 'operators', element: <OperatorsPage /> },
         { path: 'audit', element: <AuditPage /> },
         { path: 'settings', element: <SettingsPage /> },
+        { path: 'platform', element: <PlatformPage /> },
         {
           path: 'sessions/:sessionId',
           element: <SessionLayout />,
