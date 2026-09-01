@@ -156,7 +156,7 @@ export default function CheckInPage() {
           type="button"
           disabled={!selectedNewPlayerId}
           onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players`, { playerId: selectedNewPlayerId }), () => setSelectedNewPlayerId(''))}
-          className="pb-btn-primary shrink-0 rounded-lg px-4 py-2 text-sm"
+          className="pb-btn-primary inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg px-4 text-sm"
         >
           Register
         </button>
@@ -181,7 +181,7 @@ export default function CheckInPage() {
             onClick={handleCheckAll}
             disabled={!checkInEligiblePlayerIds.length}
             data-testid="checkin-check-all"
-            className="pb-btn-primary flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed"
+            className="pb-btn-primary inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold disabled:cursor-not-allowed"
           >
             <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
             Check all
@@ -191,7 +191,7 @@ export default function CheckInPage() {
             onClick={handleUncheckAll}
             disabled={!leaveEligiblePlayerIds.length}
             data-testid="checkin-uncheck-all"
-            className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-rose-300 px-3 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
           >
             <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
             Uncheck all
@@ -210,28 +210,28 @@ export default function CheckInPage() {
             ) : null}
             <div className="ml-auto flex gap-2">
               {canCheckIn(player) ? (
-                <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { playerId: player.playerId }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
+                <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { playerId: player.playerId }))} className="inline-flex min-h-11 items-center justify-center rounded border border-slate-300 px-3 text-xs font-semibold hover:bg-slate-50">
                   Check in
                 </button>
               ) : null}
               {canCancelRegistration(player) ? (
-                <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/cancel`, { playerId: player.playerId }))} className="rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
+                <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/cancel`, { playerId: player.playerId }))} className="inline-flex min-h-11 items-center justify-center rounded border border-rose-300 px-3 text-xs font-semibold text-rose-600 hover:bg-rose-50">
                   Cancel
                 </button>
               ) : null}
               {canSetAvailability(player) ? (
                 player.availabilityStatus !== 'AVAILABLE' ? (
-                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/availability`, { playerId: player.playerId, status: 'AVAILABLE' }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
+                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/availability`, { playerId: player.playerId, status: 'AVAILABLE' }))} className="inline-flex min-h-11 items-center justify-center rounded border border-slate-300 px-3 text-xs font-semibold hover:bg-slate-50">
                     Set available
                   </button>
                 ) : (
-                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/availability`, { playerId: player.playerId, status: 'TEMPORARILY_UNAVAILABLE' }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
+                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/availability`, { playerId: player.playerId, status: 'TEMPORARILY_UNAVAILABLE' }))} className="inline-flex min-h-11 items-center justify-center rounded border border-slate-300 px-3 text-xs font-semibold hover:bg-slate-50">
                     Set unavailable
                   </button>
                 )
               ) : null}
               {canLeaveSession(player) ? (
-                <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/leave`, { playerId: player.playerId }))} className="rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
+                <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/leave`, { playerId: player.playerId }))} className="inline-flex min-h-11 items-center justify-center rounded border border-rose-300 px-3 text-xs font-semibold text-rose-600 hover:bg-rose-50">
                   Leave
                 </button>
               ) : null}

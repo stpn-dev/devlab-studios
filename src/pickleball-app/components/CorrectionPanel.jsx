@@ -26,7 +26,7 @@ export default function CorrectionPanel({ game, onReopen, onCorrect }) {
         <button
           type="button"
           onClick={onReopen}
-          className="rounded border border-amber-400 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+          className="inline-flex min-h-11 items-center justify-center rounded border border-amber-400 px-3 text-xs font-semibold text-amber-800 hover:bg-amber-100"
         >
           Reopen game
         </button>
@@ -74,7 +74,7 @@ export default function CorrectionPanel({ game, onReopen, onCorrect }) {
               </select>
             </label>
           ) : null}
-          <button type="submit" className="rounded bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700">
+          <button type="submit" className="inline-flex min-h-11 items-center justify-center rounded bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-700">
             Save correction
           </button>
         </form>

@@ -118,7 +118,7 @@ function NavSections({ sections, collapsed, onNavigate }) {
                   end={item.end}
                   onClick={onNavigate}
                   className={({ isActive }) =>
-                    `pb-nav-link group flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm ${isActive ? 'pb-nav-link--active' : ''} ${
+                    `pb-nav-link group flex min-h-11 items-center gap-3 rounded-lg px-2.5 text-sm ${isActive ? 'pb-nav-link--active' : ''} ${
                       collapsed ? 'justify-center' : ''
                     }`
                   }
@@ -145,7 +145,7 @@ function SidebarFooter({ organizations, session, onSwitchOrg, onLogout, collapse
     <div className="flex-shrink-0 space-y-1.5 border-t border-white/10 px-2.5 py-3">
       {!collapsed && organizations.length > 1 ? (
         <select
-          className="w-full rounded-lg border border-white/15 bg-white/5 px-2 py-1.5 text-sm text-white"
+          className="min-h-11 w-full rounded-lg border border-white/15 bg-white/5 px-2 text-sm text-white"
           value={session.activeOrgId}
           onChange={(event) => onSwitchOrg(event.target.value)}
         >
@@ -160,7 +160,7 @@ function SidebarFooter({ organizations, session, onSwitchOrg, onLogout, collapse
       <button
         type="button"
         onClick={onLogout}
-        className={`flex w-full items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white ${
+        className={`flex min-h-11 w-full items-center gap-2 rounded-lg border border-white/15 px-3 text-sm text-slate-300 hover:bg-white/5 hover:text-white ${
           collapsed ? 'justify-center' : ''
         }`}
       >
@@ -228,7 +228,7 @@ export default function AppShell({ session, organizations, onSwitchOrg, onLogout
           onClick={() => setIsMobileNavOpen(true)}
           aria-label="Open navigation"
           data-testid="mobile-nav-trigger"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white"
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
@@ -248,7 +248,7 @@ export default function AppShell({ session, organizations, onSwitchOrg, onLogout
           onClick={toggleCollapsed}
           data-testid="sidebar-collapse-toggle"
           aria-label={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-          className="flex flex-shrink-0 items-center justify-center gap-2 border-t border-white/10 py-2 text-xs font-semibold text-slate-400 hover:bg-white/5 hover:text-white"
+          className="flex min-h-11 flex-shrink-0 items-center justify-center gap-2 border-t border-white/10 text-xs font-semibold text-slate-400 hover:bg-white/5 hover:text-white"
         >
           {isCollapsed ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <ChevronLeft className="h-4 w-4" aria-hidden="true" />}
           {isCollapsed ? null : 'Collapse'}
@@ -277,7 +277,7 @@ export default function AppShell({ session, organizations, onSwitchOrg, onLogout
                 type="button"
                 onClick={() => setIsMobileNavOpen(false)}
                 aria-label="Close navigation"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>

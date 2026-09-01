@@ -141,7 +141,7 @@ export default function SessionLayout() {
                 to={item.to}
                 end={item.end}
                 className={({ isActive }) =>
-                  `pb-tab rounded px-3 py-1.5 text-sm ${isActive ? 'pb-tab--active font-semibold text-brand' : 'text-slate-600 hover:bg-slate-100'}`
+                  `pb-tab inline-flex min-h-11 items-center rounded px-3 text-sm ${isActive ? 'pb-tab--active font-semibold text-brand' : 'text-slate-600 hover:bg-slate-100'}`
                 }
               >
                 {item.label}

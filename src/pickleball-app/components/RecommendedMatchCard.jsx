@@ -55,7 +55,7 @@ export default function RecommendedMatchCard({ candidates = [], onAssign }) {
         <p className="text-sm text-slate-500">No eligible players queued yet.</p>
       )}
 
-      <button type="button" onClick={onAssign} className="pb-btn-primary w-full rounded px-3 py-1.5 text-xs">
+      <button type="button" onClick={onAssign} className="pb-btn-primary inline-flex min-h-11 w-full items-center justify-center rounded px-3 text-xs">
         Assign
       </button>
     </div>

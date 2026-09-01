@@ -78,7 +78,7 @@ export default function CourtCard({ court, status, enabled, game = null, recomme
             <GameScoreboard game={game} variant="compact" />
           </button>
         ) : (
-          <p className="text-sm text-slate-500">Team assigned — game not started yet.</p>
+          <p className="text-sm text-slate-500">Waiting for the game to start.</p>
         )
       ) : null}
 
@@ -86,16 +86,16 @@ export default function CourtCard({ court, status, enabled, game = null, recomme
 
       <div className="flex flex-wrap gap-2">
         {showRelease ? (
-          <button type="button" onClick={onRelease} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
+          <button type="button" onClick={onRelease} className="inline-flex min-h-11 items-center justify-center rounded border border-slate-300 px-3 text-xs font-semibold hover:bg-slate-50">
             Release
           </button>
         ) : null}
         {enabled === false ? (
-          <button type="button" onClick={onEnable} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
+          <button type="button" onClick={onEnable} className="inline-flex min-h-11 items-center justify-center rounded border border-slate-300 px-3 text-xs font-semibold hover:bg-slate-50">
             Enable
           </button>
         ) : (
-          <button type="button" onClick={onDisable} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
+          <button type="button" onClick={onDisable} className="inline-flex min-h-11 items-center justify-center rounded border border-slate-300 px-3 text-xs font-semibold hover:bg-slate-50">
             Disable
           </button>
         )}

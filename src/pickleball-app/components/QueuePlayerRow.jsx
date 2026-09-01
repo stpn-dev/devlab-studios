@@ -30,25 +30,28 @@ export default function QueuePlayerRow({ position, player, gamesPlayed, waitMinu
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <span className="pb-score w-5 flex-shrink-0 text-right text-sm text-slate-400">{position}</span>
           <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
             {initial}
           </span>
-          <span className="min-w-0 truncate">
-            <span className="font-medium text-slate-900">{player.displayName}</span>{' '}
-            <span className="text-slate-400">
+          {/* Name and fairness metadata each get their own line and their own
+              truncation, so a long display name never eats into (or gets
+              eaten by) the "N games · waiting Nm" text on a narrow row. */}
+          <span className="min-w-0">
+            <span className="block truncate font-medium text-slate-900">{player.displayName}</span>
+            <span className="block truncate text-xs text-slate-400">
               {gamesPlayed} {gamesPlayed === 1 ? 'game' : 'games'} · waiting {waitMinutes}m
             </span>
           </span>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
           {hasReasons ? (
             <button
               type="button"
               onClick={() => setExpanded((value) => !value)}
-              className="flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+              className="inline-flex min-h-11 items-center gap-1 rounded border border-slate-200 px-2 text-xs font-semibold text-slate-500 hover:bg-slate-50"
               aria-expanded={expanded}
               data-testid={`queue-reasons-toggle-${player.sessionPlayerId}`}
             >
@@ -59,7 +62,7 @@ export default function QueuePlayerRow({ position, player, gamesPlayed, waitMinu
           <button
             type="button"
             onClick={onLeave}
-            className="rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+            className="inline-flex min-h-11 items-center justify-center rounded border border-rose-300 px-3 text-xs font-semibold text-rose-600 hover:bg-rose-50"
           >
             Leave queue
           </button>
