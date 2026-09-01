@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../../../worker/pickleball/authContext.js'
-import { can } from '../../../../../../../lib/pickleball/permissions'
+import { hasPermission } from '../../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../../worker/repositories/pickleball/sessions.js'
 import { getGame } from '../../../../../../../worker/repositories/pickleball/games.js'
 import { jsonResponse, apiErrorResponse } from '../../../../../../../worker/utils/responses.js'
@@ -19,7 +19,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     // ADMIN/FACILITATOR only -- SCOREKEEPER never holds REOPEN_GAME, so there
     // is deliberately no session-operator-grant branch here.
-    if (!can(session.role, 'REOPEN_GAME')) return jsonResponse({ error: 'Forbidden.' }, 403)
+    if (!hasPermission(session, 'REOPEN_GAME')) return jsonResponse({ error: 'Forbidden.' }, 403)
 
     const gameId = params.gameId as string
     const game = await getGame(env.PICKLEBALL_DB, sessionId, gameId)

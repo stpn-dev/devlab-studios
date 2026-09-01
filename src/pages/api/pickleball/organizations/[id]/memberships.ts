@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../worker/pickleball/authContext.js'
-import { can } from '../../../../../lib/pickleball/permissions'
+import { hasPermission } from '../../../../../lib/pickleball/permissions'
 import { createMembership, getMembershipByEmail, listMembershipsForOrganization } from '../../../../../worker/repositories/pickleball/memberships.js'
 import { recordAuditEvent } from '../../../../../worker/repositories/pickleball/auditEvents.js'
 import { inviteMembershipSchema } from '../../../../../lib/schemas/pickleball/organizations'
@@ -18,7 +18,7 @@ export const GET: APIRoute = async ({ request, params }) => {
     // is operator-management data — the same MANAGE_OPERATORS permission the
     // POST below requires. Without this check a SCOREKEEPER, whose role grants
     // only scoring-adjacent permissions, could enumerate the whole org.
-    if (!can(session.role, 'MANAGE_OPERATORS')) {
+    if (!hasPermission(session, 'MANAGE_OPERATORS')) {
       return jsonResponse({ error: 'Forbidden.' }, 403)
     }
     const memberships = await listMembershipsForOrganization(env.PICKLEBALL_DB, params.id)
@@ -32,7 +32,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   const env = getEnv()
   try {
     const session = await requirePickleballSession(request, env)
-    if (session.activeOrgId !== params.id || !can(session.role, 'MANAGE_OPERATORS')) {
+    if (session.activeOrgId !== params.id || !hasPermission(session, 'MANAGE_OPERATORS')) {
       return jsonResponse({ error: 'Forbidden.' }, 403)
     }
 

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../../worker/pickleball/authContext.js'
-import { can } from '../../../../../../lib/pickleball/permissions'
+import { hasPermission } from '../../../../../../lib/pickleball/permissions'
 import { getMembershipById, revokeMembership } from '../../../../../../worker/repositories/pickleball/memberships.js'
 import { recordAuditEvent } from '../../../../../../worker/repositories/pickleball/auditEvents.js'
 import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
@@ -11,7 +11,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
   try {
     const session = await requirePickleballSession(request, env)
     const organizationId = params.id as string
-    if (session.activeOrgId !== organizationId || !can(session.role, 'MANAGE_OPERATORS')) {
+    if (session.activeOrgId !== organizationId || !hasPermission(session, 'MANAGE_OPERATORS')) {
       return jsonResponse({ error: 'Forbidden.' }, 403)
     }
 

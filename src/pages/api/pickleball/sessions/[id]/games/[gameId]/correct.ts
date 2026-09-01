@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../../../worker/pickleball/authContext.js'
-import { can } from '../../../../../../../lib/pickleball/permissions'
+import { hasPermission } from '../../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../../worker/repositories/pickleball/sessions.js'
 import { getGame } from '../../../../../../../worker/repositories/pickleball/games.js'
 import { correctGameSchema } from '../../../../../../../lib/schemas/pickleball/games'
@@ -20,7 +20,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     // ADMIN/FACILITATOR only -- SCOREKEEPER never holds CORRECT_GAME, so there
     // is deliberately no session-operator-grant branch here.
-    if (!can(session.role, 'CORRECT_GAME')) return jsonResponse({ error: 'Forbidden.' }, 403)
+    if (!hasPermission(session, 'CORRECT_GAME')) return jsonResponse({ error: 'Forbidden.' }, 403)
 
     const result = correctGameSchema.safeParse(body)
     if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../worker/pickleball/authContext.js'
-import { can } from '../../../../../lib/pickleball/permissions'
+import { hasPermission } from '../../../../../lib/pickleball/permissions'
 import { listAuditEvents } from '../../../../../worker/repositories/pickleball/auditEvents.js'
 import { jsonResponse, apiErrorResponse } from '../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../lib/env'
@@ -12,7 +12,7 @@ export const GET: APIRoute = async ({ request, params, url }) => {
   try {
     const session = await requirePickleballSession(request, env)
     const organizationId = params.id as string
-    if (session.activeOrgId !== organizationId || !can(session.role, 'VIEW_AUDIT_LOG')) {
+    if (session.activeOrgId !== organizationId || !hasPermission(session, 'VIEW_AUDIT_LOG')) {
       return jsonResponse({ error: 'Forbidden.' }, 403)
     }
 

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../worker/pickleball/authContext.js'
-import { can } from '../../../../lib/pickleball/permissions'
+import { hasPermission } from '../../../../lib/pickleball/permissions'
 import { updateScoringRuleset } from '../../../../worker/repositories/pickleball/sessions.js'
 import { updateScoringRulesetSchema } from '../../../../lib/schemas/pickleball/scoringRulesets'
 import { getEnv } from '../../../../lib/env'
@@ -10,7 +10,7 @@ export const PUT: APIRoute = async ({ request, params }) => {
   const env = getEnv()
   try {
     const session = await requirePickleballSession(request, env)
-    if (!can(session.role, 'CONFIGURE_SYSTEM_DEFAULTS')) {
+    if (!hasPermission(session, 'CONFIGURE_SYSTEM_DEFAULTS')) {
       return jsonResponse({ error: 'Forbidden.' }, 403)
     }
 

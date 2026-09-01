@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../../../worker/pickleball/authContext.js'
-import { can } from '../../../../../../../lib/pickleball/permissions'
+import { hasPermission } from '../../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../../worker/repositories/pickleball/sessions.js'
 import { getGame } from '../../../../../../../worker/repositories/pickleball/games.js'
 import { hasSessionOperatorGrant } from '../../../../../../../worker/repositories/pickleball/sessionOperatorGrants.js'
@@ -18,7 +18,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     const pickleballSession = await getSession(env.PICKLEBALL_DB, sessionId, session.activeOrgId)
     if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
 
-    if (!can(session.role, 'FINISH_GAME')) return jsonResponse({ error: 'Forbidden.' }, 403)
+    if (!hasPermission(session, 'FINISH_GAME')) return jsonResponse({ error: 'Forbidden.' }, 403)
     if (session.role === 'SCOREKEEPER' && !(await hasSessionOperatorGrant(env.PICKLEBALL_DB, sessionId, session.userId))) {
       return jsonResponse({ error: 'Forbidden.' }, 403)
     }
