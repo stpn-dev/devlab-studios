@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro'
 import { upsertUserByGoogleSub } from '../../../../worker/repositories/pickleball/users.js'
 import { listActiveMembershipsForEmail, linkMembershipUser } from '../../../../worker/repositories/pickleball/memberships.js'
+import { getPendingInviteForEmail } from '../../../../worker/repositories/pickleball/organizationInvites.js'
 import {
   resolveActiveOrgId,
   buildLoginRateLimitKey,
@@ -41,9 +42,43 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   const memberships = await listActiveMembershipsForEmail(env.PICKLEBALL_DB, email)
+  const secure = new URL(request.url).protocol === 'https:'
+
   if (!memberships.length) {
-    recordFailedLogin(loginKey)
-    return jsonResponse({ error: 'No active membership for that email.' }, 403)
+    // Mirrors google/callback.ts's "no active membership yet, but there is a
+    // pending org invite" branch: a freshly-invited pilot has no membership
+    // row at all until they accept, but still needs a real identity session
+    // (requireGoogleIdentity) to reach the accept-invite endpoint. Without
+    // this branch, the self-serve pilot flow built in Tasks 5-11 would be
+    // untestable through this bypass -- every pilot's very first login would
+    // 403 here before ever reaching org-invites/:token/accept.
+    const pendingInvite = await getPendingInviteForEmail(env.PICKLEBALL_DB, email)
+    if (!pendingInvite) {
+      recordFailedLogin(loginKey)
+      return jsonResponse({ error: 'No active membership for that email.' }, 403)
+    }
+
+    const user = await upsertUserByGoogleSub(env.PICKLEBALL_DB, {
+      googleSub: `test-${email}`,
+      email,
+      name: email,
+      avatarUrl: '',
+    })
+    if (!user) {
+      return jsonResponse({ error: 'Failed to create or update user.' }, 500)
+    }
+
+    clearFailedLogins(loginKey)
+
+    const now = Math.floor(Date.now() / 1000)
+    const token = await signSession(
+      { userId: user.id, googleSub: user.googleSub, activeOrgId: null, iat: now, exp: now + SESSION_MAX_AGE_SECONDS },
+      env.PICKLEBALL_SESSION_SECRET,
+    )
+
+    return jsonResponse({ ok: true, activeOrgId: null }, 200, {
+      'Set-Cookie': buildSetCookieHeader(SESSION_COOKIE_NAME, token, { secure, maxAgeSeconds: SESSION_MAX_AGE_SECONDS }),
+    })
   }
 
   const user = await upsertUserByGoogleSub(env.PICKLEBALL_DB, {
@@ -74,7 +109,6 @@ export const POST: APIRoute = async ({ request }) => {
     { userId: user.id, googleSub: user.googleSub, activeOrgId, iat: now, exp: now + SESSION_MAX_AGE_SECONDS },
     env.PICKLEBALL_SESSION_SECRET,
   )
-  const secure = new URL(request.url).protocol === 'https:'
 
   return jsonResponse({ ok: true, activeOrgId }, 200, {
     'Set-Cookie': buildSetCookieHeader(SESSION_COOKIE_NAME, token, { secure, maxAgeSeconds: SESSION_MAX_AGE_SECONDS }),
