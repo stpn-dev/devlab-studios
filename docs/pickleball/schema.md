@@ -19,6 +19,7 @@ numbered file.
 | `0008_phase4_hardening.sql` | Phase 4 hardening: serving-player-identity and correction-mode columns on `games`, plus a primary-key rebuild of `idempotency_keys` (scoped per game+command, not globally). |
 | `0009_performance_snapshots.sql` | Phase 5: `player_performance_snapshots`, aggregated OPI snapshots fully rebuildable from `player_game_stats`. |
 | `0010_audit_events.sql` | Phase 7: `audit_events`, an append-only accountability trail for admin-visible operator actions (role changes, game corrections/reopens). |
+| `0011_platform_pilot.sql` | Platform admin & self-serve pilot orgs: `users.is_platform_admin`; `organizations.status`, `.max_admins`, `.max_facilitators`, `.max_scorekeepers`; and the new `organization_invites` table. |
 
 ## Tables
 
@@ -26,7 +27,8 @@ numbered file.
 
 #### `organizations`
 
-*Created in `0001_foundation.sql`.*
+*Created in `0001_foundation.sql`; `status`, `max_admins`, `max_facilitators`,
+`max_scorekeepers` added by `0011_platform_pilot.sql`.*
 
 | Column | Type | Constraints |
 |---|---|---|
@@ -35,12 +37,17 @@ numbered file.
 | `slug` | TEXT | NOT NULL, UNIQUE |
 | `created_at` | TEXT | NOT NULL |
 | `updated_at` | TEXT | NOT NULL |
+| `status` | TEXT | NOT NULL, DEFAULT `'ACTIVE'`, CHECK (`status` IN (`'ACTIVE'`, `'SUSPENDED'`)) — added by `0011`; a platform admin suspending an org 403s every org-scoped request against it (`requirePickleballSession`) and blocks its public spectator route |
+| `max_admins` | INTEGER | added by `0011`; nullable seat cap for the ADMIN role. NULL means unlimited |
+| `max_facilitators` | INTEGER | added by `0011`; nullable seat cap for the SESSION_FACILITATOR role. NULL means unlimited |
+| `max_scorekeepers` | INTEGER | added by `0011`; nullable seat cap for the SCOREKEEPER role. NULL means unlimited |
 
 Indexes: none beyond the PK and the `slug` UNIQUE constraint.
 
 #### `users`
 
-*Created in `0001_foundation.sql`.*
+*Created in `0001_foundation.sql`; `is_platform_admin` added by
+`0011_platform_pilot.sql`.*
 
 | Column | Type | Constraints |
 |---|---|---|
@@ -51,6 +58,7 @@ Indexes: none beyond the PK and the `slug` UNIQUE constraint.
 | `avatar_url` | TEXT | |
 | `created_at` | TEXT | NOT NULL |
 | `updated_at` | TEXT | NOT NULL |
+| `is_platform_admin` | INTEGER | NOT NULL, DEFAULT `0`, CHECK (`is_platform_admin` IN (`0`, `1`)) — added by `0011`; grants cross-org access to the `platform/` API surface. No API sets this flag by design (spec Decision 1) — see the runbook's "Platform admin" section for the one-time SQL promotion. |
 
 Indexes:
 - `idx_users_email` on `(email)`
@@ -76,6 +84,33 @@ Google account's email.
 Indexes:
 - `idx_memberships_org_email` UNIQUE on `(organization_id, invited_email)`
 - `idx_memberships_user` on `(user_id)`
+
+#### `organization_invites`
+
+*Created in `0011_platform_pilot.sql`.* A platform admin's invitation for a
+pilot organization to self-serve create itself; distinct from
+`organization_memberships`, which invites a person INTO an org that already
+exists. `organization_id` is nullable because the row is created before any
+organization exists — it's populated once the invitee accepts and creates
+their org.
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | TEXT | PRIMARY KEY |
+| `token` | TEXT | NOT NULL, UNIQUE |
+| `invited_email` | TEXT | NOT NULL |
+| `status` | TEXT | NOT NULL, DEFAULT `'PENDING'`, CHECK (`status` IN (`'PENDING'`, `'ACCEPTED'`, `'EXPIRED'`, `'REVOKED'`)) |
+| `max_admins` | INTEGER | nullable seat cap carried onto the organization created from this invite |
+| `max_facilitators` | INTEGER | nullable seat cap carried onto the organization created from this invite |
+| `max_scorekeepers` | INTEGER | nullable seat cap carried onto the organization created from this invite |
+| `created_by_user_id` | TEXT | NOT NULL, FOREIGN KEY → `users(id)` |
+| `organization_id` | TEXT | FOREIGN KEY → `organizations(id)` ON DELETE SET NULL (nullable — NULL until the invite is accepted and its organization is created) |
+| `created_at` | TEXT | NOT NULL |
+| `expires_at` | TEXT | NOT NULL |
+| `accepted_at` | TEXT | |
+
+Indexes:
+- `idx_organization_invites_email` on `(invited_email)`
 
 #### `players`
 

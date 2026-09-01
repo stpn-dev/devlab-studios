@@ -52,7 +52,71 @@ The email argument becomes the seeded organization's ADMIN `invited_email` (defa
 `admin@example.com`) — sign in with that Google account to reach it. Only ever run this against a
 database that doesn't already have `seed-org` in it.
 
+## Platform admin
+
+The platform admin & self-serve pilot org feature (spec
+`2026-09-01-devlab-pickleball-platform-pilot-design.md`) lets a small set of
+platform admins invite pilot clubs to self-serve create their own
+organization, and suspend/reactivate any organization. There is no UI or API
+to grant `users.is_platform_admin` itself — this is deliberate (spec
+Decision 1): it's a platform-level bootstrap action, not something any
+in-app role should be able to grant itself or anyone else.
+
+### Promote the first platform admin
+
+The only way to set the flag in production is a direct SQL statement against
+the remote D1 database — the same pattern `scripts/pickleball/create-organization.mjs`
+uses for org bootstrap, just inline since there's only one column to touch:
+
+```bash
+npx wrangler d1 execute devlab-pickleball --remote --command "UPDATE users SET is_platform_admin = 1 WHERE email = '<email>'"
+```
+
+The target user must already have signed in once (via Google OAuth) so their
+`users` row exists — if the `UPDATE` matches zero rows, have them sign in
+first, then re-run it. Locally, run the same command against the local DB
+(drop `--remote`, or point at `devlab-pickleball-preview` for the preview
+environment).
+
+### Issue a pilot invite
+
+A platform admin can invite a pilot either from the operator app's Platform
+page (`/pickleball/app/platform`, visible only to `is_platform_admin`
+sessions) or directly via the API:
+
+```bash
+curl -X POST http://localhost:8787/api/pickleball/platform/org-invites \
+  -H 'Content-Type: application/json' \
+  --cookie "<platform admin's session cookie>" \
+  -d '{"invitedEmail": "pilot@example.com", "maxAdmins": 1, "maxFacilitators": 3, "maxScorekeepers": 5}'
+```
+
+`maxAdmins`/`maxFacilitators`/`maxScorekeepers` are optional and nullable —
+omit any of them (or pass `null`) for an unlimited seat cap on that role. The
+response's `acceptUrl` is what gets sent to the invitee; they sign in with
+Google, land on the accept-invite page, and create their own club, which
+carries the invite's seat caps onto the new `organizations` row.
+
+### Suspend / reactivate an organization
+
+From the Platform page's organizations list, or via the API:
+
+```bash
+# Suspend — 403s every org-scoped request against it, including its public spectator route
+curl -X POST http://localhost:8787/api/pickleball/platform/organizations/<organizationId>/suspend \
+  -H 'Content-Type: application/json' --cookie "<platform admin's session cookie>" -d '{}'
+
+# Reactivate
+curl -X POST http://localhost:8787/api/pickleball/platform/organizations/<organizationId>/reactivate \
+  -H 'Content-Type: application/json' --cookie "<platform admin's session cookie>" -d '{}'
+```
+
+Both routes authenticate via `requirePlatformAdmin` (Google identity +
+`is_platform_admin`, no org membership required), so a platform admin can
+suspend and later reactivate an organization even if it's the only org they
+personally belong to.
+
 ## Notes
 
 - `PICKLEBALL_TEST_AUTH_ENABLED` must never be set in `wrangler.jsonc`'s committed `vars` — it exists only for local/CI `.dev.vars`.
-- Organization creation is invite-only by design — there is no self-serve signup. New organizations are created via `scripts/pickleball/create-organization.mjs`.
+- Organization creation is invite-only by design — there is no unsolicited self-serve signup. New organizations are created either via `scripts/pickleball/create-organization.mjs`, or by a pilot accepting a platform admin's org invite (see "Platform admin" above).
