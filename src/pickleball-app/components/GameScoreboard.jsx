@@ -62,6 +62,16 @@ function TeamLabel({ label, serving }) {
  * @param {string|null} [props.teamAServerName]
  * @param {string|null} [props.teamBServerName]
  * @param {string} [props.className]
+ * @param {string|null} [props.scoreTestId] - optional `data-testid` for the
+ *   element holding the exact "scoreA – scoreB" text (e.g. ScorekeeperPage's
+ *   pre-existing `scorekeeper-score` selector). Omitted by callers (like
+ *   CourtCard/GamesListPage) that have no such selector to preserve.
+ * @param {string|null} [props.officialCallTestId] - optional `data-testid`
+ *   for the "Serving: Team X · Call: …" line (e.g. `scorekeeper-official-call`).
+ * @param {string|null} [props.teamATestId] - optional `data-testid` for the
+ *   Team A column/row (e.g. `scorekeeper-team-a-row`).
+ * @param {string|null} [props.teamBTestId] - optional `data-testid` for the
+ *   Team B column/row (e.g. `scorekeeper-team-b-row`).
  */
 export default function GameScoreboard({
   game,
@@ -70,6 +80,10 @@ export default function GameScoreboard({
   teamAServerName = null,
   teamBServerName = null,
   className = '',
+  scoreTestId = null,
+  officialCallTestId = null,
+  teamATestId = null,
+  teamBTestId = null,
 }) {
   const compact = variant === 'compact'
   const state = { scoreA: game.scoreA, scoreB: game.scoreB, servingTeam: game.servingTeam, serverNumber: game.serverNumber }
@@ -89,28 +103,39 @@ export default function GameScoreboard({
       {compact ? (
         <div className="flex items-center justify-between gap-3">
           <TeamLabel label="Team A" serving={game.servingTeam === 'A'} />
-          <p className="pb-score text-3xl text-white">
+          <p data-testid={scoreTestId || undefined} className="pb-score text-3xl text-white">
             {game.scoreA} – {game.scoreB}
           </p>
           <TeamLabel label="Team B" serving={game.servingTeam === 'B'} />
         </div>
       ) : (
-        <div className="flex items-center justify-center gap-4">
-          <div className="flex flex-1 flex-col items-center gap-1">
-            <TeamLabel label="Team A" serving={game.servingTeam === 'A'} />
-            <p className="pb-score text-6xl text-white">{game.scoreA}</p>
-            {teamAServerName ? <p className="text-xs text-slate-400">Server: {teamAServerName}</p> : null}
+        <>
+          {/* A small, exact "scoreA – scoreB" readout above the two large
+              per-team columns below -- kept separate from those columns
+              (rather than derived from them at render time by a test) since
+              a Playwright assertion needs one element whose whole text is
+              exactly that string, and the two big numbers are visually and
+              structurally two separate elements either side of "vs". */}
+          <p data-testid={scoreTestId || undefined} className="pb-score mb-1 text-lg text-slate-300">
+            {game.scoreA} – {game.scoreB}
+          </p>
+          <div className="flex items-center justify-center gap-4">
+            <div data-testid={teamATestId || undefined} className="flex flex-1 flex-col items-center gap-1">
+              <TeamLabel label="Team A" serving={game.servingTeam === 'A'} />
+              <p className="pb-score text-6xl text-white">{game.scoreA}</p>
+              {teamAServerName ? <p className="text-xs text-slate-400">Server: {teamAServerName}</p> : null}
+            </div>
+            <span className="pb-eyebrow text-slate-400">vs</span>
+            <div data-testid={teamBTestId || undefined} className="flex flex-1 flex-col items-center gap-1">
+              <TeamLabel label="Team B" serving={game.servingTeam === 'B'} />
+              <p className="pb-score text-6xl text-white">{game.scoreB}</p>
+              {teamBServerName ? <p className="text-xs text-slate-400">Server: {teamBServerName}</p> : null}
+            </div>
           </div>
-          <span className="pb-eyebrow text-slate-400">vs</span>
-          <div className="flex flex-1 flex-col items-center gap-1">
-            <TeamLabel label="Team B" serving={game.servingTeam === 'B'} />
-            <p className="pb-score text-6xl text-white">{game.scoreB}</p>
-            {teamBServerName ? <p className="text-xs text-slate-400">Server: {teamBServerName}</p> : null}
-          </div>
-        </div>
+        </>
       )}
 
-      <p className={`mt-3 text-slate-300 ${compact ? 'text-xs' : 'text-sm'}`}>
+      <p data-testid={officialCallTestId || undefined} className={`mt-3 text-slate-300 ${compact ? 'text-xs' : 'text-sm'}`}>
         Serving: Team {game.servingTeam}
         {!compact ? ` · Call: ${officialCall}` : null}
       </p>

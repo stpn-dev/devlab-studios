@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext, useParams } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
-import { officialScoreCall, contextualState, hasGameBeenWon } from '../../lib/pickleball/scoring/display'
+import { contextualState, hasGameBeenWon } from '../../lib/pickleball/scoring/display'
 import { hasPermission } from '../../lib/pickleball/permissions'
 import ContextualBanner from '../components/ContextualBanner'
-import ScorekeeperControls from '../components/ScorekeeperControls'
+import GameScoreboard from '../components/GameScoreboard'
+import RallyActionPanel from '../components/RallyActionPanel'
 import CorrectionPanel from '../components/CorrectionPanel'
 
 function findServerName(teamList, teamId, currentServerId) {
@@ -129,58 +130,61 @@ export default function ScorekeeperPage() {
   }
 
   return (
+    // Mobile-first ordering (brief §29): header -> teams/score -> serve info
+    // -> context -> rally actions. "Serve info" (Serving: Team X · Call: …)
+    // lives inside GameScoreboard itself, directly under the team/score
+    // columns, so it already lands in the right slot without a separate
+    // element here.
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Scorekeeper</h1>
         <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
       </div>
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
-      <ContextualBanner value={banner} />
-      <div className="pb-scoreboard p-6 text-center">
-        {game.status === 'IN_PROGRESS' ? (
-          <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-emerald-300">
-            <span className="pb-live-dot" /> In progress
-          </p>
-        ) : null}
-        <p data-testid="scorekeeper-score" className="pb-score text-6xl text-white">{game.scoreA} – {game.scoreB}</p>
-        <p data-testid="scorekeeper-official-call" className="mt-3 text-sm text-slate-300">
-          Serving: Team {game.servingTeam} · Call: {officialScoreCall(state, ruleset.format)}
-        </p>
-      </div>
-      <div className="space-y-2">
-        <div
-          data-testid="scorekeeper-team-a-row"
-          className={`flex items-center justify-between rounded-lg border px-4 py-3 shadow-sm ${game.servingTeam === 'A' ? 'border-brand/50 bg-brand/5' : 'border-slate-200 bg-white'}`}
-        >
-          <div>
-            <p className="font-semibold text-slate-900">
-              Team A
-              {game.servingTeam === 'A' ? (
-                <span className="pb-btn-primary ml-2 rounded-full px-2 py-0.5 text-xs">Serving</span>
-              ) : null}
-            </p>
-            {teamAServerName ? <p className="text-xs text-slate-500">Server: {teamAServerName}</p> : null}
-          </div>
-          <p className="pb-score text-2xl text-slate-900">{game.scoreA}</p>
-        </div>
-        <div
-          data-testid="scorekeeper-team-b-row"
-          className={`flex items-center justify-between rounded-lg border px-4 py-3 shadow-sm ${game.servingTeam === 'B' ? 'border-brand/50 bg-brand/5' : 'border-slate-200 bg-white'}`}
-        >
-          <div>
-            <p className="font-semibold text-slate-900">
-              Team B
-              {game.servingTeam === 'B' ? (
-                <span className="pb-btn-primary ml-2 rounded-full px-2 py-0.5 text-xs">Serving</span>
-              ) : null}
-            </p>
-            {teamBServerName ? <p className="text-xs text-slate-500">Server: {teamBServerName}</p> : null}
-          </div>
-          <p className="pb-score text-2xl text-slate-900">{game.scoreB}</p>
-        </div>
-      </div>
       {game.status === 'IN_PROGRESS' ? (
-        <ScorekeeperControls onRally={handleRally} onUndo={handleUndo} onFinish={handleFinish} isGameWon={gameWon} canScore={!game.correctionPending} />
+        <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-emerald-700">
+          <span className="pb-live-dot" /> In progress
+        </p>
+      ) : null}
+
+      {/* Teams/score + serve info -- GameScoreboard's full variant (Task 3),
+          wired to this page's own snapshot-derived `game`, never a
+          recomputed/duplicated copy of it. No `ruleset` is passed: that would
+          make GameScoreboard compute its own contextual (game-point/tied/
+          side-out) chip via `contextualState(state, ruleset, null)` --
+          always passing `null` for `lastOutcome`, which can never report
+          SIDE_OUT the way this page's own `banner` (below) correctly does
+          via `activeOutcome`. Passing `ruleset` here would both duplicate
+          ContextualBanner's chip AND silently drop the side-out case, so the
+          contextual read stays solely ContextualBanner's job. */}
+      <GameScoreboard
+        game={game}
+        variant="full"
+        teamAServerName={teamAServerName}
+        teamBServerName={teamBServerName}
+        scoreTestId="scorekeeper-score"
+        officialCallTestId="scorekeeper-official-call"
+        teamATestId="scorekeeper-team-a-row"
+        teamBTestId="scorekeeper-team-b-row"
+      />
+
+      {/* Context -- game-point/tied-win-by-2/side-out, driven by this page's
+          own `banner` (which folds in `activeOutcome` from the last rally),
+          not GameScoreboard's internal (and side-out-blind) computation. */}
+      <ContextualBanner value={banner} />
+
+      {/* Rally actions -- the only scoring input on this screen. */}
+      {game.status === 'IN_PROGRESS' ? (
+        <RallyActionPanel
+          teamAName="TEAM A"
+          teamBName="TEAM B"
+          onTeamAWon={() => handleRally('A')}
+          onTeamBWon={() => handleRally('B')}
+          onUndo={handleUndo}
+          onFinish={handleFinish}
+          isGameWon={gameWon}
+          canScore={!game.correctionPending}
+        />
       ) : null}
       {game.status === 'FINISHED' ? (
         <p className="text-sm text-slate-600">Game finished: {game.finalScoreA} – {game.finalScoreB}.</p>
