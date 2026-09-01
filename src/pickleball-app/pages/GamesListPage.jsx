@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import GameScoreboard from '../components/GameScoreboard'
 
 function StartGameForm({ sessionId, court, onStarted }) {
   const [teams, setTeams] = useState(null)
@@ -129,18 +130,18 @@ export default function GamesListPage() {
 
       <div>
         <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Games</h2>
-        <div className="space-y-2" data-testid="games-list">
+        <div className="space-y-3" data-testid="games-list">
           {snapshot.games.map((game) => (
             <Link
               key={game.id}
               to={game.id}
-              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm hover:border-brand/40"
+              className="block space-y-1.5 rounded-xl transition-transform hover:-translate-y-0.5"
             >
-              <span className="pb-score text-base text-slate-900">{game.scoreA} – {game.scoreB}</span>
-              <span className="flex items-center gap-1.5 text-slate-500">
+              <div className="flex items-center justify-end gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {game.status === 'IN_PROGRESS' ? <span className="pb-live-dot" /> : null}
                 {game.status}
-              </span>
+              </div>
+              <GameScoreboard game={game} variant="compact" />
             </Link>
           ))}
           {!snapshot.games.length ? <p className="text-sm text-slate-500">No games yet.</p> : null}

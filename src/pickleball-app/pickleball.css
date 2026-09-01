@@ -199,6 +199,66 @@
   }
 }
 
+/* Task 3's court card: same tokens `.pb-metric-card` already composes
+   (surface-card/border-subtle/radius-lg/shadow-sm, hover elevation), plus
+   three state variants (LIVE/AVAILABLE/OUT_OF_SERVICE) that CourtCard.jsx
+   layers on top -- every one of them still paired with an icon + text label
+   in the component itself, never conveyed by this border/background color
+   alone. */
+.pb-court-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.pb-court-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-court-card {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* LIVE: the same "serve line" top accent `.pb-scoreboard` already carries,
+   plus a brand-soft border so an in-play court reads as active at a glance
+   (backed by the "In play" label + Swords icon in the card body itself). */
+.pb-court-card--live {
+  border-color: var(--border-brand-soft);
+}
+
+.pb-court-card--live::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--brand-gradient);
+}
+
+/* AVAILABLE: the plain base treatment -- no extra accent needed since
+   "available" is this app's default/neutral court state. */
+.pb-court-card--available {
+  border-color: var(--border-subtle);
+}
+
+/* OUT_OF_SERVICE: muted/disabled-looking, matching `.pb-btn-primary:disabled`'s
+   existing opacity convention rather than inventing a new one. */
+.pb-court-card--out-of-service {
+  background: var(--surface-alt);
+  opacity: 0.7;
+}
+
+.pb-court-card--out-of-service:hover {
+  transform: none;
+}
+
 .pb-live-dot {
   display: inline-block;
   width: 0.5rem;

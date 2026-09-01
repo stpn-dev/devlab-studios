@@ -1,9 +1,27 @@
 import { useEffect, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useNavigate, useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import CourtCard from '../components/CourtCard'
+
+// Derives CourtCard's display state from the court's raw `status` field and
+// its separately-tracked `enabled` flag (disabling a court doesn't change
+// `status`) -- a pure presentation mapping, read-only against fields the
+// page already fetches. `enabled === false` always wins (a disabled court is
+// "out of service" regardless of whether it's sitting AVAILABLE or still
+// ASSIGNED to a game); the raw `OUT_OF_SERVICE` status value maps the same
+// way even if a future flow ever sets `enabled` back to true on it. Anything
+// other than AVAILABLE (ASSIGNED, WARMUP, PLAYING, FINISHING) reads as "in
+// play" for card purposes -- the exact raw status word is still shown
+// verbatim elsewhere in the card.
+function deriveCourtCardStatus(court, enabled) {
+  if (enabled === false || court.status === 'OUT_OF_SERVICE') return 'OUT_OF_SERVICE'
+  if (court.status === 'AVAILABLE') return 'AVAILABLE'
+  return 'LIVE'
+}
 
 export default function CourtsPage() {
   const { sessionId, snapshot } = useOutletContext()
+  const navigate = useNavigate()
   const [enabledByCourtId, setEnabledByCourtId] = useState({})
   const [message, setMessage] = useState(null)
 
@@ -44,37 +62,20 @@ export default function CourtsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="courts-grid">
         {snapshot.courts.map((court) => {
           const enabled = court.id in enabledByCourtId ? enabledByCourtId[court.id] : court.enabled
+          const liveGame = snapshot.games.find((g) => g.sessionCourtId === court.id && g.status === 'IN_PROGRESS')
           return (
-            <div key={court.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-900">{court.courtName}</span>
-                <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                  {court.status === 'ASSIGNED' ? <span className="pb-live-dot" /> : null}
-                  {court.status}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {court.status === 'AVAILABLE' && enabled !== false ? (
-                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { sessionCourtId: court.id }))} className="pb-btn-primary rounded px-3 py-1 text-xs">
-                    Assign
-                  </button>
-                ) : null}
-                {court.status === 'ASSIGNED' ? (
-                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/release`, { sessionCourtId: court.id }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
-                    Release
-                  </button>
-                ) : null}
-                {enabled === false ? (
-                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/enable`, { sessionCourtId: court.id }), { refreshEnabled: true })} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
-                    Enable
-                  </button>
-                ) : (
-                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/disable`, { sessionCourtId: court.id }), { refreshEnabled: true })} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
-                    Disable
-                  </button>
-                )}
-              </div>
-            </div>
+            <CourtCard
+              key={court.id}
+              court={court}
+              status={deriveCourtCardStatus(court, enabled)}
+              enabled={enabled}
+              game={liveGame}
+              onAssign={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { sessionCourtId: court.id }))}
+              onRelease={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/release`, { sessionCourtId: court.id }))}
+              onEnable={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/enable`, { sessionCourtId: court.id }), { refreshEnabled: true })}
+              onDisable={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/disable`, { sessionCourtId: court.id }), { refreshEnabled: true })}
+              onOpen={liveGame ? () => navigate(`/pickleball/app/sessions/${sessionId}/games/${liveGame.id}`) : undefined}
+            />
           )
         })}
       </div>
