@@ -9,6 +9,8 @@ import { loadPageSeo } from '../lib/content/seo'
 import { loadServicesContent } from '../lib/content/services'
 import { loadProjects } from '../lib/content/projects'
 import { loadPage } from '../lib/content/pages'
+import ContactForm from '../components/islands/ContactForm.jsx'
+import { getEnv } from '../lib/env'
 
 function resolveIcon(name: string) {
   return (Icons as Record<string, typeof Icons.Lightbulb>)[name] || Icons.Lightbulb
@@ -30,6 +32,16 @@ const servicePrimaryCta = (pageCta.primaryCta as { label?: string; href?: string
 const serviceSecondaryCta = (pageCta.secondaryCta as { label?: string; href?: string } | undefined) || {}
 const { solutionGroups, processSteps, faqs } = await loadServicesContent()
 const projectItems = await loadProjects()
+const env = getEnv()
+const requestHostname = new URL(Astro.request.url).hostname
+const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1'
+const turnstileSiteKey = isLocalRequest ? '1x00000000000000000000AA' : env.TURNSTILE_SITE_KEY || ''
+const betaFormCopy = {
+  subjectLabel: 'What would you like to test?',
+  subjectPlaceholder: 'Pickleball beta tester request',
+  messageLabel: 'Tell us about your club',
+  messagePlaceholder: 'How many players, how often you run open play, and what you’d want out of the app.',
+}
 ---
 
 <Layout title="Services — DevLab Studios" seo={seo}>
@@ -177,6 +189,36 @@ const projectItems = await loadProjects()
             <p class="mt-2 text-sm leading-relaxed text-slate-600">{faq.answer}</p>
           </article>
         ))}
+      </div>
+    </section>
+
+    <section class="space-y-5">
+      <SectionHeader title="Devlab Pickleball" subtitle="A live, open-play session manager we're piloting with a small group of clubs — check-in, queueing, court assignment, live scoring, and a real-time public scoreboard, all from one app." />
+      <div class="rounded-2xl bg-white/[0.92] p-6 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
+        <p class="text-sm leading-relaxed text-slate-600">
+          We're running a small pilot before opening it up further. If you run open-play sessions for your own club and want early access, let us know below — we personally review every request.
+        </p>
+        <div class="mt-4">
+          <button
+            id="beta-tester-cta"
+            type="button"
+            class="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 text-sm font-semibold text-white hover:brightness-95"
+          >
+            Be a beta-tester
+          </button>
+          <script>
+            document.getElementById('beta-tester-cta')?.addEventListener('click', () => {
+              const el = document.getElementById('beta-tester-form')
+              if (el) {
+                el.hidden = false
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+            })
+          </script>
+        </div>
+        <div id="beta-tester-form" hidden class="mt-6">
+          <ContactForm client:load siteKey={turnstileSiteKey} copy={betaFormCopy} />
+        </div>
       </div>
     </section>
 
