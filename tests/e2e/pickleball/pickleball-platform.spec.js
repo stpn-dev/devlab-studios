@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loginAs } from './helpers.js'
+import { loginAs, loginAsOperator } from './helpers.js'
 import { PLATFORM_ADMIN_EMAIL } from '../../../scripts/pickleball/apply-e2e-fixtures.mjs'
 
 test('a platform admin can invite a pilot, the pilot creates their own club, and quotas block over-invites', async ({ request, context, baseURL }) => {
@@ -87,4 +87,15 @@ test('a super-admin can suspend an organization, blocking its members', async ({
   }).toPass({ timeout: 15000 })
 
   await targetContext.close()
+})
+
+test('a non-platform-admin operator is refused by the platform API surface', async ({ request, context, baseURL }) => {
+  // DEFAULT_ORG_ADMIN_EMAIL ('operator@example.com') is a real ADMIN of the
+  // default e2e org but carries no users.is_platform_admin flag -- this is
+  // the trust boundary the whole platform-admin feature rests on, and it
+  // previously had zero coverage.
+  await loginAsOperator(request, context, baseURL)
+
+  const response = await request.get('/api/pickleball/platform/organizations')
+  expect(response.status()).toBe(403)
 })
