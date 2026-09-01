@@ -54,7 +54,7 @@
     "RESEND_FROM_EMAIL": "hello@devlabstudios.com",
     "LEAD_NOTIFICATION_EMAIL": "hello@devlabstudios.com",
     "PICKLEBALL_OAUTH_REDIRECT_BASE_URL": "https://www.devlabstudios.com",
-    "GOOGLE_OAUTH_CLIENT_ID": "REPLACE_ME"
+    "GOOGLE_OAUTH_CLIENT_ID": "623988421575-p6kvgpj2rhq7l59ovpg6ftbl1ha3bnib.apps.googleusercontent.com"
   },
   "compatibility_date": "2026-03-10",
   "compatibility_flags": ["nodejs_compat"],
