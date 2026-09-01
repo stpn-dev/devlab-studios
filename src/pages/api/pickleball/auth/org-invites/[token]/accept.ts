@@ -6,6 +6,7 @@ import { createOrganization } from '../../../../../../worker/repositories/pickle
 import { createMembership, linkMembershipUser } from '../../../../../../worker/repositories/pickleball/memberships.js'
 import { getUserByGoogleSub } from '../../../../../../worker/repositories/pickleball/users.js'
 import { acceptOrgInviteSchema } from '../../../../../../lib/schemas/pickleball/platform'
+import { validateInviteForAccept } from '../../../../../../lib/pickleball/inviteValidation'
 import { signSession, buildSetCookieHeader, SESSION_COOKIE_NAME } from '../../../../../../worker/pickleball/session.js'
 import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
@@ -18,16 +19,26 @@ export const POST: APIRoute = async ({ request, params }) => {
     const identity = await requireGoogleIdentity(request, env)
 
     const invite = await getInviteByToken(env.PICKLEBALL_DB, params.token as string)
-    if (!invite || invite.status !== 'PENDING') {
+    const user = await getUserByGoogleSub(env.PICKLEBALL_DB, identity.googleSub)
+
+    // A missing user folds into the same "wrong email" outcome as an actual
+    // email mismatch below, matching this route's original combined check
+    // (`!user || user.email.toLowerCase() !== invite.invitedEmail.toLowerCase()`).
+    const validation = validateInviteForAccept(invite, user ? user.email : '')
+    if (validation.outcome === 'not-found' || validation.outcome === 'already-used') {
       return jsonResponse({ error: 'This invite is no longer valid.' }, 404)
     }
-    if (new Date(invite.expiresAt).getTime() <= Date.now()) {
+    if (validation.outcome === 'expired') {
       return jsonResponse({ error: 'This invite has expired.' }, 410)
     }
-
-    const user = await getUserByGoogleSub(env.PICKLEBALL_DB, identity.googleSub)
-    if (!user || user.email.toLowerCase() !== invite.invitedEmail.toLowerCase()) {
+    if (validation.outcome === 'wrong-email') {
       return jsonResponse({ error: 'This invite was issued to a different email address.' }, 403)
+    }
+    // validation.outcome === 'ok' here. That's only reachable when invite is
+    // non-null and user's email matched it (so user is non-null too) -- this
+    // guard is purely for TypeScript narrowing below, not a reachable branch.
+    if (!invite || !user) {
+      return jsonResponse({ error: 'This invite is no longer valid.' }, 404)
     }
 
     const body = await request.json().catch(() => null)
