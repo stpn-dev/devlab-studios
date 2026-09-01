@@ -27,13 +27,20 @@ export function buildCreatePublicSessionTokenStatement(db, sessionId, timestamp)
 // there is no code path here that could ever select (and so leak)
 // organization_id or created_by_user_id. Revoked or unknown codes both
 // resolve to null; callers 404 either way (spec: "revoked tokens 404").
+// The JOIN to organizations exists ONLY to gate on status != 'SUSPENDED' --
+// organization_id itself is never in the SELECT list or the returned shape,
+// so a suspended org's session resolves to null exactly like a revoked or
+// unknown code does, keeping every caller's existing "not found" handling
+// as the one code path for "nothing to show here" (a super-admin suspending
+// an org must also stop its public spectator view from serving live data).
 export async function getSessionByPublicCode(db, code) {
   const row = await db
     .prepare(
       `SELECT s.id, s.name, s.session_type, s.status, s.public_view_enabled, s.public_leaderboard_enabled
        FROM public_session_tokens t
        JOIN pickleball_sessions s ON s.id = t.session_id
-       WHERE t.public_code = ? AND t.revoked_at IS NULL`,
+       JOIN organizations o ON o.id = s.organization_id
+       WHERE t.public_code = ? AND t.revoked_at IS NULL AND o.status != 'SUSPENDED'`,
     )
     .bind(code)
     .first()
