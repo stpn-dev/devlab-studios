@@ -88,6 +88,26 @@ export async function requireGoogleIdentity(request, env) {
   return { userId: session.userId, googleSub: session.googleSub }
 }
 
+// Authenticates via Google identity only (no org/membership requirement) and
+// asserts the caller is a platform admin. Used by the platform-admin-only
+// routes under src/pages/api/pickleball/platform/, which operate across all
+// organizations and must not depend on the caller's activeOrgId — deriving
+// authorization through requirePickleballSession would 403 a platform admin
+// whose activeOrgId happens to point at a SUSPENDED org, locking them out of
+// the very Platform page that lets them reactivate it.
+export async function requirePlatformAdmin(request, env) {
+  const identity = await requireGoogleIdentity(request, env)
+
+  const platformAdmin = await isPlatformAdmin(env.PICKLEBALL_DB, identity.userId)
+  if (!platformAdmin) {
+    const error = new Error('Forbidden.')
+    error.status = 403
+    throw error
+  }
+
+  return { userId: identity.userId, googleSub: identity.googleSub, isPlatformAdmin: true }
+}
+
 export async function requirePickleballSession(request, env) {
   const secret = env.PICKLEBALL_SESSION_SECRET
   if (!secret) {

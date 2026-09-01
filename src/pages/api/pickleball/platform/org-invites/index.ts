@@ -1,6 +1,6 @@
 // src/pages/api/pickleball/platform/org-invites/index.ts
 import type { APIRoute } from 'astro'
-import { requirePickleballSession } from '../../../../../worker/pickleball/authContext.js'
+import { requirePlatformAdmin } from '../../../../../worker/pickleball/authContext.js'
 import { createOrganizationInvite, listOrganizationInvites } from '../../../../../worker/repositories/pickleball/organizationInvites.js'
 import { createOrgInviteSchema } from '../../../../../lib/schemas/pickleball/platform'
 import { jsonResponse, apiErrorResponse } from '../../../../../worker/utils/responses.js'
@@ -9,8 +9,7 @@ import { getEnv } from '../../../../../lib/env'
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
   try {
-    const session = await requirePickleballSession(request, env)
-    if (!session.isPlatformAdmin) return jsonResponse({ error: 'Forbidden.' }, 403)
+    await requirePlatformAdmin(request, env)
 
     const invites = await listOrganizationInvites(env.PICKLEBALL_DB)
     return jsonResponse({ invites }, 200)
@@ -22,8 +21,7 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
   const env = getEnv()
   try {
-    const session = await requirePickleballSession(request, env)
-    if (!session.isPlatformAdmin) return jsonResponse({ error: 'Forbidden.' }, 403)
+    const session = await requirePlatformAdmin(request, env)
 
     const body = await request.json().catch(() => null)
     const result = createOrgInviteSchema.safeParse(body)
