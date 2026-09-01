@@ -56,7 +56,7 @@ export default function AppShell({ session, organizations, onSwitchOrg, onLogout
         </button>
       </aside>
       <main className="flex-1 p-6">
-        <Outlet context={{ authRole: session.role, activeOrgId: session.activeOrgId }} />
+        <Outlet context={{ authRole: session.role, activeOrgId: session.activeOrgId, isPlatformAdmin: session.isPlatformAdmin }} />
       </main>
     </div>
   )

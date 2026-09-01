@@ -14,7 +14,7 @@ const SUB_NAV = [
 
 export default function SessionLayout() {
   const { sessionId } = useParams()
-  const { authRole, activeOrgId } = useOutletContext()
+  const { authRole, activeOrgId, isPlatformAdmin } = useOutletContext()
   const [session, setSession] = useState(null)
   const [loadError, setLoadError] = useState(false)
   const [fetchKey, setFetchKey] = useState(null)
@@ -83,7 +83,7 @@ export default function SessionLayout() {
             ))}
           </nav>
 
-          <Outlet context={{ sessionId, session, status, snapshot, error, authRole }} />
+          <Outlet context={{ sessionId, session, status, snapshot, error, authRole, isPlatformAdmin }} />
         </>
       )}
     </div>

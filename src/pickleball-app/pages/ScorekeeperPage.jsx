@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useOutletContext, useParams } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 import { officialScoreCall, contextualState, hasGameBeenWon } from '../../lib/pickleball/scoring/display'
-import { can } from '../../lib/pickleball/permissions'
+import { hasPermission } from '../../lib/pickleball/permissions'
 import ContextualBanner from '../components/ContextualBanner'
 import ScorekeeperControls from '../components/ScorekeeperControls'
 import CorrectionPanel from '../components/CorrectionPanel'
@@ -16,7 +16,7 @@ function findServerName(teamList, teamId, currentServerId) {
 
 export default function ScorekeeperPage() {
   const { gameId } = useParams()
-  const { sessionId, snapshot, authRole } = useOutletContext()
+  const { sessionId, snapshot, authRole, isPlatformAdmin } = useOutletContext()
   const [rulesets, setRulesets] = useState(null)
   const [teams, setTeams] = useState(null)
   const [message, setMessage] = useState(null)
@@ -76,7 +76,7 @@ export default function ScorekeeperPage() {
   const gameWon = hasGameBeenWon(state, ruleset)
   const activeOutcome = lastOutcome && lastOutcome.revision === game.revision ? lastOutcome.outcome : null
   const banner = contextualState(state, ruleset, activeOutcome)
-  const canCorrect = can(authRole, 'CORRECT_GAME')
+  const canCorrect = hasPermission({ role: authRole, isPlatformAdmin }, 'CORRECT_GAME')
 
   const teamAServerName = ruleset.format === 'DOUBLES' ? findServerName(teams, game.teamAId, game.teamACurrentServerSessionPlayerId) : null
   const teamBServerName = ruleset.format === 'DOUBLES' ? findServerName(teams, game.teamBId, game.teamBCurrentServerSessionPlayerId) : null

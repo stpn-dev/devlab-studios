@@ -3,7 +3,7 @@ import { Link, useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 
 export default function DashboardPage() {
-  const { authRole, activeOrgId } = useOutletContext()
+  const { authRole, activeOrgId, isPlatformAdmin } = useOutletContext()
   const [sessions, setSessions] = useState(null)
   const [players, setPlayers] = useState(null)
   const [message, setMessage] = useState(null)
@@ -108,7 +108,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {authRole === 'ADMIN' ? (
+      {authRole === 'ADMIN' || isPlatformAdmin ? (
         <div className="flex gap-3">
           <Link to="/pickleball/app/operators" className="text-sm font-semibold text-brand hover:underline">Manage operators</Link>
           <Link to="/pickleball/app/audit" className="text-sm font-semibold text-brand hover:underline">View audit log</Link>
