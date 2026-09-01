@@ -1,6 +1,18 @@
 import { useOutletContext } from 'react-router-dom'
 import { useState } from 'react'
 import { pickleballApi } from '../lib/pickleballApi'
+import QueuePlayerRow from '../components/QueuePlayerRow'
+
+// Minutes elapsed since `queuedAt`, for the row's compact "N games ·
+// waiting Nm" summary -- mirrors the same wait-time computation
+// `selectNextPlayers()` uses for its own `reasons` text
+// (src/lib/pickleball/queueEngine.ts), just recomputed against the
+// browser's clock so it stays live between snapshot refreshes instead of
+// only updating whenever a new snapshot happens to arrive.
+function waitMinutesSince(queuedAt) {
+  if (!queuedAt) return 0
+  return Math.max(0, Math.round((Date.now() - Date.parse(queuedAt)) / 60000))
+}
 
 export default function QueuePage() {
   const { sessionId, snapshot } = useOutletContext()
@@ -32,15 +44,15 @@ export default function QueuePage() {
         <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Waiting ({queued.length})</h2>
         <div className="space-y-2" data-testid="queue-waiting-list">
           {queued.map((entry, index) => (
-            <div key={entry.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
-              <span className="flex items-center gap-3">
-                <span className="pb-score w-5 text-right text-sm text-slate-400">{index + 1}</span>
-                <span>{entry.displayName} <span className="text-slate-400">({entry.gamesPlayed} played)</span></span>
-              </span>
-              <button type="button" onClick={() => handleLeave(entry.sessionPlayerId)} className="rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
-                Leave queue
-              </button>
-            </div>
+            <QueuePlayerRow
+              key={entry.id}
+              position={index + 1}
+              player={{ displayName: entry.displayName, sessionPlayerId: entry.sessionPlayerId }}
+              gamesPlayed={entry.gamesPlayed}
+              waitMinutes={waitMinutesSince(entry.queuedAt)}
+              reasons={entry.reasons}
+              onLeave={() => handleLeave(entry.sessionPlayerId)}
+            />
           ))}
           {!queued.length ? <p className="text-sm text-slate-500">Nobody waiting.</p> : null}
         </div>

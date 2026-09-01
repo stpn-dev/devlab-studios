@@ -19,6 +19,27 @@ function deriveCourtCardStatus(court, enabled) {
   return 'LIVE'
 }
 
+// Fairness-ranked preview for RecommendedMatchCard: the same "fewest games
+// played, then longest wait" ordering `selectNextPlayers()` itself uses
+// (src/lib/pickleball/queueEngine.ts) -- the queue snapshot's own array
+// order is by `queuedAt` only (listQueueForSession's ORDER BY), not this
+// fairness order, so it's re-sorted here rather than trusted as-is.
+// Restricted to entries the fairness engine actually flagged eligible
+// (non-empty `reasons`, attached by `GET /queue`) and capped at 4 -- a full
+// doubles match -- since the client doesn't know this session's ruleset
+// format (SINGLES needs 2, DOUBLES needs 4); the real
+// `SessionCoordinatorDO.assignCourt` call this card's "Assign" button
+// triggers still authoritatively decides exactly who gets seated.
+function recommendedCandidates(queue) {
+  return queue
+    .filter((entry) => entry.status === 'QUEUED' && entry.reasons?.length)
+    .sort((a, b) => {
+      if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed
+      return Date.parse(a.queuedAt) - Date.parse(b.queuedAt)
+    })
+    .slice(0, 4)
+}
+
 export default function CourtsPage() {
   const { sessionId, snapshot } = useOutletContext()
   const navigate = useNavigate()
@@ -51,6 +72,8 @@ export default function CourtsPage() {
 
   if (!snapshot) return <p className="text-sm text-slate-500">Loading…</p>
 
+  const recommended = recommendedCandidates(snapshot.queue)
+
   return (
     <div className="space-y-6">
       <div>
@@ -70,6 +93,7 @@ export default function CourtsPage() {
               status={deriveCourtCardStatus(court, enabled)}
               enabled={enabled}
               game={liveGame}
+              recommended={recommended}
               onAssign={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { sessionCourtId: court.id }))}
               onRelease={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/release`, { sessionCourtId: court.id }))}
               onEnable={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/enable`, { sessionCourtId: court.id }), { refreshEnabled: true })}

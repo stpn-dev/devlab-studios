@@ -1,5 +1,6 @@
 import { Grid3x3, Swords, CheckCircle2, Wrench } from '../../components/icons/icons'
 import GameScoreboard from './GameScoreboard'
+import RecommendedMatchCard from './RecommendedMatchCard'
 
 // Icon + label pair for each of the three court-state visual treatments.
 // `status` here is the CALLER's already-derived display state (LIVE/
@@ -29,13 +30,17 @@ const STATE_CONFIG = {
  *   separately by CourtsPage.jsx, since disabling doesn't change `court.status`).
  * @param {Object|null} [props.game] - this court's current IN_PROGRESS game,
  *   if any (only rendered when status is LIVE).
+ * @param {Array<{ sessionPlayerId: string, displayName: string, reasons?: string[] }>} [props.recommended]
+ *   - the fairness-ranked queue candidates CourtsPage.jsx computed for the
+ *   "recommended next match" preview (only rendered when this court is
+ *   AVAILABLE and assignable).
  * @param {() => void} [props.onAssign]
  * @param {() => void} [props.onRelease]
  * @param {() => void} [props.onEnable]
  * @param {() => void} [props.onDisable]
  * @param {() => void} [props.onOpen] - opens the live game's Scorekeeper view.
  */
-export default function CourtCard({ court, status, enabled, game = null, onAssign, onRelease, onEnable, onDisable, onOpen }) {
+export default function CourtCard({ court, status, enabled, game = null, recommended = [], onAssign, onRelease, onEnable, onDisable, onOpen }) {
   const config = STATE_CONFIG[status] || STATE_CONFIG.AVAILABLE
   const StateIcon = config.icon
   const showAssign = court.status === 'AVAILABLE' && enabled !== false
@@ -77,12 +82,9 @@ export default function CourtCard({ court, status, enabled, game = null, onAssig
         )
       ) : null}
 
+      {showAssign ? <RecommendedMatchCard candidates={recommended} onAssign={onAssign} /> : null}
+
       <div className="flex flex-wrap gap-2">
-        {showAssign ? (
-          <button type="button" onClick={onAssign} className="pb-btn-primary rounded px-3 py-1 text-xs">
-            Assign
-          </button>
-        ) : null}
         {showRelease ? (
           <button type="button" onClick={onRelease} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
             Release
