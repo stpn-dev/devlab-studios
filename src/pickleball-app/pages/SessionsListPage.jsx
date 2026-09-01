@@ -1,8 +1,58 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import { Clock, UserCheck, Activity, Pause, CheckCircle2, X } from '../../components/icons/icons'
 
 const EMPTY_FORM = { venueId: '', name: '', sessionType: 'OPEN_PLAY', scoringRulesetId: '', scheduledStart: '', scheduledEnd: '' }
+
+// Session status chip -- a dedicated variant (per the task's own "or a
+// dedicated session-status variant" option) rather than editing
+// PlayerStatusChip.jsx's STATUS_CONFIG, since that map is scoped to
+// player/game/queue attendance states and this task's declared file scope
+// doesn't include that component. Same visual language though: icon + text
+// + one of the four existing --pb-status-* tones (never color alone),
+// covering the exact status vocabulary this app's schema defines (see
+// createSessionSchema's z.enum in src/lib/schemas/pickleball/sessions.ts).
+const SESSION_STATUS_CONFIG = {
+  DRAFT: { icon: Clock, label: 'Draft', tone: 'muted' },
+  OPEN_FOR_CHECKIN: { icon: UserCheck, label: 'Check-in open', tone: 'info' },
+  LIVE: { icon: Activity, label: 'Live', tone: 'success' },
+  PAUSED: { icon: Pause, label: 'Paused', tone: 'warning' },
+  COMPLETED: { icon: CheckCircle2, label: 'Completed', tone: 'muted' },
+  CANCELLED: { icon: X, label: 'Cancelled', tone: 'danger' },
+}
+
+function SessionStatusChip({ status }) {
+  const config = SESSION_STATUS_CONFIG[status] || { icon: Clock, label: status, tone: 'muted' }
+  const Icon = config.icon
+  return (
+    <span className={`pb-status-chip pb-status-chip--${config.tone}`}>
+      <Icon className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" strokeWidth={2.5} />
+      {config.label}
+    </span>
+  )
+}
+
+// scheduledStart/scheduledEnd are the only real per-session date/time fields
+// this page's fetch provides (listSessions() in
+// src/worker/repositories/pickleball/sessions.js) -- registered/checked-in/
+// court counts are NOT part of this response (no per-session player/court
+// aggregate is fetched here), so this task's session cards show real
+// date/time + venue + status only, and omit those counts as a genuine
+// backend-boundary gap rather than fabricating them.
+function formatSessionWindow(startIso, endIso) {
+  if (!startIso) return null
+  const start = new Date(startIso)
+  const end = endIso ? new Date(endIso) : null
+  const dateFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
+  const timeFormatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+  const datePart = dateFormatter.format(start)
+  const startTime = timeFormatter.format(start)
+  if (!end) return `${datePart}, ${startTime}`
+  const sameDay = start.toDateString() === end.toDateString()
+  const endTime = timeFormatter.format(end)
+  return sameDay ? `${datePart}, ${startTime}–${endTime}` : `${datePart} ${startTime} – ${dateFormatter.format(end)} ${endTime}`
+}
 
 export default function SessionsListPage() {
   const [sessions, setSessions] = useState([])
@@ -110,17 +160,32 @@ export default function SessionsListPage() {
         </div>
       ) : null}
 
-      <div className="space-y-2" data-testid="sessions-list">
-        {sessions.map((session) => (
-          <Link
-            key={session.id}
-            to={`/pickleball/app/sessions/${session.id}`}
-            className="flex items-center rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm hover:border-brand/40"
-          >
-            <span className="font-semibold text-slate-900">{session.name}</span>
-            <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{session.status}</span>
-          </Link>
-        ))}
+      <div className="space-y-3" data-testid="sessions-list">
+        {sessions.map((session) => {
+          const venueName = venues.find((v) => v.id === session.venueId)?.name
+          const scheduleWindow = formatSessionWindow(session.scheduledStart, session.scheduledEnd)
+          return (
+            <Link
+              key={session.id}
+              to={`/pickleball/app/sessions/${session.id}`}
+              className="pb-metric-card flex flex-col gap-3 p-4 text-sm no-underline hover:border-brand/40 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-slate-900">{session.name}</span>
+                  <SessionStatusChip status={session.status} />
+                </div>
+                <p className="text-xs text-slate-500">
+                  {venueName ? `${venueName} · ` : ''}
+                  {scheduleWindow || 'No schedule set'}
+                </p>
+              </div>
+              <span className="pb-btn-primary inline-flex flex-shrink-0 items-center justify-center rounded-lg px-4 py-2 text-xs">
+                Open Control Center
+              </span>
+            </Link>
+          )
+        })}
         {!sessions.length && status === 'ready' ? <p className="text-sm text-slate-500">No sessions yet.</p> : null}
       </div>
     </div>
