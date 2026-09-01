@@ -22,6 +22,15 @@ export async function getOrganization(db, id) {
   return toOrganization(row)
 }
 
+// Used for a pre-claim availability check on the org-invite accept route --
+// letting a slug typo fail fast before the invite is spent, rather than
+// only discovering the collision after createOrganization's UNIQUE-violation
+// path below.
+export async function getOrganizationBySlug(db, slug) {
+  const row = await db.prepare(`SELECT ${ORG_COLUMNS} FROM organizations WHERE slug = ?`).bind(slug).first()
+  return toOrganization(row)
+}
+
 // Returns null (rather than throwing) when the slug's UNIQUE constraint is
 // violated -- organizations.slug is NOT NULL UNIQUE, so a duplicate slug
 // makes the INSERT throw a raw D1 error. Callers (currently just the

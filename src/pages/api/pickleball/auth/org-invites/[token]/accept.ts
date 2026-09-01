@@ -2,7 +2,7 @@
 import type { APIRoute } from 'astro'
 import { requireGoogleIdentity } from '../../../../../../worker/pickleball/authContext.js'
 import { getInviteByToken, markInviteAccepted, setInviteOrganizationId } from '../../../../../../worker/repositories/pickleball/organizationInvites.js'
-import { createOrganization } from '../../../../../../worker/repositories/pickleball/organizations.js'
+import { createOrganization, getOrganizationBySlug } from '../../../../../../worker/repositories/pickleball/organizations.js'
 import { createMembership, linkMembershipUser } from '../../../../../../worker/repositories/pickleball/memberships.js'
 import { getUserByGoogleSub } from '../../../../../../worker/repositories/pickleball/users.js'
 import { acceptOrgInviteSchema } from '../../../../../../lib/schemas/pickleball/platform'
@@ -45,6 +45,20 @@ export const POST: APIRoute = async ({ request, params }) => {
     const result = acceptOrgInviteSchema.safeParse(body)
     if (!result.success) {
       return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
+    }
+
+    // Fail fast on an ordinary slug typo *before* the invite is claimed --
+    // without this, a taken slug (the common case: someone fat-fingers a
+    // club name that collides with an existing one) would burn the invite
+    // below and leave the user with no way to retry (their next attempt
+    // hits "this invite is no longer valid"). This is a plain pre-check,
+    // not the concurrency guard -- a slug that becomes taken in the tiny
+    // window between this check and createOrganization below still 409s
+    // there, same as today, which is fine: that's now a genuine rare race
+    // instead of the common typo case.
+    const existingOrganization = await getOrganizationBySlug(env.PICKLEBALL_DB, result.data.slug)
+    if (existingOrganization) {
+      return jsonResponse({ error: 'That club slug is already taken.' }, 409)
     }
 
     // Claim the invite (CAS on status = 'PENDING') before doing any writes
