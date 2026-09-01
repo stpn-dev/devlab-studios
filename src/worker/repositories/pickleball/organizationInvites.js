@@ -25,6 +25,10 @@ function toInvite(row) {
 const INVITE_COLUMNS =
   'id, token, invited_email, status, max_admins, max_facilitators, max_scorekeepers, created_by_user_id, organization_id, created_at, expires_at, accepted_at'
 
+/**
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {{ invitedEmail: string, maxAdmins?: number | null, maxFacilitators?: number | null, maxScorekeepers?: number | null, createdByUserId: string }} options
+ */
 export async function createOrganizationInvite(db, { invitedEmail, maxAdmins = null, maxFacilitators = null, maxScorekeepers = null, createdByUserId }) {
   const id = crypto.randomUUID()
   const token = randomBase64Url(24)

@@ -31,24 +31,13 @@ export const POST: APIRoute = async ({ request }) => {
       return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
     }
 
-    // createOrganizationInvite is plain JS (no JSDoc types), so TS infers its
-    // maxAdmins/maxFacilitators/maxScorekeepers parameter types purely from
-    // their `= null` defaults (i.e. `null | undefined`) rather than the
-    // `number | null` the function actually accepts and stores. The `as`
-    // below documents that known interop gap instead of widening to `any`.
     const invite = await createOrganizationInvite(env.PICKLEBALL_DB, {
       invitedEmail: result.data.invitedEmail,
       maxAdmins: result.data.maxAdmins ?? null,
       maxFacilitators: result.data.maxFacilitators ?? null,
       maxScorekeepers: result.data.maxScorekeepers ?? null,
       createdByUserId: session.userId,
-    } as {
-      invitedEmail: string
-      maxAdmins: number | null
-      maxFacilitators: number | null
-      maxScorekeepers: number | null
-      createdByUserId: string
-    } as Parameters<typeof createOrganizationInvite>[1])
+    })
 
     if (!invite) {
       return jsonResponse({ error: 'Failed to create invite.' }, 500)
