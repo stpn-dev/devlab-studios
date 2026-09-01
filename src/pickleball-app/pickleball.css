@@ -116,6 +116,60 @@
   box-shadow: none;
 }
 
+/* A small-caps-style label above a heading or metric — fixes the dead
+   `.pb-eyebrow` reference DashboardPage.jsx already carried, and doubles as
+   the sidebar's section-heading treatment (Overview/Play/Performance/…). */
+.pb-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Collapsed-sidebar nav tooltip: `.pb-nav-link` already carries the icon +
+   a visually-hidden (not removed) label for screen readers; this is the
+   sighted-hover/keyboard-focus equivalent, so a collapsed icon-only sidebar
+   never loses its label for any user. */
+.pb-nav-tooltip {
+  position: absolute;
+  left: calc(100% + 0.5rem);
+  top: 50%;
+  z-index: 40;
+  transform: translateY(-50%) scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  background: var(--devlab-dark-950);
+  color: var(--text-on-dark);
+  border: 1px solid var(--border-dark-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.pb-nav-link:hover .pb-nav-tooltip,
+.pb-nav-link:focus-visible .pb-nav-tooltip {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-nav-tooltip {
+    transition: none;
+  }
+}
+
+/* Mobile nav drawer backdrop (Decision 5's `fixed inset-0 md:hidden` slide-over). */
+.pb-drawer-backdrop {
+  background: rgba(6, 7, 17, 0.6);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+
 .pb-live-dot {
   display: inline-block;
   width: 0.5rem;
