@@ -44,3 +44,8 @@ export async function upsertUserByGoogleSub(db, { googleSub, email, name, avatar
 
   return getUserByGoogleSub(db, googleSub)
 }
+
+export async function isPlatformAdmin(db, userId) {
+  const row = await db.prepare('SELECT is_platform_admin FROM users WHERE id = ?').bind(userId).first()
+  return Boolean(row?.is_platform_admin)
+}

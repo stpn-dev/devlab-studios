@@ -1,5 +1,7 @@
 import { parseCookies, verifySession, SESSION_COOKIE_NAME } from './session.js'
 import { getMembership } from '../repositories/pickleball/memberships.js'
+import { getOrganization } from '../repositories/pickleball/organizations.js'
+import { isPlatformAdmin } from '../repositories/pickleball/users.js'
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const LOGIN_MAX_ATTEMPTS = 8
@@ -63,6 +65,29 @@ export function buildLoginRateLimitKey(request, email) {
   return `${getRequestIp(request)}:${String(email || '').trim().toLowerCase() || 'unknown'}`
 }
 
+// Verifies the session cookie is a genuine, unexpired Google-authenticated
+// session and returns identity only — no org/membership requirement. Used
+// by the org-invite accept flow, where the caller by definition has no
+// membership anywhere yet.
+export async function requireGoogleIdentity(request, env) {
+  const secret = env.PICKLEBALL_SESSION_SECRET
+  if (!secret) {
+    const error = new Error('Pickleball session secret is not configured.')
+    error.status = 503
+    throw error
+  }
+
+  const cookies = parseCookies(request.headers.get('Cookie'))
+  const session = await verifySession(cookies[SESSION_COOKIE_NAME], secret)
+  if (!session?.userId) {
+    const error = new Error('Pickleball login is required.')
+    error.status = 401
+    throw error
+  }
+
+  return { userId: session.userId, googleSub: session.googleSub }
+}
+
 export async function requirePickleballSession(request, env) {
   const secret = env.PICKLEBALL_SESSION_SECRET
   if (!secret) {
@@ -79,7 +104,12 @@ export async function requirePickleballSession(request, env) {
     throw error
   }
 
+  const platformAdmin = await isPlatformAdmin(env.PICKLEBALL_DB, session.userId)
+
   if (!session.activeOrgId) {
+    if (platformAdmin) {
+      return { userId: session.userId, googleSub: session.googleSub, activeOrgId: null, role: null, isPlatformAdmin: true }
+    }
     const error = new Error('No active organization selected.')
     error.status = 403
     throw error
@@ -90,11 +120,32 @@ export async function requirePickleballSession(request, env) {
     userId: session.userId,
   })
 
-  if (!membership) {
+  if (!membership && !platformAdmin) {
     const error = new Error('No active membership in this organization.')
     error.status = 403
     throw error
   }
 
-  return { userId: session.userId, googleSub: session.googleSub, activeOrgId: session.activeOrgId, role: membership.role }
+  // Centralized here (rather than in each of the ~32 org-scoped route
+  // files) because every one of them already calls requirePickleballSession
+  // first — one check here covers all of them. Applies to a platform admin
+  // too: suspension is absolute, reactivate the org before acting on it.
+  const organization = await getOrganization(env.PICKLEBALL_DB, session.activeOrgId)
+  if (organization?.status === 'SUSPENDED') {
+    const error = new Error('This organization is suspended.')
+    error.status = 403
+    throw error
+  }
+
+  if (!membership) {
+    return { userId: session.userId, googleSub: session.googleSub, activeOrgId: session.activeOrgId, role: null, isPlatformAdmin: true }
+  }
+
+  return {
+    userId: session.userId,
+    googleSub: session.googleSub,
+    activeOrgId: session.activeOrgId,
+    role: membership.role,
+    isPlatformAdmin: platformAdmin,
+  }
 }
