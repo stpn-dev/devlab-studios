@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 import GameScoreboard from '../components/GameScoreboard'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonLine, SkeletonRows } from '../components/SkeletonLoader'
 
 function StartGameForm({ sessionId, court, onStarted }) {
   const [teams, setTeams] = useState(null)
@@ -28,7 +30,16 @@ function StartGameForm({ sessionId, court, onStarted }) {
   if (teams === null) {
     return (
       <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        {message ? <p className="text-sm text-rose-600">{message.text}</p> : <p className="text-sm text-slate-500">Loading teams…</p>}
+        {message ? (
+          <p className="text-sm text-rose-600">{message.text}</p>
+        ) : (
+          <SkeletonBlock label="Loading teams…">
+            <SkeletonLine className="h-4 w-1/3" />
+            <div className="mt-3">
+              <SkeletonRows rows={2} />
+            </div>
+          </SkeletonBlock>
+        )}
       </div>
     )
   }
@@ -95,9 +106,8 @@ export default function GamesListPage() {
   const { sessionId, snapshot } = useOutletContext()
   const [startingCourtId, setStartingCourtId] = useState(null)
 
-  if (!snapshot) return <p className="text-sm text-slate-500">Loading…</p>
-
-  const assignedCourtsWithoutGame = snapshot.courts.filter((c) => c.status === 'ASSIGNED')
+  const loading = !snapshot
+  const assignedCourtsWithoutGame = loading ? [] : snapshot.courts.filter((c) => c.status === 'ASSIGNED')
 
   return (
     <div className="space-y-6">
@@ -106,47 +116,55 @@ export default function GamesListPage() {
         <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
       </div>
 
-      {assignedCourtsWithoutGame.length ? (
-        <div>
-          <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Ready to start</h2>
-          <div className="space-y-2">
-            {assignedCourtsWithoutGame.map((court) =>
-              startingCourtId === court.id ? (
-                <StartGameForm key={court.id} sessionId={sessionId} court={court} onStarted={() => setStartingCourtId(null)} />
-              ) : (
-                <button
-                  key={court.id}
-                  type="button"
-                  onClick={() => setStartingCourtId(court.id)}
-                  className="block w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm shadow-sm hover:border-brand/40"
-                >
-                  {court.courtName} — assigned, no game started
-                </button>
-              ),
-            )}
-          </div>
-        </div>
-      ) : null}
-
-      <div>
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Games</h2>
-        <div className="space-y-3" data-testid="games-list">
-          {snapshot.games.map((game) => (
-            <Link
-              key={game.id}
-              to={game.id}
-              className="block space-y-1.5 rounded-xl transition-transform hover:-translate-y-0.5"
-            >
-              <div className="flex items-center justify-end gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {game.status === 'IN_PROGRESS' ? <span className="pb-live-dot" /> : null}
-                {game.status}
+      {loading ? (
+        <SkeletonBlock>
+          <SkeletonRows rows={3} />
+        </SkeletonBlock>
+      ) : (
+        <>
+          {assignedCourtsWithoutGame.length ? (
+            <div>
+              <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Ready to start</h2>
+              <div className="space-y-2">
+                {assignedCourtsWithoutGame.map((court) =>
+                  startingCourtId === court.id ? (
+                    <StartGameForm key={court.id} sessionId={sessionId} court={court} onStarted={() => setStartingCourtId(null)} />
+                  ) : (
+                    <button
+                      key={court.id}
+                      type="button"
+                      onClick={() => setStartingCourtId(court.id)}
+                      className="block w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm shadow-sm hover:border-brand/40"
+                    >
+                      {court.courtName} — assigned, no game started
+                    </button>
+                  ),
+                )}
               </div>
-              <GameScoreboard game={game} variant="compact" />
-            </Link>
-          ))}
-          {!snapshot.games.length ? <p className="text-sm text-slate-500">No games yet.</p> : null}
-        </div>
-      </div>
+            </div>
+          ) : null}
+
+          <div>
+            <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Games</h2>
+            <div className="space-y-3" data-testid="games-list">
+              {snapshot.games.map((game) => (
+                <Link
+                  key={game.id}
+                  to={game.id}
+                  className="block space-y-1.5 rounded-xl transition-transform hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center justify-end gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {game.status === 'IN_PROGRESS' ? <span className="pb-live-dot" /> : null}
+                    {game.status}
+                  </div>
+                  <GameScoreboard game={game} variant="compact" />
+                </Link>
+              ))}
+              {!snapshot.games.length ? <EmptyState title="No games yet." description="Start a game from a court that's assigned above, or from the Courts tab." /> : null}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

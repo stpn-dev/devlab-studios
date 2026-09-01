@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 
 export default function AuditPage() {
   const { activeOrgId } = useOutletContext()
@@ -43,7 +45,11 @@ export default function AuditPage() {
       </div>
 
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
-      {events === null && !message ? <p className="text-sm text-slate-500">Loading…</p> : null}
+      {events === null && !message ? (
+        <SkeletonBlock>
+          <SkeletonRows rows={5} />
+        </SkeletonBlock>
+      ) : null}
 
       {events ? (
         <div className="space-y-2" data-testid="audit-events-list">
@@ -58,7 +64,7 @@ export default function AuditPage() {
               </p>
             </div>
           ))}
-          {!events.length ? <p className="text-sm text-slate-500">No audit events yet.</p> : null}
+          {!events.length ? <EmptyState title="No audit events yet." description="Actions taken across this organization will appear here." /> : null}
         </div>
       ) : null}
 

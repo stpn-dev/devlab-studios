@@ -7,6 +7,7 @@ import ContextualBanner from '../components/ContextualBanner'
 import GameScoreboard from '../components/GameScoreboard'
 import RallyActionPanel from '../components/RallyActionPanel'
 import CorrectionPanel from '../components/CorrectionPanel'
+import { SkeletonBlock, SkeletonLine } from '../components/SkeletonLoader'
 
 function findServerName(teamList, teamId, currentServerId) {
   if (!teamList) return null
@@ -65,7 +66,28 @@ export default function ScorekeeperPage() {
     }
   }, [sessionId, sessionCourtId])
 
-  if (!snapshot || rulesets === null) return <p className="text-sm text-slate-500">Loading…</p>
+  if (!snapshot || rulesets === null) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Scorekeeper</h1>
+          <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+        </div>
+        <SkeletonBlock>
+          {/* Mirrors `.pb-scoreboard`'s own dark card so the skeleton doesn't
+              flash a mismatched light box just before the real scoreboard
+              replaces it -- bars use a light-on-dark tint instead of
+              SkeletonLine's slate-200 default, since this card's background
+              is dark. */}
+          <div className="pb-scoreboard space-y-4 p-6">
+            <SkeletonLine tone="dark" className="h-3 w-1/4" />
+            <SkeletonLine tone="dark" className="h-10 w-2/3" />
+            <SkeletonLine tone="dark" className="h-3 w-1/3" />
+          </div>
+        </SkeletonBlock>
+      </div>
+    )
+  }
 
   const game = currentGame
   if (!game) return <p className="text-sm text-rose-600">Game not found.</p>

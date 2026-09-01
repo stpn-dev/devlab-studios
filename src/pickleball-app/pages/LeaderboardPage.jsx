@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 import { Info } from '../../components/icons/icons'
 
 // Same confidence-tier display copy/tone as PlayerProfilePage.jsx's
@@ -84,8 +86,14 @@ export default function LeaderboardPage() {
         </label>
       </div>
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
-      {rows === null && !message ? <p className="text-sm text-slate-500">Loading…</p> : null}
-      {rows && !rows.length ? <p className="text-sm text-slate-500">No qualifying players yet.</p> : null}
+      {rows === null && !message ? (
+        <SkeletonBlock>
+          <SkeletonRows rows={5} />
+        </SkeletonBlock>
+      ) : null}
+      {rows && !rows.length ? (
+        <EmptyState title="No qualifying players yet." description="Play a few eligible games in this session to appear on the leaderboard." />
+      ) : null}
       {rows && rows.length ? (
         <div className="space-y-2" data-testid="leaderboard-list">
           {rows.map((row, index) => {

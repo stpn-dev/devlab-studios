@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 
 const FORMATS = ['DOUBLES', 'SINGLES']
 const EMPTY_FORM = { name: '', targetScore: 11, winBy: 2, format: 'DOUBLES' }
@@ -75,11 +77,15 @@ export default function SettingsPage() {
         built-in defaults every organization shares.
       </p>
 
-      {status === 'loading' ? <p className="text-sm text-slate-500">Loading…</p> : null}
       {status === 'error' ? <p className="text-sm text-rose-600">Could not load scoring rulesets.</p> : null}
       {message ? <p className={message.type === 'success' ? 'text-sm text-emerald-700' : 'text-sm text-rose-600'}>{message.text}</p> : null}
 
       <div className="space-y-2" data-testid="scoring-rulesets-list">
+        {status === 'loading' ? (
+          <SkeletonBlock>
+            <SkeletonRows rows={3} />
+          </SkeletonBlock>
+        ) : null}
         {rulesets.map((ruleset) => (
           <div key={ruleset.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
             <div>
@@ -100,7 +106,7 @@ export default function SettingsPage() {
             </button>
           </div>
         ))}
-        {!rulesets.length && status === 'ready' ? <p className="text-sm text-slate-500">No custom rulesets yet.</p> : null}
+        {!rulesets.length && status === 'ready' ? <EmptyState title="No custom rulesets yet." description="Add a scoring ruleset below to make it available when scheduling sessions." /> : null}
       </div>
 
       <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

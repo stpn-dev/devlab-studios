@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 
 const EMPTY_PLAYER = { id: null, displayName: '' }
 
@@ -66,29 +68,38 @@ export default function PlayersPage() {
         </button>
       </div>
 
-      {status === 'loading' ? <p className="text-sm text-slate-500">Loading…</p> : null}
       {status === 'error' ? <p className="text-sm text-rose-600">Could not load players.</p> : null}
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <div className="space-y-2" data-testid="players-list">
-          {players.map((player) => (
-            <div key={player.id} className="flex items-center gap-2">
-              <Link
-                to={player.id}
-                className={`block flex-1 rounded-lg border px-3 py-2 text-left text-sm ${selected?.id === player.id ? 'border-brand bg-brand/10 font-semibold text-slate-900' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
-              >
-                {player.displayName}
-              </Link>
-              <button
-                type="button"
-                onClick={() => selectPlayer(player)}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium text-slate-500 hover:border-slate-300"
-              >
-                Edit
-              </button>
-            </div>
-          ))}
-          {!players.length && status === 'ready' ? <p className="text-sm text-slate-500">No players yet.</p> : null}
+          {status === 'loading' ? (
+            <SkeletonBlock>
+              <SkeletonRows rows={5} />
+            </SkeletonBlock>
+          ) : (
+            <>
+              {players.map((player) => (
+                <div key={player.id} className="flex items-center gap-2">
+                  <Link
+                    to={player.id}
+                    className={`block flex-1 rounded-lg border px-3 py-2 text-left text-sm ${selected?.id === player.id ? 'border-brand bg-brand/10 font-semibold text-slate-900' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}
+                  >
+                    {player.displayName}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => selectPlayer(player)}
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-medium text-slate-500 hover:border-slate-300"
+                  >
+                    Edit
+                  </button>
+                </div>
+              ))}
+              {!players.length && status === 'ready' ? (
+                <EmptyState title="No players yet." description="Add your first player to start building your roster." action={{ label: 'Add Player', onClick: startNew }} />
+              ) : null}
+            </>
+          )}
         </div>
 
         <div>

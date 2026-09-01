@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 import PublicLinkQRCode from '../components/PublicLinkQRCode'
+import { SkeletonBlock, SkeletonMetricCard } from '../components/SkeletonLoader'
 
 export default function SessionControlPage() {
   const { sessionId, session, snapshot } = useOutletContext()
@@ -27,7 +28,20 @@ export default function SessionControlPage() {
     }
   }, [sessionId])
 
-  if (!session) return <p className="text-sm text-slate-500">Loading…</p>
+  if (!session) {
+    return (
+      <div className="space-y-4">
+        <SkeletonBlock>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+            <SkeletonMetricCard />
+          </div>
+        </SkeletonBlock>
+      </div>
+    )
+  }
 
   const publicUrl = publicCode ? `${window.location.origin}/pickleball/live/${publicCode}` : null
 

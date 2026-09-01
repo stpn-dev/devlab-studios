@@ -2,6 +2,9 @@ import { useOutletContext } from 'react-router-dom'
 import { useState } from 'react'
 import { pickleballApi } from '../lib/pickleballApi'
 import QueuePlayerRow from '../components/QueuePlayerRow'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
+import EmptyQueueGraphic from '../components/illustrations/EmptyQueueGraphic'
 
 // Minutes elapsed since `queuedAt`, for the row's compact "N games ·
 // waiting Nm" summary -- mirrors the same wait-time computation
@@ -27,10 +30,9 @@ export default function QueuePage() {
     }
   }
 
-  if (!snapshot) return <p className="text-sm text-slate-500">Loading…</p>
-
-  const queued = snapshot.queue.filter((entry) => entry.status === 'QUEUED')
-  const assigned = snapshot.queue.filter((entry) => entry.status !== 'QUEUED')
+  const loading = !snapshot
+  const queued = loading ? [] : snapshot.queue.filter((entry) => entry.status === 'QUEUED')
+  const assigned = loading ? [] : snapshot.queue.filter((entry) => entry.status !== 'QUEUED')
 
   return (
     <div className="space-y-6">
@@ -40,36 +42,44 @@ export default function QueuePage() {
       </div>
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
 
-      <div>
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Waiting ({queued.length})</h2>
-        <div className="space-y-2" data-testid="queue-waiting-list">
-          {queued.map((entry, index) => (
-            <QueuePlayerRow
-              key={entry.id}
-              position={index + 1}
-              player={{ displayName: entry.displayName, sessionPlayerId: entry.sessionPlayerId }}
-              gamesPlayed={entry.gamesPlayed}
-              waitMinutes={waitMinutesSince(entry.queuedAt)}
-              reasons={entry.reasons}
-              onLeave={() => handleLeave(entry.sessionPlayerId)}
-            />
-          ))}
-          {!queued.length ? <p className="text-sm text-slate-500">Nobody waiting.</p> : null}
-        </div>
-      </div>
-
-      <div>
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">On courts ({assigned.length})</h2>
-        <div className="space-y-2" data-testid="queue-assigned-list">
-          {assigned.map((entry) => (
-            <div key={entry.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-              <span className="pb-live-dot" />
-              {entry.displayName} — {entry.status}
+      {loading ? (
+        <SkeletonBlock>
+          <SkeletonRows rows={4} />
+        </SkeletonBlock>
+      ) : (
+        <>
+          <div>
+            <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Waiting ({queued.length})</h2>
+            <div className="space-y-2" data-testid="queue-waiting-list">
+              {queued.map((entry, index) => (
+                <QueuePlayerRow
+                  key={entry.id}
+                  position={index + 1}
+                  player={{ displayName: entry.displayName, sessionPlayerId: entry.sessionPlayerId }}
+                  gamesPlayed={entry.gamesPlayed}
+                  waitMinutes={waitMinutesSince(entry.queuedAt)}
+                  reasons={entry.reasons}
+                  onLeave={() => handleLeave(entry.sessionPlayerId)}
+                />
+              ))}
+              {!queued.length ? <EmptyState title="Nobody waiting." illustration={EmptyQueueGraphic} /> : null}
             </div>
-          ))}
-          {!assigned.length ? <p className="text-sm text-slate-500">Nobody currently assigned.</p> : null}
-        </div>
-      </div>
+          </div>
+
+          <div>
+            <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">On courts ({assigned.length})</h2>
+            <div className="space-y-2" data-testid="queue-assigned-list">
+              {assigned.map((entry) => (
+                <div key={entry.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                  <span className="pb-live-dot" />
+                  {entry.displayName} — {entry.status}
+                </div>
+              ))}
+              {!assigned.length ? <EmptyState title="Nobody currently assigned." compact /> : null}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

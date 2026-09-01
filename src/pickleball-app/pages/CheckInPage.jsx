@@ -3,6 +3,8 @@ import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 import { canCheckIn, canSetAvailability, canLeaveSession, canCancelRegistration } from '../../lib/pickleball/attendance'
 import PlayerStatusChip from '../components/PlayerStatusChip'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 import { Search, UserCheck, LogOut } from '../../components/icons/icons'
 
 export default function CheckInPage() {
@@ -128,7 +130,11 @@ export default function CheckInPage() {
         ) : null}
       </div>
 
-      {status === 'loading' ? <p className="text-sm text-slate-500">Loading…</p> : null}
+      {status === 'loading' ? (
+        <SkeletonBlock>
+          <SkeletonRows rows={5} />
+        </SkeletonBlock>
+      ) : null}
       {status === 'error' ? <p className="text-sm text-rose-600">Could not load check-in data.</p> : null}
       {message ? (
         <p className={message.type === 'success' ? 'text-sm text-emerald-700' : 'text-sm text-rose-600'}>{message.text}</p>
@@ -233,9 +239,11 @@ export default function CheckInPage() {
           </div>
         ))}
         {!filteredPlayers.length && status === 'ready' && sessionPlayers.length ? (
-          <p className="text-sm text-slate-500">No players match your search.</p>
+          <EmptyState title="No players match your search." compact />
         ) : null}
-        {!sessionPlayers.length && status === 'ready' ? <p className="text-sm text-slate-500">No players registered yet.</p> : null}
+        {!sessionPlayers.length && status === 'ready' ? (
+          <EmptyState title="No players registered yet." description="Register a player above to add them to this session." />
+        ) : null}
       </div>
     </div>
   )

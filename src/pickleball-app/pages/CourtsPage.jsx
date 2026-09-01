@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 import CourtCard from '../components/CourtCard'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonCourtCard } from '../components/SkeletonLoader'
+import EmptyCourtGraphic from '../components/illustrations/EmptyCourtGraphic'
 
 // Derives CourtCard's display state from the court's raw `status` field and
 // its separately-tracked `enabled` flag (disabling a court doesn't change
@@ -80,9 +83,8 @@ export default function CourtsPage() {
     }
   }
 
-  if (!snapshot) return <p className="text-sm text-slate-500">Loading…</p>
-
-  const recommended = recommendedCandidates(snapshot.queue)
+  const loading = !snapshot
+  const recommended = loading ? [] : recommendedCandidates(snapshot.queue)
 
   return (
     <div className="space-y-6">
@@ -92,27 +94,46 @@ export default function CourtsPage() {
       </div>
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="courts-grid">
-        {snapshot.courts.map((court) => {
-          const enabled = court.id in enabledByCourtId ? enabledByCourtId[court.id] : court.enabled
-          const liveGame = snapshot.games.find((g) => g.sessionCourtId === court.id && g.status === 'IN_PROGRESS')
-          return (
-            <CourtCard
-              key={court.id}
-              court={court}
-              status={deriveCourtCardStatus(court, enabled)}
-              enabled={enabled}
-              game={liveGame}
-              recommended={recommended}
-              onAssign={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { sessionCourtId: court.id }))}
-              onRelease={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/release`, { sessionCourtId: court.id }))}
-              onEnable={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/enable`, { sessionCourtId: court.id }), { refreshEnabled: true })}
-              onDisable={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/disable`, { sessionCourtId: court.id }), { refreshEnabled: true })}
-              onOpen={liveGame ? () => navigate(`/pickleball/app/sessions/${sessionId}/games/${liveGame.id}`) : undefined}
-            />
-          )
-        })}
-      </div>
+      {loading ? (
+        <SkeletonBlock>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <SkeletonCourtCard />
+            <SkeletonCourtCard />
+            <SkeletonCourtCard />
+          </div>
+        </SkeletonBlock>
+      ) : snapshot.courts.length ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="courts-grid">
+          {snapshot.courts.map((court) => {
+            const enabled = court.id in enabledByCourtId ? enabledByCourtId[court.id] : court.enabled
+            const liveGame = snapshot.games.find((g) => g.sessionCourtId === court.id && g.status === 'IN_PROGRESS')
+            return (
+              <CourtCard
+                key={court.id}
+                court={court}
+                status={deriveCourtCardStatus(court, enabled)}
+                enabled={enabled}
+                game={liveGame}
+                recommended={recommended}
+                onAssign={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { sessionCourtId: court.id }))}
+                onRelease={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/release`, { sessionCourtId: court.id }))}
+                onEnable={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/enable`, { sessionCourtId: court.id }), { refreshEnabled: true })}
+                onDisable={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/disable`, { sessionCourtId: court.id }), { refreshEnabled: true })}
+                onOpen={liveGame ? () => navigate(`/pickleball/app/sessions/${sessionId}/games/${liveGame.id}`) : undefined}
+              />
+            )
+          })}
+        </div>
+      ) : (
+        <div data-testid="courts-grid">
+          <EmptyState
+            title="No courts configured for this session's venue."
+            description="Add a court to the venue in Venues, then it will appear here."
+            illustration={EmptyCourtGraphic}
+            action={{ label: 'Manage venues', to: '/pickleball/app/venues' }}
+          />
+        </div>
+      )}
     </div>
   )
 }

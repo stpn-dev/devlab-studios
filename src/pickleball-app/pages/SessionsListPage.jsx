@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonLine } from '../components/SkeletonLoader'
+import EmptySessionGraphic from '../components/illustrations/EmptySessionGraphic'
 import { Clock, UserCheck, Activity, Pause, CheckCircle2, X } from '../../components/icons/icons'
 
 const EMPTY_FORM = { venueId: '', name: '', sessionType: 'OPEN_PLAY', scoringRulesetId: '', scheduledStart: '', scheduledEnd: '' }
@@ -113,7 +116,6 @@ export default function SessionsListPage() {
         </button>
       </div>
 
-      {status === 'loading' ? <p className="text-sm text-slate-500">Loading…</p> : null}
       {status === 'error' ? <p className="text-sm text-rose-600">Could not load sessions.</p> : null}
       {message ? <p className={message.type === 'success' ? 'text-sm text-emerald-700' : 'text-sm text-rose-600'}>{message.text}</p> : null}
 
@@ -161,32 +163,54 @@ export default function SessionsListPage() {
       ) : null}
 
       <div className="space-y-3" data-testid="sessions-list">
-        {sessions.map((session) => {
-          const venueName = venues.find((v) => v.id === session.venueId)?.name
-          const scheduleWindow = formatSessionWindow(session.scheduledStart, session.scheduledEnd)
-          return (
-            <Link
-              key={session.id}
-              to={`/pickleball/app/sessions/${session.id}`}
-              className="pb-metric-card flex flex-col gap-3 p-4 text-sm no-underline hover:border-brand/40 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="min-w-0 space-y-1.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-slate-900">{session.name}</span>
-                  <SessionStatusChip status={session.status} />
+        {status === 'loading' ? (
+          <SkeletonBlock>
+            <div className="space-y-3">
+              {[0, 1, 2].map((index) => (
+                <div key={index} className="pb-metric-card space-y-2 p-4">
+                  <SkeletonLine className="h-4 w-1/3" />
+                  <SkeletonLine className="h-3 w-1/2" />
                 </div>
-                <p className="text-xs text-slate-500">
-                  {venueName ? `${venueName} · ` : ''}
-                  {scheduleWindow || 'No schedule set'}
-                </p>
-              </div>
-              <span className="pb-btn-primary inline-flex flex-shrink-0 items-center justify-center rounded-lg px-4 py-2 text-xs">
-                Open Control Center
-              </span>
-            </Link>
-          )
-        })}
-        {!sessions.length && status === 'ready' ? <p className="text-sm text-slate-500">No sessions yet.</p> : null}
+              ))}
+            </div>
+          </SkeletonBlock>
+        ) : (
+          <>
+            {sessions.map((session) => {
+              const venueName = venues.find((v) => v.id === session.venueId)?.name
+              const scheduleWindow = formatSessionWindow(session.scheduledStart, session.scheduledEnd)
+              return (
+                <Link
+                  key={session.id}
+                  to={`/pickleball/app/sessions/${session.id}`}
+                  className="pb-metric-card flex flex-col gap-3 p-4 text-sm no-underline hover:border-brand/40 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-slate-900">{session.name}</span>
+                      <SessionStatusChip status={session.status} />
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {venueName ? `${venueName} · ` : ''}
+                      {scheduleWindow || 'No schedule set'}
+                    </p>
+                  </div>
+                  <span className="pb-btn-primary inline-flex flex-shrink-0 items-center justify-center rounded-lg px-4 py-2 text-xs">
+                    Open Control Center
+                  </span>
+                </Link>
+              )
+            })}
+            {!sessions.length && status === 'ready' ? (
+              <EmptyState
+                title="No sessions yet."
+                description="Create a session to start checking players in and running games."
+                illustration={EmptySessionGraphic}
+                action={{ label: 'New Session', onClick: () => setShowForm(true) }}
+              />
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   )

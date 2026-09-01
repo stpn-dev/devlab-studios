@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 
 const ROLES = ['ADMIN', 'SESSION_FACILITATOR', 'SCOREKEEPER']
 const EMPTY_FORM = { invitedEmail: '', role: 'SESSION_FACILITATOR' }
@@ -66,11 +68,15 @@ export default function OperatorsPage() {
         <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
       </div>
 
-      {status === 'loading' ? <p className="text-sm text-slate-500">Loading…</p> : null}
       {status === 'error' ? <p className="text-sm text-rose-600">Could not load operators.</p> : null}
       {message ? <p className={message.type === 'success' ? 'text-sm text-emerald-700' : 'text-sm text-rose-600'}>{message.text}</p> : null}
 
       <div className="space-y-2" data-testid="operators-list">
+        {status === 'loading' ? (
+          <SkeletonBlock>
+            <SkeletonRows rows={3} />
+          </SkeletonBlock>
+        ) : null}
         {memberships.map((membership) => (
           <div key={membership.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
             <div>
@@ -91,7 +97,7 @@ export default function OperatorsPage() {
             ) : null}
           </div>
         ))}
-        {!memberships.length && status === 'ready' ? <p className="text-sm text-slate-500">No operators yet.</p> : null}
+        {!memberships.length && status === 'ready' ? <EmptyState title="No operators yet." description="Invite an operator below to give them access to this organization." /> : null}
       </div>
 
       <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

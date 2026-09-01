@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import EmptyState from '../components/EmptyState'
+import { SkeletonBlock, SkeletonLine, SkeletonRows } from '../components/SkeletonLoader'
 import { Info } from '../../components/icons/icons'
 
 // Confidence-tier display copy + tone, matching /pickleball/methodology's own
@@ -63,7 +65,19 @@ export default function PlayerProfilePage() {
   }, [playerId])
 
   if (message) return <p className="text-sm text-rose-600">{message.text}</p>
-  if (!stats || !player) return <p className="text-sm text-slate-500">Loading…</p>
+  if (!stats || !player) {
+    return (
+      <div className="space-y-6">
+        <SkeletonBlock>
+          <SkeletonLine className="h-7 w-56" />
+          <div className="mt-4 space-y-3">
+            <SkeletonLine className="h-24 w-full rounded-xl" />
+            <SkeletonRows rows={3} />
+          </div>
+        </SkeletonBlock>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -125,7 +139,7 @@ export default function PlayerProfilePage() {
               </span>
             </div>
           ))}
-          {!stats.sessions.length ? <p className="text-sm text-slate-500">No sessions yet.</p> : null}
+          {!stats.sessions.length ? <EmptyState title="No sessions yet." compact /> : null}
         </div>
       </div>
     </div>
