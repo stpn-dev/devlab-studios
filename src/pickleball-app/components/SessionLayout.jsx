@@ -12,6 +12,67 @@ const SUB_NAV = [
   { to: 'leaderboard', label: 'Leaderboard' },
 ]
 
+// The realtime STATE snapshot's queue entries (buildSessionSnapshot ->
+// listQueueForSession) never carry a `reasons` field -- that explainability
+// array is only computed by the separate REST route (GET
+// /api/pickleball/sessions/[id]/queue), which reruns selectNextPlayers()
+// itself. Rather than have every consumer of `snapshot.queue` (QueuePage,
+// CourtsPage) know about that split, this hook fetches the REST route
+// alongside the WebSocket connection and merges its `reasons` by
+// `sessionPlayerId` -- the field both shapes share -- so `snapshot.queue`
+// entries carry `reasons` from the caller's point of view exactly as if the
+// realtime payload had included them.
+//
+// Refetches whenever the *set* of queued sessionPlayerIds changes (a new
+// join/leave, or a fairness-relevant reshuffle) and on a light 15s interval
+// in between, since `reasons` also embeds a live "Queue wait: Nm" minute
+// count that drifts with the clock even when the queue itself is
+// unchanged. 15s keeps that reasonably fresh without competing with the
+// realtime socket as a heavy polling loop.
+function useQueueReasons(sessionId, snapshot) {
+  const [reasonsBySessionPlayerId, setReasonsBySessionPlayerId] = useState({})
+
+  const queuedIdsKey = snapshot
+    ? snapshot.queue
+        .filter((entry) => entry.status === 'QUEUED')
+        .map((entry) => entry.sessionPlayerId)
+        .join(',')
+    : ''
+
+  useEffect(() => {
+    if (!sessionId || !queuedIdsKey) {
+      setReasonsBySessionPlayerId({})
+      return undefined
+    }
+
+    let cancelled = false
+
+    async function fetchReasons() {
+      try {
+        const data = await pickleballApi.get(`/api/pickleball/sessions/${sessionId}/queue`)
+        if (cancelled) return
+        const next = Object.fromEntries((data.queue || []).map((entry) => [entry.sessionPlayerId, entry.reasons || []]))
+        setReasonsBySessionPlayerId(next)
+      } catch {
+        // Non-fatal: the realtime snapshot (positions, counts, assignments)
+        // keeps working from the WebSocket regardless -- only the "Why?"
+        // explainability extras this fetch adds are affected.
+      }
+    }
+
+    fetchReasons()
+    const interval = setInterval(fetchReasons, 15000)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, queuedIdsKey])
+
+  return reasonsBySessionPlayerId
+}
+
 export default function SessionLayout() {
   const { sessionId } = useParams()
   const { authRole, activeOrgId, isPlatformAdmin } = useOutletContext()
@@ -43,6 +104,11 @@ export default function SessionLayout() {
 
   const wsUrl = `${window.location.origin.replace('http', 'ws')}/pickleball/rt/${sessionId}`
   const { status, snapshot, error } = useSessionRealtime(loadError ? null : wsUrl)
+  const reasonsBySessionPlayerId = useQueueReasons(sessionId, snapshot)
+
+  const enrichedSnapshot = snapshot
+    ? { ...snapshot, queue: snapshot.queue.map((entry) => ({ ...entry, reasons: reasonsBySessionPlayerId[entry.sessionPlayerId] || [] })) }
+    : snapshot
 
   return (
     <div className="space-y-4">
@@ -83,7 +149,7 @@ export default function SessionLayout() {
             ))}
           </nav>
 
-          <Outlet context={{ sessionId, session, status, snapshot, error, authRole, isPlatformAdmin }} />
+          <Outlet context={{ sessionId, session, status, snapshot: enrichedSnapshot, error, authRole, isPlatformAdmin }} />
         </>
       )}
     </div>
