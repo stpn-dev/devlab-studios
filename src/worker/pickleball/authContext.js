@@ -131,14 +131,14 @@ export async function requirePickleballSession(request, env) {
   // first — one check here covers all of them. Applies to a platform admin
   // too: suspension is absolute, reactivate the org before acting on it.
   const organization = await getOrganization(env.PICKLEBALL_DB, session.activeOrgId)
-  if (organization?.status === 'SUSPENDED') {
+  if (!organization || organization.status === 'SUSPENDED') {
     const error = new Error('This organization is suspended.')
     error.status = 403
     throw error
   }
 
   if (!membership) {
-    return { userId: session.userId, googleSub: session.googleSub, activeOrgId: session.activeOrgId, role: null, isPlatformAdmin: true }
+    return { userId: session.userId, googleSub: session.googleSub, activeOrgId: session.activeOrgId, role: null, isPlatformAdmin: platformAdmin }
   }
 
   return {
