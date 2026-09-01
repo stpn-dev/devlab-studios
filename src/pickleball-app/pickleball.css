@@ -1,0 +1,131 @@
+/* Devlab Pickleball operator UI — shared "on the court" visual devices.
+   Every color/shadow/radius below is a var(--…) already defined in
+   src/index.css for the main site (brand gradient, devlab-dark scale,
+   shadow/radius tokens) — nothing new is introduced here, this file only
+   composes those tokens into a few reusable, sport-specific shapes:
+   a dark "broadcast" nav rail, a court-line rule, a scoreboard card, and a
+   pulsing live indicator. */
+
+.pb-sidebar {
+  background: linear-gradient(180deg, var(--devlab-dark-900) 0%, var(--devlab-dark-950) 100%);
+  border-right: 1px solid var(--border-dark);
+}
+
+.pb-nav-link {
+  position: relative;
+  color: var(--text-on-dark-secondary);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.pb-nav-link:hover {
+  color: var(--text-on-dark);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.pb-nav-link--active {
+  color: var(--text-on-dark);
+  background: rgba(255, 255, 255, 0.075);
+  font-weight: 650;
+}
+
+.pb-nav-link--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55rem;
+  bottom: 0.55rem;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--brand-gradient);
+}
+
+/* The "serve line" — this app's one signature device, reused as a page-header
+   rule, an active-tab underline, and the top edge of every scoreboard card.
+   Deliberately carries no size or radius of its own (callers set
+   height/width/rounded-* via Tailwind utilities) so a utility class on the
+   same element always wins, instead of competing with this class's own
+   declarations at equal specificity. */
+.pb-rule {
+  display: block;
+  background: var(--brand-gradient);
+}
+
+.pb-tab {
+  position: relative;
+  transition: color var(--transition-fast);
+}
+
+.pb-tab--active::after {
+  content: '';
+  position: absolute;
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: -0.05rem;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--brand-gradient);
+}
+
+.pb-scoreboard {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(165deg, var(--devlab-dark-900) 0%, var(--devlab-dark-950) 100%);
+  color: var(--text-on-dark);
+  box-shadow: var(--shadow-elevated);
+}
+
+.pb-scoreboard::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--brand-gradient);
+}
+
+.pb-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.pb-btn-primary {
+  background: var(--brand-gradient);
+  color: #fff;
+  font-weight: 650;
+  box-shadow: 0 10px 26px rgba(69, 0, 255, 0.28);
+  transition: filter var(--transition-fast), transform var(--transition-fast);
+}
+
+.pb-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.pb-btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.pb-btn-primary:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.pb-live-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #34d399;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+  animation: pb-pulse 1.8s ease-out infinite;
+}
+
+@keyframes pb-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55); }
+  70% { box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-live-dot { animation: none; }
+}

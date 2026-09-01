@@ -35,7 +35,10 @@ export default function CourtsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Courts</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Courts</h1>
+        <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+      </div>
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="courts-grid">
@@ -45,11 +48,14 @@ export default function CourtsPage() {
             <div key={court.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-slate-900">{court.courtName}</span>
-                <span className="text-xs text-slate-500">{court.status}</span>
+                <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                  {court.status === 'ASSIGNED' ? <span className="pb-live-dot" /> : null}
+                  {court.status}
+                </span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {court.status === 'AVAILABLE' && enabled !== false ? (
-                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { sessionCourtId: court.id }))} className="rounded bg-brand px-3 py-1 text-xs font-semibold text-white hover:brightness-95">
+                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { sessionCourtId: court.id }))} className="pb-btn-primary rounded px-3 py-1 text-xs">
                     Assign
                   </button>
                 ) : null}

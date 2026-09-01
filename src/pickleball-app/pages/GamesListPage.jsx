@@ -82,7 +82,7 @@ function StartGameForm({ sessionId, court, onStarted }) {
         type="button"
         disabled={!teamAServerId || !teamBServerId}
         onClick={handleStart}
-        className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-50"
+        className="pb-btn-primary rounded-lg px-4 py-2 text-sm"
       >
         Start game
       </button>
@@ -100,11 +100,14 @@ export default function GamesListPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Games</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Games</h1>
+        <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+      </div>
 
       {assignedCourtsWithoutGame.length ? (
         <div>
-          <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">Ready to start</h2>
+          <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Ready to start</h2>
           <div className="space-y-2">
             {assignedCourtsWithoutGame.map((court) =>
               startingCourtId === court.id ? (
@@ -114,7 +117,7 @@ export default function GamesListPage() {
                   key={court.id}
                   type="button"
                   onClick={() => setStartingCourtId(court.id)}
-                  className="block w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm hover:border-slate-300"
+                  className="block w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm shadow-sm hover:border-brand/40"
                 >
                   {court.courtName} — assigned, no game started
                 </button>
@@ -125,16 +128,19 @@ export default function GamesListPage() {
       ) : null}
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">Games</h2>
+        <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Games</h2>
         <div className="space-y-2" data-testid="games-list">
           {snapshot.games.map((game) => (
             <Link
               key={game.id}
               to={game.id}
-              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm hover:border-slate-300"
+              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm hover:border-brand/40"
             >
-              <span>{game.scoreA} – {game.scoreB}</span>
-              <span className="text-slate-500">{game.status}</span>
+              <span className="pb-score text-base text-slate-900">{game.scoreA} – {game.scoreB}</span>
+              <span className="flex items-center gap-1.5 text-slate-500">
+                {game.status === 'IN_PROGRESS' ? <span className="pb-live-dot" /> : null}
+                {game.status}
+              </span>
             </Link>
           ))}
           {!snapshot.games.length ? <p className="text-sm text-slate-500">No games yet.</p> : null}

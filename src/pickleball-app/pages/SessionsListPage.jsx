@@ -54,8 +54,11 @@ export default function SessionsListPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">Sessions</h1>
-        <button type="button" onClick={() => setShowForm((v) => !v)} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Sessions</h1>
+          <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+        </div>
+        <button type="button" onClick={() => setShowForm((v) => !v)} className="pb-btn-primary rounded-lg px-4 py-2 text-sm">
           New Session
         </button>
       </div>
@@ -100,7 +103,7 @@ export default function SessionsListPage() {
             type="button"
             onClick={handleCreate}
             disabled={!form.name.trim() || !form.venueId || !form.scoringRulesetId || !form.scheduledStart || !form.scheduledEnd}
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-50"
+            className="pb-btn-primary rounded-lg px-4 py-2 text-sm"
           >
             Create
           </button>
@@ -112,10 +115,10 @@ export default function SessionsListPage() {
           <Link
             key={session.id}
             to={`/pickleball/app/sessions/${session.id}`}
-            className="block rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm hover:border-slate-300"
+            className="flex items-center rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm hover:border-brand/40"
           >
             <span className="font-semibold text-slate-900">{session.name}</span>
-            <span className="ml-2 text-slate-500">{session.status}</span>
+            <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{session.status}</span>
           </Link>
         ))}
         {!sessions.length && status === 'ready' ? <p className="text-sm text-slate-500">No sessions yet.</p> : null}

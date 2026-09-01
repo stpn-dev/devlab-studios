@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import './pickleball.css'
 import AppShell from './components/AppShell'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'

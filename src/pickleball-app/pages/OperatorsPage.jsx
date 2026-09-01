@@ -61,7 +61,10 @@ export default function OperatorsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Operators</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Operators</h1>
+        <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+      </div>
 
       {status === 'loading' ? <p className="text-sm text-slate-500">Loading…</p> : null}
       {status === 'error' ? <p className="text-sm text-rose-600">Could not load operators.</p> : null}
@@ -118,7 +121,7 @@ export default function OperatorsPage() {
           type="button"
           onClick={handleInvite}
           disabled={!form.invitedEmail.trim()}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-50"
+          className="pb-btn-primary rounded-lg px-4 py-2 text-sm"
         >
           Invite
         </button>

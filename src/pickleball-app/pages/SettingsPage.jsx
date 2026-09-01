@@ -66,7 +66,10 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Settings</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Settings</h1>
+        <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+      </div>
       <p className="text-sm text-slate-500">
         Custom scoring rulesets for this organization. New sessions can pick any active ruleset here, plus the
         built-in defaults every organization shares.
@@ -149,7 +152,7 @@ export default function SettingsPage() {
           type="button"
           onClick={handleCreate}
           disabled={!form.name.trim()}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-50"
+          className="pb-btn-primary rounded-lg px-4 py-2 text-sm"
         >
           Add ruleset
         </button>

@@ -8,7 +8,10 @@ export default function ContextualBanner({ value }) {
   if (!value) return null
   const copy = BANNER_COPY[value]
   return (
-    <p data-testid="contextual-banner" className={`inline-block rounded-full px-3 py-1 text-sm font-semibold ${copy.className}`}>
+    <p
+      data-testid="contextual-banner"
+      className={`inline-block rounded-full px-3.5 py-1 text-sm font-bold uppercase tracking-wide shadow-sm ${copy.className}`}
+    >
       {copy.text}
     </p>
   )

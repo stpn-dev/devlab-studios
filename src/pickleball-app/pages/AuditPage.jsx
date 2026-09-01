@@ -37,7 +37,10 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Audit Log</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Audit Log</h1>
+        <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+      </div>
 
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
       {events === null && !message ? <p className="text-sm text-slate-500">Loading…</p> : null}

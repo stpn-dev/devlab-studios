@@ -20,19 +20,24 @@ export default function LiveView({ code }) {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
-      <h1 className="text-2xl font-semibold text-white">{view.session.name}</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-white">{view.session.name}</h1>
+        <div className="pb-rule mt-2 h-[3px] w-11 rounded-full" />
+      </div>
       <div className="grid gap-4 sm:grid-cols-2" data-testid="live-courts">
         {view.courts.map((court) => {
           const game = view.games.find((g) => g.id === court.currentGameId)
           return (
-            <div key={court.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
+            <div key={court.id} className="pb-scoreboard p-4">
               <p className="text-sm font-semibold text-white">{court.courtName}</p>
               <p className="text-xs text-slate-400">{court.status}</p>
               {game ? (
                 <>
                   <p className="mt-2 text-sm text-slate-300">{game.teamAName || 'Team A'} vs {game.teamBName || 'Team B'}</p>
-                  <p className="mt-1 text-3xl font-bold text-white">{game.scoreA} – {game.scoreB}</p>
-                  <p className="mt-1 text-xs text-emerald-300">{servingLabel(game)}</p>
+                  <p className="pb-score mt-1 text-3xl text-white">{game.scoreA} – {game.scoreB}</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-emerald-300">
+                    <span className="pb-live-dot" /> {servingLabel(game)}
+                  </p>
                 </>
               ) : (
                 <p className="mt-2 text-sm text-slate-400">No game in progress.</p>
@@ -43,7 +48,7 @@ export default function LiveView({ code }) {
       </div>
 
       {view.leaderboard && view.leaderboard.length > 0 && (
-        <div className="rounded-xl border border-white/10 bg-white/5 p-4" data-testid="live-leaderboard">
+        <div className="pb-scoreboard p-4" data-testid="live-leaderboard">
           <p className="text-sm font-semibold text-white">Leaderboard</p>
           <ol className="mt-2 space-y-1 text-sm text-slate-300">
             {view.leaderboard.map((row) => (

@@ -57,8 +57,11 @@ export default function PlayersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">Players</h1>
-        <button type="button" onClick={startNew} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Players</h1>
+          <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+        </div>
+        <button type="button" onClick={startNew} className="pb-btn-primary rounded-lg px-4 py-2 text-sm">
           Add Player
         </button>
       </div>
@@ -103,7 +106,7 @@ export default function PlayersPage() {
 
               {message ? <p className={message.type === 'success' ? 'text-sm text-emerald-700' : 'text-sm text-rose-600'}>{message.text}</p> : null}
 
-              <button type="button" onClick={handleSave} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95">
+              <button type="button" onClick={handleSave} className="pb-btn-primary rounded-lg px-4 py-2 text-sm">
                 Save
               </button>
             </div>

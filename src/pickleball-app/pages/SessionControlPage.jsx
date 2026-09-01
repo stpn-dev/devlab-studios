@@ -35,24 +35,24 @@ export default function SessionControlPage() {
     <div className="space-y-4">
       <dl className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-4">
         <div>
-          <dt className="text-xs font-medium uppercase text-slate-500">Status</dt>
-          <dd className="text-lg font-semibold text-slate-900">{session.status}</dd>
+          <dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Status</dt>
+          <dd className="pb-score text-lg text-slate-900">{session.status}</dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-slate-500">Type</dt>
-          <dd className="text-lg font-semibold text-slate-900">{session.sessionType}</dd>
+          <dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Type</dt>
+          <dd className="pb-score text-lg text-slate-900">{session.sessionType}</dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-slate-500">Queued</dt>
-          <dd className="text-lg font-semibold text-slate-900" data-testid="queue-count">{snapshot ? snapshot.queue.filter((entry) => entry.status === 'QUEUED').length : '—'}</dd>
+          <dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Queued</dt>
+          <dd className="pb-score text-lg text-slate-900" data-testid="queue-count">{snapshot ? snapshot.queue.filter((entry) => entry.status === 'QUEUED').length : '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-slate-500">Courts</dt>
-          <dd className="text-lg font-semibold text-slate-900" data-testid="courts-count">{snapshot ? snapshot.courts.length : '—'}</dd>
+          <dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Courts</dt>
+          <dd className="pb-score text-lg text-slate-900" data-testid="courts-count">{snapshot ? snapshot.courts.length : '—'}</dd>
         </div>
       </dl>
       {publicUrl ? (
-        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <PublicLinkQRCode url={publicUrl} />
           <div className="space-y-1 text-sm text-slate-500">
             <p>Public live view:</p>
@@ -61,11 +61,11 @@ export default function SessionControlPage() {
               href={`/pickleball/live/${publicCode}`}
               target="_blank"
               rel="noreferrer"
-              className="font-medium text-brand underline"
+              className="font-semibold text-brand underline"
             >
               /pickleball/live/{publicCode}
             </a>
-            <p>TV display: <a href={`/pickleball/live/${publicCode}/display`} target="_blank" rel="noreferrer" className="font-medium text-brand underline">/pickleball/live/{publicCode}/display</a></p>
+            <p>TV display: <a href={`/pickleball/live/${publicCode}/display`} target="_blank" rel="noreferrer" className="font-semibold text-brand underline">/pickleball/live/{publicCode}/display</a></p>
           </div>
         </div>
       ) : null}

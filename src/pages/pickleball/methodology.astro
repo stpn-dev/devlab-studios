@@ -1,10 +1,12 @@
 ---
 import Layout from '../../layouts/Layout.astro'
+import '../../pickleball-app/pickleball.css'
 ---
 
 <Layout title="OPI Methodology — Devlab Pickleball">
   <main class="mx-auto max-w-2xl px-6 py-16">
-    <h1 class="mb-4 text-3xl font-bold text-navy">How OPI works</h1>
+    <h1 class="mb-1 text-3xl font-extrabold tracking-tight text-slate-900">How OPI works</h1>
+    <div class="pb-rule mb-6 h-[3px] w-11 rounded-full"></div>
     <p class="mb-4 text-slate-600">
       OPI (Open Play Performance Index) measures how well a player performs relative to the points
       scored in their games. For each eligible finished game, your <strong>game performance</strong> is
@@ -16,10 +18,19 @@ import Layout from '../../layouts/Layout.astro'
       measures how your team performed together, not an individual point-by-point breakdown.
     </p>
     <h2 class="mb-2 mt-8 text-xl font-semibold text-slate-900">Confidence tiers</h2>
-    <ul class="mb-4 list-disc space-y-1 pl-5 text-slate-600">
-      <li><strong>Provisional</strong> — 0 to 2 eligible games. Not enough history yet to be a stable signal.</li>
-      <li><strong>Developing</strong> — 3 to 9 eligible games.</li>
-      <li><strong>Established</strong> — 10 or more eligible games.</li>
+    <ul class="mb-4 space-y-2 text-slate-600">
+      <li class="flex items-baseline gap-2">
+        <span class="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-brand">Provisional</span>
+        0 to 2 eligible games. Not enough history yet to be a stable signal.
+      </li>
+      <li class="flex items-baseline gap-2">
+        <span class="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-brand">Developing</span>
+        3 to 9 eligible games.
+      </li>
+      <li class="flex items-baseline gap-2">
+        <span class="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-brand">Established</span>
+        10 or more eligible games.
+      </li>
     </ul>
     <p class="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
       OPI is a Devlab-original metric, not an official USA Pickleball rating, DUPR, UTR-P, or Elo system. The scoring engine aligns with standard side-out scoring concepts but the software is not USA-Pickleball-certified.

@@ -148,6 +148,12 @@ export async function createScoringRuleset(db, organizationId, { name, targetSco
 // Org-scoped by construction (the WHERE clause matches only rows this org
 // owns), so this can never edit a global built-in or another org's ruleset —
 // same tenancy guard shape as getScoringRuleset/listScoringRulesets above.
+/**
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {string} id
+ * @param {string} organizationId
+ * @param {{ name?: string, targetScore?: number, winBy?: number, active?: boolean }} updates
+ */
 export async function updateScoringRuleset(db, id, organizationId, { name, targetScore, winBy, active }) {
   const existing = await db
     .prepare(`SELECT ${SCORING_RULESET_COLUMNS} FROM scoring_rulesets WHERE id = ? AND organization_id = ?`)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import { canCheckIn, canSetAvailability, canLeaveSession, canCancelRegistration } from '../../lib/pickleball/attendance'
 
 const AVAILABILITY_LABELS = { AVAILABLE: 'Available', TEMPORARILY_UNAVAILABLE: 'Unavailable', RESTING: 'Resting' }
 
@@ -52,9 +53,12 @@ export default function CheckInPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">Check-in</h1>
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Check-in</h1>
+          <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+        </div>
         {counts ? (
-          <p className="text-sm text-slate-500" data-testid="attendance-counts">
+          <p className="text-sm font-medium text-slate-500" data-testid="attendance-counts">
             {counts.checkedIn} checked in / {counts.registered} registered
           </p>
         ) : null}
@@ -80,7 +84,7 @@ export default function CheckInPage() {
           type="button"
           disabled={!selectedNewPlayerId}
           onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players`, { playerId: selectedNewPlayerId }), () => setSelectedNewPlayerId(''))}
-          className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-50"
+          className="pb-btn-primary shrink-0 rounded-lg px-4 py-2 text-sm"
         >
           Register
         </button>
@@ -95,31 +99,31 @@ export default function CheckInPage() {
               <span className="text-slate-500">{AVAILABILITY_LABELS[player.availabilityStatus] || player.availabilityStatus}</span>
             ) : null}
             <div className="ml-auto flex gap-2">
-              {player.registrationStatus === 'REGISTERED' && player.attendanceStatus === 'NOT_CHECKED_IN' ? (
-                <>
-                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { playerId: player.playerId }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
-                    Check in
-                  </button>
-                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/cancel`, { playerId: player.playerId }))} className="rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
-                    Cancel
-                  </button>
-                </>
+              {canCheckIn(player) ? (
+                <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { playerId: player.playerId }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
+                  Check in
+                </button>
               ) : null}
-              {player.registrationStatus === 'REGISTERED' && player.attendanceStatus === 'CHECKED_IN' ? (
-                <>
-                  {player.availabilityStatus !== 'AVAILABLE' ? (
-                    <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/availability`, { playerId: player.playerId, status: 'AVAILABLE' }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
-                      Set available
-                    </button>
-                  ) : (
-                    <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/availability`, { playerId: player.playerId, status: 'TEMPORARILY_UNAVAILABLE' }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
-                      Set unavailable
-                    </button>
-                  )}
-                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/leave`, { playerId: player.playerId }))} className="rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
-                    Leave
+              {canCancelRegistration(player) ? (
+                <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/cancel`, { playerId: player.playerId }))} className="rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
+                  Cancel
+                </button>
+              ) : null}
+              {canSetAvailability(player) ? (
+                player.availabilityStatus !== 'AVAILABLE' ? (
+                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/availability`, { playerId: player.playerId, status: 'AVAILABLE' }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
+                    Set available
                   </button>
-                </>
+                ) : (
+                  <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/availability`, { playerId: player.playerId, status: 'TEMPORARILY_UNAVAILABLE' }))} className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50">
+                    Set unavailable
+                  </button>
+                )
+              ) : null}
+              {canLeaveSession(player) ? (
+                <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/leave`, { playerId: player.playerId }))} className="rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
+                  Leave
+                </button>
               ) : null}
             </div>
           </div>

@@ -22,15 +22,21 @@ export default function QueuePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Queue</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Queue</h1>
+        <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+      </div>
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">Waiting ({queued.length})</h2>
+        <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Waiting ({queued.length})</h2>
         <div className="space-y-2" data-testid="queue-waiting-list">
-          {queued.map((entry) => (
-            <div key={entry.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
-              <span>{entry.displayName} <span className="text-slate-400">({entry.gamesPlayed} played)</span></span>
+          {queued.map((entry, index) => (
+            <div key={entry.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
+              <span className="flex items-center gap-3">
+                <span className="pb-score w-5 text-right text-sm text-slate-400">{index + 1}</span>
+                <span>{entry.displayName} <span className="text-slate-400">({entry.gamesPlayed} played)</span></span>
+              </span>
               <button type="button" onClick={() => handleLeave(entry.sessionPlayerId)} className="rounded border border-rose-300 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
                 Leave queue
               </button>
@@ -41,10 +47,11 @@ export default function QueuePage() {
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase text-slate-500">On courts ({assigned.length})</h2>
+        <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">On courts ({assigned.length})</h2>
         <div className="space-y-2" data-testid="queue-assigned-list">
           {assigned.map((entry) => (
-            <div key={entry.id} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+            <div key={entry.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+              <span className="pb-live-dot" />
               {entry.displayName} — {entry.status}
             </div>
           ))}

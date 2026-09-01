@@ -54,6 +54,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     }
 
     const membership = await createMembership(env.PICKLEBALL_DB, { organizationId, ...result.data })
+    if (!membership) return jsonResponse({ error: 'Failed to create membership.' }, 500)
 
     await recordAuditEvent(env.PICKLEBALL_DB, {
       organizationId,

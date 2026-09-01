@@ -1,6 +1,9 @@
-// Read-side aggregation only. The authoritative state-transition guards live in
+// The authoritative state-transition guards live in
 // src/worker/repositories/pickleball/sessionPlayers.js's SQL `WHERE` clauses,
-// where they are atomic; this module intentionally does not duplicate them.
+// where they are atomic and enforced under concurrency. The predicates below
+// mirror those same rules for callers (the operator UI) that want to decide
+// whether to show/enable an action *before* round-tripping to the server —
+// they are advisory only and must never be treated as the source of truth.
 
 export type RegistrationStatus = 'REGISTERED' | 'CANCELLED'
 export type AttendanceStatus = 'NOT_CHECKED_IN' | 'CHECKED_IN' | 'LEFT_SESSION'
@@ -10,6 +13,22 @@ export interface SessionPlayerState {
   registrationStatus: RegistrationStatus
   attendanceStatus: AttendanceStatus
   availabilityStatus: AvailabilityStatus
+}
+
+export function canCheckIn(state: SessionPlayerState): boolean {
+  return state.registrationStatus === 'REGISTERED' && state.attendanceStatus === 'NOT_CHECKED_IN'
+}
+
+export function canSetAvailability(state: SessionPlayerState): boolean {
+  return state.attendanceStatus === 'CHECKED_IN'
+}
+
+export function canLeaveSession(state: SessionPlayerState): boolean {
+  return state.attendanceStatus === 'CHECKED_IN'
+}
+
+export function canCancelRegistration(state: SessionPlayerState): boolean {
+  return state.registrationStatus === 'REGISTERED' && state.attendanceStatus === 'NOT_CHECKED_IN'
 }
 
 export interface AttendanceCounts {

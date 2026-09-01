@@ -1,16 +1,19 @@
 ---
 import Layout from '../../layouts/Layout.astro'
+import '../../pickleball-app/pickleball.css'
 ---
 
 <Layout title="Devlab Pickleball">
   <main class="mx-auto max-w-2xl px-6 py-24 text-center">
-    <h1 class="text-3xl font-bold text-navy">Devlab Pickleball</h1>
-    <p class="mt-4 text-slate-600">Session management for recreational pickleball play.</p>
-    <a href="/pickleball/app" class="mt-8 inline-flex rounded bg-brand px-5 py-3 text-sm font-semibold text-white">
+    <p class="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Session management</p>
+    <h1 class="text-3xl font-extrabold tracking-tight text-slate-900">Devlab Pickleball</h1>
+    <div class="pb-rule mx-auto mt-3 h-[3px] w-11 rounded-full"></div>
+    <p class="mt-4 text-slate-600">Run open play — check-in, queueing, courts, and live scoring — for recreational pickleball.</p>
+    <a href="/pickleball/app" class="pb-btn-primary mt-8 inline-flex rounded-lg px-5 py-3 text-sm">
       Operator sign in
     </a>
     <p class="mt-4">
-      <a href="/pickleball/methodology" class="text-sm text-slate-500 underline">How OPI works</a>
+      <a href="/pickleball/methodology" class="text-sm text-slate-500 underline hover:text-slate-700">How OPI works</a>
     </p>
   </main>
 </Layout>

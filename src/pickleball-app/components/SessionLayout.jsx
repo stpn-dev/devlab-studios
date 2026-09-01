@@ -47,14 +47,18 @@ export default function SessionLayout() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-        <h1 className="text-xl font-semibold text-slate-900">
-          {loadError ? 'Could not load this session.' : session ? session.name : 'Loading…'}
-        </h1>
+        <div>
+          <h1 className="text-xl font-extrabold tracking-tight text-slate-900">
+            {loadError ? 'Could not load this session.' : session ? session.name : 'Loading…'}
+          </h1>
+          <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+        </div>
         {loadError ? null : (
           <span
             data-testid="realtime-status"
-            className={`rounded-full px-2 py-1 text-xs font-medium ${status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${status === 'open' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}
           >
+            {status === 'open' ? <span className="pb-live-dot" /> : null}
             {status === 'open' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
           </span>
         )}
@@ -70,7 +74,9 @@ export default function SessionLayout() {
                 key={item.to}
                 to={item.to}
                 end={item.end}
-                className={({ isActive }) => `rounded px-3 py-1.5 text-sm ${isActive ? 'bg-brand/10 font-semibold text-brand' : 'text-slate-600 hover:bg-slate-100'}`}
+                className={({ isActive }) =>
+                  `pb-tab rounded px-3 py-1.5 text-sm ${isActive ? 'pb-tab--active font-semibold text-brand' : 'text-slate-600 hover:bg-slate-100'}`
+                }
               >
                 {item.label}
               </NavLink>

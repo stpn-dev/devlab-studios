@@ -8,7 +8,7 @@ export default function ScorekeeperControls({ onRally, onUndo, onFinish, isGameW
               type="button"
               disabled={isGameWon}
               onClick={() => onRally('A')}
-              className="rounded-lg bg-brand px-4 py-3 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-50"
+              className="pb-btn-primary rounded-lg px-4 py-3 text-sm tracking-wide"
             >
               TEAM A WON RALLY
             </button>
@@ -16,7 +16,7 @@ export default function ScorekeeperControls({ onRally, onUndo, onFinish, isGameW
               type="button"
               disabled={isGameWon}
               onClick={() => onRally('B')}
-              className="rounded-lg bg-brand px-4 py-3 text-sm font-semibold text-white hover:brightness-95 disabled:opacity-50"
+              className="pb-btn-primary rounded-lg px-4 py-3 text-sm tracking-wide"
             >
               TEAM B WON RALLY
             </button>

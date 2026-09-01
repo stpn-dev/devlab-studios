@@ -30,6 +30,14 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     if (!outcome.ok) return jsonResponse({ error: outcome.error }, 409)
 
+    // Re-fetched rather than read off `outcome.game`: the DO's RPC return type
+    // is a union crossing the Durable Object stub boundary, and Cloudflare's
+    // RPC serialization types don't narrow that union cleanly at the call
+    // site (see reopenGame's `Promise<{ok:false...} | {ok:true...}>` return
+    // type upstream). A fresh read is also always current, unlike a value
+    // captured mid-RPC-response.
+    const updatedGame = await getGame(env.PICKLEBALL_DB, sessionId, gameId)
+
     await recordAuditEvent(env.PICKLEBALL_DB, {
       organizationId: session.activeOrgId,
       sessionId,
@@ -38,7 +46,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       entityType: 'game',
       entityId: gameId,
       previousState: game,
-      newState: outcome.game,
+      newState: updatedGame,
       metadata: {},
     })
 

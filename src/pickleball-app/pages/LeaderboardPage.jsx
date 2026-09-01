@@ -35,7 +35,10 @@ export default function LeaderboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">Leaderboard</h1>
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Leaderboard</h1>
+          <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+        </div>
         <label className="flex items-center gap-2 text-sm text-slate-600">
           <input type="checkbox" checked={showAll} onChange={(event) => setShowAll(event.target.checked)} />
           Show provisional players
@@ -52,15 +55,20 @@ export default function LeaderboardPage() {
       {rows && rows.length ? (
         <div className="space-y-2" data-testid="leaderboard-list">
           {rows.map((row, index) => (
-            <div key={row.playerId} className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
+            <div
+              key={row.playerId}
+              className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm shadow-sm ${
+                index < 3 ? 'border-brand/30 bg-brand/5' : 'border-slate-200 bg-white'
+              }`}
+            >
               <span className="flex items-center gap-3">
-                <span className="w-6 text-right font-semibold text-slate-400">{index + 1}</span>
+                <span className={`w-6 text-right ${index < 3 ? 'pb-score text-brand' : 'font-semibold text-slate-400'}`}>{index + 1}</span>
                 <span className="font-semibold text-slate-900">{row.displayName}</span>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{row.confidenceTier}</span>
               </span>
               <span className="flex items-center gap-3 text-slate-600">
                 <span>{row.eligibleGamesCount} games</span>
-                <span className="text-lg font-bold text-slate-900">{row.opi.toFixed(2)}</span>
+                <span className="pb-score text-lg text-slate-900">{row.opi.toFixed(2)}</span>
               </span>
             </div>
           ))}

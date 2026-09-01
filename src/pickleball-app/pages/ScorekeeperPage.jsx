@@ -130,45 +130,53 @@ export default function ScorekeeperPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Scorekeeper</h1>
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Scorekeeper</h1>
+        <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+      </div>
       {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
       <ContextualBanner value={banner} />
-      <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
-        <p data-testid="scorekeeper-score" className="text-4xl font-bold text-slate-900">{game.scoreA} – {game.scoreB}</p>
-        <p data-testid="scorekeeper-official-call" className="mt-2 text-sm text-slate-500">
+      <div className="pb-scoreboard p-6 text-center">
+        {game.status === 'IN_PROGRESS' ? (
+          <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-emerald-300">
+            <span className="pb-live-dot" /> In progress
+          </p>
+        ) : null}
+        <p data-testid="scorekeeper-score" className="pb-score text-6xl text-white">{game.scoreA} – {game.scoreB}</p>
+        <p data-testid="scorekeeper-official-call" className="mt-3 text-sm text-slate-300">
           Serving: Team {game.servingTeam} · Call: {officialScoreCall(state, ruleset.format)}
         </p>
       </div>
       <div className="space-y-2">
         <div
           data-testid="scorekeeper-team-a-row"
-          className={`flex items-center justify-between rounded-lg border px-4 py-3 ${game.servingTeam === 'A' ? 'border-brand bg-brand/5' : 'border-slate-200 bg-white'}`}
+          className={`flex items-center justify-between rounded-lg border px-4 py-3 shadow-sm ${game.servingTeam === 'A' ? 'border-brand/50 bg-brand/5' : 'border-slate-200 bg-white'}`}
         >
           <div>
             <p className="font-semibold text-slate-900">
               Team A
               {game.servingTeam === 'A' ? (
-                <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-white">Serving</span>
+                <span className="pb-btn-primary ml-2 rounded-full px-2 py-0.5 text-xs">Serving</span>
               ) : null}
             </p>
             {teamAServerName ? <p className="text-xs text-slate-500">Server: {teamAServerName}</p> : null}
           </div>
-          <p className="text-2xl font-bold text-slate-900">{game.scoreA}</p>
+          <p className="pb-score text-2xl text-slate-900">{game.scoreA}</p>
         </div>
         <div
           data-testid="scorekeeper-team-b-row"
-          className={`flex items-center justify-between rounded-lg border px-4 py-3 ${game.servingTeam === 'B' ? 'border-brand bg-brand/5' : 'border-slate-200 bg-white'}`}
+          className={`flex items-center justify-between rounded-lg border px-4 py-3 shadow-sm ${game.servingTeam === 'B' ? 'border-brand/50 bg-brand/5' : 'border-slate-200 bg-white'}`}
         >
           <div>
             <p className="font-semibold text-slate-900">
               Team B
               {game.servingTeam === 'B' ? (
-                <span className="ml-2 rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-white">Serving</span>
+                <span className="pb-btn-primary ml-2 rounded-full px-2 py-0.5 text-xs">Serving</span>
               ) : null}
             </p>
             {teamBServerName ? <p className="text-xs text-slate-500">Server: {teamBServerName}</p> : null}
           </div>
-          <p className="text-2xl font-bold text-slate-900">{game.scoreB}</p>
+          <p className="pb-score text-2xl text-slate-900">{game.scoreB}</p>
         </div>
       </div>
       {game.status === 'IN_PROGRESS' ? (
