@@ -52,3 +52,14 @@ const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
 export function can(role: Role, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role]?.has(permission) ?? false
 }
+
+export interface PermissionSession {
+  role: Role | null
+  isPlatformAdmin: boolean
+}
+
+export function hasPermission(session: PermissionSession, permission: Permission): boolean {
+  if (session.isPlatformAdmin) return true
+  if (!session.role) return false
+  return can(session.role, permission)
+}
