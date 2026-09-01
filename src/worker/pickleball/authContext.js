@@ -108,7 +108,16 @@ export async function requirePlatformAdmin(request, env) {
   return { userId: identity.userId, googleSub: identity.googleSub, isPlatformAdmin: true }
 }
 
-export async function requirePickleballSession(request, env) {
+// `options.allowSuspendedOrgForPlatformAdmin` degrades a platform admin's
+// SUSPENDED activeOrgId to the same "no active org selected" shape used
+// above for a platform admin with no real membership, instead of throwing.
+// Only /auth/session (session bootstrap) and /auth/switch-org pass this —
+// they're the two routes a platform admin needs to reach in-browser to
+// recover from suspending the one org their session happens to be pinned
+// to. Every other org-scoped route keeps the plain 403 (suspension stays
+// absolute for actually acting on a suspended org's data, platform admin
+// or not), and every non-platform-admin caller is unaffected either way.
+export async function requirePickleballSession(request, env, options = {}) {
   const secret = env.PICKLEBALL_SESSION_SECRET
   if (!secret) {
     const error = new Error('Pickleball session secret is not configured.')
@@ -151,6 +160,9 @@ export async function requirePickleballSession(request, env) {
   // first — one check here covers all of them. Applies to a platform admin
   // too: suspension is absolute, reactivate the org before acting on it.
   const organization = await getOrganization(env.PICKLEBALL_DB, session.activeOrgId)
+  if (organization && organization.status === 'SUSPENDED' && platformAdmin && options.allowSuspendedOrgForPlatformAdmin) {
+    return { userId: session.userId, googleSub: session.googleSub, activeOrgId: null, role: null, isPlatformAdmin: true }
+  }
   if (!organization || organization.status === 'SUSPENDED') {
     const error = new Error('This organization is suspended.')
     error.status = 403

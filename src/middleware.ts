@@ -16,6 +16,13 @@ const PICKLEBALL_PUBLIC_ROUTES = new Set([
   '/api/pickleball/auth/session',
   '/api/pickleball/auth/logout',
   '/api/pickleball/auth/test-login',
+  // Not actually unauthenticated -- switch-org.ts calls requirePickleballSession
+  // itself, with the platform-admin-suspended-org allowance the blanket check
+  // below doesn't know about (see authContext.js's allowSuspendedOrgForPlatformAdmin).
+  // Excluded here the same way /auth/session already is, for the same reason:
+  // the blanket check's plain 403 would otherwise re-lock out a platform admin
+  // whose activeOrgId is the SUSPENDED org they're trying to switch away from.
+  '/api/pickleball/auth/switch-org',
 ])
 // The public polling fallback (Task 8) is, by definition, for an
 // unauthenticated spectator whose socket is down -- it must be reachable
@@ -31,6 +38,17 @@ const PICKLEBALL_PUBLIC_STATE_PREFIX = '/api/pickleball/public/'
 // through the blanket requirePickleballSession gate below, so it's
 // excluded the same way the public state-polling prefix is.
 const PICKLEBALL_ORG_INVITE_ACCEPT_PREFIX = '/api/pickleball/auth/org-invites/'
+// All 5 routes under this prefix authenticate exclusively via
+// requirePlatformAdmin (Google identity + is_platform_admin), which -- unlike
+// requirePickleballSession -- never looks at activeOrgId or organization
+// status at all. Routing them through the blanket requirePickleballSession
+// gate below first would 403 a platform admin whose own activeOrgId happens
+// to point at a SUSPENDED org before their request ever reaches the route's
+// own (correct, org-status-agnostic) check -- including on the
+// .../reactivate call that's supposed to be how they recover from exactly
+// that state. Excluded the same way the org-invite-accept prefix is, for the
+// same reason: it cannot go through the blanket gate.
+const PICKLEBALL_PLATFORM_ADMIN_PREFIX = '/api/pickleball/platform/'
 const MAINTENANCE_PAGE = '/maintenance'
 const MAINTENANCE_GATED_PATHS = new Set(['/', '/about', '/services', '/profile', '/insights'])
 
@@ -67,7 +85,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     url.pathname.startsWith(PICKLEBALL_API_PREFIX) &&
     !PICKLEBALL_PUBLIC_ROUTES.has(url.pathname) &&
     !url.pathname.startsWith(PICKLEBALL_PUBLIC_STATE_PREFIX) &&
-    !url.pathname.startsWith(PICKLEBALL_ORG_INVITE_ACCEPT_PREFIX)
+    !url.pathname.startsWith(PICKLEBALL_ORG_INVITE_ACCEPT_PREFIX) &&
+    !url.pathname.startsWith(PICKLEBALL_PLATFORM_ADMIN_PREFIX)
   ) {
     try {
       await requirePickleballSession(context.request, getEnv())

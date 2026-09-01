@@ -13,7 +13,7 @@ const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8
 export const POST: APIRoute = async ({ request }) => {
   const env = getEnv()
   try {
-    const session = await requirePickleballSession(request, env)
+    const session = await requirePickleballSession(request, env, { allowSuspendedOrgForPlatformAdmin: true })
     const body = (await request.json().catch(() => ({}))) as { organizationId?: string }
     const requestedOrgId = String(body.organizationId || '')
 

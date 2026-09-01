@@ -8,7 +8,7 @@ import { jsonResponse, apiErrorResponse } from '../../../../worker/utils/respons
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
   try {
-    const session = await requirePickleballSession(request, env)
+    const session = await requirePickleballSession(request, env, { allowSuspendedOrgForPlatformAdmin: true })
     const user = await getUserByGoogleSub(env.PICKLEBALL_DB, session.googleSub)
     if (!user) {
       return jsonResponse({ error: 'User not found.' }, 404)

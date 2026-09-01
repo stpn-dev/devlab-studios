@@ -102,7 +102,10 @@ carries the invite's seat caps onto the new `organizations` row.
 From the Platform page's organizations list, or via the API:
 
 ```bash
-# Suspend — 403s every org-scoped request against it, including its public spectator route
+# Suspend — 403s every org-scoped request against it. Its public spectator
+# route is the one exception: it 404s instead, matching the same "not found"
+# shape/status it already returns for an unknown or revoked code, so an
+# anonymous spectator can't distinguish "suspended" from "doesn't exist"
 curl -X POST http://localhost:8787/api/pickleball/platform/organizations/<organizationId>/suspend \
   -H 'Content-Type: application/json' --cookie "<platform admin's session cookie>" -d '{}'
 
@@ -114,7 +117,13 @@ curl -X POST http://localhost:8787/api/pickleball/platform/organizations/<organi
 Both routes authenticate via `requirePlatformAdmin` (Google identity +
 `is_platform_admin`, no org membership required), so a platform admin can
 suspend and later reactivate an organization even if it's the only org they
-personally belong to.
+personally belong to. This no-lockout guarantee extends to the operator SPA
+itself: `/auth/session` (session bootstrap, called on every page load) and
+`/auth/switch-org` also recognize a platform admin whose `activeOrgId`
+points at the SUSPENDED org and return a valid session with
+`activeOrgId: null` instead of 403ing them out to the login page — so the
+Platform page (gated only on `isPlatformAdmin`) stays reachable in-browser
+to reactivate the org, not just via direct API calls.
 
 ## Notes
 
