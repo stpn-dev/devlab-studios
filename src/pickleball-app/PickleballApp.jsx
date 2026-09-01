@@ -19,9 +19,14 @@ import CourtsPage from './pages/CourtsPage'
 import GamesListPage from './pages/GamesListPage'
 import ScorekeeperPage from './pages/ScorekeeperPage'
 import LeaderboardPage from './pages/LeaderboardPage'
+import AcceptOrgInvitePage from './pages/AcceptOrgInvitePage'
 
 function buildRouter(session, organizations, onSwitchOrg, onLogout) {
   return createBrowserRouter([
+    {
+      path: '/pickleball/accept-invite/:token',
+      element: <AcceptOrgInvitePage />,
+    },
     {
       path: '/pickleball/app',
       element: <AppShell session={session} organizations={organizations} onSwitchOrg={onSwitchOrg} onLogout={onLogout} />,

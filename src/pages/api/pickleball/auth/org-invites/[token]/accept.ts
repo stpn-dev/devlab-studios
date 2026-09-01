@@ -1,0 +1,66 @@
+// src/pages/api/pickleball/auth/org-invites/[token]/accept.ts
+import type { APIRoute } from 'astro'
+import { requireGoogleIdentity } from '../../../../../../worker/pickleball/authContext.js'
+import { getInviteByToken, markInviteAccepted } from '../../../../../../worker/repositories/pickleball/organizationInvites.js'
+import { createOrganization } from '../../../../../../worker/repositories/pickleball/organizations.js'
+import { createMembership } from '../../../../../../worker/repositories/pickleball/memberships.js'
+import { getUserByGoogleSub } from '../../../../../../worker/repositories/pickleball/users.js'
+import { acceptOrgInviteSchema } from '../../../../../../lib/schemas/pickleball/platform'
+import { signSession, buildSetCookieHeader, SESSION_COOKIE_NAME } from '../../../../../../worker/pickleball/session.js'
+import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
+import { getEnv } from '../../../../../../lib/env'
+
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8
+
+export const POST: APIRoute = async ({ request, params }) => {
+  const env = getEnv()
+  try {
+    const identity = await requireGoogleIdentity(request, env)
+
+    const invite = await getInviteByToken(env.PICKLEBALL_DB, params.token as string)
+    if (!invite || invite.status !== 'PENDING') {
+      return jsonResponse({ error: 'This invite is no longer valid.' }, 404)
+    }
+    if (new Date(invite.expiresAt).getTime() <= Date.now()) {
+      return jsonResponse({ error: 'This invite has expired.' }, 410)
+    }
+
+    const user = await getUserByGoogleSub(env.PICKLEBALL_DB, identity.googleSub)
+    if (!user || user.email.toLowerCase() !== invite.invitedEmail.toLowerCase()) {
+      return jsonResponse({ error: 'This invite was issued to a different email address.' }, 403)
+    }
+
+    const body = await request.json().catch(() => null)
+    const result = acceptOrgInviteSchema.safeParse(body)
+    if (!result.success) {
+      return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)
+    }
+
+    const organization = await createOrganization(env.PICKLEBALL_DB, {
+      name: result.data.name,
+      slug: result.data.slug,
+      maxAdmins: invite.maxAdmins,
+      maxFacilitators: invite.maxFacilitators,
+      maxScorekeepers: invite.maxScorekeepers,
+    })
+    if (!organization) {
+      return jsonResponse({ error: 'That club slug is already taken.' }, 409)
+    }
+
+    await createMembership(env.PICKLEBALL_DB, { organizationId: organization.id, invitedEmail: user.email, role: 'ADMIN' })
+    await markInviteAccepted(env.PICKLEBALL_DB, invite.id, organization.id)
+
+    const now = Math.floor(Date.now() / 1000)
+    const token = await signSession(
+      { userId: user.id, googleSub: user.googleSub, activeOrgId: organization.id, iat: now, exp: now + SESSION_MAX_AGE_SECONDS },
+      env.PICKLEBALL_SESSION_SECRET,
+    )
+    const secure = new URL(request.url).protocol === 'https:'
+
+    return jsonResponse({ ok: true, activeOrgId: organization.id }, 200, {
+      'Set-Cookie': buildSetCookieHeader(SESSION_COOKIE_NAME, token, { secure, maxAgeSeconds: SESSION_MAX_AGE_SECONDS }),
+    })
+  } catch (error) {
+    return apiErrorResponse(error)
+  }
+}

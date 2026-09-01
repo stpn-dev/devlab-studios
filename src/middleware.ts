@@ -25,6 +25,12 @@ const PICKLEBALL_PUBLIC_ROUTES = new Set([
 // Set, so this is a prefix check instead; the route's own handler still
 // does the real authorization (public_view_enabled + revoked-code 404).
 const PICKLEBALL_PUBLIC_STATE_PREFIX = '/api/pickleball/public/'
+// The org-invite accept route requires only a valid Google-authenticated
+// session (via requireGoogleIdentity), never org membership -- by
+// definition, the caller has no membership anywhere yet. It cannot go
+// through the blanket requirePickleballSession gate below, so it's
+// excluded the same way the public state-polling prefix is.
+const PICKLEBALL_ORG_INVITE_ACCEPT_PREFIX = '/api/pickleball/auth/org-invites/'
 const MAINTENANCE_PAGE = '/maintenance'
 const MAINTENANCE_GATED_PATHS = new Set(['/', '/about', '/services', '/profile', '/insights'])
 
@@ -60,7 +66,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (
     url.pathname.startsWith(PICKLEBALL_API_PREFIX) &&
     !PICKLEBALL_PUBLIC_ROUTES.has(url.pathname) &&
-    !url.pathname.startsWith(PICKLEBALL_PUBLIC_STATE_PREFIX)
+    !url.pathname.startsWith(PICKLEBALL_PUBLIC_STATE_PREFIX) &&
+    !url.pathname.startsWith(PICKLEBALL_ORG_INVITE_ACCEPT_PREFIX)
   ) {
     try {
       await requirePickleballSession(context.request, getEnv())
