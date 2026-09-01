@@ -278,3 +278,56 @@
 @media (prefers-reduced-motion: reduce) {
   .pb-live-dot { animation: none; }
 }
+
+/* Task 5's player status pill (CHECKED_IN/QUEUED/PLAYING/AVAILABLE/RESTING/
+   etc., via PlayerStatusChip.jsx) -- Decision 2's small status-color set,
+   derived from the same emerald/amber/rose/sky families already used ad-hoc
+   elsewhere in this app (GameScoreboard/ContextualBanner's SIDE_OUT/
+   GAME_POINT/TIED_WIN_BY_TWO map, SessionLayout's open/closed badge), now
+   formalized as four reusable tokens instead of one-off Tailwind utilities
+   per component. `color-mix` blends each token with white for the chip's
+   soft background, so no new hex value is introduced beyond the four tokens
+   themselves. Every chip still pairs its color with an icon + text label
+   (never color alone) -- that pairing lives in PlayerStatusChip.jsx itself. */
+:root {
+  --pb-status-success: #059669;
+  --pb-status-warning: #b45309;
+  --pb-status-danger: #e11d48;
+  --pb-status-info: #0369a1;
+}
+
+.pb-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.pb-status-chip--success {
+  color: var(--pb-status-success);
+  background: color-mix(in srgb, var(--pb-status-success) 12%, white);
+}
+
+.pb-status-chip--warning {
+  color: var(--pb-status-warning);
+  background: color-mix(in srgb, var(--pb-status-warning) 14%, white);
+}
+
+.pb-status-chip--danger {
+  color: var(--pb-status-danger);
+  background: color-mix(in srgb, var(--pb-status-danger) 12%, white);
+}
+
+.pb-status-chip--info {
+  color: var(--pb-status-info);
+  background: color-mix(in srgb, var(--pb-status-info) 12%, white);
+}
+
+.pb-status-chip--muted {
+  color: var(--text-muted);
+  background: var(--surface-subtle);
+}
