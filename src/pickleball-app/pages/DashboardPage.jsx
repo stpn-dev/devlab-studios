@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
+import MetricCard from '../components/MetricCard'
+import { Activity, Clock, Users } from '../../components/icons/icons'
+
+// Local-time greeting for the dashboard hero -- takes the hour as a plain
+// argument (rather than reading `Date` internally) so it stays a pure,
+// trivially-testable function.
+function getGreeting(hour) {
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
 
 export default function DashboardPage() {
   const { authRole, activeOrgId, isPlatformAdmin } = useOutletContext()
@@ -48,63 +59,94 @@ export default function DashboardPage() {
   const liveSessions = sessions.filter((session) => session.status === 'LIVE' || session.status === 'PAUSED')
   const upcomingSessions = sessions.filter((session) => session.status === 'DRAFT' || session.status === 'OPEN_FOR_CHECKIN')
 
+  // The hero surfaces one session: whichever is actually live right now, or
+  // otherwise the soonest upcoming one. `upcomingSessions` inherits the
+  // sessions API's own `ORDER BY scheduled_start DESC`, so it's re-sorted
+  // ascending here rather than just taking its first entry.
+  const nextSession = liveSessions.length
+    ? null
+    : [...upcomingSessions].sort((a, b) => new Date(a.scheduledStart) - new Date(b.scheduledStart))[0] ?? null
+  const heroSession = liveSessions[0] ?? nextSession
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Dashboard</h1>
+        <p className="pb-eyebrow">Overview</p>
         <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">{getGreeting(new Date().getHours())}</h1>
+            {heroSession ? (
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <span>{liveSessions.length ? 'Live now:' : 'Next up:'}</span>
+                <span className="font-semibold text-slate-900">{heroSession.name}</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{heroSession.status}</span>
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-slate-500">No live or upcoming sessions right now.</p>
+            )}
+          </div>
+          {heroSession ? (
+            <Link
+              to={`/pickleball/app/sessions/${heroSession.id}`}
+              className="pb-btn-primary inline-flex flex-shrink-0 items-center rounded-lg px-4 py-2 text-sm"
+            >
+              Manage Session
+            </Link>
+          ) : null}
+        </div>
       </div>
 
+      {/* Org-wide counts -- the current dashboard fetch (sessions + players)
+          has no per-session registered/checked-in/queued/playing breakdown
+          for the hero session, so these three tiles reuse the same real
+          counts the page already computed above rather than fabricating a
+          metric this fetch doesn't provide. See task-2-report.md for the gap. */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="pb-rule absolute inset-x-0 top-0 h-1 w-full rounded-none" />
-          <p className="pb-eyebrow text-xs font-bold uppercase tracking-wider text-slate-500">Live sessions</p>
-          <p className="pb-score mt-1 text-3xl text-slate-900">{liveSessions.length}</p>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="pb-rule absolute inset-x-0 top-0 h-1 w-full rounded-none" />
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Upcoming sessions</p>
-          <p className="pb-score mt-1 text-3xl text-slate-900">{upcomingSessions.length}</p>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="pb-rule absolute inset-x-0 top-0 h-1 w-full rounded-none" />
-          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Players</p>
-          <p className="pb-score mt-1 text-3xl text-slate-900">{players.length}</p>
-        </div>
+        <MetricCard icon={Activity} label="Live sessions" value={liveSessions.length} />
+        <MetricCard icon={Clock} label="Upcoming sessions" value={upcomingSessions.length} />
+        <MetricCard icon={Users} label="Players" value={players.length} />
       </div>
 
       <div>
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Live now</h2>
-        <div className="space-y-2" data-testid="dashboard-live-sessions">
-          {liveSessions.map((session) => (
-            <Link
-              key={session.id}
-              to={`/pickleball/app/sessions/${session.id}`}
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm hover:border-brand/40"
-            >
-              <span className="pb-live-dot" />
-              <span className="font-semibold text-slate-900">{session.name}</span>
-              <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{session.status}</span>
-            </Link>
-          ))}
-          {!liveSessions.length ? <p className="text-sm text-slate-500">No sessions are live right now.</p> : null}
-        </div>
-      </div>
+        <p className="pb-eyebrow">Sessions</p>
+        <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
 
-      <div>
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Upcoming</h2>
-        <div className="space-y-2" data-testid="dashboard-upcoming-sessions">
-          {upcomingSessions.map((session) => (
-            <Link
-              key={session.id}
-              to={`/pickleball/app/sessions/${session.id}`}
-              className="flex items-center rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm hover:border-brand/40"
-            >
-              <span className="font-semibold text-slate-900">{session.name}</span>
-              <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{session.status}</span>
-            </Link>
-          ))}
-          {!upcomingSessions.length ? <p className="text-sm text-slate-500">No upcoming sessions.</p> : null}
+        <div className="mt-3 space-y-5">
+          <div>
+            <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Live now</h2>
+            <div className="space-y-2" data-testid="dashboard-live-sessions">
+              {liveSessions.map((session) => (
+                <Link
+                  key={session.id}
+                  to={`/pickleball/app/sessions/${session.id}`}
+                  className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm hover:border-brand/40"
+                >
+                  <span className="pb-live-dot" />
+                  <span className="font-semibold text-slate-900">{session.name}</span>
+                  <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{session.status}</span>
+                </Link>
+              ))}
+              {!liveSessions.length ? <p className="text-sm text-slate-500">No sessions are live right now.</p> : null}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Upcoming</h2>
+            <div className="space-y-2" data-testid="dashboard-upcoming-sessions">
+              {upcomingSessions.map((session) => (
+                <Link
+                  key={session.id}
+                  to={`/pickleball/app/sessions/${session.id}`}
+                  className="flex items-center rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm hover:border-brand/40"
+                >
+                  <span className="font-semibold text-slate-900">{session.name}</span>
+                  <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{session.status}</span>
+                </Link>
+              ))}
+              {!upcomingSessions.length ? <p className="text-sm text-slate-500">No upcoming sessions.</p> : null}
+            </div>
+          </div>
         </div>
       </div>
 

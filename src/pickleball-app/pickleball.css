@@ -170,6 +170,35 @@
   backdrop-filter: blur(2px);
 }
 
+/* A dashboard/session metric tile: icon + eyebrow label + a large `.pb-score`
+   value, used by `MetricCard.jsx` (DashboardPage's hero now, Task 3's court
+   overview count later). Composes the same --surface-card/--border-subtle/
+   --radius-lg/--shadow-sm tokens the three original dashboard tiles already
+   used inline via Tailwind utilities, adding only the hover elevation to
+   --shadow-md the brief calls for -- `position`/`overflow` live here too so
+   callers don't have to repeat them just to host the `.pb-rule` top bar. */
+.pb-metric-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.pb-metric-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-metric-card {
+    transition: none;
+    transform: none;
+  }
+}
+
 .pb-live-dot {
   display: inline-block;
   width: 0.5rem;
