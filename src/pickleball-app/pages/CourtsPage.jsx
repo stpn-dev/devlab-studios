@@ -19,17 +19,27 @@ function deriveCourtCardStatus(court, enabled) {
   return 'LIVE'
 }
 
-// Fairness-ranked preview for RecommendedMatchCard: the same "fewest games
-// played, then longest wait" ordering `selectNextPlayers()` itself uses
-// (src/lib/pickleball/queueEngine.ts) -- the queue snapshot's own array
+// Fairness-ranked preview for RecommendedMatchCard: reproduces rules 1+2 of
+// `selectNextPlayers()`'s ordering (src/lib/pickleball/queueEngine.ts) --
+// fewest games played, then longest wait -- the queue snapshot's own array
 // order is by `queuedAt` only (listQueueForSession's ORDER BY), not this
 // fairness order, so it's re-sorted here rather than trusted as-is.
+//
+// This does NOT reproduce rule 3 (repeat-avoidance, queueEngine.ts:51-86):
+// that tiebreak needs each candidate's `lastPairedWith`, which is
+// server-only state this client has no access to, so it can never trigger
+// here. In the rare case where rule 3 would fire server-side (>=5 eligible
+// candidates with a same-`gamesPlayed` recent-repeat tie), the server's
+// actual pick can differ from the last name shown in this preview -- the
+// real `SessionCoordinatorDO.assignCourt` call this card's "Assign" button
+// triggers still authoritatively decides exactly who gets seated, this is
+// only a preview.
+//
 // Restricted to entries the fairness engine actually flagged eligible
 // (non-empty `reasons`, attached by `GET /queue`) and capped at 4 -- a full
 // doubles match -- since the client doesn't know this session's ruleset
-// format (SINGLES needs 2, DOUBLES needs 4); the real
-// `SessionCoordinatorDO.assignCourt` call this card's "Assign" button
-// triggers still authoritatively decides exactly who gets seated.
+// format (SINGLES needs 2, DOUBLES needs 4); see RecommendedMatchCard.jsx's
+// copy for how that ambiguity is framed to the operator.
 function recommendedCandidates(queue) {
   return queue
     .filter((entry) => entry.status === 'QUEUED' && entry.reasons?.length)
