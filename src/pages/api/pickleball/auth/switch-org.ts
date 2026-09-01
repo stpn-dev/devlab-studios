@@ -3,6 +3,7 @@ import { requirePickleballSession } from '../../../../worker/pickleball/authCont
 import { getUserByGoogleSub } from '../../../../worker/repositories/pickleball/users.js'
 import { listActiveMembershipsForEmail, linkMembershipUser } from '../../../../worker/repositories/pickleball/memberships.js'
 import { resolveActiveOrgId } from '../../../../worker/pickleball/authContext.js'
+import { getOrganization } from '../../../../worker/repositories/pickleball/organizations.js'
 import { signSession, buildSetCookieHeader, SESSION_COOKIE_NAME } from '../../../../worker/pickleball/session.js'
 import { getEnv } from '../../../../lib/env'
 import { jsonResponse, apiErrorResponse } from '../../../../worker/utils/responses.js'
@@ -23,10 +24,19 @@ export const POST: APIRoute = async ({ request }) => {
     const memberships = (await listActiveMembershipsForEmail(env.PICKLEBALL_DB, user.email)) as {
       organizationId: string
     }[]
-    const activeOrgId = resolveActiveOrgId(memberships, requestedOrgId)
-
-    if (activeOrgId !== requestedOrgId) {
-      return jsonResponse({ error: 'Not a member of that organization.' }, 403)
+    let activeOrgId: string
+    if (session.isPlatformAdmin) {
+      const organization = await getOrganization(env.PICKLEBALL_DB, requestedOrgId)
+      if (!organization) {
+        return jsonResponse({ error: 'Organization not found.' }, 404)
+      }
+      activeOrgId = requestedOrgId
+    } else {
+      const resolved = resolveActiveOrgId(memberships, requestedOrgId)
+      if (resolved !== requestedOrgId) {
+        return jsonResponse({ error: 'Not a member of that organization.' }, 403)
+      }
+      activeOrgId = resolved
     }
 
     // Memberships are matched by invited_email here, but every authenticated

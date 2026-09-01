@@ -19,6 +19,7 @@ export const GET: APIRoute = async ({ request }) => {
         userId: session.userId,
         activeOrgId: session.activeOrgId,
         role: session.role,
+        isPlatformAdmin: session.isPlatformAdmin,
         email: user.email,
         name: user.name,
         organizations: memberships.map((m: { organizationId: string; role: string }) => ({

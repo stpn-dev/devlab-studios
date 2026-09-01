@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro'
 import { exchangeGoogleCode, fetchGoogleProfile } from '../../../../../worker/pickleball/oauth.js'
 import { upsertUserByGoogleSub } from '../../../../../worker/repositories/pickleball/users.js'
 import { listActiveMembershipsForEmail, linkMembershipUser } from '../../../../../worker/repositories/pickleball/memberships.js'
+import { getPendingInviteForEmail } from '../../../../../worker/repositories/pickleball/organizationInvites.js'
 import {
   resolveActiveOrgId,
   buildLoginRateLimitKey,
@@ -106,6 +107,23 @@ export const GET: APIRoute = async ({ request }) => {
     const memberships = await listActiveMembershipsForEmail(env.PICKLEBALL_DB, profile.email)
 
     if (!memberships.length) {
+      const pendingInvite = await getPendingInviteForEmail(env.PICKLEBALL_DB, profile.email)
+      if (pendingInvite) {
+        clearFailedLogins(loginKey)
+        const now = Math.floor(Date.now() / 1000)
+        const token = await signSession(
+          { userId: user.id, googleSub: user.googleSub, activeOrgId: null, iat: now, exp: now + SESSION_MAX_AGE_SECONDS },
+          env.PICKLEBALL_SESSION_SECRET,
+        )
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: `/pickleball/accept-invite/${pendingInvite.token}`,
+            'Set-Cookie': buildSetCookieHeader(SESSION_COOKIE_NAME, token, { secure, maxAgeSeconds: SESSION_MAX_AGE_SECONDS }),
+          },
+        })
+      }
+
       recordFailedLogin(loginKey)
       return new Response(null, {
         status: 302,
