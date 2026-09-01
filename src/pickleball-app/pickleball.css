@@ -66,10 +66,16 @@
   background: var(--brand-gradient);
 }
 
+/* A translucent white border carries the card's edge on both a light
+   surrounding page (Scorekeeper) and an already-dark one (the public
+   LiveView/TVDisplay share this same devlab-dark gradient background, so
+   the box-shadow alone doesn't read there -- the border is what keeps the
+   card legible in that context). */
 .pb-scoreboard {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(165deg, var(--devlab-dark-900) 0%, var(--devlab-dark-950) 100%);
   color: var(--text-on-dark);
   box-shadow: var(--shadow-elevated);

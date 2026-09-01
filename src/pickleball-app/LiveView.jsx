@@ -1,3 +1,4 @@
+import './pickleball.css'
 import { usePublicSessionView } from './lib/usePublicSessionView'
 
 function servingLabel(game) {
