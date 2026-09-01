@@ -22,17 +22,30 @@ export async function getOrganization(db, id) {
   return toOrganization(row)
 }
 
+// Returns null (rather than throwing) when the slug's UNIQUE constraint is
+// violated -- organizations.slug is NOT NULL UNIQUE, so a duplicate slug
+// makes the INSERT throw a raw D1 error. Callers (currently just the
+// org-invite accept route) treat a null return as "slug already taken" and
+// surface a clean 409, matching this repo's convention of returning null
+// for an expected "already exists" case instead of letting it throw.
 export async function createOrganization(db, { name, slug, maxAdmins = null, maxFacilitators = null, maxScorekeepers = null }) {
   const id = crypto.randomUUID()
   const timestamp = nowIso()
 
-  await db
-    .prepare(
-      `INSERT INTO organizations (id, name, slug, status, max_admins, max_facilitators, max_scorekeepers, created_at, updated_at)
-       VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?)`,
-    )
-    .bind(id, name, slug, maxAdmins, maxFacilitators, maxScorekeepers, timestamp, timestamp)
-    .run()
+  try {
+    await db
+      .prepare(
+        `INSERT INTO organizations (id, name, slug, status, max_admins, max_facilitators, max_scorekeepers, created_at, updated_at)
+         VALUES (?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?)`,
+      )
+      .bind(id, name, slug, maxAdmins, maxFacilitators, maxScorekeepers, timestamp, timestamp)
+      .run()
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
+      return null
+    }
+    throw error
+  }
 
   return getOrganization(db, id)
 }

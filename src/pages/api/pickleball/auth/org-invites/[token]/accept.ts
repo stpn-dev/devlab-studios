@@ -3,7 +3,7 @@ import type { APIRoute } from 'astro'
 import { requireGoogleIdentity } from '../../../../../../worker/pickleball/authContext.js'
 import { getInviteByToken, markInviteAccepted } from '../../../../../../worker/repositories/pickleball/organizationInvites.js'
 import { createOrganization } from '../../../../../../worker/repositories/pickleball/organizations.js'
-import { createMembership } from '../../../../../../worker/repositories/pickleball/memberships.js'
+import { createMembership, linkMembershipUser } from '../../../../../../worker/repositories/pickleball/memberships.js'
 import { getUserByGoogleSub } from '../../../../../../worker/repositories/pickleball/users.js'
 import { acceptOrgInviteSchema } from '../../../../../../lib/schemas/pickleball/platform'
 import { signSession, buildSetCookieHeader, SESSION_COOKIE_NAME } from '../../../../../../worker/pickleball/session.js'
@@ -48,6 +48,12 @@ export const POST: APIRoute = async ({ request, params }) => {
     }
 
     await createMembership(env.PICKLEBALL_DB, { organizationId: organization.id, invitedEmail: user.email, role: 'ADMIN' })
+    // createMembership inserts with user_id = NULL (it's keyed by invited_email
+    // only) -- without linking it now, requirePickleballSession's getMembership()
+    // lookup (by organizationId + userId) would find nothing and reject every
+    // subsequent request as unauthorized, same as google/callback.ts and
+    // test-login.ts do immediately after resolving a membership at sign-in.
+    await linkMembershipUser(env.PICKLEBALL_DB, { organizationId: organization.id, invitedEmail: user.email, userId: user.id })
     await markInviteAccepted(env.PICKLEBALL_DB, invite.id, organization.id)
 
     const now = Math.floor(Date.now() / 1000)
