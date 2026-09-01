@@ -74,16 +74,44 @@ export default function CheckInPage() {
     )
   }
 
-  function handleUncheckAll() {
+  async function handleUncheckAll() {
     if (!leaveEligiblePlayerIds.length) return
     // There is no bulk-leave endpoint (only check-in-bulk exists), so this
     // composes the same per-player `leave` request the individual "Leave"
-    // button below already makes, one call per eligible player.
-    const attemptedCount = leaveEligiblePlayerIds.length
-    runAction(
-      Promise.all(leaveEligiblePlayerIds.map((playerId) => pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/leave`, { playerId }))),
-      () => setMessage({ type: 'success', text: `Removed check-in for ${pluralize(attemptedCount, 'player')}.` })
+    // button below already makes, one call per eligible player. Unlike
+    // `runAction` (built around a single all-or-nothing promise), these N
+    // calls are independent: some can succeed on the server while others
+    // fail (e.g. a 409 from a stale row). We use Promise.allSettled instead
+    // of Promise.all so one failing call can't hide the others' success,
+    // reload the roster unconditionally so the screen always reflects
+    // actual server state, and report the real success/failure counts
+    // instead of a single generic message.
+    setMessage(null)
+    const results = await Promise.allSettled(
+      leaveEligiblePlayerIds.map((playerId) =>
+        pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/leave`, { playerId })
+      )
     )
+    const succeededCount = results.filter((result) => result.status === 'fulfilled').length
+    const failedCount = results.length - succeededCount
+
+    try {
+      await reload()
+    } catch (error) {
+      setMessage({ type: 'error', text: `Removed check-in for ${succeededCount} of ${results.length} players, but could not refresh the roster: ${error.message}` })
+      return
+    }
+
+    if (failedCount === 0) {
+      setMessage({ type: 'success', text: `Removed check-in for ${pluralize(succeededCount, 'player')}.` })
+    } else if (succeededCount === 0) {
+      setMessage({ type: 'error', text: `Failed to remove check-in for ${pluralize(failedCount, 'player')}.` })
+    } else {
+      setMessage({
+        type: 'error',
+        text: `Removed check-in for ${succeededCount} of ${results.length} players; ${pluralize(failedCount, 'player')} failed to leave.`,
+      })
+    }
   }
 
   return (
