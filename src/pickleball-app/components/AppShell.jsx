@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { hasPermission } from '../../lib/pickleball/permissions'
 import {
@@ -104,7 +104,18 @@ function filterVisibleSections(sections, session) {
 
 function NavSections({ sections, collapsed, onNavigate }) {
   return (
-    <nav className="flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
+    // `overflow-y-auto` only applies while expanded: with a single non-`visible`
+    // overflow axis, the CSS Overflow spec forces the OTHER axis to `auto` too
+    // (there is no standards-compliant way to keep one axis scrollable and the
+    // other genuinely visible on the same box), so whenever this nav has any
+    // overflow value it also clips horizontally -- silently eating the
+    // collapsed-sidebar tooltip (`.pb-nav-tooltip`, positioned via
+    // `left: calc(100% + 0.5rem)` off a `.pb-nav-link` ancestor here) before a
+    // sighted/keyboard user ever sees it. Expanded nav items render no
+    // tooltip at all (see the `collapsed ?` guard below), so keeping the
+    // scroll affordance there is free; collapsed mode's icon-only rows are
+    // short enough in practice not to need it.
+    <nav className={`flex-1 space-y-5 px-2.5 py-4 ${collapsed ? '' : 'overflow-y-auto'}`}>
       {sections.map((section) => (
         <div key={section.key}>
           {!collapsed ? <p className="pb-eyebrow mb-1.5 px-2.5 text-[color:var(--text-on-dark-muted)]">{section.heading}</p> : null}
@@ -205,12 +216,58 @@ export default function AppShell({ session, organizations, onSwitchOrg, onLogout
     }
   })
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
+  const mobileDrawerRef = useRef(null)
+  const mobileCloseButtonRef = useRef(null)
 
   // Route changes are one of the three ways the brief requires the mobile
   // drawer to close (backdrop click, close button, or route change).
   useEffect(() => {
     setIsMobileNavOpen(false)
   }, [location.pathname])
+
+  // Move focus into the drawer as soon as it opens -- without this, focus
+  // stays on the (now off-screen/backdrop-covered) trigger button that
+  // opened it, which is both invisible to a sighted user and unreachable by
+  // keyboard until they tab all the way back to where they started.
+  useEffect(() => {
+    if (isMobileNavOpen) {
+      mobileCloseButtonRef.current?.focus()
+    }
+  }, [isMobileNavOpen])
+
+  // Escape-to-close plus a simple manual focus trap: while the drawer is
+  // open, Tab/Shift+Tab wrap between its first and last focusable elements
+  // instead of walking out into the backdrop-covered main content behind it.
+  useEffect(() => {
+    if (!isMobileNavOpen) return undefined
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setIsMobileNavOpen(false)
+        return
+      }
+      if (event.key !== 'Tab' || !mobileDrawerRef.current) return
+
+      const focusable = mobileDrawerRef.current.querySelectorAll(
+        'a[href], button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )
+      if (!focusable.length) return
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isMobileNavOpen])
 
   function toggleCollapsed() {
     setIsCollapsed((wasCollapsed) => {
@@ -270,6 +327,10 @@ export default function AppShell({ session, organizations, onSwitchOrg, onLogout
             onClick={() => setIsMobileNavOpen(false)}
           />
           <aside
+            ref={mobileDrawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation"
             className="pb-sidebar relative flex h-full w-72 max-w-[85vw] flex-col shadow-2xl"
             data-testid="mobile-nav-drawer"
           >
@@ -279,6 +340,7 @@ export default function AppShell({ session, organizations, onSwitchOrg, onLogout
                 <div className="pb-rule mt-1 h-[3px] w-11 rounded-full" />
               </div>
               <button
+                ref={mobileCloseButtonRef}
                 type="button"
                 onClick={() => setIsMobileNavOpen(false)}
                 aria-label="Close navigation"
