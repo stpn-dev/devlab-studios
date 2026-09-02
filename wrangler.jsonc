@@ -78,7 +78,7 @@
         "R2_PUBLIC_BASE_URL": "https://pub-2450236b7cbf4d68aa4bc07f9b606e29.r2.dev",
         "TURNSTILE_SITE_KEY": "0x4AAAAAAEO0gy1ZeS8AbYUC",
         "PICKLEBALL_OAUTH_REDIRECT_BASE_URL": "https://devlab-studios-preview.stpnrey-agustinez.workers.dev",
-        "GOOGLE_OAUTH_CLIENT_ID": "REPLACE_ME"
+        "GOOGLE_OAUTH_CLIENT_ID": "623988421575-p6kvgpj2rhq7l59ovpg6ftbl1ha3bnib.apps.googleusercontent.com"
       },
       "d1_databases": [
         {
