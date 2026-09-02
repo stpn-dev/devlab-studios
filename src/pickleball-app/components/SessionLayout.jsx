@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useOutletContext, useParams } from 'react-router-dom'
 import { useSessionRealtime } from '../lib/useSessionRealtime'
 import { pickleballApi } from '../lib/pickleballApi'
+import { hasPermission } from '../../lib/pickleball/permissions'
+import { Pencil, Check, Close } from '../../components/icons/icons'
 
 const SUB_NAV = [
   { to: '', label: 'Overview', end: true },
@@ -83,6 +85,32 @@ export default function SessionLayout() {
   const [session, setSession] = useState(null)
   const [loadError, setLoadError] = useState(false)
   const [fetchKey, setFetchKey] = useState(null)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
+  const [nameError, setNameError] = useState(null)
+  const [savingName, setSavingName] = useState(false)
+
+  const canManageSessions = hasPermission({ role: authRole, isPlatformAdmin }, 'MANAGE_SESSIONS')
+
+  function startEditingName() {
+    setNameDraft(session.name)
+    setNameError(null)
+    setIsEditingName(true)
+  }
+
+  async function saveName() {
+    setSavingName(true)
+    setNameError(null)
+    try {
+      const result = await pickleballApi.patch(`/api/pickleball/sessions/${sessionId}`, { name: nameDraft })
+      setSession(result.session)
+      setIsEditingName(false)
+    } catch (error) {
+      setNameError(error.message)
+    } finally {
+      setSavingName(false)
+    }
+  }
 
   const currentKey = `${sessionId}:${activeOrgId}`
   if (fetchKey !== currentKey) {
@@ -118,9 +146,53 @@ export default function SessionLayout() {
     <div className="space-y-4">
       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
         <div>
-          <h1 className="text-xl font-extrabold tracking-tight text-slate-900">
-            {loadError ? 'Could not load this session.' : session ? session.name : 'Loading…'}
-          </h1>
+          {!loadError && session && isEditingName ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={nameDraft}
+                onChange={(event) => setNameDraft(event.target.value)}
+                autoFocus
+                maxLength={160}
+                className="rounded border border-slate-300 px-2 py-1 text-xl font-extrabold tracking-tight text-slate-900"
+              />
+              <button
+                type="button"
+                disabled={savingName}
+                onClick={saveName}
+                className="inline-flex h-9 w-9 items-center justify-center rounded border border-slate-300 text-emerald-700 hover:bg-slate-50 disabled:opacity-50"
+                aria-label="Save session name"
+              >
+                <Check className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                disabled={savingName}
+                onClick={() => setIsEditingName(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                aria-label="Cancel editing session name"
+              >
+                <Close className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-extrabold tracking-tight text-slate-900">
+                {loadError ? 'Could not load this session.' : session ? session.name : 'Loading…'}
+              </h1>
+              {!loadError && session && canManageSessions ? (
+                <button
+                  type="button"
+                  onClick={startEditingName}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  aria-label="Edit session name"
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          )}
+          {nameError ? <p className="text-sm text-rose-600">{nameError}</p> : null}
           <div className="pb-rule mt-1.5 h-[3px] w-11 rounded-full" />
         </div>
         {loadError ? null : (

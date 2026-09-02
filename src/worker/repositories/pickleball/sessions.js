@@ -1,4 +1,5 @@
 import { nowIso } from '../../utils/responses.js'
+import { buildRecomputePlayerSnapshotsStatements } from './playerPerformanceSnapshots.js'
 
 function toSession(row) {
   if (!row) return null
@@ -196,6 +197,52 @@ export async function updateSessionStatus(db, id, organizationId, fromStatus, to
     .run()
   if (!result.meta.changes) return null
   return getSession(db, id, organizationId)
+}
+
+export async function updateSessionName(db, id, organizationId, name) {
+  const result = await db
+    .prepare(`UPDATE pickleball_sessions SET name = ?, updated_at = ? WHERE id = ? AND organization_id = ?`)
+    .bind(name.trim(), nowIso(), id, organizationId)
+    .run()
+  if (!result.meta.changes) return null
+  return getSession(db, id, organizationId)
+}
+
+// Every direct child table of pickleball_sessions (session_courts,
+// session_players, queue_entries, teams, games -- and transitively
+// game_participants/score_events/idempotency_keys/player_game_stats via
+// games, matchmaking_history) already has ON DELETE CASCADE back to this
+// table (see migrations 0001, 0003, 0004, 0007). Two things do NOT cascade
+// and need explicit handling:
+//   - audit_events.session_id has no FK at all (by design -- an audit log
+//     is meant to survive the thing it describes), but a full session
+//     delete is asked to remove "everything following" it, so this
+//     explicitly deletes them rather than leaving a dangling session_id.
+//   - player_performance_snapshots isn't linked to a session by FK either
+//     (only to player_id); its SESSION-scoped row and its ALL_TIME
+//     aggregate both need recomputing from what remains in
+//     player_game_stats *after* this session's games are gone --
+//     buildRecomputePlayerSnapshotsStatements (already used by
+//     reopen/correct) does exactly this via its own delete-then-
+//     insert-from-aggregate pattern, which is why it must run inside the
+//     SAME batch, after the session delete above it.
+export async function listSessionPlayerIds(db, sessionId) {
+  const result = await db
+    .prepare(`SELECT DISTINCT player_id FROM player_game_stats pgs JOIN games g ON g.id = pgs.game_id WHERE g.session_id = ?`)
+    .bind(sessionId)
+    .all()
+  return (result.results || []).map((row) => row.player_id)
+}
+
+export async function deleteSessionCascade(db, id, organizationId, affectedPlayerIds) {
+  const statements = [
+    db.prepare(`DELETE FROM audit_events WHERE session_id = ?`).bind(id),
+    db.prepare(`DELETE FROM pickleball_sessions WHERE id = ? AND organization_id = ?`).bind(id, organizationId),
+    ...buildRecomputePlayerSnapshotsStatements(db, affectedPlayerIds, id),
+  ]
+  const results = await db.batch(statements)
+  // The session-delete statement is always the second one in the array above.
+  return Boolean(results[1]?.meta?.changes)
 }
 
 // Returns a prepared-but-not-yet-run INSERT statement so the route can

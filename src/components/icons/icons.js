@@ -62,6 +62,7 @@ export {
   Upload,
   Copy,
   Check,
+  Pencil,
   X as Close,
   RotateCw,
   Pause,

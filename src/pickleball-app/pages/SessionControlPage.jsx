@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useOutletContext, useNavigate } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 import { hasPermission } from '../../lib/pickleball/permissions'
 import PublicLinkQRCode from '../components/PublicLinkQRCode'
 import MetricCard from '../components/MetricCard'
 import SessionStatusChip from '../components/SessionStatusChip'
 import { SkeletonBlock, SkeletonMetricCard } from '../components/SkeletonLoader'
-import { Activity, ClipboardList, ListOrdered, Grid3x3, Play, Pause, CheckCircle2, Close } from '../../components/icons/icons'
+import { Activity, ClipboardList, ListOrdered, Grid3x3, Play, Pause, CheckCircle2, Close, Trash2 } from '../../components/icons/icons'
 
 // Mirrors src/lib/pickleball/sessionStateMachine.ts's TARGET_TRANSITIONS --
 // this only decides which buttons to *show* for the session's current
@@ -46,10 +46,15 @@ function humanizeEnum(value) {
 
 export default function SessionControlPage() {
   const { sessionId, session, snapshot, authRole, isPlatformAdmin, onSessionUpdated } = useOutletContext()
+  const navigate = useNavigate()
   const [publicCode, setPublicCode] = useState(null)
   const [fetchKey, setFetchKey] = useState(null)
   const [message, setMessage] = useState(null)
   const [busyTarget, setBusyTarget] = useState(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
 
   const canManageSessions = hasPermission({ role: authRole, isPlatformAdmin }, 'MANAGE_SESSIONS')
 
@@ -63,6 +68,18 @@ export default function SessionControlPage() {
       setMessage({ type: 'error', text: error.message })
     } finally {
       setBusyTarget(null)
+    }
+  }
+
+  async function deleteSession() {
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await pickleballApi.delete(`/api/pickleball/sessions/${sessionId}`)
+      navigate('/pickleball/app/sessions')
+    } catch (error) {
+      setDeleteError(error.message)
+      setDeleting(false)
     }
   }
 
@@ -148,6 +165,58 @@ export default function SessionControlPage() {
             ) : null}
           </div>
           {message ? <p className="text-sm text-rose-600">{message.text}</p> : null}
+        </div>
+      ) : null}
+      {canManageSessions ? (
+        <div className="space-y-2 rounded-xl border border-rose-200 bg-rose-50 p-4">
+          <p className="pb-eyebrow text-rose-700">Danger zone</p>
+          {showDeleteConfirm ? (
+            <div className="space-y-2">
+              <p className="text-sm text-rose-700">
+                This permanently deletes this session and every court, queue entry, game, and stat recorded under it. This cannot be undone.
+                Type the session name (<span className="font-semibold">{session.name}</span>) to confirm.
+              </p>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(event) => setDeleteConfirmText(event.target.value)}
+                className="w-full max-w-sm rounded border border-rose-300 px-3 py-2 text-sm"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={deleting || deleteConfirmText !== session.name}
+                  onClick={deleteSession}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  {deleting ? 'Deleting…' : 'Delete permanently'}
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => {
+                    setShowDeleteConfirm(false)
+                    setDeleteConfirmText('')
+                    setDeleteError(null)
+                  }}
+                  className="inline-flex min-h-11 items-center justify-center rounded border border-slate-300 px-4 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+              {deleteError ? <p className="text-sm text-rose-700">{deleteError}</p> : null}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded border border-rose-300 px-4 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Delete session
+            </button>
+          )}
         </div>
       ) : null}
       {publicUrl ? (

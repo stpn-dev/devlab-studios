@@ -13,5 +13,10 @@ export const sessionStatusSchema = z.object({
   status: z.enum(['DRAFT', 'OPEN_FOR_CHECKIN', 'LIVE', 'PAUSED', 'COMPLETED', 'CANCELLED']),
 })
 
+export const updateSessionNameSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+})
+
 export type CreateSessionInput = z.infer<typeof createSessionSchema>
 export type SessionStatusInput = z.infer<typeof sessionStatusSchema>
+export type UpdateSessionNameInput = z.infer<typeof updateSessionNameSchema>
