@@ -163,6 +163,20 @@
   }
 }
 
+/* On-dark focus ring: the site's global `:focus-visible` outline
+   (src/index.css, brand-violet) measures ~2.8:1 against this app's dark
+   `.pb-sidebar`/`.pb-scoreboard` surfaces -- short of WCAG 2.4.11's 3:1
+   non-text-contrast minimum for a focus indicator. Elements whose focus
+   ring lands on one of those dark surfaces (sidebar nav links, the
+   collapse toggle, the mobile drawer's own controls, CourtCard's
+   button-wrapped compact scoreboard) opt into this class for a
+   higher-contrast on-dark outline color instead, reusing the same
+   `--text-on-dark` token already used for text on these exact surfaces
+   (18.3:1 against --devlab-dark-900, comfortably clears 3:1). */
+.pb-focus-on-dark:focus-visible {
+  outline-color: var(--text-on-dark);
+}
+
 /* Mobile nav drawer backdrop (Decision 5's `fixed inset-0 md:hidden` slide-over). */
 .pb-drawer-backdrop {
   background: rgba(6, 7, 17, 0.6);
@@ -248,11 +262,16 @@
   border-color: var(--border-subtle);
 }
 
-/* OUT_OF_SERVICE: muted/disabled-looking, matching `.pb-btn-primary:disabled`'s
-   existing opacity convention rather than inventing a new one. */
+/* OUT_OF_SERVICE: muted/disabled-looking via the `--surface-alt` tint alone.
+   An element-level `opacity` was tried first (matching
+   `.pb-btn-primary:disabled`'s convention) but Task 10's contrast audit
+   found it dims this card's own text along with its background --
+   text-slate-700/text-slate-500 measured 3.88:1/2.41:1 against the dimmed
+   backdrop, both below WCAG AA's 4.5:1. Dropping the opacity keeps the
+   "muted" cue (a visibly different, cooler card background) while every
+   text color inside stays at full, compliant contrast. */
 .pb-court-card--out-of-service {
   background: var(--surface-alt);
-  opacity: 0.7;
 }
 
 .pb-court-card--out-of-service:hover {
@@ -288,11 +307,19 @@
    per component. `color-mix` blends each token with white for the chip's
    soft background, so no new hex value is introduced beyond the four tokens
    themselves. Every chip still pairs its color with an icon + text label
-   (never color alone) -- that pairing lives in PlayerStatusChip.jsx itself. */
+   (never color alone) -- that pairing lives in PlayerStatusChip.jsx itself.
+   Task 10 contrast audit: the original success/warning/danger shades
+   (emerald-600/amber-700/rose-600) measured 3.25:1/4.15:1/3.89:1 against
+   their own `.pb-status-chip--*` background -- below WCAG AA's 4.5:1 for
+   this chip's 12px/650-weight text (too small/light to qualify as "large
+   text"). Each is swapped one step darker within the same Tailwind family
+   (emerald-800/amber-800/rose-700) so the token still reads as the same
+   hue but clears 4.5:1 with margin (6.36:1/5.69:1/5.12:1 measured); info
+   (sky-700) already passed at 4.98:1 and is unchanged. */
 :root {
-  --pb-status-success: #059669;
-  --pb-status-warning: #b45309;
-  --pb-status-danger: #e11d48;
+  --pb-status-success: #065f46;
+  --pb-status-warning: #92400e;
+  --pb-status-danger: #be123c;
   --pb-status-info: #0369a1;
 }
 

@@ -151,7 +151,7 @@ export default function GamesListPage() {
                 <Link
                   key={game.id}
                   to={game.id}
-                  className="block space-y-1.5 rounded-xl transition-transform hover:-translate-y-0.5"
+                  className="block space-y-1.5 rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
                 >
                   <div className="flex items-center justify-end gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     {game.status === 'IN_PROGRESS' ? <span className="pb-live-dot" /> : null}

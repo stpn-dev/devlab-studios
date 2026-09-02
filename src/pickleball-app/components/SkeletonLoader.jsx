@@ -27,7 +27,11 @@
  */
 export function SkeletonLine({ className = '', tone = 'light' }) {
   const toneClassName = tone === 'dark' ? 'bg-white/10' : 'bg-slate-200'
-  return <div className={`animate-pulse rounded-md ${toneClassName} ${className}`} />
+  // motion-reduce:animate-none -- Task 10's reduced-motion audit found this
+  // Tailwind animate-pulse had no prefers-reduced-motion guard (unlike every
+  // other animated element this plan introduced); a static placeholder still
+  // communicates "loading" via SkeletonBlock's own role="status" label.
+  return <div className={`animate-pulse motion-reduce:animate-none rounded-md ${toneClassName} ${className}`} />
 }
 
 export function SkeletonMetricCard() {

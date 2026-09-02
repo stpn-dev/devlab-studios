@@ -56,7 +56,12 @@ export default function CourtCard({ court, status, enabled, game = null, recomme
           <Grid3x3 className="h-4 w-4 flex-shrink-0 text-slate-400" aria-hidden="true" />
           <span className="truncate">{court.courtName}</span>
         </span>
-        <span className="flex flex-shrink-0 items-center gap-1.5 text-xs text-slate-500">
+        {/* text-slate-600, not -500: Task 10's contrast audit found -500
+            drops to 3.97:1 against the OUT_OF_SERVICE card's --surface-alt
+            background (below WCAG AA's 4.5:1 for this text-xs run) --
+            -600 clears 4.5:1 against every one of this card's backgrounds
+            (6.3-7.4:1 measured), so one color works for all three states. */}
+        <span className="flex flex-shrink-0 items-center gap-1.5 text-xs text-slate-600">
           {court.status === 'ASSIGNED' ? <span className="pb-live-dot" /> : null}
           {court.status}
         </span>
@@ -73,7 +78,7 @@ export default function CourtCard({ court, status, enabled, game = null, recomme
             type="button"
             onClick={onOpen}
             disabled={!onOpen}
-            className="block w-full rounded-lg text-left disabled:cursor-default"
+            className="pb-focus-on-dark block w-full rounded-lg text-left disabled:cursor-default"
           >
             <GameScoreboard game={game} variant="compact" />
           </button>
