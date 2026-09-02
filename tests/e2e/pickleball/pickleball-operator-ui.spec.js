@@ -151,7 +151,7 @@ test('SessionControlPage shows Live status and its queue count updates from a br
   const sessionId = (await sessionResponse.json()).session.id
 
   await page.goto(`/pickleball/app/sessions/${sessionId}`)
-  await expect(page.getByTestId('realtime-status')).toHaveText('Live', { timeout: 10000 })
+  await expect(page.getByTestId('realtime-status')).toHaveText('Connected', { timeout: 10000 })
   await expect(page.getByTestId('queue-count')).toHaveText('0')
 
   // Trigger the mutation from a SEPARATE `request` context after the page's
@@ -404,7 +404,7 @@ test('StartGameForm does not re-fetch teams when an unrelated broadcast re-rende
   })
 
   await page.goto(`/pickleball/app/sessions/${sessionId}/games`)
-  await expect(page.getByTestId('realtime-status')).toHaveText('Live', { timeout: 10000 })
+  await expect(page.getByTestId('realtime-status')).toHaveText('Connected', { timeout: 10000 })
   await expect(page.getByText('Court 1 — assigned, no game started')).toBeVisible()
   await page.getByText('Court 1 — assigned, no game started').click()
 

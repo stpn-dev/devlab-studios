@@ -40,14 +40,18 @@ function useQueueReasons(sessionId, snapshot) {
     : ''
 
   useEffect(() => {
-    if (!sessionId || !queuedIdsKey) {
-      setReasonsBySessionPlayerId({})
-      return undefined
-    }
-
     let cancelled = false
 
+    // The reset-to-empty branch is inside this async function (not called
+    // directly at the effect's top level) so a plain sessionId/queue change
+    // that empties the queue clears stale reasons through the same async
+    // path a real fetch would use, rather than a synchronous setState call
+    // in the effect body itself.
     async function fetchReasons() {
+      if (!sessionId || !queuedIdsKey) {
+        if (!cancelled) setReasonsBySessionPlayerId({})
+        return
+      }
       try {
         const data = await pickleballApi.get(`/api/pickleball/sessions/${sessionId}/queue`)
         if (cancelled) return
@@ -61,13 +65,13 @@ function useQueueReasons(sessionId, snapshot) {
     }
 
     fetchReasons()
-    const interval = setInterval(fetchReasons, 15000)
+    const interval = queuedIdsKey ? setInterval(fetchReasons, 15000) : null
 
     return () => {
       cancelled = true
-      clearInterval(interval)
+      if (interval) clearInterval(interval)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [sessionId, queuedIdsKey])
 
   return reasonsBySessionPlayerId
@@ -125,7 +129,7 @@ export default function SessionLayout() {
             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${status === 'open' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}
           >
             {status === 'open' ? <span className="pb-live-dot" /> : null}
-            {status === 'open' ? 'Live' : status === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
+            {status === 'open' ? 'Connected' : status === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
           </span>
         )}
       </div>
@@ -149,7 +153,7 @@ export default function SessionLayout() {
             ))}
           </nav>
 
-          <Outlet context={{ sessionId, session, status, snapshot: enrichedSnapshot, error, authRole, isPlatformAdmin }} />
+          <Outlet context={{ sessionId, session, status, snapshot: enrichedSnapshot, error, authRole, isPlatformAdmin, onSessionUpdated: setSession }} />
         </>
       )}
     </div>
