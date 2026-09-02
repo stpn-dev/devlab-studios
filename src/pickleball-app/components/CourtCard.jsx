@@ -87,7 +87,7 @@ export default function CourtCard({ court, status, enabled, game = null, recomme
         )
       ) : null}
 
-      {showAssign ? <RecommendedMatchCard candidates={recommended} onAssign={onAssign} /> : null}
+      {showAssign ? <RecommendedMatchCard candidates={recommended} onAssign={onAssign} courtId={court.id} /> : null}
 
       <div className="flex flex-wrap gap-2">
         {showRelease ? (

@@ -27,10 +27,17 @@ import { Sparkles } from '../../components/icons/icons'
  * @param {Object} props
  * @param {Array<{ sessionPlayerId: string, displayName: string, reasons?: string[] }>} [props.candidates]
  * @param {() => void} props.onAssign
+ * @param {string} [props.courtId] - the owning court's id, used to key this
+ *   card's `data-testid` -- CourtsPage.jsx renders one of these per
+ *   AVAILABLE court, so a bare static testid would violate Playwright's
+ *   strict mode as soon as more than one court is AVAILABLE at once.
  */
-export default function RecommendedMatchCard({ candidates = [], onAssign }) {
+export default function RecommendedMatchCard({ candidates = [], onAssign, courtId }) {
   return (
-    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3" data-testid="recommended-match-card">
+    <div
+      className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3"
+      data-testid={courtId ? `recommended-match-card-${courtId}` : 'recommended-match-card'}
+    >
       <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
         <Sparkles className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
         Recommended next players

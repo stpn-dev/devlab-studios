@@ -93,7 +93,7 @@ export default function GameScoreboard({
   const gameWon = ruleset ? hasGameBeenWon(state, ruleset) : false
 
   return (
-    <div data-testid="game-scoreboard" className={`pb-scoreboard ${compact ? 'p-4' : 'p-6'} text-center ${className}`}>
+    <div data-testid={`game-scoreboard-${game.id}`} className={`pb-scoreboard ${compact ? 'p-4' : 'p-6'} text-center ${className}`}>
       {contextualCopy ? (
         <p className={`mb-2 inline-block rounded-full px-3 py-0.5 text-xs font-bold uppercase tracking-wide shadow-sm ${contextualCopy.className}`}>
           {contextualCopy.text}

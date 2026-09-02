@@ -85,6 +85,12 @@ export default function CourtsPage() {
 
   const loading = !snapshot
   const recommended = loading ? [] : recommendedCandidates(snapshot.queue)
+  // The single "recommended next players" preview is only meaningful once
+  // per render (see the per-court comment below) -- attached to the first
+  // AVAILABLE court in the snapshot's own array order.
+  const firstAvailableCourtId = loading
+    ? null
+    : snapshot.courts.find((court) => deriveCourtCardStatus(court, court.id in enabledByCourtId ? enabledByCourtId[court.id] : court.enabled) === 'AVAILABLE')?.id ?? null
 
   return (
     <div className="space-y-6">
@@ -107,6 +113,15 @@ export default function CourtsPage() {
           {snapshot.courts.map((court) => {
             const enabled = court.id in enabledByCourtId ? enabledByCourtId[court.id] : court.enabled
             const liveGame = snapshot.games.find((g) => g.sessionCourtId === court.id && g.status === 'IN_PROGRESS')
+            // Every AVAILABLE court's CourtCard would otherwise render this
+            // page's one `recommended` list unchanged -- with N AVAILABLE
+            // courts that shows the identical 4 candidate names N times,
+            // implying 4N seats are needed for 4 players. Only the first
+            // AVAILABLE court in render order gets the preview (matches
+            // `firstAvailableCourtId`, computed once below); every other
+            // one falls back to CourtCard's existing empty/no-recommendation
+            // state (an empty `recommended` array).
+            const isFirstAvailable = court.id === firstAvailableCourtId
             return (
               <CourtCard
                 key={court.id}
@@ -114,7 +129,7 @@ export default function CourtsPage() {
                 status={deriveCourtCardStatus(court, enabled)}
                 enabled={enabled}
                 game={liveGame}
-                recommended={recommended}
+                recommended={isFirstAvailable ? recommended : []}
                 onAssign={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { sessionCourtId: court.id }))}
                 onRelease={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/release`, { sessionCourtId: court.id }))}
                 onEnable={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/enable`, { sessionCourtId: court.id }), { refreshEnabled: true })}
