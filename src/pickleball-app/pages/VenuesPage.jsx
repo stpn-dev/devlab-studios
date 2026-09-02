@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
+import SelectItemGraphic from '../components/illustrations/SelectItemGraphic'
 
 export default function VenuesPage() {
   const { activeOrgId } = useOutletContext()
@@ -93,7 +94,7 @@ export default function VenuesPage() {
 
       {status === 'error' ? <p className="text-sm text-rose-600">Could not load venues.</p> : null}
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="grid max-w-3xl gap-6 lg:grid-cols-[280px_1fr]">
         <div className="space-y-2" data-testid="venues-list">
           {status === 'loading' ? (
             <SkeletonBlock>
@@ -163,7 +164,7 @@ export default function VenuesPage() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-slate-500">Select a venue to manage its courts.</p>
+            <EmptyState title="No venue selected" description="Select a venue from the list to manage its courts." illustration={SelectItemGraphic} />
           )}
         </div>
       </div>

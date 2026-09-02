@@ -222,7 +222,10 @@ export default function AppShell({ session, organizations, onSwitchOrg, onLogout
   // Route changes are one of the three ways the brief requires the mobile
   // drawer to close (backdrop click, close button, or route change).
   useEffect(() => {
-    setIsMobileNavOpen(false)
+    function closeDrawer() {
+      setIsMobileNavOpen(false)
+    }
+    closeDrawer()
   }, [location.pathname])
 
   // Move focus into the drawer as soon as it opens -- without this, focus
@@ -355,7 +358,7 @@ export default function AppShell({ session, organizations, onSwitchOrg, onLogout
         </div>
       ) : null}
 
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <main className="pb-mesh-bg flex-1 overflow-y-auto p-4 sm:p-6">
         <Outlet context={{ authRole: session.role, activeOrgId: session.activeOrgId, isPlatformAdmin: session.isPlatformAdmin }} />
       </main>
     </div>

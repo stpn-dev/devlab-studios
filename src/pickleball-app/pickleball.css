@@ -358,3 +358,31 @@
   color: var(--text-muted);
   background: var(--surface-subtle);
 }
+
+/* Reuses the marketing site's own sitewide dot-mesh texture (--mesh-dot /
+   --mesh-dot-soft, defined once in src/index.css) rather than inventing a
+   second decorative background system -- the pickleball app is mounted
+   standalone so it never inherits body::before's version (page containers
+   paint an opaque background over it), so this repaints the same pattern
+   locally on the app's own main content area. Purely decorative (no text,
+   no motion), so no prefers-reduced-motion guard is needed. */
+.pb-mesh-bg {
+  position: relative;
+  isolation: isolate;
+}
+
+.pb-mesh-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, var(--mesh-dot) 0.9px, transparent 1.25px),
+    radial-gradient(circle, var(--mesh-dot-soft) 0.65px, transparent 1px);
+  background-position: 0 0, 22px 25px;
+  background-size: 44px 44px, 58px 54px;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: -1;
+  mask-image: linear-gradient(to bottom, black 0%, rgba(0, 0, 0, 0.85) 70%, rgba(0, 0, 0, 0.35) 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, rgba(0, 0, 0, 0.85) 70%, rgba(0, 0, 0, 0.35) 100%);
+}

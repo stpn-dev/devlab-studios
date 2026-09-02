@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
+import SelectItemGraphic from '../components/illustrations/SelectItemGraphic'
 
 const EMPTY_PLAYER = { id: null, displayName: '' }
 
@@ -70,7 +71,7 @@ export default function PlayersPage() {
 
       {status === 'error' ? <p className="text-sm text-rose-600">Could not load players.</p> : null}
 
-      <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="grid max-w-3xl gap-6 lg:grid-cols-[280px_1fr]">
         <div className="space-y-2" data-testid="players-list">
           {status === 'loading' ? (
             <SkeletonBlock>
@@ -122,7 +123,11 @@ export default function PlayersPage() {
               </button>
             </div>
           ) : (
-            <p className="text-sm text-slate-500">Add a new player, or click Edit next to a player to update their name.</p>
+            <EmptyState
+              title="No player selected"
+              description="Add a new player, or click Edit next to a player in the list to update their name."
+              illustration={SelectItemGraphic}
+            />
           )}
         </div>
       </div>
