@@ -5,26 +5,38 @@ import { canCheckIn, canSetAvailability, canLeaveSession, canCancelRegistration 
 import PlayerStatusChip from '../components/PlayerStatusChip'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
-import { Search, UserCheck, LogOut } from '../../components/icons/icons'
+import { Search, UserCheck, LogOut, ListOrdered } from '../../components/icons/icons'
 
 export default function CheckInPage() {
   const { sessionId } = useOutletContext()
   const [sessionPlayers, setSessionPlayers] = useState([])
   const [counts, setCounts] = useState(null)
   const [orgPlayers, setOrgPlayers] = useState([])
+  const [queuedSessionPlayerIds, setQueuedSessionPlayerIds] = useState(new Set())
   const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState(null)
   const [selectedNewPlayerId, setSelectedNewPlayerId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
   async function reload() {
-    const [sessionData, orgData] = await Promise.all([
+    // Queue membership isn't part of this page's own session-players fetch
+    // (attendanceStatus/availabilityStatus only), and this page doesn't
+    // consume the realtime snapshot (see Task 4/5's data-flow lesson --
+    // CheckInPage already has its own reload()-after-mutation pattern), so
+    // this fetches the queue's own list directly, the same one QueuePage
+    // reads, to know which checked-in/available players already have an
+    // open entry (QUEUED/ASSIGNED/PLAYING -- queue_entries' only possible
+    // statuses per its own CHECK constraint) and shouldn't show "Join queue"
+    // again.
+    const [sessionData, orgData, queueData] = await Promise.all([
       pickleballApi.get(`/api/pickleball/sessions/${sessionId}/players`),
       pickleballApi.get('/api/pickleball/players'),
+      pickleballApi.get(`/api/pickleball/sessions/${sessionId}/queue`),
     ])
     setSessionPlayers(sessionData.players)
     setCounts(sessionData.counts)
     setOrgPlayers(orgData.players)
+    setQueuedSessionPlayerIds(new Set(queueData.queue.map((entry) => entry.sessionPlayerId)))
     setStatus('ready')
   }
 
@@ -52,6 +64,15 @@ export default function CheckInPage() {
 
   const checkInEligiblePlayerIds = filteredPlayers.filter(canCheckIn).map((player) => player.playerId)
   const leaveEligiblePlayerIds = filteredPlayers.filter(canLeaveSession).map((player) => player.playerId)
+
+  // Mirrors joinQueue's own hasOpenQueueEntry guard (queue_entries' status
+  // CHECK constraint only allows QUEUED/ASSIGNED/PLAYING, so any row at all
+  // for this sessionPlayerId means "already has an open entry") -- checked
+  // in, available, and not already queued.
+  function canJoinQueue(player) {
+    return player.attendanceStatus === 'CHECKED_IN' && player.availabilityStatus === 'AVAILABLE' && !queuedSessionPlayerIds.has(player.id)
+  }
+  const joinQueueEligibleSessionPlayerIds = filteredPlayers.filter(canJoinQueue).map((player) => player.id)
 
   async function runAction(actionPromise, onSuccess) {
     setMessage(null)
@@ -112,6 +133,42 @@ export default function CheckInPage() {
       setMessage({
         type: 'error',
         text: `Removed check-in for ${succeededCount} of ${results.length} players; ${pluralize(failedCount, 'player')} failed to leave.`,
+      })
+    }
+  }
+
+  // No bulk join-queue endpoint exists (only the single-player one this page
+  // otherwise uses per row), so this composes N independent calls the same
+  // way handleUncheckAll already does: Promise.allSettled (one failure can't
+  // hide the others' success), an unconditional reload so the screen always
+  // reflects real server state, and real success/failure counts rather than
+  // a single generic message.
+  async function handleJoinAll() {
+    if (!joinQueueEligibleSessionPlayerIds.length) return
+    setMessage(null)
+    const results = await Promise.allSettled(
+      joinQueueEligibleSessionPlayerIds.map((sessionPlayerId) =>
+        pickleballApi.post(`/api/pickleball/sessions/${sessionId}/queue`, { sessionPlayerId })
+      )
+    )
+    const succeededCount = results.filter((result) => result.status === 'fulfilled').length
+    const failedCount = results.length - succeededCount
+
+    try {
+      await reload()
+    } catch (error) {
+      setMessage({ type: 'error', text: `Added ${succeededCount} of ${results.length} players to the queue, but could not refresh the roster: ${error.message}` })
+      return
+    }
+
+    if (failedCount === 0) {
+      setMessage({ type: 'success', text: `Added ${pluralize(succeededCount, 'player')} to the queue.` })
+    } else if (succeededCount === 0) {
+      setMessage({ type: 'error', text: `Failed to add ${pluralize(failedCount, 'player')} to the queue.` })
+    } else {
+      setMessage({
+        type: 'error',
+        text: `Added ${succeededCount} of ${results.length} players to the queue; ${pluralize(failedCount, 'player')} failed.`,
       })
     }
   }
@@ -196,6 +253,16 @@ export default function CheckInPage() {
             <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
             Uncheck all
           </button>
+          <button
+            type="button"
+            onClick={handleJoinAll}
+            disabled={!joinQueueEligibleSessionPlayerIds.length}
+            data-testid="checkin-join-queue-all"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+          >
+            <ListOrdered className="h-3.5 w-3.5" aria-hidden="true" />
+            Join all to queue
+          </button>
         </div>
       </div>
 
@@ -233,6 +300,16 @@ export default function CheckInPage() {
               {canLeaveSession(player) ? (
                 <button type="button" onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/players/leave`, { playerId: player.playerId }))} className="inline-flex min-h-11 items-center justify-center rounded border border-rose-300 px-3 text-xs font-semibold text-rose-600 hover:bg-rose-50">
                   Leave
+                </button>
+              ) : null}
+              {canJoinQueue(player) ? (
+                <button
+                  type="button"
+                  onClick={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/queue`, { sessionPlayerId: player.id }))}
+                  className="pb-btn-primary inline-flex min-h-11 items-center gap-1.5 justify-center rounded px-3 text-xs font-semibold"
+                >
+                  <ListOrdered className="h-3.5 w-3.5" aria-hidden="true" />
+                  Join queue
                 </button>
               ) : null}
             </div>
