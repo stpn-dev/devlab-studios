@@ -31,8 +31,16 @@ import { Sparkles } from '../../components/icons/icons'
  *   card's `data-testid` -- CourtsPage.jsx renders one of these per
  *   AVAILABLE court, so a bare static testid would violate Playwright's
  *   strict mode as soon as more than one court is AVAILABLE at once.
+ * @param {boolean} [props.previewShownElsewhere] - true when `candidates`
+ *   is empty here only because CourtsPage.jsx is already showing the
+ *   (non-empty) preview on a different AVAILABLE court, not because the
+ *   queue is actually empty. Swaps the empty-state copy from "No eligible
+ *   players queued yet." (which would be false in that case) to a pointer
+ *   at where the preview actually is.
+ * @param {string} [props.previewCourtName] - the court name to reference in
+ *   `previewShownElsewhere`'s copy; falls back to generic phrasing if unset.
  */
-export default function RecommendedMatchCard({ candidates = [], onAssign, courtId }) {
+export default function RecommendedMatchCard({ candidates = [], onAssign, courtId, previewShownElsewhere = false, previewCourtName }) {
   return (
     <div
       className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3"
@@ -58,6 +66,10 @@ export default function RecommendedMatchCard({ candidates = [], onAssign, courtI
             group.
           </p>
         </>
+      ) : previewShownElsewhere ? (
+        <p className="text-sm text-slate-500">
+          Recommended players shown on {previewCourtName ? previewCourtName : 'the first open court'}.
+        </p>
       ) : (
         <p className="text-sm text-slate-500">No eligible players queued yet.</p>
       )}

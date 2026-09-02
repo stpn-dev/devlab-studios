@@ -87,10 +87,14 @@ export default function CourtsPage() {
   const recommended = loading ? [] : recommendedCandidates(snapshot.queue)
   // The single "recommended next players" preview is only meaningful once
   // per render (see the per-court comment below) -- attached to the first
-  // AVAILABLE court in the snapshot's own array order.
-  const firstAvailableCourtId = loading
+  // AVAILABLE court in the snapshot's own array order. Kept as the full
+  // court object (not just its id) so non-first AVAILABLE courts can also
+  // reference its name when explaining where the preview actually lives
+  // (see `previewShownElsewhere`/`previewCourtName` below).
+  const firstAvailableCourt = loading
     ? null
-    : snapshot.courts.find((court) => deriveCourtCardStatus(court, court.id in enabledByCourtId ? enabledByCourtId[court.id] : court.enabled) === 'AVAILABLE')?.id ?? null
+    : snapshot.courts.find((court) => deriveCourtCardStatus(court, court.id in enabledByCourtId ? enabledByCourtId[court.id] : court.enabled) === 'AVAILABLE') ?? null
+  const firstAvailableCourtId = firstAvailableCourt?.id ?? null
 
   return (
     <div className="space-y-6">
@@ -118,10 +122,16 @@ export default function CourtsPage() {
             // courts that shows the identical 4 candidate names N times,
             // implying 4N seats are needed for 4 players. Only the first
             // AVAILABLE court in render order gets the preview (matches
-            // `firstAvailableCourtId`, computed once below); every other
-            // one falls back to CourtCard's existing empty/no-recommendation
-            // state (an empty `recommended` array).
+            // `firstAvailableCourtId`, computed once above); every other
+            // one passes an empty `recommended` array instead.
             const isFirstAvailable = court.id === firstAvailableCourtId
+            // An empty `recommended` array on a non-first AVAILABLE court
+            // does NOT mean the queue is empty -- it just means the preview
+            // is shown elsewhere (above). Tell RecommendedMatchCard which
+            // case it is so it never shows the "No eligible players queued
+            // yet." fallback when players actually ARE queued, just not
+            // previewed on this particular card.
+            const previewShownElsewhere = !isFirstAvailable && recommended.length > 0
             return (
               <CourtCard
                 key={court.id}
@@ -130,6 +140,8 @@ export default function CourtsPage() {
                 enabled={enabled}
                 game={liveGame}
                 recommended={isFirstAvailable ? recommended : []}
+                previewShownElsewhere={previewShownElsewhere}
+                previewCourtName={firstAvailableCourt?.courtName}
                 onAssign={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { sessionCourtId: court.id }))}
                 onRelease={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/release`, { sessionCourtId: court.id }))}
                 onEnable={() => runAction(pickleballApi.post(`/api/pickleball/sessions/${sessionId}/courts/enable`, { sessionCourtId: court.id }), { refreshEnabled: true })}

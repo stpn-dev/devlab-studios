@@ -34,13 +34,20 @@ const STATE_CONFIG = {
  *   - the fairness-ranked queue candidates CourtsPage.jsx computed for the
  *   "recommended next match" preview (only rendered when this court is
  *   AVAILABLE and assignable).
+ * @param {boolean} [props.previewShownElsewhere] - true when `recommended`
+ *   is empty on THIS card only because CourtsPage.jsx already shows the
+ *   (non-empty) preview on another AVAILABLE court, not because the queue
+ *   is actually empty. Forwarded to RecommendedMatchCard so it never claims
+ *   "No eligible players queued yet." when players ARE queued.
+ * @param {string} [props.previewCourtName] - the court name where the
+ *   preview is actually shown, used in `previewShownElsewhere`'s copy.
  * @param {() => void} [props.onAssign]
  * @param {() => void} [props.onRelease]
  * @param {() => void} [props.onEnable]
  * @param {() => void} [props.onDisable]
  * @param {() => void} [props.onOpen] - opens the live game's Scorekeeper view.
  */
-export default function CourtCard({ court, status, enabled, game = null, recommended = [], onAssign, onRelease, onEnable, onDisable, onOpen }) {
+export default function CourtCard({ court, status, enabled, game = null, recommended = [], previewShownElsewhere = false, previewCourtName, onAssign, onRelease, onEnable, onDisable, onOpen }) {
   const config = STATE_CONFIG[status] || STATE_CONFIG.AVAILABLE
   const StateIcon = config.icon
   const showAssign = court.status === 'AVAILABLE' && enabled !== false
@@ -87,7 +94,15 @@ export default function CourtCard({ court, status, enabled, game = null, recomme
         )
       ) : null}
 
-      {showAssign ? <RecommendedMatchCard candidates={recommended} onAssign={onAssign} courtId={court.id} /> : null}
+      {showAssign ? (
+        <RecommendedMatchCard
+          candidates={recommended}
+          onAssign={onAssign}
+          courtId={court.id}
+          previewShownElsewhere={previewShownElsewhere}
+          previewCourtName={previewCourtName}
+        />
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {showRelease ? (
