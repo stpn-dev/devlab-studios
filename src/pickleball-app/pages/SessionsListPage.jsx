@@ -4,37 +4,9 @@ import { pickleballApi } from '../lib/pickleballApi'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonLine } from '../components/SkeletonLoader'
 import EmptySessionGraphic from '../components/illustrations/EmptySessionGraphic'
-import { Clock, UserCheck, Activity, Pause, CheckCircle2, X } from '../../components/icons/icons'
+import SessionStatusChip from '../components/SessionStatusChip'
 
 const EMPTY_FORM = { venueId: '', name: '', sessionType: 'OPEN_PLAY', scoringRulesetId: '', scheduledStart: '', scheduledEnd: '' }
-
-// Session status chip -- a dedicated variant (per the task's own "or a
-// dedicated session-status variant" option) rather than editing
-// PlayerStatusChip.jsx's STATUS_CONFIG, since that map is scoped to
-// player/game/queue attendance states and this task's declared file scope
-// doesn't include that component. Same visual language though: icon + text
-// + one of the four existing --pb-status-* tones (never color alone),
-// covering the exact status vocabulary this app's schema defines (see
-// createSessionSchema's z.enum in src/lib/schemas/pickleball/sessions.ts).
-const SESSION_STATUS_CONFIG = {
-  DRAFT: { icon: Clock, label: 'Draft', tone: 'muted' },
-  OPEN_FOR_CHECKIN: { icon: UserCheck, label: 'Check-in open', tone: 'info' },
-  LIVE: { icon: Activity, label: 'Live', tone: 'success' },
-  PAUSED: { icon: Pause, label: 'Paused', tone: 'warning' },
-  COMPLETED: { icon: CheckCircle2, label: 'Completed', tone: 'muted' },
-  CANCELLED: { icon: X, label: 'Cancelled', tone: 'danger' },
-}
-
-function SessionStatusChip({ status }) {
-  const config = SESSION_STATUS_CONFIG[status] || { icon: Clock, label: status, tone: 'muted' }
-  const Icon = config.icon
-  return (
-    <span className={`pb-status-chip pb-status-chip--${config.tone}`}>
-      <Icon className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" strokeWidth={2.5} />
-      {config.label}
-    </span>
-  )
-}
 
 // scheduledStart/scheduledEnd are the only real per-session date/time fields
 // this page's fetch provides (listSessions() in

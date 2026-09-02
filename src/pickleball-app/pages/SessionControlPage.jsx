@@ -2,7 +2,21 @@ import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { pickleballApi } from '../lib/pickleballApi'
 import PublicLinkQRCode from '../components/PublicLinkQRCode'
+import MetricCard from '../components/MetricCard'
+import SessionStatusChip from '../components/SessionStatusChip'
 import { SkeletonBlock, SkeletonMetricCard } from '../components/SkeletonLoader'
+import { Activity, ClipboardList, ListOrdered, Grid3x3 } from '../../components/icons/icons'
+
+// "OPEN_PLAY" -> "Open Play", "FIXED_PAIRS" -> "Fixed Pairs" -- generic
+// enum-to-title-case, not a hardcoded map, so it keeps working if
+// createSessionSchema's z.enum (src/lib/schemas/pickleball/sessions.ts) ever
+// gains a value.
+function humanizeEnum(value) {
+  return value
+    .split('_')
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(' ')
+}
 
 export default function SessionControlPage() {
   const { sessionId, session, snapshot } = useOutletContext()
@@ -47,24 +61,17 @@ export default function SessionControlPage() {
 
   return (
     <div className="space-y-4">
-      <dl className="grid grid-cols-2 gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-4">
-        <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Status</dt>
-          <dd className="pb-score text-lg text-slate-900">{session.status}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Type</dt>
-          <dd className="pb-score text-lg text-slate-900">{session.sessionType}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Queued</dt>
-          <dd className="pb-score text-lg text-slate-900" data-testid="queue-count">{snapshot ? snapshot.queue.filter((entry) => entry.status === 'QUEUED').length : '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-xs font-bold uppercase tracking-wider text-slate-500">Courts</dt>
-          <dd className="pb-score text-lg text-slate-900" data-testid="courts-count">{snapshot ? snapshot.courts.length : '—'}</dd>
-        </div>
-      </dl>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <MetricCard icon={Activity} label="Status" value={<SessionStatusChip status={session.status} />} />
+        <MetricCard icon={ClipboardList} label="Type" value={humanizeEnum(session.sessionType)} />
+        <MetricCard
+          icon={ListOrdered}
+          label="Queued"
+          value={snapshot ? snapshot.queue.filter((entry) => entry.status === 'QUEUED').length : '—'}
+          valueTestId="queue-count"
+        />
+        <MetricCard icon={Grid3x3} label="Courts" value={snapshot ? snapshot.courts.length : '—'} valueTestId="courts-count" />
+      </div>
       {publicUrl ? (
         <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <PublicLinkQRCode url={publicUrl} />
