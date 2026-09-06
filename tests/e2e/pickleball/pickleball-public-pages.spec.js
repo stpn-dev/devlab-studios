@@ -123,6 +123,15 @@ test.describe('Pickleball public pages', () => {
     )
   })
 
+  test('the landing page offers a way to request access', async ({ page }) => {
+    await page.goto('/pickleball')
+
+    const section = page.locator('#request-access')
+    await expect(section).toBeVisible()
+    await expect(section.getByRole('heading', { name: 'Request early access' })).toBeVisible()
+    await expect(section.getByLabel('Your name')).toBeVisible({ timeout: 10000 })
+  })
+
   test('the services page links to the pickleball product', async ({ page }) => {
     await page.goto('/services')
 

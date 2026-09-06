@@ -5,6 +5,8 @@ import QueueFlowArt from '../../components/pickleball/art/QueueFlowArt.jsx'
 import ScoreboardArt from '../../components/pickleball/art/ScoreboardArt.jsx'
 import StandingsArt from '../../components/pickleball/art/StandingsArt.jsx'
 import ShareLiveArt from '../../components/pickleball/art/ShareLiveArt.jsx'
+import ContactForm from '../../components/islands/ContactForm.jsx'
+import { getEnv } from '../../lib/env'
 import '../../pickleball-app/pickleball.css'
 
 const features = [
@@ -39,6 +41,24 @@ const faqs = [
   { q: 'What happens if I make a scoring mistake?', a: 'Undo the last rally straight away, or reopen and correct the game after it has finished. Statistics are recomputed, never patched.' },
   { q: 'Is OPI an official rating?', a: 'No. OPI is a Devlab-original performance index, not a USA Pickleball rating, DUPR, UTR-P or Elo system.' },
 ]
+
+// Same resolution as src/pages/services.astro — a local request uses
+// Cloudflare's documented always-passes test key so the form is usable in
+// development without a real site key.
+const env = getEnv()
+const requestHostname = new URL(Astro.request.url).hostname
+const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1'
+const turnstileSiteKey = isLocalRequest ? '1x00000000000000000000AA' : env.TURNSTILE_SITE_KEY || ''
+
+const accessFormCopy = {
+  nameLabel: 'Your name',
+  subjectLabel: 'Your club or venue',
+  subjectPlaceholder: 'Pickleball early access request',
+  messageLabel: 'Tell us about your open play',
+  messagePlaceholder: 'How many players and courts, how often you run open play, and what you want out of the app.',
+  submitLabel: 'Request access',
+  helperText: 'We review every request personally.',
+}
 ---
 
 <Layout title="Devlab Pickleball">
@@ -151,6 +171,17 @@ const faqs = [
             <p class="mt-2 text-sm leading-relaxed text-slate-600">{a}</p>
           </details>
         ))}
+      </div>
+    </section>
+
+    <section id="request-access" class="mt-20 scroll-mt-24">
+      <h2 class="text-3xl font-semibold text-slate-900">Request early access</h2>
+      <p class="mt-3 max-w-2xl text-slate-600">
+        We are piloting with a small group of clubs before opening this up. If you run open play
+        and want in, tell us a little about your sessions.
+      </p>
+      <div class="mt-8 rounded-2xl bg-white/[0.92] p-6 ring-1 ring-slate-200">
+        <ContactForm client:visible siteKey={turnstileSiteKey} copy={accessFormCopy} />
       </div>
     </section>
   </div>
