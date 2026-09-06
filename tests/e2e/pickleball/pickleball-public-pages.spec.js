@@ -42,4 +42,16 @@ test.describe('Pickleball public pages', () => {
     expect(mainMatch).not.toBeNull()
     expect(mainMatch[1]).toContain('viewBox="0 0 320 200"')
   })
+
+  test('the landing page explains the product with a four-card feature grid', async ({ page }) => {
+    await page.goto('/pickleball')
+
+    const grid = page.getByTestId('pb-feature-grid')
+    await expect(grid).toBeVisible()
+    await expect(grid.locator('> article')).toHaveCount(4)
+
+    for (const heading of ['Fair queueing', 'Rally scoring', 'Live standings', 'Share it live']) {
+      await expect(grid.getByRole('heading', { name: heading })).toBeVisible()
+    }
+  })
 })

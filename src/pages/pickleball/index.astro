@@ -1,11 +1,22 @@
 ---
 import Layout from '../../layouts/Layout.astro'
 import CourtSceneArt from '../../components/pickleball/art/CourtSceneArt.jsx'
+import QueueFlowArt from '../../components/pickleball/art/QueueFlowArt.jsx'
+import ScoreboardArt from '../../components/pickleball/art/ScoreboardArt.jsx'
+import StandingsArt from '../../components/pickleball/art/StandingsArt.jsx'
+import ShareLiveArt from '../../components/pickleball/art/ShareLiveArt.jsx'
 import '../../pickleball-app/pickleball.css'
+
+const features = [
+  { Art: QueueFlowArt, title: 'Fair queueing', body: 'Fewest games played first, longest wait next. The app picks the match and tells you why it picked it.' },
+  { Art: ScoreboardArt, title: 'Rally scoring', body: 'One tap per rally. Side-out, server number and the official score call are all derived, never typed in.' },
+  { Art: StandingsArt, title: 'Live standings', body: 'Every checked-in player ranked from the first minute, filling in as games finish.' },
+  { Art: ShareLiveArt, title: 'Share it live', body: 'A QR code puts the live scoreboard on every player’s phone, and on the TV in the hall.' },
+]
 ---
 
 <Layout title="Devlab Pickleball">
-  <main class="mx-auto max-w-6xl px-6 py-16 sm:py-20">
+  <div class="mx-auto max-w-6xl px-6 py-16 sm:py-20">
     <section class="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
       <div>
         <p class="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Session management</p>
@@ -31,5 +42,18 @@ import '../../pickleball-app/pickleball.css'
         <CourtSceneArt className="h-auto w-full text-brand-ink" />
       </div>
     </section>
-  </main>
+
+    <section class="mt-20">
+      <h2 class="text-3xl font-semibold text-slate-900">Built for the person running the session</h2>
+      <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4" data-testid="pb-feature-grid">
+        {features.map(({ Art, title, body }) => (
+          <article class="light-artifact rounded-2xl bg-white/[0.92] p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
+            <Art className="h-24 w-full text-brand-ink" />
+            <h3 class="mt-4 font-semibold text-brand-ink">{title}</h3>
+            <p class="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  </div>
 </Layout>
