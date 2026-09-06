@@ -11,7 +11,7 @@ import '../../pickleball-app/pickleball.css'
 
 const features = [
   { Art: QueueFlowArt, title: 'Fair queueing', body: 'Fewest games played first, longest wait next. The app picks the match and tells you why it picked it.' },
-  { Art: ScoreboardArt, title: 'Rally scoring', body: 'One tap per rally. Side-out, server number and the official score call are all derived, never typed in.' },
+  { Art: ScoreboardArt, title: 'Rally-by-rally scoring', body: 'One tap per rally. Side-out, server number and the official score call are all derived, never typed in.' },
   { Art: StandingsArt, title: 'Live standings', body: 'Players ranked by performance index as games finish, each with a confidence tier so you can see how settled a number really is.' },
   { Art: ShareLiveArt, title: 'Share it live', body: 'A QR code puts the live scoreboard on every player’s phone, and on the TV in the hall.' },
 ]
@@ -20,7 +20,7 @@ const differentiators = [
   {
     Art: QueueFlowArt,
     title: 'Every match-up explains itself',
-    body: 'The queue picks on fewest games played, then longest wait, and avoids putting the same partners together twice in a row. Each recommendation carries the reasons it was chosen, so you can answer “why them?” without guessing.',
+    body: 'The queue picks on fewest games played, then longest wait. Once at least five players are eligible, it also tries to break up a pair who just played together — swapping one of them for another player on the same number of games. Each recommendation carries the reasons it was chosen, so you can answer “why them?” without guessing.',
   },
   {
     Art: ScoreboardArt,
@@ -52,10 +52,10 @@ const turnstileSiteKey = isLocalRequest ? '1x00000000000000000000AA' : env.TURNS
 
 const accessFormCopy = {
   nameLabel: 'Your name',
-  subjectLabel: 'Your club or venue',
+  subjectLabel: 'Subject',
   subjectPlaceholder: 'Pickleball early access request',
   messageLabel: 'Tell us about your open play',
-  messagePlaceholder: 'How many players and courts, how often you run open play, and what you want out of the app.',
+  messagePlaceholder: 'Your club or venue, how many players and courts, how often you run open play, and what you want out of the app.',
   submitLabel: 'Request access',
   helperText: 'We review every request personally.',
 }
@@ -84,7 +84,10 @@ const accessFormCopy = {
           </a>
         </div>
       </div>
-      <div class="light-artifact rounded-[1.75rem] bg-gradient-to-br from-[#fff9ff] via-[#fbf9ff] to-[#f2efff] p-6 shadow-[0_18px_38px_rgba(48,28,114,0.12)] sm:p-8">
+      <div
+        class="light-artifact rounded-[1.75rem] bg-gradient-to-br from-[#fff9ff] via-[#fbf9ff] to-[#f2efff] p-6 shadow-[0_18px_38px_rgba(48,28,114,0.12)] sm:p-8"
+        data-testid="pb-artwork"
+      >
         <CourtSceneArt className="h-auto w-full text-brand-ink" />
       </div>
     </section>
@@ -93,7 +96,7 @@ const accessFormCopy = {
       <h2 class="text-3xl font-semibold text-slate-900">Built for the person running the session</h2>
       <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4" data-testid="pb-feature-grid">
         {features.map(({ Art, title, body }) => (
-          <article class="light-artifact rounded-2xl bg-white/[0.92] p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
+          <article class="light-artifact rounded-2xl bg-white/[0.92] p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200" data-testid="pb-artwork">
             <Art className="h-24 w-full text-brand-ink" />
             <h3 class="mt-4 font-semibold text-brand-ink">{title}</h3>
             <p class="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
@@ -106,7 +109,7 @@ const accessFormCopy = {
       {differentiators.map(({ Art, title, body }, index) => (
         <article class="light-artifact overflow-hidden rounded-[1.75rem] bg-white/[0.92] shadow-[0_18px_38px_rgba(48,28,114,0.10)] ring-1 ring-slate-200">
           <div class="grid items-center gap-0 lg:grid-cols-2">
-            <div class={['flex justify-center p-8 lg:p-10', index % 2 === 0 ? 'lg:order-1' : 'lg:order-2'].join(' ')}>
+            <div class={['flex justify-center p-8 lg:p-10', index % 2 === 0 ? 'lg:order-1' : 'lg:order-2'].join(' ')} data-testid="pb-artwork">
               <Art className="h-40 w-full max-w-sm text-brand-ink" />
             </div>
             <div class={['p-8 lg:p-10', index % 2 === 0 ? 'lg:order-2' : 'lg:order-1'].join(' ')}>
@@ -124,12 +127,12 @@ const accessFormCopy = {
         <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
           <p class="pb-score text-2xl text-brand">1</p>
           <h3 class="mt-2 font-semibold text-brand-ink">Open for check-in</h3>
-          <p class="mt-2 text-sm text-slate-600">Create the session, pick your courts and ruleset, and let players check in.</p>
+          <p class="mt-2 text-sm text-slate-600">Create the session, pick your venue and ruleset, and let players check in.</p>
         </article>
         <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
           <p class="pb-score text-2xl text-brand">2</p>
           <h3 class="mt-2 font-semibold text-brand-ink">Assign and score</h3>
-          <p class="mt-2 text-sm text-slate-600">The app proposes the next four players. Confirm, then tap who won each rally.</p>
+          <p class="mt-2 text-sm text-slate-600">The app proposes the next players. Confirm, start the game, then tap who won each rally.</p>
         </article>
         <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
           <p class="pb-score text-2xl text-brand">3</p>
@@ -138,7 +141,13 @@ const accessFormCopy = {
         </article>
       </div>
       <p class="mt-6">
-        <a href="/pickleball/how-it-works" class="text-sm font-semibold text-brand underline underline-offset-4">
+        <!-- text-white, not text-brand: this is the page's only brand-coloured
+             run sitting directly on the dark .public-shell background, where
+             #4500ff measures ~2.5:1 and fails WCAG AA. `.public-shell` remaps
+             text-slate-* and text-brand-ink but has no rule for .text-brand,
+             and every other text-brand on this page sits inside a white panel
+             where it is fine — so this is fixed here, not in src/index.css. -->
+        <a href="/pickleball/how-it-works" class="text-sm font-semibold text-white underline underline-offset-4">
           Read the full walkthrough
         </a>
       </p>
