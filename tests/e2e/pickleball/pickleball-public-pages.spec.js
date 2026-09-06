@@ -69,4 +69,33 @@ test.describe('Pickleball public pages', () => {
     expect(html).not.toContain('pickleq')
     expect(html).not.toContain('unlike other')
   })
+
+  test('the guide page walks through all eight steps', async ({ page }) => {
+    const response = await page.goto('/pickleball/how-it-works')
+    expect(response.status()).toBe(200)
+
+    await expect(page.locator('main h1')).toContainText('How Devlab Pickleball works')
+    await expect(page.getByTestId('pb-guide-steps').locator('> article')).toHaveCount(8)
+
+    for (const step of [
+      'Create a session',
+      'Open it for check-in',
+      'Check players in',
+      'The queue fills',
+      'Assign a court',
+      'Score the game',
+      'Finish the game',
+      'Complete the session',
+    ]) {
+      await expect(page.getByRole('heading', { name: step })).toBeVisible()
+    }
+  })
+
+  test('the guide does not document features that do not work yet', async ({ page }) => {
+    // Fixed pairs and tournaments are inert today — assignCourt refuses any
+    // session whose type is not OPEN_PLAY. Documenting them would be a lie.
+    const html = (await (await page.request.get('/pickleball/how-it-works')).text()).toLowerCase()
+    expect(html).not.toContain('fixed pair')
+    expect(html).not.toContain('tournament')
+  })
 })

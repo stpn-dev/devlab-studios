@@ -1,0 +1,156 @@
+---
+import Layout from '../../layouts/Layout.astro'
+import Step1CreateArt from '../../components/pickleball/art/Step1CreateArt.jsx'
+import Step2OpenArt from '../../components/pickleball/art/Step2OpenArt.jsx'
+import Step3CheckInArt from '../../components/pickleball/art/Step3CheckInArt.jsx'
+import Step4QueueArt from '../../components/pickleball/art/Step4QueueArt.jsx'
+import Step5AssignArt from '../../components/pickleball/art/Step5AssignArt.jsx'
+import Step6ScoreArt from '../../components/pickleball/art/Step6ScoreArt.jsx'
+import Step7FinishArt from '../../components/pickleball/art/Step7FinishArt.jsx'
+import Step8CompleteArt from '../../components/pickleball/art/Step8CompleteArt.jsx'
+import '../../pickleball-app/pickleball.css'
+
+const steps = [
+  {
+    Art: Step1CreateArt,
+    title: 'Create a session',
+    body: 'Pick the venue, name the session, choose a scoring ruleset and set the scheduled times. Every court at that venue is added to the session automatically and starts out available.',
+    sees: ['A new session in Draft', 'One row per venue court', 'The ruleset you chose'],
+  },
+  {
+    Art: Step2OpenArt,
+    title: 'Open it for check-in',
+    body: 'Move the session from Draft to Open for check-in. Nothing can be assigned to a court until you take the session live.',
+    sees: ['Status moves to Open for check-in', 'The check-in page becomes useful'],
+  },
+  {
+    Art: Step3CheckInArt,
+    title: 'Check players in',
+    body: 'Check players in one at a time or in bulk as they arrive. Someone who registered but has not arrived is never picked for a court. A late arrival is checked in exactly the same way.',
+    sees: ['A running checked-in count', 'Each player’s availability', 'Anyone who has left marked as such'],
+  },
+  {
+    Art: Step4QueueArt,
+    title: 'The queue fills',
+    body: 'A checked-in, available player joins the queue and waits — fewest games played first, then longest wait. Going temporarily unavailable does not remove them from the queue; it only skips them for the next court assignment. Come back available and they keep the exact spot they already had.',
+    sees: ['The queue in order', 'How long each player has waited', 'How many games each has played'],
+  },
+  {
+    Art: Step5AssignArt,
+    title: 'Assign a court',
+    body: 'Take the session live and the app proposes the next four players for a free court — fewest games first, then longest wait, avoiding an immediate repeat of the last partners. It shows you the reason behind each pick, and you confirm.',
+    sees: ['A recommended match-up', 'The reasons behind it', 'Both sides balanced by performance'],
+  },
+  {
+    Art: Step6ScoreArt,
+    title: 'Score the game',
+    body: 'There are two buttons: which side won the rally. The app works out whether that was a point, a change of server, or a side out, and calls the score. Undo reverses the last rally whenever you need it.',
+    sees: ['Both team scores side by side', 'Who is serving and which server', 'The official score call'],
+  },
+  {
+    Art: Step7FinishArt,
+    title: 'Finish the game',
+    body: 'Finish once the score is a valid final under your ruleset. The court is released, the players return to the queue, and the standings update. Got it wrong? Reopen the game, correct it, and finish again — the statistics are recomputed from scratch.',
+    sees: ['The final score locked in', 'Updated standings', 'The court free again'],
+  },
+  {
+    Art: Step8CompleteArt,
+    title: 'Complete the session',
+    body: 'When play is over, complete the session. The standings become the final record, the public view stops expecting changes, and nothing further can be assigned.',
+    sees: ['Final standings', 'A public view that reads as finished'],
+  },
+]
+
+const troubles = [
+  { title: 'You tapped the wrong side', body: 'Undo the last rally. It is always beside the two rally buttons, and it reverses exactly one action.' },
+  { title: 'You noticed a mistake much later', body: 'Reopen the finished game, correct the score, serving side and server number together, then finish it again.' },
+  { title: 'A court becomes unusable', body: 'A court can only be taken out of service once it is free — no pending assignment and no game in progress. Abandon or finish an active game (or release a pending assignment) first, then disable the court.' },
+  { title: 'A game cannot be finished', body: 'Abandon it. The court is released and the game is excluded from performance statistics.' },
+]
+---
+
+<Layout title="How it works — Devlab Pickleball">
+  <div class="mx-auto max-w-5xl px-6 py-16">
+    <p class="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Guide</p>
+    <h1 class="mt-2 text-4xl font-extrabold tracking-tight text-slate-900">How Devlab Pickleball works</h1>
+    <div class="pb-rule mt-3 h-[3px] w-11 rounded-full"></div>
+    <p class="mt-5 max-w-2xl text-lg leading-relaxed text-slate-600">
+      A full run through one session, from creating it to closing it — written for the person
+      holding the tablet. Your players never need to read any of this.
+    </p>
+
+    <section class="mt-12 rounded-2xl bg-white/[0.92] p-6 ring-1 ring-slate-200">
+      <h2 class="font-semibold text-brand-ink">Before you start</h2>
+      <p class="mt-2 text-sm leading-relaxed text-slate-600">
+        You need a venue with its courts added, and a scoring ruleset. Both are set up once and
+        reused by every session afterwards.
+      </p>
+    </section>
+
+    <section class="mt-12 space-y-6" data-testid="pb-guide-steps">
+      {steps.map(({ Art, title, body, sees }, index) => (
+        <article class="light-artifact overflow-hidden rounded-2xl bg-white/[0.92] ring-1 ring-slate-200">
+          <div class="grid gap-0 sm:grid-cols-[0.8fr_1.2fr]">
+            <div class="flex items-center justify-center bg-gradient-to-br from-[#fff9ff] to-[#f2efff] p-6">
+              <Art className="h-24 w-full text-brand-ink" />
+            </div>
+            <div class="p-6">
+              <p class="pb-score text-sm text-brand">Step {index + 1}</p>
+              <h2 class="mt-1 text-xl font-semibold text-brand-ink">{title}</h2>
+              <p class="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
+              <ul class="mt-4 space-y-1 text-sm text-slate-600">
+                {sees.map((item) => (
+                  <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </article>
+      ))}
+    </section>
+
+    <section class="mt-16">
+      <h2 class="text-3xl font-semibold text-slate-900">When something goes wrong</h2>
+      <div class="mt-8 grid gap-4 lg:grid-cols-2">
+        {troubles.map(({ title, body }) => (
+          <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+            <h3 class="font-semibold text-brand-ink">{title}</h3>
+            <p class="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="mt-16">
+      <h2 class="text-3xl font-semibold text-slate-900">What your players see</h2>
+      <div class="mt-8 grid gap-4 sm:grid-cols-3">
+        <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+          <h3 class="font-semibold text-brand-ink">Scan a QR code</h3>
+          <p class="mt-2 text-sm text-slate-600">Share one code for the session. No sign-in, no install.</p>
+        </article>
+        <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+          <h3 class="font-semibold text-brand-ink">Follow it live</h3>
+          <p class="mt-2 text-sm text-slate-600">Courts and scores update as you record them.</p>
+        </article>
+        <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+          <h3 class="font-semibold text-brand-ink">Watch on the TV</h3>
+          <p class="mt-2 text-sm text-slate-600">A full-screen display for a screen in the hall.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="mt-16 rounded-2xl bg-white/[0.92] p-6 ring-1 ring-slate-200">
+      <h2 class="font-semibold text-brand-ink">Who can do what</h2>
+      <ul class="mt-3 space-y-2 text-sm text-slate-600">
+        <li><strong class="text-brand-ink">Admin</strong> — everything, plus operators, rulesets and the audit log.</li>
+        <li><strong class="text-brand-ink">Facilitator</strong> — runs sessions: check-in, queue, courts, scoring, corrections.</li>
+        <li><strong class="text-brand-ink">Scorekeeper</strong> — scores games on an assigned court.</li>
+      </ul>
+    </section>
+
+    <div class="mt-16 flex flex-wrap gap-3">
+      <a href="/pickleball/app" class="pb-btn-primary inline-flex rounded-lg px-5 py-3 text-sm">Operator sign in</a>
+      <a href="/pickleball/methodology" class="inline-flex items-center rounded-lg bg-white/[0.92] px-5 py-3 text-sm font-semibold text-brand-ink ring-1 ring-slate-200">How OPI works</a>
+    </div>
+  </div>
+</Layout>
