@@ -5,6 +5,12 @@ import Step2OpenArt from '../../components/pickleball/art/Step2OpenArt.jsx'
 import Step3CheckInArt from '../../components/pickleball/art/Step3CheckInArt.jsx'
 import Step4QueueArt from '../../components/pickleball/art/Step4QueueArt.jsx'
 import Step5AssignArt from '../../components/pickleball/art/Step5AssignArt.jsx'
+// StartGameArt sits between Step5AssignArt and Step6ScoreArt in the running
+// order below. The numbers baked into the Step*Art file names date from the
+// guide's original eight-step order and were deliberately not renamed when
+// the start-a-game step was added, so treat them as file names, not as step
+// positions — `steps` below is the only source of truth for the order.
+import StartGameArt from '../../components/pickleball/art/StartGameArt.jsx'
 import Step6ScoreArt from '../../components/pickleball/art/Step6ScoreArt.jsx'
 import Step7FinishArt from '../../components/pickleball/art/Step7FinishArt.jsx'
 import Step8CompleteArt from '../../components/pickleball/art/Step8CompleteArt.jsx'
@@ -15,13 +21,13 @@ const steps = [
     Art: Step1CreateArt,
     title: 'Create a session',
     body: 'Pick the venue, name the session, choose a scoring ruleset and set the scheduled times. Every court at that venue is added to the session automatically and starts out available.',
-    sees: ['A new session in Draft', 'One row per venue court', 'The ruleset you chose'],
+    sees: ['A new session in Draft', 'One row per venue court', 'A Queued count and a Courts count'],
   },
   {
     Art: Step2OpenArt,
     title: 'Open it for check-in',
-    body: 'Move the session from Draft to Open for check-in. Nothing can be assigned to a court until you take the session live.',
-    sees: ['Status moves to Open for check-in', 'The check-in page becomes useful'],
+    body: 'Press "Open check-in" under Session actions to move the session out of Draft. Nothing can be assigned to a court until you press "Start session" later — assignment needs a live session.',
+    sees: ['An "Open check-in" button under Session actions', 'Status shown as Check-in open', 'The check-in page becomes useful'],
   },
   {
     Art: Step3CheckInArt,
@@ -38,14 +44,28 @@ const steps = [
   {
     Art: Step5AssignArt,
     title: 'Assign a court',
-    body: 'Take the session live and the app proposes the next four players for a free court — fewest games first, then longest wait, avoiding an immediate repeat of the last partners. It shows you the reason behind each pick, and you confirm.',
-    sees: ['A recommended match-up', 'The reasons behind it', 'Both sides balanced by performance'],
+    body: 'Press "Start session" to go live, then Assign a free court. The app ranks the queue by fewest games played, then longest wait — and once at least five players are eligible it can swap one of a pair who just played together for another player on the same number of games. Assigning seats the group, splits it into two sides and marks the court ASSIGNED.',
+    sees: [
+      'A "Recommended next players" list on the first free court',
+      'The top fairness reason beside each name',
+      'An "Assign" button — it picks and pairs the actual match from that group',
+    ],
+  },
+  {
+    Art: StartGameArt,
+    title: 'Start the game',
+    body: 'Assigning a court does not start play. Open Games, pick the court under "Ready to start", then choose the serving team and each side\'s starting server. "Start game" stays disabled until both starting servers are picked.',
+    sees: [
+      'A "Ready to start" list of courts assigned with no game started',
+      'A "Serving team" choice, plus a starting server for each side',
+      'A "Start game" button that only enables once both are chosen',
+    ],
   },
   {
     Art: Step6ScoreArt,
     title: 'Score the game',
     body: 'There are two buttons: which side won the rally. The app works out whether that was a point, a change of server, or a side out, and calls the score. Undo reverses the last rally whenever you need it.',
-    sees: ['Both team scores side by side', 'Who is serving and which server', 'The official score call'],
+    sees: ['Both team scores side by side', 'Which team is serving — and, in doubles, which server', 'The official score call'],
   },
   {
     Art: Step7FinishArt,
@@ -78,6 +98,24 @@ const troubles = [
       holding the tablet. Your players never need to read any of this.
     </p>
 
+    <section class="mt-12">
+      <h2 class="font-semibold text-slate-900">Find your next step</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-3" data-testid="pb-guide-jump-links">
+        <a href="#run-a-session" class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200 transition hover:ring-brand/35">
+          <span class="block font-semibold text-brand-ink">Run a session</span>
+          <span class="mt-2 block text-sm text-slate-600">Every step from creating the session to closing it.</span>
+        </a>
+        <a href="#when-something-goes-wrong" class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200 transition hover:ring-brand/35">
+          <span class="block font-semibold text-brand-ink">Fix a mistake</span>
+          <span class="mt-2 block text-sm text-slate-600">Undo a rally, correct a finished game, park a court.</span>
+        </a>
+        <a href="#what-players-see" class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200 transition hover:ring-brand/35">
+          <span class="block font-semibold text-brand-ink">What players see</span>
+          <span class="mt-2 block text-sm text-slate-600">The QR code, the live view and the TV display.</span>
+        </a>
+      </div>
+    </section>
+
     <section class="mt-12 rounded-2xl bg-white/[0.92] p-6 ring-1 ring-slate-200">
       <h2 class="font-semibold text-brand-ink">Before you start</h2>
       <p class="mt-2 text-sm leading-relaxed text-slate-600">
@@ -86,11 +124,11 @@ const troubles = [
       </p>
     </section>
 
-    <section class="mt-12 space-y-6" data-testid="pb-guide-steps">
+    <section id="run-a-session" class="mt-12 scroll-mt-24 space-y-6" data-testid="pb-guide-steps">
       {steps.map(({ Art, title, body, sees }, index) => (
         <article class="light-artifact overflow-hidden rounded-2xl bg-white/[0.92] ring-1 ring-slate-200">
           <div class="grid gap-0 sm:grid-cols-[0.8fr_1.2fr]">
-            <div class="flex items-center justify-center bg-gradient-to-br from-[#fff9ff] to-[#f2efff] p-6">
+            <div class="flex items-center justify-center bg-gradient-to-br from-[#fff9ff] to-[#f2efff] p-6" data-testid="pb-artwork">
               <Art className="h-24 w-full text-brand-ink" />
             </div>
             <div class="p-6">
@@ -108,7 +146,7 @@ const troubles = [
       ))}
     </section>
 
-    <section class="mt-16">
+    <section id="when-something-goes-wrong" class="mt-16 scroll-mt-24">
       <h2 class="text-3xl font-semibold text-slate-900">When something goes wrong</h2>
       <div class="mt-8 grid gap-4 lg:grid-cols-2">
         {troubles.map(({ title, body }) => (
@@ -120,7 +158,7 @@ const troubles = [
       </div>
     </section>
 
-    <section class="mt-16">
+    <section id="what-players-see" class="mt-16 scroll-mt-24">
       <h2 class="text-3xl font-semibold text-slate-900">What your players see</h2>
       <div class="mt-8 grid gap-4 sm:grid-cols-3">
         <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
