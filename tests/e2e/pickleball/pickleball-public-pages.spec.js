@@ -112,4 +112,14 @@ test.describe('Pickleball public pages', () => {
     expect(html).not.toContain('fixed pair')
     expect(html).not.toContain('tournament')
   })
+
+  test('a blocked sign-in offers a way to request access', async ({ page }) => {
+    await page.goto('/pickleball/app?error=no_access')
+
+    await expect(page.getByRole('alert')).toContainText('no active Pickleball membership')
+    await expect(page.getByRole('link', { name: 'Request access' })).toHaveAttribute(
+      'href',
+      '/pickleball#request-access',
+    )
+  })
 })

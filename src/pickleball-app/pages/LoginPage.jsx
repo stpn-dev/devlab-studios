@@ -31,6 +31,14 @@ export default function LoginPage() {
             {errorMessage}
           </p>
         )}
+        {error === 'no_access' && (
+          <p className="mb-4 text-sm text-slate-300">
+            Not part of a club on Devlab Pickleball yet?{' '}
+            <a href="/pickleball#request-access" className="font-semibold text-white underline underline-offset-4">
+              Request access
+            </a>
+          </p>
+        )}
         <a
           href="/api/pickleball/auth/google/start"
           className="pb-btn-primary inline-flex w-full items-center justify-center rounded-lg px-4 py-2.5 text-sm"
