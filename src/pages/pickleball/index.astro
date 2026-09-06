@@ -1,19 +1,35 @@
 ---
 import Layout from '../../layouts/Layout.astro'
+import CourtSceneArt from '../../components/pickleball/art/CourtSceneArt.jsx'
 import '../../pickleball-app/pickleball.css'
 ---
 
 <Layout title="Devlab Pickleball">
-  <main class="mx-auto max-w-2xl px-6 py-24 text-center">
-    <p class="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Session management</p>
-    <h1 class="text-3xl font-extrabold tracking-tight text-slate-900">Devlab Pickleball</h1>
-    <div class="pb-rule mx-auto mt-3 h-[3px] w-11 rounded-full"></div>
-    <p class="mt-4 text-slate-600">Run open play — check-in, queueing, courts, and live scoring — for recreational pickleball.</p>
-    <a href="/pickleball/app" class="pb-btn-primary mt-8 inline-flex rounded-lg px-5 py-3 text-sm">
-      Operator sign in
-    </a>
-    <p class="mt-4">
-      <a href="/pickleball/methodology" class="text-sm text-slate-500 underline hover:text-slate-700">How OPI works</a>
-    </p>
+  <main class="mx-auto max-w-6xl px-6 py-16 sm:py-20">
+    <section class="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+      <div>
+        <p class="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Session management</p>
+        <h1 class="mt-2 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">Devlab Pickleball</h1>
+        <div class="pb-rule mt-3 h-[3px] w-11 rounded-full"></div>
+        <p class="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
+          Run open play from one screen — check-in, queueing, court assignment, live scoring,
+          and a scoreboard your players can watch from their own phones.
+        </p>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <a href="/pickleball/app" class="pb-btn-primary inline-flex rounded-lg px-5 py-3 text-sm">
+            Operator sign in
+          </a>
+          <a
+            href="/pickleball/how-it-works"
+            class="inline-flex items-center rounded-lg bg-white/[0.92] px-5 py-3 text-sm font-semibold text-brand-ink ring-1 ring-slate-200 transition hover:ring-brand/35"
+          >
+            See how it works
+          </a>
+        </div>
+      </div>
+      <div class="light-artifact rounded-[1.75rem] bg-gradient-to-br from-[#fff9ff] via-[#fbf9ff] to-[#f2efff] p-6 shadow-[0_18px_38px_rgba(48,28,114,0.12)] sm:p-8">
+        <CourtSceneArt className="h-auto w-full text-brand-ink" />
+      </div>
+    </section>
   </main>
 </Layout>
