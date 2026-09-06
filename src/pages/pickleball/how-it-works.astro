@@ -32,8 +32,8 @@ const steps = [
   {
     Art: Step4QueueArt,
     title: 'The queue fills',
-    body: 'A checked-in, available player joins the queue and waits — fewest games played first, then longest wait. Going temporarily unavailable does not remove them from the queue; it only skips them for the next court assignment. Come back available and they keep the exact spot they already had.',
-    sees: ['The queue in order', 'How long each player has waited', 'How many games each has played'],
+    body: 'Checking a player in does not queue them. Press "Join queue" for one player, or "Join all to queue" to add everyone checked in and available at once. Once queued, players wait fewest games played first, then longest wait. Going temporarily unavailable does not remove them from the queue; it only skips them for the next court assignment — come back available and they keep the exact spot they already had.',
+    sees: ['A "Join queue" action per player, and "Join all to queue" for everyone at once', 'The queue in order', 'How long each player has waited', 'How many games each has played'],
   },
   {
     Art: Step5AssignArt,
@@ -51,21 +51,20 @@ const steps = [
     Art: Step7FinishArt,
     title: 'Finish the game',
     body: 'Finish once the score is a valid final under your ruleset. The court is released, the players return to the queue, and the standings update. Got it wrong? Reopen the game, correct it, and finish again — the statistics are recomputed from scratch.',
-    sees: ['The final score locked in', 'Updated standings', 'The court free again'],
+    sees: ['The final score locked in', 'Standings update, though a player only ranks once they hit the session’s eligible-games threshold — tick "Show provisional players" to see everyone sooner', 'The court free again'],
   },
   {
     Art: Step8CompleteArt,
     title: 'Complete the session',
-    body: 'When play is over, complete the session. The standings become the final record, the public view stops expecting changes, and nothing further can be assigned.',
-    sees: ['Final standings', 'A public view that reads as finished'],
+    body: 'When play is over, complete the session. It is a one-way transition — a completed session can never go back to live, and no further court can be assigned from then on.',
+    sees: ['Final standings', 'Status shown as Completed, with no further status actions offered'],
   },
 ]
 
 const troubles = [
   { title: 'You tapped the wrong side', body: 'Undo the last rally. It is always beside the two rally buttons, and it reverses exactly one action.' },
   { title: 'You noticed a mistake much later', body: 'Reopen the finished game, correct the score, serving side and server number together, then finish it again.' },
-  { title: 'A court becomes unusable', body: 'A court can only be taken out of service once it is free — no pending assignment and no game in progress. Abandon or finish an active game (or release a pending assignment) first, then disable the court.' },
-  { title: 'A game cannot be finished', body: 'Abandon it. The court is released and the game is excluded from performance statistics.' },
+  { title: 'A court becomes unusable', body: 'A court can only be taken out of service once it is free — no pending assignment and no game in progress. Release the pending assignment, or finish the game once it reaches a valid final score, then disable the court.' },
 ]
 ---
 
