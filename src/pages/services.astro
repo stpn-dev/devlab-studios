@@ -198,7 +198,7 @@ const betaFormCopy = {
         <p class="text-sm leading-relaxed text-slate-600">
           We're running a small pilot before opening it up further. If you run open-play sessions for your own club and want early access, let us know below — we personally review every request.
         </p>
-        <div class="mt-4">
+        <div class="mt-4 flex flex-wrap gap-3">
           <button
             id="beta-tester-cta"
             type="button"
@@ -206,6 +206,12 @@ const betaFormCopy = {
           >
             Be a beta-tester
           </button>
+          <a
+            href="/pickleball"
+            class="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-brand-ink ring-1 ring-slate-300 transition hover:ring-brand/40"
+          >
+            See how it works
+          </a>
           <script>
             document.getElementById('beta-tester-cta')?.addEventListener('click', () => {
               const el = document.getElementById('beta-tester-form')

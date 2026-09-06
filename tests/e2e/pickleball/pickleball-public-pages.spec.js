@@ -122,4 +122,11 @@ test.describe('Pickleball public pages', () => {
       '/pickleball#request-access',
     )
   })
+
+  test('the services page links to the pickleball product', async ({ page }) => {
+    await page.goto('/services')
+
+    await expect(page.getByRole('button', { name: 'Be a beta-tester' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'See how it works' })).toHaveAttribute('href', '/pickleball')
+  })
 })
