@@ -4,6 +4,20 @@ import { test, expect } from '@playwright/test'
 // are served by the worker (astro `output: 'server'`), so this file matches
 // the `worker` Playwright project via the pickleball/ path convention.
 
+/**
+ * All of <main>'s copy as one string — including text inside collapsed
+ * <details> (which `innerText` would drop) but excluding <script>/<style>,
+ * whose minified contents would otherwise be searched as if they were page
+ * copy. Used by every copy assertion below.
+ */
+async function mainCopy(page) {
+  return page.locator('main').evaluate((element) => {
+    const clone = element.cloneNode(true)
+    for (const node of clone.querySelectorAll('script, style, template')) node.remove()
+    return clone.textContent
+  })
+}
+
 test.describe('Pickleball public pages', () => {
   test('the landing page renders a hero with both calls to action', async ({ page }) => {
     const response = await page.goto('/pickleball')
@@ -30,9 +44,14 @@ test.describe('Pickleball public pages', () => {
     test(`every decorative illustration is hidden from assistive technology (${path})`, async ({ page }) => {
       await page.goto(path)
 
-      // Scoped to exclude #request-access: a later task adds a hydrated
-      // ContactForm inside main whose icons are not aria-hidden.
-      const svgs = page.locator('main section:not(#request-access) svg')
+      // Positively scoped to the elements that actually hold this plan's
+      // artwork (`data-testid="pb-artwork"` on each art container). An
+      // earlier `main section:not(#request-access) svg` form excluded
+      // nothing — ContactForm renders its own nested <section
+      // class="form-surface"> INSIDE #request-access, which matches
+      // `section:not(#request-access)` — so the guard was silently also
+      // asserting on a shared component this plan does not own.
+      const svgs = page.locator('main [data-testid="pb-artwork"] svg')
       const count = await svgs.count()
       expect(count).toBeGreaterThan(0)
       for (let index = 0; index < count; index += 1) {
@@ -54,6 +73,19 @@ test.describe('Pickleball public pages', () => {
       const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/)
       expect(mainMatch).not.toBeNull()
       expect(mainMatch[1]).toContain(`viewBox="${viewBox}"`)
+
+      // The server-HTML check above is necessary but NOT sufficient: Astro
+      // server-renders `client:load`/`client:idle`/`client:visible` islands
+      // too (only `client:only` skips SSR), so adding a client: directive to
+      // an art component would ship a hydration bundle while the markup
+      // above still matched. An island's SSR output is wrapped in
+      // <astro-island>, so no art <svg> may have one as an ancestor. Scoped
+      // to `[data-testid="pb-artwork"]`, which deliberately excludes the
+      // ContactForm island #request-access mounts `client:visible` on
+      // purpose.
+      await page.goto(path)
+      await expect(page.locator('astro-island [data-testid="pb-artwork"] svg')).toHaveCount(0)
+      await expect(page.locator('[data-testid="pb-artwork"] astro-island')).toHaveCount(0)
     })
   }
 
@@ -64,7 +96,11 @@ test.describe('Pickleball public pages', () => {
     await expect(grid).toBeVisible()
     await expect(grid.locator('> article')).toHaveCount(4)
 
-    for (const heading of ['Fair queueing', 'Rally scoring', 'Live standings', 'Share it live']) {
+    // "Rally-by-rally scoring", never "Rally scoring": the engine is
+    // side-out (recordRally.ts awards a point only to the serving team) and
+    // the FAQ says so, but "rally scoring" names the OPPOSITE system to a
+    // pickleball-literate reader.
+    for (const heading of ['Fair queueing', 'Rally-by-rally scoring', 'Live standings', 'Share it live']) {
       await expect(grid.getByRole('heading', { name: heading })).toBeVisible()
     }
   })
@@ -78,25 +114,56 @@ test.describe('Pickleball public pages', () => {
     await expect(page.getByTestId('pb-faq').locator('> details')).toHaveCount(5)
   })
 
-  test('the landing page names no competitor', async ({ page }) => {
-    const html = (await (await page.request.get('/pickleball')).text()).toLowerCase()
-    expect(html).not.toContain('pickleq')
-    expect(html).not.toContain('unlike other')
-  })
+  // Spec §1.3: no competitor is named and no comparative claim is made.
+  // Real brand names in this market, none of which may appear. USA
+  // Pickleball, DUPR and UTR-P are deliberately absent from this list: the
+  // FAQ names them on purpose, to disclaim that OPI is any of them.
+  const COMPETITOR_BRANDS = [
+    'pickleq',
+    'playbypoint',
+    'courtreserve',
+    'pickleplanner',
+    'teamreach',
+    'playtime scheduler',
+    'pickleball brackets',
+    'swingvision',
+    'globalpickleball',
+    'pickleball den',
+  ]
+  const COMPARATIVE_LANGUAGE = /\bunlike\b|\bbetter than\b|\bcompared to\b|\bvs\.?\s/i
 
-  test('the guide page walks through all eight steps', async ({ page }) => {
+  for (const path of ['/pickleball', '/pickleball/how-it-works']) {
+    test(`names no competitor and makes no comparative claim (${path})`, async ({ page }) => {
+      await page.goto(path)
+      const text = await mainCopy(page)
+      const lowered = text.toLowerCase()
+
+      for (const brand of COMPETITOR_BRANDS) {
+        expect(lowered, `must not name ${brand}`).not.toContain(brand)
+      }
+      expect(text).not.toMatch(COMPARATIVE_LANGUAGE)
+    })
+  }
+
+  test('the guide page walks through all nine steps', async ({ page }) => {
     const response = await page.goto('/pickleball/how-it-works')
     expect(response.status()).toBe(200)
 
     await expect(page.locator('main h1')).toContainText('How Devlab Pickleball works')
-    await expect(page.getByTestId('pb-guide-steps').locator('> article')).toHaveCount(8)
+    await expect(page.getByTestId('pb-guide-steps').locator('> article')).toHaveCount(9)
 
+    // "Start the game" is its own step, not an aside: assignCourt only seats
+    // the teams and flips the court to ASSIGNED — play does not begin until
+    // POST /api/pickleball/sessions/[id]/games/start, driven by
+    // GamesListPage.jsx's start-a-game form. Without it the guide jumped
+    // from "Assign a court" straight to the two rally buttons.
     for (const step of [
       'Create a session',
       'Open it for check-in',
       'Check players in',
       'The queue fills',
       'Assign a court',
+      'Start the game',
       'Score the game',
       'Finish the game',
       'Complete the session',
@@ -104,6 +171,93 @@ test.describe('Pickleball public pages', () => {
       await expect(page.getByRole('heading', { name: step })).toBeVisible()
     }
   })
+
+  test('the guide offers a jump-link row to its main sections', async ({ page }) => {
+    await page.goto('/pickleball/how-it-works')
+
+    const jumpLinks = page.getByTestId('pb-guide-jump-links').locator('> a')
+    await expect(jumpLinks).toHaveCount(3)
+
+    for (const [name, href] of [
+      ['Run a session', '#run-a-session'],
+      ['Fix a mistake', '#when-something-goes-wrong'],
+      ['What players see', '#what-players-see'],
+    ]) {
+      const link = page.getByTestId('pb-guide-jump-links').getByRole('link', { name })
+      await expect(link).toHaveAttribute('href', href)
+      // Every target must be a real id on this page, or the row is decoration.
+      await expect(page.locator(href)).toHaveCount(1)
+    }
+  })
+
+  // Eight public-copy claims on this branch were rewritten because the
+  // committed code did not back the original wording. Each corrected phrase
+  // is pinned verbatim here so a careless copy edit fails loudly instead of
+  // silently reintroducing an unbacked claim.
+  const correctedClaims = [
+    {
+      path: '/pickleball',
+      phrases: [
+        // Only reopen/correct is audited, not every change.
+        'reopening or correcting a game is recorded in the audit log',
+        // Standings ship a confidence tier; "settled from the first minute"
+        // was never true.
+        'confidence tier',
+        // recordRally.ts awards a point only to the serving team.
+        'Side-out scoring',
+        'Rally-by-rally scoring',
+        // Repeat-avoidance is conditional (>=5 eligible candidates, and an
+        // equal-gamesPlayed replacement) — never unconditional.
+        'Once at least five players are eligible',
+      ],
+    },
+    {
+      path: '/pickleball/how-it-works',
+      phrases: [
+        // permissions.ts grants a scorekeeper only session-scoped scoring.
+        "scores games within a session they've been granted access to",
+        // SessionStatusChip.jsx's label, and SessionControlPage.jsx's buttons.
+        'Check-in open',
+        'Open check-in',
+        'Start session',
+        // RecommendedMatchCard.jsx renders candidates, not "the match".
+        'Recommended next players',
+      ],
+    },
+  ]
+
+  for (const { path, phrases } of correctedClaims) {
+    test(`keeps its corrected claims verbatim (${path})`, async ({ page }) => {
+      await page.goto(path)
+      const text = await mainCopy(page)
+
+      for (const phrase of phrases) {
+        expect(text, `corrected claim must survive: ${phrase}`).toContain(phrase)
+      }
+    })
+  }
+
+  // Spec §1.8: heading hierarchy has no skipped level. Fails if either page
+  // ever opens with something other than an <h1>, or jumps a level (an <h2>
+  // followed by an <h4>, say) — the shape a screen-reader user navigates by.
+  for (const path of ['/pickleball', '/pickleball/how-it-works']) {
+    test(`skips no heading level (${path})`, async ({ page }) => {
+      await page.goto(path)
+
+      const levels = await page
+        .locator('main h1, main h2, main h3, main h4, main h5, main h6')
+        .evaluateAll((nodes) => nodes.map((node) => Number(node.tagName.slice(1))))
+
+      expect(levels.length).toBeGreaterThan(0)
+      expect(levels[0]).toBe(1)
+      for (let index = 1; index < levels.length; index += 1) {
+        expect(
+          levels[index],
+          `heading ${index + 1} is h${levels[index]} after h${levels[index - 1]}`,
+        ).toBeLessThanOrEqual(levels[index - 1] + 1)
+      }
+    })
+  }
 
   test('the guide does not document features that do not work yet', async ({ page }) => {
     // Fixed pairs and tournaments are inert today — assignCourt refuses any
@@ -130,6 +284,14 @@ test.describe('Pickleball public pages', () => {
     await expect(section).toBeVisible()
     await expect(section.getByRole('heading', { name: 'Request early access' })).toBeVisible()
     await expect(section.getByLabel('Your name')).toBeVisible({ timeout: 10000 })
+    // The subject field's label and placeholder must ask for the same thing.
+    // They previously disagreed ("Your club or venue" labelling a field
+    // placeheld "Pickleball early access request"), which is also the only
+    // thing marking a submission as a pickleball request: ContactForm.jsx
+    // hardcodes `source: 'devlabstudios-contact-form'` and api/contact.ts
+    // ignores it, so without the subject these are indistinguishable from a
+    // generic contact.
+    await expect(section.getByLabel('Subject')).toHaveAttribute('placeholder', 'Pickleball early access request')
   })
 
   test('the services page links to the pickleball product', async ({ page }) => {
