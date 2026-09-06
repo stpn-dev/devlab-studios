@@ -60,7 +60,7 @@ test.describe('Pickleball public pages', () => {
 
     await expect(page.getByRole('heading', { name: 'Every match-up explains itself' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Nothing is ever lost' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Standings from the first minute' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Everyone sees the same score' })).toBeVisible()
     await expect(page.getByTestId('pb-faq').locator('> details')).toHaveCount(5)
   })
 
