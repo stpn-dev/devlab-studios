@@ -13,6 +13,32 @@ const features = [
   { Art: StandingsArt, title: 'Live standings', body: 'Every checked-in player ranked from the first minute, filling in as games finish.' },
   { Art: ShareLiveArt, title: 'Share it live', body: 'A QR code puts the live scoreboard on every player’s phone, and on the TV in the hall.' },
 ]
+
+const differentiators = [
+  {
+    Art: QueueFlowArt,
+    title: 'Every match-up explains itself',
+    body: 'The queue picks on fewest games played, then longest wait, and avoids putting the same partners together twice in a row. Each recommendation carries the reasons it was chosen, so you can answer “why them?” without guessing.',
+  },
+  {
+    Art: ScoreboardArt,
+    title: 'Nothing is ever lost',
+    body: 'Undo the last rally at any point. Reopen and correct a finished game long after it ended — statistics are recomputed from scratch rather than layered on top of the old ones, and every change lands in the audit log.',
+  },
+  {
+    Art: StandingsArt,
+    title: 'Standings from the first minute',
+    body: 'The board is populated the moment players check in. Everyone is listed with their record and point differential, ranked as soon as they have enough games to qualify.',
+  },
+]
+
+const faqs = [
+  { q: 'Do players need an account?', a: 'No. Players never sign in — they scan a QR code to watch the live scoreboard. Only the person running the session signs in.' },
+  { q: 'How many courts can I run?', a: 'As many as your venue has. Courts are set up once per venue and every session picks them up automatically.' },
+  { q: 'What scoring does it use?', a: 'Side-out scoring driven by a ruleset you control — target score and win-by are configurable, not hardcoded to 11.' },
+  { q: 'What happens if I make a scoring mistake?', a: 'Undo the last rally straight away, or reopen and correct the game after it has finished. Statistics are recomputed, never patched.' },
+  { q: 'Is OPI an official rating?', a: 'No. OPI is a Devlab-original performance index, not a USA Pickleball rating, DUPR, UTR-P or Elo system.' },
+]
 ---
 
 <Layout title="Devlab Pickleball">
@@ -52,6 +78,78 @@ const features = [
             <h3 class="mt-4 font-semibold text-brand-ink">{title}</h3>
             <p class="mt-2 text-sm leading-relaxed text-slate-600">{body}</p>
           </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="mt-20 space-y-6">
+      {differentiators.map(({ Art, title, body }, index) => (
+        <article class="light-artifact overflow-hidden rounded-[1.75rem] bg-white/[0.92] shadow-[0_18px_38px_rgba(48,28,114,0.10)] ring-1 ring-slate-200">
+          <div class="grid items-center gap-0 lg:grid-cols-2">
+            <div class={['flex justify-center p-8 lg:p-10', index % 2 === 0 ? 'lg:order-1' : 'lg:order-2'].join(' ')}>
+              <Art className="h-40 w-full max-w-sm text-brand-ink" />
+            </div>
+            <div class={['p-8 lg:p-10', index % 2 === 0 ? 'lg:order-2' : 'lg:order-1'].join(' ')}>
+              <h2 class="text-2xl font-semibold text-brand-ink">{title}</h2>
+              <p class="mt-3 leading-relaxed text-slate-600">{body}</p>
+            </div>
+          </div>
+        </article>
+      ))}
+    </section>
+
+    <section class="mt-20">
+      <h2 class="text-3xl font-semibold text-slate-900">A session in three moves</h2>
+      <div class="mt-8 grid gap-5 sm:grid-cols-3">
+        <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+          <p class="pb-score text-2xl text-brand">1</p>
+          <h3 class="mt-2 font-semibold text-brand-ink">Open for check-in</h3>
+          <p class="mt-2 text-sm text-slate-600">Create the session, pick your courts and ruleset, and let players check in.</p>
+        </article>
+        <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+          <p class="pb-score text-2xl text-brand">2</p>
+          <h3 class="mt-2 font-semibold text-brand-ink">Assign and score</h3>
+          <p class="mt-2 text-sm text-slate-600">The app proposes the next four players. Confirm, then tap who won each rally.</p>
+        </article>
+        <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+          <p class="pb-score text-2xl text-brand">3</p>
+          <h3 class="mt-2 font-semibold text-brand-ink">Finish and repeat</h3>
+          <p class="mt-2 text-sm text-slate-600">Finishing a game frees the court, updates the standings, and requeues the players.</p>
+        </article>
+      </div>
+      <p class="mt-6">
+        <a href="/pickleball/how-it-works" class="text-sm font-semibold text-brand underline underline-offset-4">
+          Read the full walkthrough
+        </a>
+      </p>
+    </section>
+
+    <section class="mt-20">
+      <h2 class="text-3xl font-semibold text-slate-900">What your players see</h2>
+      <div class="mt-8 grid gap-5 sm:grid-cols-3">
+        <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+          <h3 class="font-semibold text-brand-ink">A QR code</h3>
+          <p class="mt-2 text-sm text-slate-600">Share one code. No app to install and no account to create.</p>
+        </article>
+        <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+          <h3 class="font-semibold text-brand-ink">The live view</h3>
+          <p class="mt-2 text-sm text-slate-600">Scores update on their phones as the rallies happen.</p>
+        </article>
+        <article class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+          <h3 class="font-semibold text-brand-ink">A TV display</h3>
+          <p class="mt-2 text-sm text-slate-600">A full-screen scoreboard for a screen in the hall.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="mt-20">
+      <h2 class="text-3xl font-semibold text-slate-900">Questions</h2>
+      <div class="mt-8 grid gap-3 lg:grid-cols-2" data-testid="pb-faq">
+        {faqs.map(({ q, a }) => (
+          <details class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
+            <summary class="cursor-pointer font-semibold text-brand-ink">{q}</summary>
+            <p class="mt-2 text-sm leading-relaxed text-slate-600">{a}</p>
+          </details>
         ))}
       </div>
     </section>

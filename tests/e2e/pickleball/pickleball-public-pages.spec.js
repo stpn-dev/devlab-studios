@@ -54,4 +54,19 @@ test.describe('Pickleball public pages', () => {
       await expect(grid.getByRole('heading', { name: heading })).toBeVisible()
     }
   })
+
+  test('the landing page backs its claims with sections a reader can scan', async ({ page }) => {
+    await page.goto('/pickleball')
+
+    await expect(page.getByRole('heading', { name: 'Every match-up explains itself' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Nothing is ever lost' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Standings from the first minute' })).toBeVisible()
+    await expect(page.getByTestId('pb-faq').locator('> details')).toHaveCount(5)
+  })
+
+  test('the landing page names no competitor', async ({ page }) => {
+    const html = (await (await page.request.get('/pickleball')).text()).toLowerCase()
+    expect(html).not.toContain('pickleq')
+    expect(html).not.toContain('unlike other')
+  })
 })
