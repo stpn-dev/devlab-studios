@@ -33,6 +33,7 @@ import {
 } from '../repositories/pickleball/queueEntries.js'
 import {
   buildCreateTeamStatement,
+  getTeamSessionPairId,
   buildAddTeamMemberStatement,
   buildReplaceTeamMemberStatement,
   buildClearTeamCourtBindingStatement,
@@ -408,16 +409,19 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       memberIdsByTeam.set(participant.team_id, members)
     }
 
+    // Resolve the pair from the TEAM, not from either member's current
+    // pairing. Those diverge the moment anyone re-pairs, and resolving from
+    // live state credited the game to whichever pair a member happens to be
+    // in now -- a pair that may never have played it.
     const statements: unknown[] = []
-    for (const members of memberIdsByTeam.values()) {
+    for (const [teamId, members] of memberIdsByTeam) {
       if (members.length !== 2) continue
-      const [memberA, memberB] = members
-      const pair = await getActivePairForSessionPlayer(db, sessionId, memberA)
-      if (!pair) continue
+      const sessionPairId = await getTeamSessionPairId(db, sessionId, teamId)
+      if (!sessionPairId) continue
       statements.push(
         mode === 'INCREMENT'
-          ? buildIncrementPairGamesPlayedStatement(db, sessionId, pair.id)
-          : buildRecomputePairGamesPlayedStatement(db, sessionId, pair.id, memberA, memberB),
+          ? buildIncrementPairGamesPlayedStatement(db, sessionId, sessionPairId)
+          : buildRecomputePairGamesPlayedStatement(db, sessionId, sessionPairId),
       )
     }
     return statements
@@ -629,8 +633,12 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // generated client-side before any statement runs, so a mid-sequence
     // failure can never leave players flipped to ASSIGNED while the court
     // stays AVAILABLE.
-    const teamA = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind: 'FIXED_PAIR' })
-    const teamB = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind: 'FIXED_PAIR' })
+    // session_pair_id is stamped on the team here and never re-derived. It is
+    // what lets pair statistics credit the pair that ACTUALLY played, even
+    // after the pair dissolves and its members re-pair with other people
+    // (migration 0013).
+    const teamA = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind: 'FIXED_PAIR', sessionPairId: pairA.sessionPairId })
+    const teamB = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind: 'FIXED_PAIR', sessionPairId: pairB.sessionPairId })
     const markAssignedStatement = buildMarkAssignedStatement(db, sessionId, allMemberIds)
 
     const statements = [

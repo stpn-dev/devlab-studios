@@ -226,19 +226,18 @@ export function buildIncrementPairGamesPlayedStatement(db, sessionId, pairId) {
  * two member ids must be supplied by the caller, which already knows them
  * from the game's own participant rows.
  */
-export function buildRecomputePairGamesPlayedStatement(db, sessionId, pairId, sessionPlayerAId, sessionPlayerBId) {
+export function buildRecomputePairGamesPlayedStatement(db, sessionId, pairId) {
   return db
     .prepare(
       `UPDATE session_pairs SET games_played = (
         SELECT COUNT(DISTINCT g.id)
         FROM games g
-        JOIN game_participants gpa ON gpa.game_id = g.id AND gpa.session_player_id = ?
-        JOIN game_participants gpb ON gpb.game_id = g.id
-                                   AND gpb.session_player_id = ?
-                                   AND gpb.team_id = gpa.team_id
+        JOIN teams t ON t.session_pair_id = ?
+                    AND (g.team_a_id = t.id OR g.team_b_id = t.id)
         WHERE g.status = 'FINISHED' AND g.session_id = ?
       ), updated_at = ?
        WHERE id = ? AND session_id = ?`,
     )
-    .bind(sessionPlayerAId, sessionPlayerBId, sessionId, nowIso(), pairId, sessionId)
+    .bind(pairId, sessionId, nowIso(), pairId, sessionId)
 }
+

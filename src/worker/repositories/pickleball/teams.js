@@ -11,11 +11,18 @@
  * @returns {{ id: string, statement: unknown }} the new team id (usable before
  *   the statement is executed) and the unexecuted INSERT.
  */
-export function buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind }) {
+/**
+ * @param {D1Database} db
+ * @param {{ sessionId: string, sessionCourtId: string | null, kind: string, sessionPairId?: string | null }} team
+ */
+export function buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind, sessionPairId = null }) {
   const id = crypto.randomUUID()
   const statement = db
-    .prepare(`INSERT INTO teams (id, session_id, session_court_id, kind, created_at) VALUES (?, ?, ?, ?, ?)`)
-    .bind(id, sessionId, sessionCourtId ?? null, kind, new Date().toISOString())
+    .prepare(
+      `INSERT INTO teams (id, session_id, session_court_id, kind, session_pair_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(id, sessionId, sessionCourtId ?? null, kind, sessionPairId, new Date().toISOString())
   return { id, statement }
 }
 
@@ -181,4 +188,21 @@ export async function listAssignedSessionPlayerIdsForCourt(db, sessionId, sessio
     .all()
 
   return (result.results || []).map((row) => row.session_player_id)
+}
+
+/**
+ * The fixed pair a team was seated as, or null for an AD_HOC team.
+ *
+ * Read from the team rather than from a member's current pairing: those
+ * diverge as soon as anyone re-pairs, and the team is the only record of
+ * which pair actually played a given game (migration 0013).
+ *
+ * @returns {Promise<string | null>}
+ */
+export async function getTeamSessionPairId(db, sessionId, teamId) {
+  const row = await db
+    .prepare(`SELECT session_pair_id FROM teams WHERE id = ? AND session_id = ?`)
+    .bind(teamId, sessionId)
+    .first()
+  return row?.session_pair_id ?? null
 }

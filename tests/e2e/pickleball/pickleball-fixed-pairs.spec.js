@@ -755,6 +755,53 @@ test.describe('Pickleball fixed pairs: surviving past the first game', () => {
     expect(secondStart.status()).toBe(201)
   })
 
+
+  // I1: pair statistics must credit the pair that ACTUALLY played, resolved
+  // from the team seated at assignment (migration 0013's
+  // teams.session_pair_id) rather than from a member's CURRENT pairing.
+  //
+  // The two diverge if anyone re-pairs, and the fresh-finish path increments
+  // blindly, so a wrong resolution puts +1 on a pair that never played. That
+  // number is the primary sort key in listEligiblePairs, so it corrupts the
+  // fairness order, not just a display.
+  //
+  // The test dissolves a playing pair MID-GAME and re-pairs one of its
+  // members with a bystander, so at finish time that member's live pair is
+  // provably not the pair on the court.
+  test('finishing credits the pair that was seated, not one formed mid-game', async ({ request }) => {
+    const baseURL = test.info().project.use.baseURL
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 6)
+
+    const pairA = await formAndQueuePair(request, sessionId, sessionPlayerIds[0], sessionPlayerIds[1])
+    const pairB = await formAndQueuePair(request, sessionId, sessionPlayerIds[2], sessionPlayerIds[3])
+
+    const assignResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })
+    expect(assignResponse.status()).toBe(200)
+    const gameId = (await (await startGame(request, sessionId, sessionCourts[0].id, await assignResponse.json(), 'A')).json()).game.id
+
+    // Mid-game: break the seated pair and re-pair one member with a bystander.
+    const dissolved = await request.delete(`/api/pickleball/sessions/${sessionId}/pairs/${pairA.id}`, {
+      headers: { Origin: baseURL },
+    })
+    expect(dissolved.status()).toBe(200)
+    const midGamePair = await formPair(request, sessionId, sessionPlayerIds[0], sessionPlayerIds[4])
+
+    await playSequence(request, sessionId, gameId, Array(11).fill('A'))
+    expect((await finishGame(request, sessionId, gameId)).ok()).toBe(true)
+
+    const pairs = (await (await request.get(`/api/pickleball/sessions/${sessionId}/pairs`)).json()).pairs
+    const seatedOpponent = pairs.find((pair) => pair.id === pairB.id)
+    const formedMidGame = pairs.find((pair) => pair.id === midGamePair.id)
+
+    // Positive control: the pair that really played is credited.
+    expect(seatedOpponent.gamesPlayed).toBe(1)
+    // The defect: resolving from live pairing would put this game's credit on
+    // the pair formed mid-game, which never took the court.
+    expect(formedMidGame.gamesPlayed).toBe(0)
+  })
+
   // C2: marking one member of a PLAYING pair unavailable must not delete the
   // queue rows recording that occupancy. Deleting them made hasOpenQueueEntry
   // report the pair as free, so an operator could re-queue a pair that was
