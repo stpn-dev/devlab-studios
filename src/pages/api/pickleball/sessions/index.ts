@@ -56,6 +56,17 @@ export const POST: APIRoute = async ({ request }) => {
       return jsonResponse({ error: 'A Fixed Pairs session requires a doubles scoring ruleset.' }, 400)
     }
 
+    // A tournament is a FIXED_PAIRS session carrying tournamentFormat, not a
+    // third sessionType (migration 0014's header) -- so tournamentFormat on
+    // an OPEN_PLAY session is rejected here, before the FIXED_PAIRS/doubles
+    // check above ever gets a chance to also reject it for the right reason.
+    // Since a tournament is therefore always FIXED_PAIRS, the check above
+    // already covers "a tournament with a SINGLES ruleset is rejected --
+    // entrants are pairs" with no further code.
+    if (result.data.tournamentFormat && result.data.sessionType !== 'FIXED_PAIRS') {
+      return jsonResponse({ error: 'A tournament requires a Fixed Pairs session.' }, 400)
+    }
+
     // Session creation and court seeding must commit or fail together — a
     // court-seed failure after a standalone session INSERT already committed
     // would leave a permanent session with zero session_courts rows and no

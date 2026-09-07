@@ -58,6 +58,7 @@ import {
 } from '../repositories/pickleball/sessionPlayers.js'
 import {
   createPair,
+  getPair as getSessionPairRepo,
   buildDissolvePairStatement,
   getActivePairForSessionPlayer,
   listEligiblePairs,
@@ -81,10 +82,19 @@ import {
   recomputeMatchmakingHistoryStatements,
 } from '../repositories/pickleball/matchmakingHistory.js'
 import { buildRecomputePlayerSnapshotsStatements, getPlayerSnapshot } from '../repositories/pickleball/playerPerformanceSnapshots.js'
+import {
+  enterPair as enterTournamentPairRepo,
+  listEntrants as listTournamentEntrants,
+  buildSetSeedStatement,
+  insertFixturesStatements,
+  buildLockBracketStatement,
+} from '../repositories/pickleball/tournaments.js'
 import { buildSessionSnapshot, buildPublicSnapshotExtras } from './sessionSnapshot.js'
 import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
 import { selectNextPlayers, balanceTeams, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 import { selectNextPairs, buildLastOpponentPairId, type PairCandidate, type LastOpponentSessionPlayer } from '../../lib/pickleball/pairSelection'
+import { seedEntrants, type SeedCandidate } from '../../lib/pickleball/tournament/seeding'
+import { generateFixtures } from '../../lib/pickleball/tournament/generateFixtures'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { initialGameState } from '../../lib/pickleball/scoring/gameState'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
@@ -1824,6 +1834,90 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     await this.broadcast(sessionId)
     return { ok: true as const, pair }
+  }
+
+  // A tournament is a FIXED_PAIRS session carrying `tournamentFormat` (see
+  // migration 0014's header) -- NOT a third session type -- so entering a
+  // pair and locking the bracket both gate on that field, not on sessionType.
+  //
+  // Refused once bracket_locked_at is set: entrants are frozen the moment the
+  // bracket locks (spec §3.2), same rule lockBracket itself enforces below.
+  async enterPair(sessionId: string, sessionPairId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const db = this.env.PICKLEBALL_DB
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+    if (!session.tournamentFormat) return failure('This session is not a tournament.')
+    if (session.bracketLockedAt) return failure('The bracket is locked; entrants cannot be changed.')
+
+    const pair = await getSessionPairRepo(db, sessionId, sessionPairId)
+    if (!pair || pair.status !== 'ACTIVE') return failure('Pair not found, or not active.')
+
+    const entrant = await enterTournamentPairRepo(db, { sessionId, sessionPairId })
+    if (!entrant) return failure('This pair is already entered in the tournament.')
+
+    await this.broadcast(sessionId)
+    return { ok: true as const, entrant }
+  }
+
+  // Computes seeds (seedEntrants, reading each pair's members' ALL_TIME OPI),
+  // generates fixtures (generateFixtures) and writes seeds + fixtures +
+  // bracket_locked_at in ONE db.batch() -- a half-locked bracket (seeds
+  // without fixtures, or fixtures without the lock) is exactly the class of
+  // state Part B kept having to fix for session_pairs/queue_entries, and the
+  // same discipline applies here. Locking twice is refused (seeds are frozen
+  // once set, spec §3.2); so is locking with fewer than 2 entrants.
+  async lockBracket(sessionId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const db = this.env.PICKLEBALL_DB
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+    if (!session.tournamentFormat) return failure('This session is not a tournament.')
+    if (session.bracketLockedAt) return failure('The bracket is already locked.')
+
+    const entrants = await listTournamentEntrants(db, sessionId)
+    if (entrants.length < 2) return failure('At least 2 entrants are required to lock the bracket.')
+
+    // ALL_TIME OPI is per player_id, mean of the pair's two members, null if
+    // either has no snapshot yet (seeding.ts sorts a null OPI last, never as
+    // zero -- see that file's header). Tournament games never feed OPI
+    // (that asymmetry is Task 7's concern, spec §3.2) but are seeded FROM it.
+    const candidates: SeedCandidate[] = await Promise.all(
+      entrants.map(async (entrant: { id: string; displayName: string; memberPlayerIds: string[] }) => {
+        const [snapshotA, snapshotB] = await Promise.all(
+          entrant.memberPlayerIds.map((playerId: string) => getPlayerSnapshot(db, playerId, 'ALL_TIME', null)),
+        )
+        const opiA = snapshotA ? snapshotA.opi : null
+        const opiB = snapshotB ? snapshotB.opi : null
+        const opi = opiA === null || opiB === null ? null : (opiA + opiB) / 2
+        return { entrantId: entrant.id, displayName: entrant.displayName, opi }
+      }),
+    )
+
+    const seeds = seedEntrants(candidates)
+    // generateFixtures THROWS for any format other than ROUND_ROBIN
+    // (deliberately -- see that file's header); createSessionSchema already
+    // restricts tournamentFormat to 'ROUND_ROBIN' for this phase, so that
+    // throw is unreachable via the public API today, not caught into an
+    // empty fixture list here.
+    const fixtures = generateFixtures(session.tournamentFormat as 'ROUND_ROBIN', seeds)
+
+    // This file's other methods use `new Date().toISOString()` directly
+    // (e.g. joinQueueAsPair above) rather than importing nowIso() from
+    // responses.js -- followed here for consistency, not the sessionPairs.js
+    // repository style.
+    const timestamp = new Date().toISOString()
+    const statements = [
+      ...seeds.map(({ entrantId, seed }) => buildSetSeedStatement(db, sessionId, entrantId, seed)),
+      ...insertFixturesStatements(db, sessionId, fixtures),
+      buildLockBracketStatement(db, sessionId, timestamp),
+    ]
+    await db.batch(statements)
+
+    await this.broadcast(sessionId)
+    return { ok: true as const, seeds, fixtureCount: fixtures.length }
   }
 
   // Dissolves an ACTIVE pair AND closes any open queue_entries rows still

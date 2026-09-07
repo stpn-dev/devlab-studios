@@ -20,6 +20,12 @@ function toSession(row) {
     publicViewEnabled: Boolean(row.public_view_enabled),
     publicLeaderboardEnabled: Boolean(row.public_leaderboard_enabled),
     createdByUserId: row.created_by_user_id,
+    // A tournament is a FIXED_PAIRS session carrying this column set
+    // (migration 0014's header) -- NOT a third session_type. NULL
+    // tournamentFormat means an ordinary session; both are NULL together
+    // until lockBracket sets bracketLockedAt.
+    tournamentFormat: row.tournament_format ?? null,
+    bracketLockedAt: row.bracket_locked_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -27,7 +33,8 @@ function toSession(row) {
 
 const SESSION_COLUMNS = `id, organization_id, venue_id, name, session_type, status, scoring_ruleset_id,
   scheduled_start, scheduled_end, actual_start, actual_end, post_game_rotation_policy,
-  leaderboard_min_games, public_view_enabled, public_leaderboard_enabled, created_by_user_id, created_at, updated_at`
+  leaderboard_min_games, public_view_enabled, public_leaderboard_enabled, created_by_user_id,
+  tournament_format, bracket_locked_at, created_at, updated_at`
 
 export async function listSessions(db, organizationId) {
   const result = await db
@@ -250,28 +257,40 @@ export async function deleteSessionCascade(db, id, organizationId, affectedPlaye
 // statements — see SessionCoordinatorDO.ts for the established build*Statement
 // convention this follows. Running this statement alone (via `createSession`
 // below) remains a valid, supported use.
+/**
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {{ id: string, organizationId: string, venueId: string, name: string, sessionType: string,
+ *   scoringRulesetId: string, scheduledStart: string, scheduledEnd: string, createdByUserId: string,
+ *   timestamp: string, tournamentFormat?: string | null }} params
+ */
 export function buildCreateSessionStatement(db, {
   id, organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId, timestamp,
+  tournamentFormat,
 }) {
+  const resolvedTournamentFormat = tournamentFormat ?? null
   return db
     .prepare(
       `INSERT INTO pickleball_sessions (
         id, organization_id, venue_id, name, session_type, status, scoring_ruleset_id,
         scheduled_start, scheduled_end, post_game_rotation_policy, leaderboard_min_games,
-        public_view_enabled, public_leaderboard_enabled, created_by_user_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, 'AUTO_REQUEUE_ALL', 3, 1, 1, ?, ?, ?)`,
+        public_view_enabled, public_leaderboard_enabled, created_by_user_id, tournament_format, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, 'AUTO_REQUEUE_ALL', 3, 1, 1, ?, ?, ?, ?)`,
     )
-    .bind(id, organizationId, venueId, name.trim(), sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId, timestamp, timestamp)
+    .bind(
+      id, organizationId, venueId, name.trim(), sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId,
+      resolvedTournamentFormat, timestamp, timestamp,
+    )
 }
 
 export async function createSession(db, {
-  organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId,
+  organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId, tournamentFormat,
 }) {
   const id = crypto.randomUUID()
   const timestamp = nowIso()
 
   await buildCreateSessionStatement(db, {
     id, organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId, timestamp,
+    tournamentFormat,
   }).run()
 
   return getSession(db, id, organizationId)
