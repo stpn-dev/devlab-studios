@@ -190,6 +190,16 @@ export function selectNextPairs(
 }
 ```
 
+> **Shipped implementation differs from the snippet above — the file is the
+> source of truth.** Review found the `REPEAT_AVOIDANCE_MIN_PAIRS` gate was
+> dead code (after the shortfall early-return, `sorted.length >= count >= 2`
+> always holds, so the only sub-threshold state is `sorted.length === count`,
+> where the swap's own "not already selected" clause blocks it anyway), and
+> that the single-`break` swap plus a `selected[0]`-only guard was wrong for
+> `count > 2`. The constant was deleted and the swap generalised to resolve
+> every conflicting slot against the full remaining selection, matching
+> `queueEngine.ts`. Read `src/lib/pickleball/pairSelection.ts`, not this block.
+
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run src/lib/pickleball/pairSelection.test.ts`
