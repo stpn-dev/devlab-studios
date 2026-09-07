@@ -29,6 +29,7 @@ import {
   joinQueueAsPair as joinQueueAsPairRepo,
   leaveQueueAsPair as leaveQueueAsPairRepo,
   buildCloseQueueEntriesForPairStatement,
+  buildCloseQueuedEntriesForPairStatement,
 } from '../repositories/pickleball/queueEntries.js'
 import {
   buildCreateTeamStatement,
@@ -310,6 +311,60 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // are still appended) and only the "hand this court back to the pool" side
   // effect is skipped, because that court is no longer this game's to hand
   // back.
+  // Builds the close-and-maybe-requeue statements every court release runs
+  // (release, finish, abandon). Extracted because all three sites had the
+  // same inline flatMap and all three were pair-blind: they called
+  // buildJoinQueueStatement without a session_pair_id, so a FIXED_PAIRS
+  // session's post-game requeue produced rows with a NULL pair id.
+  // listEligiblePairs requires both members' rows to carry the pair's own id,
+  // so after one finished game the pair was invisible to assignment, could not
+  // re-join (hasOpenQueueEntry saw the orphans), could not leave (the DELETE
+  // keys on session_pair_id), and could not be dissolved clean. The session
+  // was unrecoverable. Keeping this in one place is what stops a fourth
+  // release site being written pair-blind.
+  //
+  // In a FIXED_PAIRS session only whole pairs are requeued, and both rows of a
+  // pair share one session_pair_id and one queued_at, exactly as
+  // joinQueueAsPair produces. A released player whose pair has since been
+  // dissolved is closed but NOT requeued — a lone player has nothing to be
+  // seated as, and requeueing them would recreate the orphan row this fixes.
+  private async buildRequeueStatements(
+    db: D1Database,
+    session: { id: string; sessionType: string },
+    sessionPlayerIds: string[],
+    requeued: boolean,
+  ): Promise<D1PreparedStatement[]> {
+    const sessionId = session.id
+    const closes = sessionPlayerIds.map((id) => buildCloseQueueEntryStatement(db, sessionId, id))
+    if (!requeued) return closes
+
+    if (session.sessionType !== 'FIXED_PAIRS') {
+      return [...closes, ...sessionPlayerIds.map((id) => buildJoinQueueStatement(db, { sessionId, sessionPlayerId: id }))]
+    }
+
+    const released = new Set(sessionPlayerIds)
+    const pairs = new Map<string, string[]>()
+    for (const sessionPlayerId of sessionPlayerIds) {
+      const pair = await getActivePairForSessionPlayer(db, sessionId, sessionPlayerId)
+      if (!pair) continue
+      const members = pairs.get(pair.id) || []
+      pairs.set(pair.id, [...members, sessionPlayerId])
+    }
+
+    const rejoins: D1PreparedStatement[] = []
+    for (const [sessionPairId, members] of pairs) {
+      // Both members must be in this release, or the pair is not whole here
+      // and requeueing half of it would strand the other half.
+      if (members.length !== 2 || !members.every((id) => released.has(id))) continue
+      const queuedAt = new Date().toISOString()
+      for (const sessionPlayerId of members) {
+        rejoins.push(buildJoinQueueStatement(db, { sessionId, sessionPlayerId, sessionPairId }, queuedAt))
+      }
+    }
+
+    return [...closes, ...rejoins]
+  }
+
   private async gameStillHoldsItsCourt(
     db: D1Database,
     sessionId: string,
@@ -710,10 +765,12 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     const requeued = session?.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
 
-    const statements = sessionPlayerIds.flatMap((sessionPlayerId) => [
-      buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId),
-      ...(requeued ? [buildJoinQueueStatement(db, { sessionId, sessionPlayerId })] : []),
-    ])
+    const statements = await this.buildRequeueStatements(
+      db,
+      { id: sessionId, sessionType: session?.sessionType ?? 'OPEN_PLAY' },
+      sessionPlayerIds,
+      requeued,
+    )
 
     // Release the court's team binding along with the court itself, so it does
     // not outlive this occupancy. A court is assigned and released many times
@@ -1301,10 +1358,12 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     const holdsCourt = await this.gameStillHoldsItsCourt(db, sessionId, game)
     const releasedSessionPlayerIds = holdsCourt ? participants.map((p) => p.session_player_id) : []
     const requeued = holdsCourt && session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
-    const releaseStatements = releasedSessionPlayerIds.flatMap((sessionPlayerId) => [
-      buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId),
-      ...(requeued ? [buildJoinQueueStatement(db, { sessionId, sessionPlayerId })] : []),
-    ])
+    const releaseStatements = await this.buildRequeueStatements(
+      db,
+      { id: sessionId, sessionType: session.sessionType },
+      releasedSessionPlayerIds,
+      requeued,
+    )
     if (holdsCourt) {
       releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
       releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
@@ -1410,10 +1469,12 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       ? await listAssignedSessionPlayerIdsForCourt(db, sessionId, game.sessionCourtId)
       : []
     const requeued = holdsCourt && session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
-    const releaseStatements = sessionPlayerIds.flatMap((sessionPlayerId) => [
-      buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId),
-      ...(requeued ? [buildJoinQueueStatement(db, { sessionId, sessionPlayerId })] : []),
-    ])
+    const releaseStatements = await this.buildRequeueStatements(
+      db,
+      { id: sessionId, sessionType: session.sessionType },
+      sessionPlayerIds,
+      requeued,
+    )
     if (holdsCourt) {
       releaseStatements.push(buildClearTeamCourtBindingStatement(db, sessionId, game.sessionCourtId))
       releaseStatements.push(buildSetCourtStatusStatement(db, sessionId, game.sessionCourtId, 'AVAILABLE'))
@@ -1612,7 +1673,12 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       const pair = await getActivePairForSessionPlayer(db, sessionId, sessionPlayer.id)
       const statements = [
         buildSetAvailabilityByIdStatement(db, sessionId, sessionPlayer.id, status),
-        ...(pair ? [buildCloseQueueEntriesForPairStatement(db, sessionId, pair.id)] : []),
+        // QUEUED-only, deliberately. If the pair is currently ASSIGNED or
+        // PLAYING, its queue rows record that occupancy — deleting them here
+        // would make hasOpenQueueEntry report the pair as free, letting an
+        // operator re-queue it while it is still on court and have it seated
+        // on a second court at the same time.
+        ...(pair ? [buildCloseQueuedEntriesForPairStatement(db, sessionId, pair.id)] : []),
       ]
       await db.batch(statements)
 

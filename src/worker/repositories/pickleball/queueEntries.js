@@ -32,15 +32,30 @@ export async function hasOpenQueueEntry(db, sessionId, sessionPlayerId) {
  * entries earlier in the very same batch — a pre-read there would still see
  * the not-yet-deleted row and wrongly skip the re-queue. Only use this when
  * the same batch guarantees no open entry survives.
+ *
+ * `sessionPairId` and an explicit `timestamp` are optional (fix round 6789,
+ * C1): a FIXED_PAIRS caller requeuing a pair's two members must give both
+ * rows the SAME session_pair_id and the SAME queued_at, exactly like
+ * joinQueueAsPair below produces — otherwise listEligiblePairs (which
+ * requires both members' rows to carry the pair's own id) can never see
+ * either row again, wedging the pair out of the queue for the rest of the
+ * session (see SessionCoordinatorDO's buildRequeueStatements, the caller that
+ * actually supplies these). An OPEN_PLAY caller passes neither: sessionPairId
+ * defaults to NULL (unchanged from before this fix) and a fresh timestamp is
+ * generated per call, exactly as before.
  */
-export function buildJoinQueueStatement(db, { sessionId, sessionPlayerId }) {
-  const timestamp = nowIso()
+/**
+ * @param {D1Database} db
+ * @param {{ sessionId: string, sessionPlayerId: string, sessionPairId?: string | null }} entry
+ * @param {string} [timestamp]
+ */
+export function buildJoinQueueStatement(db, { sessionId, sessionPlayerId, sessionPairId = null }, timestamp = nowIso()) {
   return db
     .prepare(
-      `INSERT INTO queue_entries (id, session_id, session_player_id, status, queued_at, created_at, updated_at)
-       VALUES (?, ?, ?, 'QUEUED', ?, ?, ?)`,
+      `INSERT INTO queue_entries (id, session_id, session_player_id, session_pair_id, status, queued_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'QUEUED', ?, ?, ?)`,
     )
-    .bind(crypto.randomUUID(), sessionId, sessionPlayerId, timestamp, timestamp, timestamp)
+    .bind(crypto.randomUUID(), sessionId, sessionPlayerId, sessionPairId, timestamp, timestamp, timestamp)
 }
 
 // True when a D1 write failed because of
@@ -219,6 +234,29 @@ export function buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId) {
 export function buildCloseQueueEntriesForPairStatement(db, sessionId, sessionPairId) {
   return db
     .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_pair_id = ?`)
+    .bind(sessionId, sessionPairId)
+}
+
+/**
+ * Closes only a pair's WAITING entries, leaving an ASSIGNED or PLAYING row
+ * alone.
+ *
+ * The unscoped sibling above is right for dissolvePair — dissolving a pair
+ * that is mid-game should clear every trace of it from the queue. It is wrong
+ * for setAvailability, which is a routine operator action: marking one member
+ * temporarily unavailable while their pair is on court must not delete the
+ * PLAYING rows that record the pair's occupancy. Doing so made
+ * hasOpenQueueEntry report the pair as free, so an operator could re-queue it
+ * while it was still playing and have it assigned to a second court
+ * simultaneously.
+ *
+ * The unscoped version was written before court assignment shipped, when its
+ * header could honestly say no legitimate path left an ASSIGNED row behind.
+ * That stopped being true once Task 5 landed.
+ */
+export function buildCloseQueuedEntriesForPairStatement(db, sessionId, sessionPairId) {
+  return db
+    .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_pair_id = ? AND status = 'QUEUED'`)
     .bind(sessionId, sessionPairId)
 }
 

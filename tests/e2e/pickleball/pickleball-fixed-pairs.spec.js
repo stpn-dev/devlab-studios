@@ -714,3 +714,76 @@ test.describe('Pickleball fixed pairs: operator UI', () => {
     await expect(page.getByTestId('queue-waiting-list').getByText('Nobody waiting.')).toBeVisible({ timeout: 10000 })
   })
 })
+
+test.describe('Pickleball fixed pairs: surviving past the first game', () => {
+  // The defect this pins: the post-game auto-requeue used a pair-blind
+  // statement, so the four released players got queue rows with a NULL
+  // session_pair_id. listEligiblePairs requires both members' rows to carry
+  // the pair's own id, so after ONE finished game both pairs were invisible
+  // to assignment, could not re-join, could not leave, and could not be
+  // dissolved clean — the session was unrecoverable, with no operator action
+  // that fixed it. Nine tasks of work missed it because every other test in
+  // this file stops after a single game.
+  test('a fixed-pairs session can play two consecutive games', async ({ request }) => {
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 4)
+
+    await formAndQueuePair(request, sessionId, sessionPlayerIds[0], sessionPlayerIds[1])
+    await formAndQueuePair(request, sessionId, sessionPlayerIds[2], sessionPlayerIds[3])
+
+    const firstAssign = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })
+    expect(firstAssign.status()).toBe(200)
+    const firstStart = await startGame(request, sessionId, sessionCourts[0].id, await firstAssign.json(), 'A')
+    expect(firstStart.status()).toBe(201)
+    const firstGameId = (await firstStart.json()).game.id
+    await playSequence(request, sessionId, firstGameId, Array(11).fill('A'))
+    expect((await finishGame(request, sessionId, firstGameId)).ok()).toBe(true)
+
+    // The whole point: both pairs must still be eligible, as pairs, with
+    // their queue rows carrying the pair id.
+    const queue = await (await request.get(`/api/pickleball/sessions/${sessionId}/queue`)).json()
+    const requeued = queue.queue.filter((entry) => entry.status === 'QUEUED')
+    expect(requeued).toHaveLength(4)
+    expect(requeued.every((entry) => entry.sessionPairId)).toBe(true)
+
+    const secondAssign = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })
+    expect(secondAssign.status()).toBe(200)
+    const secondStart = await startGame(request, sessionId, sessionCourts[0].id, await secondAssign.json(), 'A')
+    expect(secondStart.status()).toBe(201)
+  })
+
+  // C2: marking one member of a PLAYING pair unavailable must not delete the
+  // queue rows recording that occupancy. Deleting them made hasOpenQueueEntry
+  // report the pair as free, so an operator could re-queue a pair that was
+  // still on court and have it seated on a second court at the same time.
+  test('a playing pair keeps its court binding when one member goes unavailable', async ({ request }) => {
+    const { sessionId, sessionCourts, sessionPlayerIds, playerIds } =
+      await createFixedPairsSessionWithCheckedInPlayers(request, 4, 2)
+
+    await formAndQueuePair(request, sessionId, sessionPlayerIds[0], sessionPlayerIds[1])
+    await formAndQueuePair(request, sessionId, sessionPlayerIds[2], sessionPlayerIds[3])
+
+    const assignResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })
+    expect(assignResponse.status()).toBe(200)
+    expect((await startGame(request, sessionId, sessionCourts[0].id, await assignResponse.json(), 'A')).status()).toBe(201)
+
+    const seated = (await (await request.get(`/api/pickleball/sessions/${sessionId}/queue`)).json()).queue
+      .filter((entry) => entry.status !== 'QUEUED')
+    expect(seated.length).toBeGreaterThan(0)
+    const seatedPairId = seated[0].sessionPairId
+    const seatedMember = sessionPlayerIds.findIndex((id) => id === seated[0].sessionPlayerId)
+
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/availability`, {
+      data: { playerId: playerIds[seatedMember], status: 'TEMPORARILY_UNAVAILABLE' },
+    })
+
+    const after = (await (await request.get(`/api/pickleball/sessions/${sessionId}/queue`)).json()).queue
+    const stillSeated = after.filter((entry) => entry.sessionPairId === seatedPairId && entry.status !== 'QUEUED')
+    expect(stillSeated).toHaveLength(2)
+  })
+})
