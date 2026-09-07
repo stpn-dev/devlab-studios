@@ -30,6 +30,7 @@ import {
   leaveQueueAsPair as leaveQueueAsPairRepo,
   buildCloseQueueEntriesForPairStatement,
   buildCloseQueuedEntriesForPairStatement,
+  hasOpenAssignmentForPair,
 } from '../repositories/pickleball/queueEntries.js'
 import {
   buildCreateTeamStatement,
@@ -380,13 +381,15 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   }
 
   // FIXED_PAIRS sibling of finishGame/reopenGame's per-player games_played
-  // bookkeeping: `game_participants` has no session_pair_id column (a pair
-  // outlives any single game/court binding -- see sessionPairs.js's header
-  // comment), so the pair a team belongs to must be resolved from its
-  // members' CURRENT active pairing rather than read off the game itself.
-  // Grouping `participants` by team_id and looking up
-  // getActivePairForSessionPlayer for one member of each 2-person team is
-  // enough to recover it. Only ever called for a FIXED_PAIRS session -- an
+  // bookkeeping. `game_participants` has no session_pair_id column, so the
+  // pair is recovered by grouping participants by team_id and reading
+  // `teams.session_pair_id` off the team itself (migration 0013).
+  //
+  // NOT from either member's current pairing, which is what this did
+  // originally: the two diverge the moment anyone re-pairs, and the
+  // fresh-finish path increments blindly, so a finished game's credit landed
+  // on a pair that never took the court. listEligiblePairs orders by
+  // games_played, so that corrupted the fairness order, not just a display. Only ever called for a FIXED_PAIRS session -- an
   // OPEN_PLAY game's teams are ad-hoc and have no corresponding session_pairs
   // rows at all, so this would silently no-op there anyway, but callers gate
   // on `session.sessionType === 'FIXED_PAIRS'` up front to avoid the wasted
@@ -1740,6 +1743,13 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
       const pair = await getActivePairForSessionPlayer(db, sessionId, sessionPlayer.id)
 
+      // Same refusal as dissolvePair: leaving dissolves the pair, and doing
+      // that while it is seated strands the court in the state described
+      // there. The operator releases the court first.
+      if (pair && (await hasOpenAssignmentForPair(db, sessionId, pair.id))) {
+        return failure('This player is on a court. Release the court first, then mark them as having left.')
+      }
+
       const leaveStatement = db
         .prepare(
           `UPDATE session_players SET attendance_status = 'LEFT_SESSION', updated_at = ?
@@ -1830,6 +1840,18 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   async dissolvePair(sessionId: string, pairId: string) {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
     const db = this.env.PICKLEBALL_DB
+
+    // Refused while the pair is seated, for the same reason
+    // replaceAssignedPlayer is refused: there is no half-a-pair state this
+    // codebase understands. Dissolving here used to delete the pair's
+    // ASSIGNED/PLAYING queue rows while leaving the court ASSIGNED with its
+    // teams still bound -- after which hasOpenQueueEntry reported both
+    // members free, so the same player could be re-paired and seated on a
+    // SECOND court while still on the first. Releasing the court is the
+    // operator's recovery path and is available on the Courts page.
+    if (await hasOpenAssignmentForPair(db, sessionId, pairId)) {
+      return failure('This pair is on a court. Release the court first, then dissolve the pair.')
+    }
 
     const dissolveStatement = buildDissolvePairStatement(db, sessionId, pairId)
     const closeQueueStatement = buildCloseQueueEntriesForPairStatement(db, sessionId, pairId)

@@ -85,9 +85,13 @@ USA-Pickleball-certified.
    called for a fixed-pairs game: partners are fixed by definition, so
    `SessionCoordinatorDO.assignCourt` seats the two selected pairs directly as
    Team A and Team B. Swapping one member of an already-seated pair is
-   refused outright (`replaceAssignedPlayer`); the operator dissolves the
-   pair and forms a new one instead — there is no half-a-pair state this
-   codebase understands. `teams.session_pair_id` (migration `0013`) exists
+   refused outright (`replaceAssignedPlayer`), and so is dissolving that
+   pair while it holds a court — there is no half-a-pair state this codebase
+   understands, and dissolving a seated pair used to delete the queue rows
+   recording its occupancy while leaving the court ASSIGNED, after which the
+   same player could be re-paired onto a second court. The operator releases
+   the court first, then dissolves and re-forms. `hasOpenAssignmentForPair`
+   is the single predicate every pair-mutating command consults. `teams.session_pair_id` (migration `0013`) exists
    because a member's *current* pairing cannot answer "which pair actually
    played this game" once anyone re-pairs mid-session; see `schema.md`'s
    entry on that column for the failure mode this closes.

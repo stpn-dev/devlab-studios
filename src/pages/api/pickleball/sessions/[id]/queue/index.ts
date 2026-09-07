@@ -5,6 +5,8 @@ import { getSession } from '../../../../../../worker/repositories/pickleball/ses
 import { listQueueForSession, listEligibleQueueCandidates } from '../../../../../../worker/repositories/pickleball/queueEntries.js'
 import { getSessionPlayerById } from '../../../../../../worker/repositories/pickleball/sessionPlayers.js'
 import { selectNextPlayers } from '../../../../../../lib/pickleball/queueEngine'
+import { listEligiblePairs } from '../../../../../../worker/repositories/pickleball/sessionPairs.js'
+import { selectNextPairs } from '../../../../../../lib/pickleball/pairSelection'
 import { isSessionOpenForQueueOrCourtChanges } from '../../../../../../lib/pickleball/sessionLifecycle'
 import { joinQueueSchema } from '../../../../../../lib/schemas/pickleball/queue'
 import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
@@ -18,8 +20,29 @@ export const GET: APIRoute = async ({ request, params }) => {
     if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
 
     const queue = await listQueueForSession(env.PICKLEBALL_DB, params.id)
+    const nowIso = new Date().toISOString()
+
+    // A FIXED_PAIRS session must be explained by the engine that actually
+    // decides its assignments. Running selectNextPlayers here would derive a
+    // pair's "why" from session_players.games_played and player-level queue
+    // order, while assignCourt selects on session_pairs.games_played via
+    // selectNextPairs -- so the waiting list could tell an operator something
+    // the next assignment then contradicts.
+    if (pickleballSession.sessionType === 'FIXED_PAIRS') {
+      const eligiblePairs = await listEligiblePairs(env.PICKLEBALL_DB, params.id)
+      const { reasons } = selectNextPairs(eligiblePairs, eligiblePairs.length, nowIso)
+      const reasonsByPairId = Object.fromEntries(reasons.map((r) => [r.sessionPairId, r.reasons]))
+
+      return jsonResponse({
+        queue: queue.map((entry: { sessionPairId: string | null }) => ({
+          ...entry,
+          reasons: (entry.sessionPairId && reasonsByPairId[entry.sessionPairId]) || [],
+        })),
+      }, 200)
+    }
+
     const eligible = await listEligibleQueueCandidates(env.PICKLEBALL_DB, params.id)
-    const { reasons } = selectNextPlayers(eligible, eligible.length, new Date().toISOString())
+    const { reasons } = selectNextPlayers(eligible, eligible.length, nowIso)
     const reasonsBySessionPlayerId = Object.fromEntries(reasons.map((r) => [r.sessionPlayerId, r.reasons]))
 
     return jsonResponse({

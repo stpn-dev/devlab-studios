@@ -43,8 +43,7 @@ export async function hasOpenQueueEntry(db, sessionId, sessionPlayerId) {
  * actually supplies these). An OPEN_PLAY caller passes neither: sessionPairId
  * defaults to NULL (unchanged from before this fix) and a fresh timestamp is
  * generated per call, exactly as before.
- */
-/**
+ *
  * @param {D1Database} db
  * @param {{ sessionId: string, sessionPlayerId: string, sessionPairId?: string | null }} entry
  * @param {string} [timestamp]
@@ -114,6 +113,32 @@ export async function hasOpenAssignment(db, sessionId, sessionPlayerId) {
        WHERE session_id = ? AND session_player_id = ? AND status IN ('ASSIGNED', 'PLAYING')`,
     )
     .bind(sessionId, sessionPlayerId)
+    .first()
+  return Boolean(row)
+}
+
+/**
+ * True when a fixed pair is really seated on a court right now.
+ *
+ * The single answer to "is this pair currently seated?", which every
+ * pair-mutating command must consult before it changes pair state. Before this
+ * existed each command picked from a neighbouring question — `hasOpenAssignment`
+ * (per player), `listAssignedSessionPlayerIdsForCourt` (per court),
+ * `gameStillHoldsItsCourt` (per game) — and two of them picked wrong:
+ * `dissolvePair` and `leaveSession` deleted a seated pair's ASSIGNED/PLAYING
+ * rows without releasing the court, leaving the court still ASSIGNED with its
+ * teams bound while `hasOpenQueueEntry` reported both members free. From there
+ * the same player could be re-paired and seated on a second court.
+ *
+ * @returns {Promise<boolean>}
+ */
+export async function hasOpenAssignmentForPair(db, sessionId, sessionPairId) {
+  const row = await db
+    .prepare(
+      `SELECT id FROM queue_entries
+       WHERE session_id = ? AND session_pair_id = ? AND status IN ('ASSIGNED', 'PLAYING')`,
+    )
+    .bind(sessionId, sessionPairId)
     .first()
   return Boolean(row)
 }
@@ -219,17 +244,15 @@ export function buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId) {
 }
 
 /**
- * Unexecuted DELETE closing every queue_entries row carrying this
- * session_pair_id, regardless of status. Exported (rather than kept as a
- * private detail of leaveQueueAsPair below) so SessionCoordinatorDO.dissolvePair
- * can compose it into the SAME db.batch() as
- * sessionPairs.js's buildDissolvePairStatement -- see that method's comment
- * for why the two must commit atomically. Matches on session_pair_id alone
- * (not `AND status = 'QUEUED'`, unlike leaveQueueAsPair's own DELETE below):
- * dissolving a pair must sweep away a stray ASSIGNED/PLAYING row too, since
- * Task 5's court assignment has not shipped yet and no legitimate path
- * should leave one, but this must not silently under-clean if one ever
- * exists.
+ * Closes every queue entry a pair holds, whatever its status.
+ *
+ * Correct only for dissolvePair, which removes the pair entirely and should
+ * leave no trace of it in the queue. Every other caller wants the QUEUED-only
+ * sibling below: deleting an ASSIGNED or PLAYING row without also releasing
+ * the court makes hasOpenQueueEntry report the pair as free while the court is
+ * still ASSIGNED with its teams bound, from which the same player can be
+ * seated on a second court. dissolvePair is safe here only because it now
+ * refuses outright while the pair holds a court (hasOpenAssignmentForPair).
  */
 export function buildCloseQueueEntriesForPairStatement(db, sessionId, sessionPairId) {
   return db

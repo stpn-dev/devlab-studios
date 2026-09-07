@@ -802,50 +802,159 @@ test.describe('Pickleball fixed pairs: surviving past the first game', () => {
   })
 
 
-  // I1: pair statistics must credit the pair that ACTUALLY played, resolved
-  // from the team seated at assignment (migration 0013's
-  // teams.session_pair_id) rather than from a member's CURRENT pairing.
+  // Pair statistics are keyed on the TEAM that played (teams.session_pair_id,
+  // migration 0013), never on "these two people were once teammates".
   //
-  // The two diverge if anyone re-pairs, and the fresh-finish path increments
-  // blindly, so a wrong resolution puts +1 on a pair that never played. That
-  // number is the primary sort key in listEligiblePairs, so it corrupts the
-  // fairness order, not just a display.
+  // The same two players can pair, dissolve and pair again, producing two
+  // session_pairs rows with identical membership. The earlier recompute
+  // counted FINISHED games in which both members shared a team, so the NEW
+  // row inherited the old row's games — a pair that has never played showing
+  // a game count, in the column listEligiblePairs sorts on.
   //
-  // The test dissolves a playing pair MID-GAME and re-pairs one of its
-  // members with a bystander, so at finish time that member's live pair is
-  // provably not the pair on the court.
-  test('finishing credits the pair that was seated, not one formed mid-game', async ({ request }) => {
+  // Note the mid-game variant of this divergence is no longer reachable at
+  // all: dissolving a seated pair is now refused (see the escalation test
+  // below), so a member's pairing cannot change between assignment and
+  // finish. Reopen-and-re-finish after a legitimate dissolve is what remains.
+  //
+  // What this test does and does not guard, measured rather than assumed:
+  // reverting EITHER fix alone leaves it green, because the two are partly
+  // redundant here — team-based resolution sends the recompute at the old
+  // pair row, and team-keyed SQL computes zero for the new one, so either
+  // one alone still yields zero. Reverting BOTH fails it with
+  // "Expected: 0, Received: 1". It is therefore a joint guard on the pair of
+  // fixes, not a guard on either individually. Said explicitly because a
+  // reader would otherwise reasonably assume it pins each one.
+  test('a re-formed pair does not inherit the games its members played together', async ({ request }) => {
     const baseURL = test.info().project.use.baseURL
-    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 6)
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 4)
 
     const pairA = await formAndQueuePair(request, sessionId, sessionPlayerIds[0], sessionPlayerIds[1])
-    const pairB = await formAndQueuePair(request, sessionId, sessionPlayerIds[2], sessionPlayerIds[3])
+    await formAndQueuePair(request, sessionId, sessionPlayerIds[2], sessionPlayerIds[3])
 
     const assignResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
       data: { sessionCourtId: sessionCourts[0].id },
     })
     expect(assignResponse.status()).toBe(200)
     const gameId = (await (await startGame(request, sessionId, sessionCourts[0].id, await assignResponse.json(), 'A')).json()).game.id
+    await playSequence(request, sessionId, gameId, Array(11).fill('A'))
+    expect((await finishGame(request, sessionId, gameId)).ok()).toBe(true)
 
-    // Mid-game: break the seated pair and re-pair one member with a bystander.
+    // Positive control: the pair that played is credited exactly once.
+    const afterFinish = (await (await request.get(`/api/pickleball/sessions/${sessionId}/pairs`)).json()).pairs
+    expect(afterFinish.find((pair) => pair.id === pairA.id).gamesPlayed).toBe(1)
+
+    // Dissolve and re-form the SAME two people. Legitimate now that the game
+    // is finished and the court released.
     const dissolved = await request.delete(`/api/pickleball/sessions/${sessionId}/pairs/${pairA.id}`, {
       headers: { Origin: baseURL },
     })
     expect(dissolved.status()).toBe(200)
-    const midGamePair = await formPair(request, sessionId, sessionPlayerIds[0], sessionPlayerIds[4])
+    const reformed = await formPair(request, sessionId, sessionPlayerIds[0], sessionPlayerIds[1])
+    expect(reformed.id).not.toBe(pairA.id)
 
-    await playSequence(request, sessionId, gameId, Array(11).fill('A'))
+    // Reopening and re-finishing runs the recompute over every participating
+    // team. The re-formed row must stay at zero: its members played together,
+    // but IT never took a court.
+    expect((await reopenGame(request, sessionId, gameId)).ok()).toBe(true)
     expect((await finishGame(request, sessionId, gameId)).ok()).toBe(true)
 
     const pairs = (await (await request.get(`/api/pickleball/sessions/${sessionId}/pairs`)).json()).pairs
-    const seatedOpponent = pairs.find((pair) => pair.id === pairB.id)
-    const formedMidGame = pairs.find((pair) => pair.id === midGamePair.id)
+    expect(pairs.find((pair) => pair.id === reformed.id).gamesPlayed).toBe(0)
+  })
 
-    // Positive control: the pair that really played is credited.
-    expect(seatedOpponent.gamesPlayed).toBe(1)
-    // The defect: resolving from live pairing would put this game's credit on
-    // the pair formed mid-game, which never took the court.
-    expect(formedMidGame.gamesPlayed).toBe(0)
+  // The escalation the refusal exists to stop. Dissolving a SEATED pair used
+  // to delete its ASSIGNED/PLAYING queue rows while leaving the court
+  // ASSIGNED with its teams still bound. hasOpenQueueEntry then reported both
+  // members free, so the same player could be re-paired with a bystander and
+  // seated on a SECOND court while still on the first. This walks the whole
+  // path rather than only asserting the refusal, so it would still fail if a
+  // future change let the dissolve through by a different route.
+  test('a seated pair cannot be dissolved out from under its court', async ({ request }) => {
+    const baseURL = test.info().project.use.baseURL
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 6, 2)
+
+    const pairA = await formAndQueuePair(request, sessionId, sessionPlayerIds[0], sessionPlayerIds[1])
+    await formAndQueuePair(request, sessionId, sessionPlayerIds[2], sessionPlayerIds[3])
+
+    const assignResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })
+    expect(assignResponse.status()).toBe(200)
+
+    const dissolveResponse = await request.delete(`/api/pickleball/sessions/${sessionId}/pairs/${pairA.id}`, {
+      headers: { Origin: baseURL },
+    })
+    expect(dissolveResponse.status()).toBe(409)
+    expect((await dissolveResponse.json()).error).toContain('Release the court first')
+
+    // The pair is still seated, so its member cannot be re-paired onto a
+    // second court -- the outcome the refusal actually protects.
+    const rePairResponse = await request.post(`/api/pickleball/sessions/${sessionId}/pairs`, {
+      data: { sessionPlayerAId: sessionPlayerIds[0], sessionPlayerBId: sessionPlayerIds[4] },
+    })
+    expect(rePairResponse.status()).toBe(409)
+
+    // And the court still holds all four of its players.
+    const queue = (await (await request.get(`/api/pickleball/sessions/${sessionId}/queue`)).json()).queue
+    expect(queue.filter((entry) => entry.status !== 'QUEUED')).toHaveLength(4)
+  })
+
+  // Releasing the court first is the documented recovery path, so it must
+  // actually work end to end.
+  test('releasing the court first lets the pair be dissolved and re-formed', async ({ request }) => {
+    const baseURL = test.info().project.use.baseURL
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 6, 2)
+
+    const pairA = await formAndQueuePair(request, sessionId, sessionPlayerIds[0], sessionPlayerIds[1])
+    await formAndQueuePair(request, sessionId, sessionPlayerIds[2], sessionPlayerIds[3])
+    expect((await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })).status()).toBe(200)
+
+    expect((await request.post(`/api/pickleball/sessions/${sessionId}/courts/release`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })).status()).toBe(200)
+
+    const dissolveResponse = await request.delete(`/api/pickleball/sessions/${sessionId}/pairs/${pairA.id}`, {
+      headers: { Origin: baseURL },
+    })
+    expect(dissolveResponse.status()).toBe(200)
+
+    const rePairResponse = await request.post(`/api/pickleball/sessions/${sessionId}/pairs`, {
+      data: { sessionPlayerAId: sessionPlayerIds[0], sessionPlayerBId: sessionPlayerIds[4] },
+    })
+    expect(rePairResponse.status()).toBe(201)
+  })
+
+
+  // A pair's "why is this pair up next" must come from the engine that
+  // actually decides assignment (selectNextPairs over session_pairs), not the
+  // player-level engine. Running selectNextPlayers here derived the reason
+  // from session_players.games_played, so the waiting list could state
+  // something the next assignment then contradicted.
+  test('queue reasons for a pair come from the pair engine, not the player engine', async ({ request }) => {
+    const { sessionId, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 4)
+
+    await formAndQueuePair(request, sessionId, sessionPlayerIds[0], sessionPlayerIds[1])
+    await formAndQueuePair(request, sessionId, sessionPlayerIds[2], sessionPlayerIds[3])
+
+    const queue = (await (await request.get(`/api/pickleball/sessions/${sessionId}/queue`)).json()).queue
+    expect(queue).toHaveLength(4)
+
+    // Every queued row carries reasons, and both members of a pair carry the
+    // SAME ones — which is only true if they were keyed by pair rather than
+    // by player.
+    const byPair = new Map()
+    for (const entry of queue) {
+      expect(entry.reasons.length).toBeGreaterThan(0)
+      const seen = byPair.get(entry.sessionPairId)
+      if (seen) expect(entry.reasons).toEqual(seen)
+      else byPair.set(entry.sessionPairId, entry.reasons)
+    }
+    expect(byPair.size).toBe(2)
+
+    // The pair engine says "pairs"; the player engine says "players".
+    expect(queue[0].reasons.join(' ')).toContain('pairs')
   })
 
   // C2: marking one member of a PLAYING pair unavailable must not delete the
@@ -871,9 +980,12 @@ test.describe('Pickleball fixed pairs: surviving past the first game', () => {
     const seatedPairId = seated[0].sessionPairId
     const seatedMember = sessionPlayerIds.findIndex((id) => id === seated[0].sessionPlayerId)
 
-    await request.post(`/api/pickleball/sessions/${sessionId}/players/availability`, {
+    const unavailableResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players/availability`, {
       data: { playerId: playerIds[seatedMember], status: 'TEMPORARILY_UNAVAILABLE' },
     })
+    // Without this the test would pass on any failed call: the queue rows
+    // would simply be untouched and stillSeated would still be 2.
+    expect(unavailableResponse.status()).toBe(200)
 
     const after = (await (await request.get(`/api/pickleball/sessions/${sessionId}/queue`)).json()).queue
     const stillSeated = after.filter((entry) => entry.sessionPairId === seatedPairId && entry.status !== 'QUEUED')

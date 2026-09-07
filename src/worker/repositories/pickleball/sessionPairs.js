@@ -210,21 +210,18 @@ export function buildIncrementPairGamesPlayedStatement(db, sessionId, pairId) {
 }
 
 /**
- * Unexecuted UPDATE recomputing a pair's games-played counter from scratch --
- * the pair-level sibling of sessionPlayers.js's
- * buildRecomputeGamesPlayedStatement, same Ruling 11 discipline: games_played
- * is set to the COUNT of FINISHED games in which BOTH `sessionPlayerAId` and
- * `sessionPlayerBId` were participants on the SAME team (gpb.team_id =
- * gpa.team_id), as of whenever this statement executes, rather than
- * incremented. Used by the reopen/correct/re-finish cycle instead of
- * buildIncrementPairGamesPlayedStatement above, so a re-finish after a
- * historical correction cannot double-count this pair's own contribution.
+ * Recomputes a pair's games_played from scratch: the number of FINISHED games
+ * whose team A or team B WAS this pair's team.
  *
- * `game_participants` has no session_pair_id column (a pair is a
- * session-lifetime concept; a game's participants are recorded per
- * session_player_id/team_id only -- see this file's header comment), so the
- * two member ids must be supplied by the caller, which already knows them
- * from the game's own participant rows.
+ * Resolved through `teams.session_pair_id` (migration 0013), never through the
+ * members' current pairing. Those diverge the moment anyone re-pairs, and the
+ * earlier member-based version credited a finished game to whichever pair a
+ * member happened to be in at recompute time -- a pair that may never have
+ * played it. Because listEligiblePairs orders by games_played, that corrupted
+ * the fairness order rather than only a displayed number.
+ *
+ * Recompute rather than increment so reopening and re-finishing a game cannot
+ * double-count, mirroring buildRecomputeGamesPlayedStatement for players.
  */
 export function buildRecomputePairGamesPlayedStatement(db, sessionId, pairId) {
   return db
