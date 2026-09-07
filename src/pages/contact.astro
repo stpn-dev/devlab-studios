@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro'
 import ContactForm from '../components/islands/ContactForm.jsx'
 import VectorField from '../components/VectorField.astro'
 import { loadPageSeo } from '../lib/content/seo'
-import { getEnv } from '../lib/env'
+import { resolveTurnstileSiteKey } from '../lib/turnstileSiteKey'
 import { loadPage } from '../lib/content/pages'
 
 const seo = await loadPageSeo('contact')
@@ -20,10 +20,7 @@ const formCopy = {
   messageLabel: String(formItems[3]?.label || 'Message'), messagePlaceholder: String(formItems[3]?.value || 'Share context, goals, timelines, and success criteria.'),
   submitLabel: String(contactSubmitCta.label || 'Send Message'), helperText: String(pageCta.body || 'Responses are delivered securely by email.'),
 }
-const env = getEnv()
-const requestHostname = new URL(Astro.request.url).hostname
-const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1'
-const turnstileSiteKey = isLocalRequest ? '1x00000000000000000000AA' : env.TURNSTILE_SITE_KEY || ''
+const turnstileSiteKey = resolveTurnstileSiteKey(Astro.request.url)
 ---
 
 <Layout title="Contact — DevLab Studios" seo={seo}>

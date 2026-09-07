@@ -10,7 +10,7 @@ import { loadServicesContent } from '../lib/content/services'
 import { loadProjects } from '../lib/content/projects'
 import { loadPage } from '../lib/content/pages'
 import ContactForm from '../components/islands/ContactForm.jsx'
-import { getEnv } from '../lib/env'
+import { resolveTurnstileSiteKey } from '../lib/turnstileSiteKey'
 
 function resolveIcon(name: string) {
   return (Icons as Record<string, typeof Icons.Lightbulb>)[name] || Icons.Lightbulb
@@ -32,10 +32,7 @@ const servicePrimaryCta = (pageCta.primaryCta as { label?: string; href?: string
 const serviceSecondaryCta = (pageCta.secondaryCta as { label?: string; href?: string } | undefined) || {}
 const { solutionGroups, processSteps, faqs } = await loadServicesContent()
 const projectItems = await loadProjects()
-const env = getEnv()
-const requestHostname = new URL(Astro.request.url).hostname
-const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1'
-const turnstileSiteKey = isLocalRequest ? '1x00000000000000000000AA' : env.TURNSTILE_SITE_KEY || ''
+const turnstileSiteKey = resolveTurnstileSiteKey(Astro.request.url)
 const betaFormCopy = {
   subjectLabel: 'What would you like to test?',
   subjectPlaceholder: 'Pickleball beta tester request',

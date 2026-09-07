@@ -275,13 +275,19 @@ test.describe('Pickleball public pages', () => {
     })
   }
 
-  test('the guide does not document features that do not work yet', async ({ page }) => {
-    // Fixed pairs and tournaments are inert today — assignCourt refuses any
-    // session whose type is not OPEN_PLAY. Documenting them would be a lie.
-    const html = (await (await page.request.get('/pickleball/how-it-works')).text()).toLowerCase()
-    expect(html).not.toContain('fixed pair')
-    expect(html).not.toContain('tournament')
-  })
+  // Fixed pairs and tournaments are inert today — assignCourt refuses any
+  // session whose type is not OPEN_PLAY, and team creation always writes
+  // AD_HOC. Documenting either would be a lie. Both public pages are swept,
+  // not just the guide: the landing page could gain the same copy just as
+  // easily. When the fixed-pairs work ships, drop 'fixed pair' from this
+  // list — do not delete the test, tournaments stay unbuilt behind it.
+  for (const path of ['/pickleball', '/pickleball/how-it-works']) {
+    test(`documents no unbuilt feature (${path})`, async ({ page }) => {
+      const html = (await (await page.request.get(path)).text()).toLowerCase()
+      expect(html).not.toContain('fixed pair')
+      expect(html).not.toContain('tournament')
+    })
+  }
 
   // These two pages are the product's public front door and are linked from
   // /services, so they need share metadata rather than a bare <title>. Both
@@ -291,6 +297,7 @@ test.describe('Pickleball public pages', () => {
   for (const [path, slugTitle] of [
     ['/pickleball', 'Devlab Pickleball'],
     ['/pickleball/how-it-works', 'How Devlab Pickleball Works'],
+    ['/pickleball/methodology', 'How OPI Works'],
   ]) {
     test(`serves share metadata (${path})`, async ({ page }) => {
       const html = await (await page.request.get(path)).text()
@@ -301,6 +308,24 @@ test.describe('Pickleball public pages', () => {
       expect(html).toContain(slugTitle)
     })
   }
+
+  test('the OPI methodology page is reachable from where the reader asks the question', async ({ page }) => {
+    // The methodology page lost its landing-page link in the rewrite and was
+    // reachable only from the guide. The FAQ's "Is OPI an official rating?"
+    // answer is where a reader actually forms the question, so the link lives
+    // there now.
+    await page.goto('/pickleball')
+
+    // The answer lives in a <details>, so the link is outside the
+    // accessibility tree until the reader opens it — open it the way they
+    // would, then assert, rather than reaching past the collapsed state.
+    await page.getByText('Is OPI an official rating?').click()
+    const link = page.getByRole('link', { name: 'Read how OPI works' })
+    await expect(link).toHaveAttribute('href', '/pickleball/methodology')
+
+    const response = await page.request.get('/pickleball/methodology')
+    expect(response.status()).toBe(200)
+  })
 
   test('a blocked sign-in offers a way to request access', async ({ page }) => {
     await page.goto('/pickleball/app?error=no_access')

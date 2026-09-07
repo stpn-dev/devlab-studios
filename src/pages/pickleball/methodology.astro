@@ -1,10 +1,13 @@
 ---
 import Layout from '../../layouts/Layout.astro'
+import { loadPageSeo } from '../../lib/content/seo'
 import '../../pickleball-app/pickleball.css'
+
+const seo = await loadPageSeo('pickleball-methodology')
 ---
 
-<Layout title="OPI Methodology — Devlab Pickleball">
-  <main class="mx-auto max-w-2xl px-6 py-16">
+<Layout title="OPI Methodology — Devlab Pickleball" seo={seo}>
+  <div class="mx-auto max-w-2xl px-6 py-16">
     <h1 class="mb-1 text-3xl font-extrabold tracking-tight text-slate-900">How OPI works</h1>
     <div class="pb-rule mb-6 h-[3px] w-11 rounded-full"></div>
     <p class="mb-4 text-slate-600">
@@ -35,5 +38,5 @@ import '../../pickleball-app/pickleball.css'
     <p class="mt-8 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
       OPI is a Devlab-original metric, not an official USA Pickleball rating, DUPR, UTR-P, or Elo system. The scoring engine aligns with standard side-out scoring concepts but the software is not USA-Pickleball-certified.
     </p>
-  </main>
+  </div>
 </Layout>

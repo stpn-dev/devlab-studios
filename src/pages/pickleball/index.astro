@@ -6,7 +6,7 @@ import ScoreboardArt from '../../components/pickleball/art/ScoreboardArt.jsx'
 import StandingsArt from '../../components/pickleball/art/StandingsArt.jsx'
 import ShareLiveArt from '../../components/pickleball/art/ShareLiveArt.jsx'
 import ContactForm from '../../components/islands/ContactForm.jsx'
-import { getEnv } from '../../lib/env'
+import { resolveTurnstileSiteKey } from '../../lib/turnstileSiteKey'
 import { loadPageSeo } from '../../lib/content/seo'
 import '../../pickleball-app/pickleball.css'
 
@@ -58,16 +58,17 @@ const faqs = [
   { q: 'How many courts can I run?', a: 'As many as your venue has. Courts are set up once per venue and every session picks them up automatically.' },
   { q: 'What scoring does it use?', a: 'Side-out scoring driven by a ruleset you control — target score and win-by are configurable, not hardcoded to 11.' },
   { q: 'What happens if I make a scoring mistake?', a: 'Undo the last rally straight away, or reopen and correct the game after it has finished. Statistics are recomputed, never patched.' },
-  { q: 'Is OPI an official rating?', a: 'No. OPI is a Devlab-original performance index, not a USA Pickleball rating, DUPR, UTR-P or Elo system.' },
+  {
+    q: 'Is OPI an official rating?',
+    a: 'No. OPI is a Devlab-original performance index, not a USA Pickleball rating, DUPR, UTR-P or Elo system.',
+    // The one place a reader forms this question, so the one place worth
+    // linking the full methodology from.
+    href: '/pickleball/methodology',
+    hrefLabel: 'Read how OPI works',
+  },
 ]
 
-// Same resolution as src/pages/services.astro — a local request uses
-// Cloudflare's documented always-passes test key so the form is usable in
-// development without a real site key.
-const env = getEnv()
-const requestHostname = new URL(Astro.request.url).hostname
-const isLocalRequest = requestHostname === 'localhost' || requestHostname === '127.0.0.1'
-const turnstileSiteKey = isLocalRequest ? '1x00000000000000000000AA' : env.TURNSTILE_SITE_KEY || ''
+const turnstileSiteKey = resolveTurnstileSiteKey(Astro.request.url)
 
 const accessFormCopy = {
   nameLabel: 'Your name',
@@ -187,10 +188,15 @@ const accessFormCopy = {
     <section class="mt-20">
       <h2 class="text-3xl font-semibold text-slate-900">Questions</h2>
       <div class="mt-8 grid gap-3 lg:grid-cols-2" data-testid="pb-faq">
-        {faqs.map(({ q, a }) => (
+        {faqs.map(({ q, a, href, hrefLabel }) => (
           <details class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200">
             <summary class="cursor-pointer font-semibold text-brand-ink">{q}</summary>
             <p class="mt-2 text-sm leading-relaxed text-slate-600">{a}</p>
+            {href && (
+              <p class="mt-2">
+                <a href={href} class="text-sm font-semibold text-brand underline underline-offset-4">{hrefLabel}</a>
+              </p>
+            )}
           </details>
         ))}
       </div>
