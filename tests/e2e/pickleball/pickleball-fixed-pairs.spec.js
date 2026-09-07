@@ -99,6 +99,41 @@ async function formAndQueuePair(request, sessionId, sessionPlayerAId, sessionPla
   return pair
 }
 
+// Game-lifecycle helpers, modeled directly on pickleball-games.spec.js's own
+// startGame/rally/playSequence/finishGame/reopenGame -- needed here (rather
+// than imported) because that file's helpers are module-local, not exported.
+async function startGame(request, sessionId, sessionCourtId, assignBody, servingTeam) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: {
+      sessionCourtId,
+      servingTeam,
+      teamAStartingServerSessionPlayerId: assignBody.teamA.players[0].sessionPlayerId,
+      teamBStartingServerSessionPlayerId: assignBody.teamB.players[0].sessionPlayerId,
+    },
+  })
+}
+
+async function rally(request, sessionId, gameId, winningTeam) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/rally`, { data: { winningTeam } })
+}
+
+async function playSequence(request, sessionId, gameId, winningTeamSequence) {
+  let lastResponse
+  for (const winningTeam of winningTeamSequence) {
+    lastResponse = await rally(request, sessionId, gameId, winningTeam)
+    expect(lastResponse.status()).toBe(200)
+  }
+  return lastResponse
+}
+
+async function finishGame(request, sessionId, gameId) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/finish`, { data: {} })
+}
+
+async function reopenGame(request, sessionId, gameId) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/reopen`, { data: {} })
+}
+
 test.describe('Pickleball fixed pairs: session creation', () => {
   test('rejects a FIXED_PAIRS session created against a SINGLES ruleset', async ({ request }) => {
     await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
@@ -554,5 +589,54 @@ test.describe('Pickleball fixed pairs: edge cases', () => {
     const pairs = (await pairsResponse.json()).pairs
     const pairsWithPlayerA = pairs.filter((p) => p.sessionPlayerAId === playerA || p.sessionPlayerBId === playerA)
     expect(pairsWithPlayerA).toHaveLength(1)
+  })
+})
+
+test.describe('Pickleball fixed pairs: pair statistics', () => {
+  // Mirrors pickleball-games.spec.js's player-level games_played discipline
+  // (Ruling 11: recompute, don't increment, across a reopen/re-finish), one
+  // level up: a session_pair's games_played must land at exactly 1 after a
+  // single finish, and STAY at 1 -- not 2 -- after that same game is reopened
+  // and re-finished with no correction actually changing the outcome.
+  test("finishing a fixed-pairs game increments both pairs' games_played exactly once; reopening and re-finishing does not double-count", async ({ request }) => {
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 4, 1)
+    const [p1, p2, p3, p4] = sessionPlayerIds
+    const pairA = await formAndQueuePair(request, sessionId, p1, p2)
+    const pairB = await formAndQueuePair(request, sessionId, p3, p4)
+
+    const assignResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })
+    expect(assignResponse.status()).toBe(200)
+    const assignBody = await assignResponse.json()
+
+    const startResponse = await startGame(request, sessionId, sessionCourts[0].id, assignBody, 'A')
+    expect(startResponse.status()).toBe(201)
+    const gameId = (await startResponse.json()).game.id
+
+    // Team A serves and wins every rally -- a legal, physically reachable
+    // 11-0 final score, same shape as pickleball-games.spec.js's own happy path.
+    await playSequence(request, sessionId, gameId, Array(11).fill('A'))
+
+    const finishResponse = await finishGame(request, sessionId, gameId)
+    expect(finishResponse.status()).toBe(200)
+
+    const pairsAfterFinish = (await (await request.get(`/api/pickleball/sessions/${sessionId}/pairs`)).json()).pairs
+    expect(pairsAfterFinish.find((p) => p.id === pairA.id).gamesPlayed).toBe(1)
+    expect(pairsAfterFinish.find((p) => p.id === pairB.id).gamesPlayed).toBe(1)
+
+    // Reopen then re-finish directly, with NO correction actually changing
+    // the score -- the game's stored score is still the same legal 11-0, so
+    // finishGame's correctionPending branch takes the exact same path a real
+    // "reopen to double check, then re-finish as-is" operator flow would.
+    const reopenResponse = await reopenGame(request, sessionId, gameId)
+    expect(reopenResponse.status()).toBe(200)
+
+    const refinishResponse = await finishGame(request, sessionId, gameId)
+    expect(refinishResponse.status()).toBe(200)
+
+    const pairsAfterRefinish = (await (await request.get(`/api/pickleball/sessions/${sessionId}/pairs`)).json()).pairs
+    expect(pairsAfterRefinish.find((p) => p.id === pairA.id).gamesPlayed).toBe(1)
+    expect(pairsAfterRefinish.find((p) => p.id === pairB.id).gamesPlayed).toBe(1)
   })
 })

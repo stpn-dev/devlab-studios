@@ -58,6 +58,8 @@ import {
   buildDissolvePairStatement,
   getActivePairForSessionPlayer,
   listEligiblePairs,
+  buildIncrementPairGamesPlayedStatement,
+  buildRecomputePairGamesPlayedStatement,
 } from '../repositories/pickleball/sessionPairs.js'
 import {
   buildCreateGameStatement,
@@ -319,6 +321,51 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!court || court.status !== 'PLAYING') return false
 
     return hasTeamBoundToCourt(db, sessionId, game.sessionCourtId, [game.teamAId, game.teamBId])
+  }
+
+  // FIXED_PAIRS sibling of finishGame/reopenGame's per-player games_played
+  // bookkeeping: `game_participants` has no session_pair_id column (a pair
+  // outlives any single game/court binding -- see sessionPairs.js's header
+  // comment), so the pair a team belongs to must be resolved from its
+  // members' CURRENT active pairing rather than read off the game itself.
+  // Grouping `participants` by team_id and looking up
+  // getActivePairForSessionPlayer for one member of each 2-person team is
+  // enough to recover it. Only ever called for a FIXED_PAIRS session -- an
+  // OPEN_PLAY game's teams are ad-hoc and have no corresponding session_pairs
+  // rows at all, so this would silently no-op there anyway, but callers gate
+  // on `session.sessionType === 'FIXED_PAIRS'` up front to avoid the wasted
+  // lookups.
+  //
+  // `mode` mirrors the player-level Ruling 11 split: 'INCREMENT' for a
+  // genuinely fresh finish, 'RECOMPUTE' for the correctionPending re-finish
+  // and reopen paths, where this game's own contribution may already be
+  // counted once and an increment would double it.
+  private async buildPairGamesPlayedStatements(
+    db: D1Database,
+    sessionId: string,
+    participants: Array<{ session_player_id: string; team_id: string }>,
+    mode: 'INCREMENT' | 'RECOMPUTE',
+  ): Promise<unknown[]> {
+    const memberIdsByTeam = new Map<string, string[]>()
+    for (const participant of participants) {
+      const members = memberIdsByTeam.get(participant.team_id) ?? []
+      members.push(participant.session_player_id)
+      memberIdsByTeam.set(participant.team_id, members)
+    }
+
+    const statements: unknown[] = []
+    for (const members of memberIdsByTeam.values()) {
+      if (members.length !== 2) continue
+      const [memberA, memberB] = members
+      const pair = await getActivePairForSessionPlayer(db, sessionId, memberA)
+      if (!pair) continue
+      statements.push(
+        mode === 'INCREMENT'
+          ? buildIncrementPairGamesPlayedStatement(db, sessionId, pair.id)
+          : buildRecomputePairGamesPlayedStatement(db, sessionId, pair.id, memberA, memberB),
+      )
+    }
+    return statements
   }
 
   async assignCourt(sessionId: string, sessionCourtId: string) {
@@ -1164,6 +1211,13 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (game.correctionPending) {
       const clearCorrectionStatement = db.prepare(`UPDATE games SET correction_pending = 0 WHERE id = ?`).bind(gameId)
       const gamesPlayedStatements = participants.map((p) => buildRecomputeGamesPlayedStatement(db, sessionId, p.session_player_id))
+      // Pair-level sibling of the player recompute above -- same Ruling 11
+      // reasoning, one level up (see buildPairGamesPlayedStatements' own
+      // comment). Only meaningful for a FIXED_PAIRS session.
+      const pairGamesPlayedStatements =
+        session.sessionType === 'FIXED_PAIRS'
+          ? await this.buildPairGamesPlayedStatements(db, sessionId, participants, 'RECOMPUTE')
+          : []
       // Pure SQL, built without reading D1 -- and appended LAST in the batch
       // below so its `WHERE status = 'FINISHED'` is evaluated after
       // `projectionStatement` has already flipped this game back to FINISHED.
@@ -1188,7 +1242,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
       const statements = [
         finishedEvent, projectionStatement, clearCorrectionStatement, ...statStatements,
-        ...gamesPlayedStatements, ...matchmakingRecomputeStatements,
+        ...gamesPlayedStatements, ...pairGamesPlayedStatements, ...matchmakingRecomputeStatements,
         ...buildRecomputePlayerSnapshotsStatements(db, affectedPlayerIds, sessionId),
       ]
       if (idempotencyKey) {
@@ -1225,6 +1279,14 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     }
 
     const gamesPlayedStatements = participants.map((p) => buildIncrementGamesPlayedStatement(db, sessionId, p.session_player_id))
+    // Pair-level sibling of the player increment above -- see
+    // buildPairGamesPlayedStatements' own comment. Only meaningful for a
+    // FIXED_PAIRS session; an OPEN_PLAY game's teams have no session_pairs
+    // rows at all.
+    const pairGamesPlayedStatements =
+      session.sessionType === 'FIXED_PAIRS'
+        ? await this.buildPairGamesPlayedStatements(db, sessionId, participants, 'INCREMENT')
+        : []
 
     // Atomic release: the SAME statements releaseCourt itself builds,
     // composed directly into THIS batch rather than calling
@@ -1282,7 +1344,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     }
 
     const statements = [
-      finishedEvent, projectionStatement, ...statStatements, ...matchmakingStatements, ...gamesPlayedStatements, ...releaseStatements,
+      finishedEvent, projectionStatement, ...statStatements, ...matchmakingStatements, ...gamesPlayedStatements,
+      ...pairGamesPlayedStatements, ...releaseStatements,
       ...buildRecomputePlayerSnapshotsStatements(db, affectedPlayerIds, sessionId),
     ]
     if (idempotencyKey) {
@@ -1387,6 +1450,9 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!game) return failure('Game not found.')
     if (game.status !== 'FINISHED') return failure('Only a finished game can be reopened.')
 
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+
     const sequence = await getNextSequence(db, gameId)
     const reopenedEvent = buildAppendScoreEventStatement(db, { gameId, sequence, eventType: 'GAME_REOPENED', actorUserId, payload: {} })
     const projectionStatement = buildUpdateGameProjectionStatement(db, gameId, {
@@ -1401,11 +1467,19 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // matchmaking_history is being invalidated: recompute both from scratch
     // now that this game no longer counts as FINISHED.
     const participantsResult = await db
-      .prepare(`SELECT DISTINCT gp.session_player_id FROM game_participants gp WHERE gp.game_id = ?`)
+      .prepare(`SELECT DISTINCT gp.session_player_id, gp.team_id FROM game_participants gp WHERE gp.game_id = ?`)
       .bind(gameId)
-      .all<{ session_player_id: string }>()
-    const sessionPlayerIds = (participantsResult.results || []).map((row) => row.session_player_id)
+      .all<{ session_player_id: string; team_id: string }>()
+    const reopenParticipants = participantsResult.results || []
+    const sessionPlayerIds = reopenParticipants.map((row) => row.session_player_id)
     const gamesPlayedStatements = sessionPlayerIds.map((id) => buildRecomputeGamesPlayedStatement(db, sessionId, id))
+    // Pair-level sibling of the player recompute above -- see
+    // buildPairGamesPlayedStatements' own comment. Only meaningful for a
+    // FIXED_PAIRS session.
+    const pairGamesPlayedStatements =
+      session.sessionType === 'FIXED_PAIRS'
+        ? await this.buildPairGamesPlayedStatements(db, sessionId, reopenParticipants, 'RECOMPUTE')
+        : []
     // Pure SQL, built without reading D1 -- and appended LAST in the batch
     // below so its `WHERE status = 'FINISHED'` is evaluated after
     // `projectionStatement` has already moved this game off FINISHED.
@@ -1426,7 +1500,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     await db.batch([
       reopenedEvent, projectionStatement, correctionFlagStatement, invalidateStatsStatement,
-      ...gamesPlayedStatements, ...matchmakingStatements,
+      ...gamesPlayedStatements, ...pairGamesPlayedStatements, ...matchmakingStatements,
       ...buildRecomputePlayerSnapshotsStatements(db, affectedPlayerIds, sessionId),
     ])
 

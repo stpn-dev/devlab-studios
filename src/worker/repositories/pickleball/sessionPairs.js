@@ -208,3 +208,37 @@ export function buildIncrementPairGamesPlayedStatement(db, sessionId, pairId) {
     )
     .bind(nowIso(), pairId, sessionId)
 }
+
+/**
+ * Unexecuted UPDATE recomputing a pair's games-played counter from scratch --
+ * the pair-level sibling of sessionPlayers.js's
+ * buildRecomputeGamesPlayedStatement, same Ruling 11 discipline: games_played
+ * is set to the COUNT of FINISHED games in which BOTH `sessionPlayerAId` and
+ * `sessionPlayerBId` were participants on the SAME team (gpb.team_id =
+ * gpa.team_id), as of whenever this statement executes, rather than
+ * incremented. Used by the reopen/correct/re-finish cycle instead of
+ * buildIncrementPairGamesPlayedStatement above, so a re-finish after a
+ * historical correction cannot double-count this pair's own contribution.
+ *
+ * `game_participants` has no session_pair_id column (a pair is a
+ * session-lifetime concept; a game's participants are recorded per
+ * session_player_id/team_id only -- see this file's header comment), so the
+ * two member ids must be supplied by the caller, which already knows them
+ * from the game's own participant rows.
+ */
+export function buildRecomputePairGamesPlayedStatement(db, sessionId, pairId, sessionPlayerAId, sessionPlayerBId) {
+  return db
+    .prepare(
+      `UPDATE session_pairs SET games_played = (
+        SELECT COUNT(DISTINCT g.id)
+        FROM games g
+        JOIN game_participants gpa ON gpa.game_id = g.id AND gpa.session_player_id = ?
+        JOIN game_participants gpb ON gpb.game_id = g.id
+                                   AND gpb.session_player_id = ?
+                                   AND gpb.team_id = gpa.team_id
+        WHERE g.status = 'FINISHED' AND g.session_id = ?
+      ), updated_at = ?
+       WHERE id = ? AND session_id = ?`,
+    )
+    .bind(sessionPlayerAId, sessionPlayerBId, sessionId, nowIso(), pairId, sessionId)
+}
