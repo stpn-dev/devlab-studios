@@ -18,6 +18,13 @@ const STATUS_CONFIG = {
   RESTING: { icon: Pause, label: 'Resting', tone: 'info' },
   QUEUED: { icon: ListOrdered, label: 'Queued', tone: 'info' },
   PLAYING: { icon: Swords, label: 'Playing', tone: 'success' },
+  // FIXED_PAIRS-only (spec Part B): a checked-in player with no active pair
+  // yet. Previously not in this map at all, so CheckInPage's
+  // `status="NEEDS_PARTNER"` fell through to the unknown-status fallback
+  // (a warning-toned icon override paired with the fallback's `tone: 'muted'`)
+  // -- an icon/tone mismatch. This entry gives it a real, self-consistent
+  // warning-toned config instead.
+  NEEDS_PARTNER: { icon: AlertTriangle, label: 'Needs partner', tone: 'warning' },
 }
 
 /**

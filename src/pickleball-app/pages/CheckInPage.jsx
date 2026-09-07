@@ -5,7 +5,7 @@ import { canCheckIn, canSetAvailability, canLeaveSession, canCancelRegistration 
 import PlayerStatusChip from '../components/PlayerStatusChip'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
-import { Search, UserCheck, LogOut, ListOrdered, AlertTriangle, Link2, Unlock } from '../../components/icons/icons'
+import { Search, UserCheck, LogOut, ListOrdered, Link2, Unlock } from '../../components/icons/icons'
 
 export default function CheckInPage() {
   const { sessionId, session } = useOutletContext()
@@ -58,18 +58,23 @@ export default function CheckInPage() {
   }
 
   useEffect(() => {
+    // Gated on `session` having resolved (not just sessionId): on first
+    // mount, SessionLayout's own session fetch is still in flight, so
+    // `session` is null and `isFixedPairs` is unavoidably false. Running
+    // reload() at that point would only need to run AGAIN once `session`
+    // resolves and `isFixedPairs` flips to true, to pick up the /pairs fetch
+    // it gates above -- two overlapping reload() calls racing on the same
+    // setStates for every FIXED_PAIRS session's initial mount. Waiting for
+    // `session` here means reload() runs exactly once, already knowing the
+    // real isFixedPairs value.
+    if (session === null) return undefined
     let ignore = false
     reload().catch(() => !ignore && setStatus('error'))
     return () => {
       ignore = true
     }
-    // isFixedPairs is included so the initial mount (before SessionLayout's
-    // own session fetch resolves) reruns reload() once it flips from false
-    // to true, picking up the /pairs fetch it gates above -- without this,
-    // a FIXED_PAIRS session's pairs would never load unless some OTHER
-    // dependency happened to change first.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, isFixedPairs])
+  }, [sessionId, session])
 
   const registeredPlayerIds = new Set(
     sessionPlayers.filter((p) => p.registrationStatus === 'REGISTERED').map((p) => p.playerId)
@@ -358,7 +363,7 @@ export default function CheckInPage() {
               ) : canSelectForPairing(player) ? (
                 <>
                   <span data-testid={`checkin-needs-partner-${player.id}`}>
-                    <PlayerStatusChip status="NEEDS_PARTNER" icon={AlertTriangle} label="Needs partner" />
+                    <PlayerStatusChip status="NEEDS_PARTNER" />
                   </span>
                   <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
                     <input

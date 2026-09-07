@@ -79,7 +79,11 @@ export default function QueuePage() {
       ) : (
         <>
           <div>
-            <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Waiting ({queued.length})</h2>
+            {/* Counts groups (one per pair or lone player), not raw queue_entries
+                rows -- a FIXED_PAIRS pair's two rows render as a single PairRow
+                below, so counting `queued.length` here previously showed e.g.
+                "Waiting (4)" above only two visible rows for two waiting pairs. */}
+            <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Waiting ({queuedGroups.length})</h2>
             <div className="space-y-2" data-testid="queue-waiting-list">
               {queuedGroups.map((group, index) =>
                 group.length === 2 ? (
