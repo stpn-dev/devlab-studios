@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../../worker/pickleball/authContext.js'
 import { hasPermission } from '../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
-import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const DELETE: APIRoute = async ({ request, params }) => {
@@ -13,7 +13,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
     if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
 
     if (!hasPermission(session, 'MANAGE_QUEUE')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return forbiddenResponse(request)
     }
 
     const sessionId = params.id as string
