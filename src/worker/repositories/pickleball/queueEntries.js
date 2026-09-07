@@ -203,6 +203,25 @@ export function buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId) {
     .bind(sessionId, sessionPlayerId)
 }
 
+/**
+ * Unexecuted DELETE closing every queue_entries row carrying this
+ * session_pair_id, regardless of status. Exported (rather than kept as a
+ * private detail of leaveQueueAsPair below) so SessionCoordinatorDO.dissolvePair
+ * can compose it into the SAME db.batch() as
+ * sessionPairs.js's buildDissolvePairStatement -- see that method's comment
+ * for why the two must commit atomically. Matches on session_pair_id alone
+ * (not `AND status = 'QUEUED'`, unlike leaveQueueAsPair's own DELETE below):
+ * dissolving a pair must sweep away a stray ASSIGNED/PLAYING row too, since
+ * Task 5's court assignment has not shipped yet and no legitimate path
+ * should leave one, but this must not silently under-clean if one ever
+ * exists.
+ */
+export function buildCloseQueueEntriesForPairStatement(db, sessionId, sessionPairId) {
+  return db
+    .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_pair_id = ?`)
+    .bind(sessionId, sessionPairId)
+}
+
 // Queues a FIXED_PAIRS pair as a single unit (spec Part B, migration 0012):
 // two rows, one per member, sharing this session_pair_id and one queued_at.
 // Both inserts go through ONE db.batch() -- D1 batches are atomic, so a

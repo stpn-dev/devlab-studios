@@ -28,6 +28,7 @@ import {
   leaveQueue as leaveQueueRepo,
   joinQueueAsPair as joinQueueAsPairRepo,
   leaveQueueAsPair as leaveQueueAsPairRepo,
+  buildCloseQueueEntriesForPairStatement,
 } from '../repositories/pickleball/queueEntries.js'
 import {
   buildCreateTeamStatement,
@@ -53,7 +54,7 @@ import {
 } from '../repositories/pickleball/sessionPlayers.js'
 import {
   createPair,
-  dissolvePair as dissolvePairRepo,
+  buildDissolvePairStatement,
   getActivePairForSessionPlayer,
 } from '../repositories/pickleball/sessionPairs.js'
 import {
@@ -1435,27 +1436,26 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     return { ok: true as const, pair }
   }
 
-  // Dissolves an ACTIVE pair (repo write) and, in the SAME method, closes any
-  // open queue_entries rows still carrying this session_pair_id -- migration
-  // 0012's header is explicit that a queued pair's two rows share one
+  // Dissolves an ACTIVE pair AND closes any open queue_entries rows still
+  // carrying this session_pair_id in ONE db.batch() -- migration 0012's
+  // header is explicit that a queued pair's two rows share one
   // session_pair_id, so a dissolved pair must never leave either row queued
   // behind it (a facilitator dissolving a pair mid-queue must not leave a
-  // "ghost" pair entry the fairness engine can still select). Not composed
-  // into one db.batch() with dissolvePairRepo's own UPDATE: sessionPairs.js
-  // exposes dissolvePair only as an already-executed write (no unexecuted
-  // statement builder), matching this task's file scope (sessionPairs.js is
-  // Task 2's file, not touched here).
+  // "ghost" pair entry the fairness engine can still select). The two
+  // statements MUST commit together: run as separate un-batched calls, a
+  // failure/interruption between them could leave the pair DISSOLVED with
+  // its queue rows still QUEUED -- exactly the ghost state this method
+  // exists to prevent. Same db.batch() atomicity this file uses everywhere
+  // else (see joinQueueAsPair's identical reasoning).
   async dissolvePair(sessionId: string, pairId: string) {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
     const db = this.env.PICKLEBALL_DB
 
-    const dissolved = await dissolvePairRepo(db, sessionId, pairId)
-    if (!dissolved) return failure('Pair not found, or already dissolved.')
+    const dissolveStatement = buildDissolvePairStatement(db, sessionId, pairId)
+    const closeQueueStatement = buildCloseQueueEntriesForPairStatement(db, sessionId, pairId)
 
-    await db
-      .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_pair_id = ?`)
-      .bind(sessionId, pairId)
-      .run()
+    const [dissolveResult] = await db.batch([dissolveStatement, closeQueueStatement])
+    if (!dissolveResult.meta.changes) return failure('Pair not found, or already dissolved.')
 
     await this.broadcast(sessionId)
     return { ok: true as const }

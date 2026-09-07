@@ -228,4 +228,27 @@ test.describe('Pickleball fixed pairs: queue a pair, not a player', () => {
     expect(queue.find((e) => e.sessionPlayerId === playerA)).toBeUndefined()
     expect(queue.find((e) => e.sessionPlayerId === playerB)).toBeUndefined()
   })
+
+  test('dissolving a queued pair closes its open queue entries', async ({ request, baseURL }) => {
+    const { sessionId, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 2)
+    const [playerA, playerB] = sessionPlayerIds
+    const pair = await formPair(request, sessionId, playerA, playerB)
+
+    const joinResponse = await request.post(`/api/pickleball/sessions/${sessionId}/queue`, {
+      data: { sessionPlayerId: playerA },
+    })
+    expect(joinResponse.status()).toBe(201)
+
+    // Explicit Origin header — Astro's CSRF check rejects a bodyless
+    // request.delete() with none (same pattern as the form/dissolve tests).
+    const dissolveResponse = await request.delete(`/api/pickleball/sessions/${sessionId}/pairs/${pair.id}`, {
+      headers: { Origin: baseURL },
+    })
+    expect(dissolveResponse.status()).toBe(200)
+
+    const queueResponse = await request.get(`/api/pickleball/sessions/${sessionId}/queue`)
+    const queue = (await queueResponse.json()).queue
+    expect(queue.find((e) => e.sessionPlayerId === playerA)).toBeUndefined()
+    expect(queue.find((e) => e.sessionPlayerId === playerB)).toBeUndefined()
+  })
 })

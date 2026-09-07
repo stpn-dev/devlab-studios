@@ -78,15 +78,29 @@ export async function createPair(db, { sessionId, sessionPlayerAId, sessionPlaye
   return getPair(db, sessionId, id)
 }
 
-export async function dissolvePair(db, sessionId, pairId) {
-  const result = await db
+/**
+ * Unexecuted UPDATE flipping an ACTIVE pair to DISSOLVED. Exported so
+ * SessionCoordinatorDO.dissolvePair can compose it into ONE db.batch()
+ * alongside queueEntries.js's buildCloseQueueEntriesForPairStatement --
+ * dissolving a pair and closing its open queue_entries rows must commit
+ * atomically, or an interrupted/failed second statement would leave the
+ * pair DISSOLVED with its queue rows still QUEUED (a "ghost queued pair"
+ * the fairness engine could still select). `dissolvePair` below is this
+ * same statement run standalone, for any caller that only needs the pair
+ * side (there is none today, but the single-purpose helper is kept for
+ * parity with createPair/getPair).
+ */
+export function buildDissolvePairStatement(db, sessionId, pairId) {
+  return db
     .prepare(
       `UPDATE session_pairs SET status = 'DISSOLVED', updated_at = ?
        WHERE id = ? AND session_id = ? AND status = 'ACTIVE'`,
     )
     .bind(nowIso(), pairId, sessionId)
-    .run()
+}
 
+export async function dissolvePair(db, sessionId, pairId) {
+  const result = await buildDissolvePairStatement(db, sessionId, pairId).run()
   return Boolean(result.meta.changes)
 }
 
