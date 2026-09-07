@@ -152,8 +152,8 @@ Structure:
   — replacing an assigned player, and abandoning a game — were dropped
   during implementation: both exist only as API routes with no call site in
   any committed operator UI, so documenting them would have violated §1.7.
-  All
-  five are real commands on `SessionCoordinatorDO`.
+  The three that remain are real commands on `SessionCoordinatorDO` reachable
+  from the operator UI.
 - **Who can do what** — the three roles, from
   `src/lib/pickleball/permissions.ts`.
 
