@@ -19,6 +19,7 @@ import CourtsPage from './pages/CourtsPage'
 import GamesListPage from './pages/GamesListPage'
 import ScorekeeperPage from './pages/ScorekeeperPage'
 import LeaderboardPage from './pages/LeaderboardPage'
+import TournamentPage from './pages/TournamentPage'
 import AcceptOrgInvitePage from './pages/AcceptOrgInvitePage'
 import PlatformPage from './pages/PlatformPage'
 
@@ -47,6 +48,7 @@ function buildRouter(session, organizations, onSwitchOrg, onLogout) {
           children: [
             { index: true, element: <SessionControlPage /> },
             { path: 'check-in', element: <CheckInPage /> },
+            { path: 'tournament', element: <TournamentPage /> },
             { path: 'queue', element: <QueuePage /> },
             { path: 'courts', element: <CourtsPage /> },
             { path: 'games', element: <GamesListPage /> },

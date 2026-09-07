@@ -5,7 +5,7 @@ import { pickleballApi } from '../lib/pickleballApi'
 import { hasPermission } from '../../lib/pickleball/permissions'
 import { Pencil, Check, Close } from '../../components/icons/icons'
 
-const SUB_NAV = [
+const BASE_SUB_NAV = [
   { to: '', label: 'Overview', end: true },
   { to: 'check-in', label: 'Check-in' },
   { to: 'queue', label: 'Queue' },
@@ -13,6 +13,18 @@ const SUB_NAV = [
   { to: 'games', label: 'Games' },
   { to: 'leaderboard', label: 'Leaderboard' },
 ]
+
+// A tournament is ALSO a FIXED_PAIRS session (spec §3.1 amendment), so this
+// branches on `tournamentFormat` -- never on `sessionType` -- exactly like
+// every DO-side branch this plan already established (assignCourt,
+// finishGame's eligible_for_opi). Branching on sessionType alone would show
+// this tab on every ordinary Fixed Pairs session too. Inserted right after
+// Check-in: entering/seeding entrants is the operator's next step once
+// players are checked in, before the fixture list has anything to assign.
+function buildSubNav(session) {
+  if (!session?.tournamentFormat) return BASE_SUB_NAV
+  return [...BASE_SUB_NAV.slice(0, 2), { to: 'tournament', label: 'Tournament' }, ...BASE_SUB_NAV.slice(2)]
+}
 
 // The realtime STATE snapshot's queue entries (buildSessionSnapshot ->
 // listQueueForSession) never carry a `reasons` field -- that explainability
@@ -211,7 +223,7 @@ export default function SessionLayout() {
       ) : (
         <>
           <nav className="flex gap-1 border-b border-slate-200 pb-2">
-            {SUB_NAV.map((item) => (
+            {buildSubNav(session).map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}

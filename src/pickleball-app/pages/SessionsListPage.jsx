@@ -9,7 +9,13 @@ import { humanizeEnum } from '../lib/humanizeEnum'
 
 const SESSION_TYPES = ['OPEN_PLAY', 'FIXED_PAIRS']
 
-const EMPTY_FORM = { venueId: '', name: '', sessionType: 'OPEN_PLAY', scoringRulesetId: '', scheduledStart: '', scheduledEnd: '' }
+// C1 ships ROUND_ROBIN only (generateFixtures throws for the other three
+// spec-named formats -- src/lib/schemas/pickleball/tournaments.ts restricts
+// the API to the same single literal), so this is the only real option this
+// select can offer today.
+const TOURNAMENT_FORMATS = ['ROUND_ROBIN']
+
+const EMPTY_FORM = { venueId: '', name: '', sessionType: 'OPEN_PLAY', scoringRulesetId: '', scheduledStart: '', scheduledEnd: '', tournamentFormat: '' }
 
 // scheduledStart/scheduledEnd are the only real per-session date/time fields
 // this page's fetch provides (listSessions() in
@@ -64,8 +70,14 @@ export default function SessionsListPage() {
   async function handleCreate() {
     setMessage(null)
     try {
+      // tournamentFormat is only ever sent when the operator actually chose
+      // one -- the schema treats it as optional, and sending an empty
+      // string would fail its z.literal('ROUND_ROBIN') validation instead
+      // of being read as "no tournament", same as never sending the key.
+      const { tournamentFormat, ...rest } = form
       const payload = {
-        ...form,
+        ...rest,
+        ...(tournamentFormat ? { tournamentFormat } : {}),
         scheduledStart: new Date(form.scheduledStart).toISOString(),
         scheduledEnd: new Date(form.scheduledEnd).toISOString(),
       }
@@ -102,12 +114,41 @@ export default function SessionsListPage() {
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-700">Session type</span>
-            <select data-testid="session-type-select" value={form.sessionType} onChange={(e) => setForm({ ...form, sessionType: e.target.value })} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <select
+              data-testid="session-type-select"
+              value={form.sessionType}
+              onChange={(e) => {
+                const sessionType = e.target.value
+                // Switching away from FIXED_PAIRS clears any chosen
+                // tournament format -- the API rejects tournamentFormat on
+                // a non-FIXED_PAIRS session, and a stale selection hidden
+                // behind the now-removed control would silently resurface
+                // if the operator switched back.
+                setForm({ ...form, sessionType, tournamentFormat: sessionType === 'FIXED_PAIRS' ? form.tournamentFormat : '' })
+              }}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
               {SESSION_TYPES.map((type) => (
                 <option key={type} value={type}>{humanizeEnum(type)}</option>
               ))}
             </select>
           </label>
+          {form.sessionType === 'FIXED_PAIRS' ? (
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Tournament format</span>
+              <select
+                data-testid="session-tournament-format-select"
+                value={form.tournamentFormat}
+                onChange={(e) => setForm({ ...form, tournamentFormat: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Not a tournament</option>
+                {TOURNAMENT_FORMATS.map((format) => (
+                  <option key={format} value={format}>{humanizeEnum(format)}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-700">Venue</span>
             <select data-testid="session-venue-select" value={form.venueId} onChange={(e) => setForm({ ...form, venueId: e.target.value })} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">

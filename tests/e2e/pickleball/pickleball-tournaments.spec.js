@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { loginAsOperator } from './helpers.js'
 
 // A tournament is a FIXED_PAIRS session carrying `tournamentFormat` -- NOT a
 // third session type (migration 0014's header, and this phase's own docs).
@@ -988,5 +989,142 @@ test.describe('Pickleball tournaments: standings (per-entrant, tournament/standi
     expect(standings).toHaveLength(2)
     expect(standings.every((s) => s.wins === 0 && s.losses === 0 && s.pointDifferential === 0)).toBe(true)
     expect(standings.every((s) => typeof s.rank === 'number')).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Task 9: operator UI. Branches on `tournamentFormat`, NEVER on session type
+// -- a tournament is ALSO a FIXED_PAIRS session, so branching on the type
+// alone would catch ordinary pair sessions too (the exact ordering hazard
+// Task 6 named for assignCourt, now on the UI side). Regression coverage for
+// "a non-tournament session is unchanged" is the existing
+// pickleball-operator-ui.spec.js and pickleball-fixed-pairs.spec.js suites,
+// re-run unmodified.
+
+test.describe('Pickleball tournaments: operator UI', () => {
+  test('the create form offers a tournament format; only a tournament session shows a Tournament nav entry', async ({ page, request, context }) => {
+    const baseURL = test.info().project.use.baseURL
+    await loginAsOperator(request, context, baseURL)
+
+    const venueResponse = await request.post('/api/pickleball/venues', { data: { name: `Tourney UI Venue ${Date.now()}` } })
+    const venueId = (await venueResponse.json()).venue.id
+    const rulesetsResponse = await request.get('/api/pickleball/scoring-rulesets')
+    const doublesRuleset = (await rulesetsResponse.json()).rulesets.find((r) => r.id === 'usap-2026-sideout-11-doubles')
+    expect(doublesRuleset).toBeTruthy()
+
+    await page.goto('/pickleball/app/sessions')
+    await page.getByRole('button', { name: 'New Session' }).click()
+
+    const tournamentSessionName = `Tourney UI Session ${Date.now()}`
+    await page.getByLabel('Name', { exact: true }).fill(tournamentSessionName)
+    await page.getByTestId('session-type-select').selectOption('FIXED_PAIRS')
+    // The tournament-format control only appears for a FIXED_PAIRS session --
+    // asserting it is present here is itself part of "the create form offers
+    // a tournament format".
+    await expect(page.getByTestId('session-tournament-format-select')).toBeVisible()
+    await page.getByTestId('session-tournament-format-select').selectOption('ROUND_ROBIN')
+    await page.getByTestId('session-venue-select').selectOption(venueId)
+    await page.getByTestId('session-ruleset-select').selectOption('usap-2026-sideout-11-doubles')
+    await page.getByLabel('Start', { exact: true }).fill('2026-09-08T18:00')
+    await page.getByLabel('End', { exact: true }).fill('2026-09-08T22:00')
+    await page.getByRole('button', { name: 'Create' }).click()
+    await expect(page.getByText('Session created.')).toBeVisible()
+
+    await page.getByTestId('sessions-list').getByText(tournamentSessionName).click()
+    await expect(page.getByRole('link', { name: 'Tournament' })).toBeVisible()
+
+    // The control: an ordinary FIXED_PAIRS session (tournament format left at
+    // "Not a tournament") must NOT show the Tournament nav entry -- proves
+    // the branch is on tournamentFormat, not on FIXED_PAIRS itself.
+    await page.goto('/pickleball/app/sessions')
+    await page.getByRole('button', { name: 'New Session' }).click()
+    const ordinarySessionName = `Tourney UI Control Session ${Date.now()}`
+    await page.getByLabel('Name', { exact: true }).fill(ordinarySessionName)
+    await page.getByTestId('session-type-select').selectOption('FIXED_PAIRS')
+    await expect(page.getByTestId('session-tournament-format-select')).toBeVisible()
+    // Deliberately leave it at "Not a tournament".
+    await page.getByTestId('session-venue-select').selectOption(venueId)
+    await page.getByTestId('session-ruleset-select').selectOption('usap-2026-sideout-11-doubles')
+    await page.getByLabel('Start', { exact: true }).fill('2026-09-08T18:00')
+    await page.getByLabel('End', { exact: true }).fill('2026-09-08T22:00')
+    await page.getByRole('button', { name: 'Create' }).click()
+    await expect(page.getByText('Session created.')).toBeVisible()
+
+    await page.getByTestId('sessions-list').getByText(ordinarySessionName).click()
+    await expect(page.getByRole('heading', { name: ordinarySessionName })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Tournament' })).not.toBeVisible()
+
+    // And OPEN_PLAY never even offers the control at all.
+    await page.goto('/pickleball/app/sessions')
+    await page.getByRole('button', { name: 'New Session' }).click()
+    await expect(page.getByTestId('session-tournament-format-select')).not.toBeVisible()
+  })
+
+  test('TournamentPage lists entrants in seed order, enters a pair before lock, disables entry after lock, and renders fixtures grouped by round with status', async ({ page, request, context }) => {
+    const baseURL = test.info().project.use.baseURL
+    await loginAsOperator(request, context, baseURL)
+
+    const { sessionId, sessionCourts, pairs: createdPairs } = await createLiveTournamentWithPairs(request, 2, 1)
+    void sessionCourts
+
+    // createLiveTournamentWithPairs' own return value comes straight off the
+    // formPair response (toPair -- no display names). GET .../pairs is
+    // listSessionPairs, which DOES join in playerADisplayName/
+    // playerBDisplayName -- fetch it once so the UI assertions below have
+    // real names to match against, same shape TournamentPage itself fetches.
+    const pairsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/pairs`)
+    const pairsWithNames = (await pairsResponse.json()).pairs
+    const pairs = createdPairs.map((pair) => pairsWithNames.find((p) => p.id === pair.id))
+    expect(pairs.every(Boolean)).toBe(true)
+
+    await page.goto(`/pickleball/app/sessions/${sessionId}/tournament`)
+    // `exact: true` matters here: the test session's own name is
+    // "Tournament Session ..." (createTournamentSession's default), so a
+    // non-exact match against SessionLayout's own session-name heading can
+    // collide with this page's real <h1>Tournament</h1> once both have
+    // rendered -- and race harmlessly-looking-green when only one has.
+    await expect(page.getByRole('heading', { name: 'Tournament', exact: true })).toBeVisible()
+
+    // Nothing entered yet -- both formed pairs are selectable, neither is
+    // listed as an entrant.
+    await expect(page.getByTestId('tournament-entrants-list')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByTestId('tournament-enter-pair-select')).toBeEnabled()
+    await expect(page.getByTestId('tournament-enter-pair-button')).toBeDisabled()
+
+    // Enter pairs[0] first, then pairs[1] -- pre-lock "seed order" is
+    // created_at order (every seed is still null), so the entrants list must
+    // render pairs[0] above pairs[1].
+    await page.getByTestId('tournament-enter-pair-select').selectOption(pairs[0].id)
+    await page.getByTestId('tournament-enter-pair-button').click()
+    await expect(page.getByTestId('tournament-entrants-list').getByText(`${pairs[0].playerADisplayName} / ${pairs[0].playerBDisplayName}`)).toBeVisible()
+
+    await page.getByTestId('tournament-enter-pair-select').selectOption(pairs[1].id)
+    await page.getByTestId('tournament-enter-pair-button').click()
+    await expect(page.getByTestId('tournament-entrants-list').getByText(`${pairs[1].playerADisplayName} / ${pairs[1].playerBDisplayName}`)).toBeVisible()
+
+    const entrantRows = page.getByTestId('tournament-entrants-list').locator('[data-testid^="tournament-entrant-"]')
+    await expect(entrantRows).toHaveCount(2)
+    await expect(entrantRows.nth(0)).toContainText(pairs[0].playerADisplayName)
+    await expect(entrantRows.nth(1)).toContainText(pairs[1].playerADisplayName)
+
+    // Both pairs are now entered -- the select has nothing left to offer, so
+    // "enter" is disabled even though the bracket isn't locked yet.
+    await expect(page.getByTestId('tournament-enter-pair-button')).toBeDisabled()
+
+    await page.getByTestId('tournament-lock-bracket-button').click()
+
+    // After lock: the whole entry control is disabled, never removed --
+    // an operator should still be able to see it, just not use it.
+    await expect(page.getByTestId('tournament-enter-pair-select')).toBeDisabled()
+    await expect(page.getByTestId('tournament-lock-bracket-button')).not.toBeVisible()
+
+    // Locking a 2-entrant round robin generates exactly one fixture, in
+    // round 1 -- grouped fixture list shows it with its real status.
+    await expect(page.getByTestId('tournament-fixtures')).toContainText('Round 1')
+    const fixtureRows = page.getByTestId('tournament-fixtures').locator('[data-testid^="tournament-fixture-"]')
+    await expect(fixtureRows).toHaveCount(1)
+    await expect(fixtureRows.first()).toContainText(pairs[0].playerADisplayName)
+    await expect(fixtureRows.first()).toContainText(pairs[1].playerADisplayName)
+    await expect(fixtureRows.first()).toContainText('Ready')
   })
 })
