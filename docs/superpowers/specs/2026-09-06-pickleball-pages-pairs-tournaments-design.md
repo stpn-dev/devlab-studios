@@ -329,7 +329,7 @@ value migration 0004 reserved.
 
 | Case | Decision |
 |---|---|
-| One member goes `TEMPORARILY_UNAVAILABLE` | Pair's queue entry closes; both rows retained for audit. The pair rejoins at the back when both are available again. |
+| One member goes `TEMPORARILY_UNAVAILABLE` | Pair's queue entries close. **Amended 2026-09-07:** this row originally read "both rows retained for audit" and "the pair rejoins at the back with a fresh `queued_at` when both are available again." Neither matches what shipped. `queue_entries` has no closed/retained status — closing a pair's open entries is a hard `DELETE`, so nothing is "retained" in that table; the record that survives and can be queried is the `session_pairs` row itself, plus its `games_played` counter. And nothing auto-requeues: consistent with how every other open-play rejoin works, the operator re-joins the pair manually — an ordinary "Join queue" action — once both members are available again. The pair holds no reserved position while sitting out; it is re-queued at the back with a fresh `queued_at` only when the operator acts. |
 | One member leaves the session | Pair is dissolved; the remaining member becomes unpaired and needs a new partner. |
 | Operator wants to swap one member of an assigned pair | Not supported. `replaceAssignedPlayer` is refused in a `FIXED_PAIRS` session; the operator dissolves the pair and forms a new one. Documented rather than silently half-working. |
 | Fewer than two eligible pairs | No assignment offered; the UI states this plainly, as it already does for fewer than four players. |
@@ -342,6 +342,17 @@ point totals are derivable from the existing `player_game_stats` rows joined
 through `session_pairs`, requiring no new stats table. This finally delivers
 the parent spec's Phase 5 "pair stats" item, which
 `docs/pickleball/architecture.md` currently lists as deliberately not built.
+
+**Amended 2026-09-07:** which pair is credited was not fully specified above,
+and the first implementation got it wrong. `games_played` must be credited
+to the pair recorded on the team via `teams.session_pair_id` (migration
+0013) — the pair as it stood at the moment that team was seated — never by
+looking up either member's *current* active pairing. Those two answers
+diverge the moment anyone re-pairs mid-session: if a member dissolves and
+re-forms with someone else, resolving "current pairing" for a re-finished
+historical game would credit the new pair for a game it never played, and
+`listEligiblePairs` orders by `games_played`, so the error would have
+corrupted the fairness queue, not just a displayed number.
 
 OPI is unaffected: fixed-pair games are ordinary open-play games and remain
 eligible under the existing rules.

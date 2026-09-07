@@ -275,16 +275,20 @@ test.describe('Pickleball public pages', () => {
     })
   }
 
-  // Fixed pairs and tournaments are inert today — assignCourt refuses any
-  // session whose type is not OPEN_PLAY, and team creation always writes
-  // AD_HOC. Documenting either would be a lie. Both public pages are swept,
-  // not just the guide: the landing page could gain the same copy just as
-  // easily. When the fixed-pairs work ships, drop 'fixed pair' from this
-  // list — do not delete the test, tournaments stay unbuilt behind it.
+  // Tournaments are still inert — assignCourt refuses any session whose type
+  // is not OPEN_PLAY or FIXED_PAIRS, and no fixture/bracket model exists yet
+  // (spec Part C, unbuilt). Documenting it would be a lie, so 'tournament'
+  // stays blocked here. 'fixed pair' was removed from this guard: fixed
+  // pairs shipped (spec Part B) — pair formation, pair-aware queueing and
+  // assignment, and pair statistics are all real, and the guide's fixed-pairs
+  // section documents them, so the string now appears in committed copy
+  // rather than describing an inert feature. Both public pages are swept,
+  // not just the guide: the landing page could gain unbuilt-feature copy
+  // just as easily. Do not delete this test — when tournaments ship, retire
+  // it then.
   for (const path of ['/pickleball', '/pickleball/how-it-works']) {
     test(`documents no unbuilt feature (${path})`, async ({ page }) => {
       const html = (await (await page.request.get(path)).text()).toLowerCase()
-      expect(html).not.toContain('fixed pair')
       expect(html).not.toContain('tournament')
     })
   }

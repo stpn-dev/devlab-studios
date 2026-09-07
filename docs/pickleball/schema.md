@@ -20,6 +20,8 @@ numbered file.
 | `0009_performance_snapshots.sql` | Phase 5: `player_performance_snapshots`, aggregated OPI snapshots fully rebuildable from `player_game_stats`. |
 | `0010_audit_events.sql` | Phase 7: `audit_events`, an append-only accountability trail for admin-visible operator actions (role changes, game corrections/reopens). |
 | `0011_platform_pilot.sql` | Platform admin & self-serve pilot orgs: `users.is_platform_admin`; `organizations.status`, `.max_admins`, `.max_facilitators`, `.max_scorekeepers`; and the new `organization_invites` table. |
+| `0012_session_pairs.sql` | Fixed pairs (spec Part B): the new `session_pairs` table, a `BEFORE INSERT` trigger enforcing one `ACTIVE` pair per session player, and `queue_entries.session_pair_id`. |
+| `0013_teams_session_pair.sql` | Fixed pairs statistics fix: `teams.session_pair_id`, recording which pair a team actually was at the moment it was seated. |
 
 ## Tables
 
@@ -294,6 +296,40 @@ Indexes:
 - `idx_session_players_session_player` UNIQUE on `(session_id, player_id)`
 - `idx_session_players_session_attendance` on `(session_id, attendance_status)`
 
+#### `session_pairs`
+
+*Created in `0012_session_pairs.sql`.* Fixed pairs (spec Part B): in a
+`FIXED_PAIRS` session the queue's unit of work is a pair, not a player. A
+`session_pair` is deliberately **not** the same thing as a `team`: a team is
+per-game and per-court (`SessionCoordinatorDO.releaseCourt` clears its
+`session_court_id` the moment the court is released — see `0005`'s header),
+while a pair persists across every game for the whole session. Conflating the
+two would resurrect the stale-binding bug `0005` documents.
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | TEXT | PRIMARY KEY |
+| `session_id` | TEXT | NOT NULL, FOREIGN KEY → `pickleball_sessions(id)` ON DELETE CASCADE |
+| `session_player_a_id` | TEXT | NOT NULL, FOREIGN KEY → `session_players(id)` ON DELETE CASCADE |
+| `session_player_b_id` | TEXT | NOT NULL, FOREIGN KEY → `session_players(id)` ON DELETE CASCADE, CHECK (`session_player_a_id != session_player_b_id`) |
+| `status` | TEXT | NOT NULL, DEFAULT `'ACTIVE'`, CHECK (`status` IN (`'ACTIVE'`, `'DISSOLVED'`)) |
+| `games_played` | INTEGER | NOT NULL, DEFAULT `0` — the pair's own count, distinct from either member's `session_players.games_played` |
+| `created_at` | TEXT | NOT NULL |
+| `updated_at` | TEXT | NOT NULL |
+
+Indexes:
+- `idx_session_pairs_session_status` on `(session_id, status)`
+- A `BEFORE INSERT` trigger, `trg_session_pairs_one_active_pair_per_player`,
+  enforces "a session player belongs to at most one `ACTIVE` pair per
+  session" across **both** columns of every existing row. A same-column
+  partial unique index cannot express that invariant — see the migration's
+  own fix-round-1 comment for why the first version of this file shipped two
+  such indexes and each one silently missed half the cases.
+
+`queue_entries` gains a nullable `session_pair_id` rather than `session_pairs`
+growing its own queue-membership columns — see that column's entry under
+`queue_entries` below for why a queued pair produces two rows, not one.
+
 #### `queue_entries`
 
 *Created in `0004_queue_and_teams.sql`; hardened by
@@ -315,11 +351,26 @@ Indexes:
 - `idx_queue_entries_session_player` on `(session_player_id, status)`
 - `idx_queue_entries_session_status` on `(session_id, status)`
 - `idx_queue_entries_one_open_per_player` UNIQUE on `(session_id, session_player_id)` WHERE `status IN ('QUEUED', 'ASSIGNED', 'PLAYING')` — added by `0006`; this partial index is the real enforcement of "at most one open queue entry per session player" (the `0004` comment claiming application-layer-only enforcement was incorrect for the direct `joinQueue` path, which never goes through the serializing DO)
+- `idx_queue_entries_session_pair` on `(session_pair_id)` — added by `0012`
+
+`session_pair_id` (nullable, added by `0012_session_pairs.sql`, FOREIGN KEY →
+`session_pairs(id)` ON DELETE CASCADE): **a queued fixed pair inserts two
+`queue_entries` rows — one per member — sharing one `session_pair_id` and one
+`queued_at`, rather than one row for the pair.** This is deliberate, not an
+oversight: `session_player_id` stays `NOT NULL` and migration 0006's "at most
+one open entry per session_player" partial unique index keeps working
+unmodified, because every row — pair or not — still has exactly one
+`session_player_id` of its own. A single pair-level row would have needed a
+nullable `session_player_id` or a junction table, both of which would have
+touched every existing `OPEN_PLAY` query. The queue engine instead groups the
+two rows by `session_pair_id` wherever it needs to treat them as one entrant
+(`listEligiblePairs`, the queue-page grouping into one `PairRow`).
 
 #### `teams`
 
 *Created in `0004_queue_and_teams.sql`; `session_court_id` added by
-`0005_teams_session_court.sql`.*
+`0005_teams_session_court.sql`; `session_pair_id` added by
+`0013_teams_session_pair.sql`.*
 
 | Column | Type | Constraints |
 |---|---|---|
@@ -328,10 +379,25 @@ Indexes:
 | `kind` | TEXT | NOT NULL, DEFAULT `'AD_HOC'`, CHECK (`kind` IN (`'AD_HOC'`, `'FIXED_PAIR'`)) |
 | `created_at` | TEXT | NOT NULL |
 | `session_court_id` | TEXT | FOREIGN KEY → `session_courts(id)` ON DELETE SET NULL (added `0005`; means "the court this team CURRENTLY occupies" — cleared to NULL when the court is released, not a historical field) |
+| `session_pair_id` | TEXT | FOREIGN KEY → `session_pairs(id)` ON DELETE SET NULL (added `0013`; nullable — `NULL` for every `AD_HOC`/`OPEN_PLAY` team, which has no pair) |
 
 Indexes:
 - `idx_teams_session` on `(session_id)`
 - `idx_teams_session_court` on `(session_court_id)` — added by `0005`
+- `idx_teams_session_pair` on `(session_pair_id)` — added by `0013`
+
+`teams.session_pair_id` records **which fixed pair a team actually was, at
+the moment it was seated** — it is not derivable from "look up each member's
+current pair" once anyone re-pairs. If player A dissolves from B and re-pairs
+with C, a member's *current* active pair no longer identifies which pair
+played an earlier, already-finished game: reopening and re-finishing that game
+would credit the wrong pair (A+C, who never played it) instead of the right
+one (A+B, who did). Two `session_pairs` rows can even share an identical
+membership after a dissolve-and-reform, with no way to disambiguate them by
+member set alone. Recording the pair directly on the team at creation time is
+the only unambiguous answer, and it is what
+`buildRecomputePairGamesPlayedStatement` and the fixed-pairs statistics path
+join through — never a member's current pairing.
 
 #### `team_members`
 

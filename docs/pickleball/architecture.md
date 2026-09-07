@@ -70,6 +70,27 @@ USA-Pickleball-certified.
    `tests/e2e/pickleball/pickleball-public-pages.spec.js`, which pins the
    corrected phrasings verbatim, blocks copy about features that exist only
    as API routes, and asserts the artwork never gains a hydration directive.
+7. **Fixed pairs** — a `FIXED_PAIRS` session changes the queue's unit of work
+   from *player* to *pair*. `session_pairs` (migration `0012`) is deliberately
+   a separate table from `teams`, not a variant of it: a team is per-game and
+   per-court and is released the moment its court is released, while a pair
+   persists across every game for the whole session. A queued pair inserts
+   two `queue_entries` rows sharing one `session_pair_id`, so the existing
+   "at most one open entry per session player" rule needs no change; the
+   queue engine groups the pair back into one entrant wherever it matters
+   (`listEligiblePairs`, `selectNextPairs`, and the queue page's single
+   `PairRow`). Eligibility and court assignment both require **both**
+   members to hold `AVAILABLE`, `CHECKED_IN` status — a pair with one member
+   out sits out entirely, never plays short-handed. `balanceTeams` is not
+   called for a fixed-pairs game: partners are fixed by definition, so
+   `SessionCoordinatorDO.assignCourt` seats the two selected pairs directly as
+   Team A and Team B. Swapping one member of an already-seated pair is
+   refused outright (`replaceAssignedPlayer`); the operator dissolves the
+   pair and forms a new one instead — there is no half-a-pair state this
+   codebase understands. `teams.session_pair_id` (migration `0013`) exists
+   because a member's *current* pairing cannot answer "which pair actually
+   played this game" once anyone re-pairs mid-session; see `schema.md`'s
+   entry on that column for the failure mode this closes.
 
 ## Multi-tenancy & RBAC
 
@@ -101,11 +122,11 @@ full role→permission matrix.
 | 5 | Performance — `player_game_stats`, OPI v1, snapshots, leaderboards, player profile | Complete |
 | 6 | Realtime & public — WebSocket broadcast, public live view, TV/kiosk display, QR sharing, methodology page | Complete |
 | 7 | Polish — audit log, operator management UI, dashboard consolidation, documentation | Complete |
+| A | Public pages — landing & guide rewrite, illustration system, request-access form, sign-in exit, services CTA | Complete |
+| B | Fixed pairs in Open Play — `session_pairs`, pair-aware queue/eligibility/assignment, pair statistics, guide gains a pairs section | Complete |
 
-**Deliberately not built** (disclosed, not overlooked): `pair_stats` /
-`FIXED_PAIRS` session-type support (a full future feature, not a stats-layer
-addition — deferred, a full future feature, not a stats-layer addition); the public sanitized leaderboard extension to
-`toPublicSessionView` (spec §9 — deferred, requires a backend change out of
-scope for the UI-only plan that shipped the rest of Phase 6); a `/settings`
-page for "system defaults" (the spec reserves the route and a permission but
-never defines a single concrete setting).
+**Deliberately not built** (disclosed, not overlooked): the public sanitized
+leaderboard extension to `toPublicSessionView` (spec §9 — deferred, requires
+a backend change out of scope for the UI-only plan that shipped the rest of
+Phase 6); a `/settings` page for "system defaults" (the spec reserves the
+route and a permission but never defines a single concrete setting).

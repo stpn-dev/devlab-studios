@@ -44,9 +44,12 @@ CREATE INDEX IF NOT EXISTS idx_session_pairs_session_status ON session_pairs(ses
 -- clause.
 --
 -- The RAISE message deliberately starts with "UNIQUE constraint failed" so
--- sessionPairs.js's existing isUniqueConstraintViolation() string match
--- keeps working unchanged -- createPair() still returns null instead of
--- throwing, exactly as if a real unique index had fired.
+-- sessionPairs.js's isPairConflictViolation() string match catches it --
+-- that helper was later broadened beyond this trigger's message to also
+-- match "CHECK constraint failed" (the table's own
+-- session_player_a_id != session_player_b_id CHECK, a distinct message
+-- shape), so createPair() still returns null instead of throwing for either
+-- violation, exactly as if a real unique index had fired.
 CREATE TRIGGER IF NOT EXISTS trg_session_pairs_one_active_pair_per_player
 BEFORE INSERT ON session_pairs
 WHEN NEW.status = 'ACTIVE'
