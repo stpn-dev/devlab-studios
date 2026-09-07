@@ -47,7 +47,13 @@ import {
   setAvailability as setAvailabilityRepo,
   cancelRegistration as cancelRegistrationRepo,
   leaveSession as leaveSessionRepo,
+  getSessionPlayerById,
 } from '../repositories/pickleball/sessionPlayers.js'
+import {
+  createPair,
+  dissolvePair as dissolvePairRepo,
+  getActivePairForSessionPlayer,
+} from '../repositories/pickleball/sessionPairs.js'
 import {
   buildCreateGameStatement,
   buildUpdateGameProjectionStatement,
@@ -1389,6 +1395,68 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!sessionPlayer) return failure('Player cannot leave in their current state.')
     await this.broadcast(sessionId)
     return { ok: true as const, sessionPlayer }
+  }
+
+  // Forms a fixed pair from two already-checked-in session players (spec Part
+  // B). `createPair` is the real enforcement of "at most one ACTIVE pair per
+  // player" (a BEFORE INSERT trigger, migration 0012) and "not the same
+  // player twice" (a CHECK constraint) -- it returns null for either
+  // violation rather than throwing, so both collapse into the same domain
+  // failure here. The CHECKED_IN gate below is NOT covered by createPair at
+  // all (createPair only knows about session_pairs, not attendance), so it
+  // must be checked here before ever attempting the insert.
+  async formPair(sessionId: string, sessionPlayerAId: string, sessionPlayerBId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const db = this.env.PICKLEBALL_DB
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+    if (session.sessionType !== 'FIXED_PAIRS') {
+      return failure('Pairs can only be formed for a Fixed Pairs session.')
+    }
+
+    const [playerA, playerB] = await Promise.all([
+      getSessionPlayerById(db, sessionId, sessionPlayerAId),
+      getSessionPlayerById(db, sessionId, sessionPlayerBId),
+    ])
+    if (!playerA || !playerB) return failure('Both players must belong to this session.')
+    if (playerA.attendanceStatus !== 'CHECKED_IN' || playerB.attendanceStatus !== 'CHECKED_IN') {
+      return failure('Both players must be checked in to form a pair.')
+    }
+
+    const pair = await createPair(db, { sessionId, sessionPlayerAId, sessionPlayerBId })
+    if (!pair) {
+      return failure('One or both players are already in an active pair, or the same player was given twice.')
+    }
+
+    await this.broadcast(sessionId)
+    return { ok: true as const, pair }
+  }
+
+  // Dissolves an ACTIVE pair (repo write) and, in the SAME method, closes any
+  // open queue_entries rows still carrying this session_pair_id -- migration
+  // 0012's header is explicit that a queued pair's two rows share one
+  // session_pair_id, so a dissolved pair must never leave either row queued
+  // behind it (a facilitator dissolving a pair mid-queue must not leave a
+  // "ghost" pair entry the fairness engine can still select). Not composed
+  // into one db.batch() with dissolvePairRepo's own UPDATE: sessionPairs.js
+  // exposes dissolvePair only as an already-executed write (no unexecuted
+  // statement builder), matching this task's file scope (sessionPairs.js is
+  // Task 2's file, not touched here).
+  async dissolvePair(sessionId: string, pairId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const db = this.env.PICKLEBALL_DB
+
+    const dissolved = await dissolvePairRepo(db, sessionId, pairId)
+    if (!dissolved) return failure('Pair not found, or already dissolved.')
+
+    await db
+      .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_pair_id = ?`)
+      .bind(sessionId, pairId)
+      .run()
+
+    await this.broadcast(sessionId)
+    return { ok: true as const }
   }
 
   async joinQueue(sessionId: string, sessionPlayerId: string) {
