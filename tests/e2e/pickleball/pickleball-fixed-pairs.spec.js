@@ -41,6 +41,7 @@ async function createFixedPairsSessionWithCheckedInPlayers(request, playerCount,
   const sessionCourts = (await courtsListResponse.json()).courts
 
   const sessionPlayerIds = []
+  const playerIds = []
   for (let i = 0; i < playerCount; i += 1) {
     const playerResponse = await request.post('/api/pickleball/players', {
       data: { displayName: `Pairs Player ${Date.now()}-${i}-${Math.random().toString(36).slice(2)}` },
@@ -53,9 +54,10 @@ async function createFixedPairsSessionWithCheckedInPlayers(request, playerCount,
     await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
 
     sessionPlayerIds.push(sessionPlayerId)
+    playerIds.push(playerId)
   }
 
-  return { sessionId, sessionCourts, sessionPlayerIds }
+  return { sessionId, sessionCourts, sessionPlayerIds, playerIds }
 }
 
 async function registerUncheckedInPlayer(request, sessionId) {
@@ -427,5 +429,130 @@ test.describe('Pickleball fixed pairs: assign a court to two pairs', () => {
     expect(overlap).toEqual([])
     expect(new Set([...firstPlayers, ...secondPlayers]).size).toBe(8)
     expect(new Set([...firstPlayers, ...secondPlayers])).toEqual(new Set(sessionPlayerIds))
+  })
+})
+
+test.describe('Pickleball fixed pairs: edge cases', () => {
+  test('one member going TEMPORARILY_UNAVAILABLE closes the pair queue entries; the pair rejoins at the back with a fresh queued_at once both are available again', async ({ request }) => {
+    const { sessionId, sessionPlayerIds, playerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 2)
+    const [playerA, playerB] = sessionPlayerIds
+    const [playerAPlayerId] = playerIds
+    const pair = await formAndQueuePair(request, sessionId, playerA, playerB)
+
+    const queueBefore = (await (await request.get(`/api/pickleball/sessions/${sessionId}/queue`)).json()).queue
+    const originalQueuedAt = queueBefore.find((e) => e.sessionPlayerId === playerA).queuedAt
+    expect(queueBefore.find((e) => e.sessionPlayerId === playerB)).toBeTruthy()
+
+    const unavailableResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players/availability`, {
+      data: { playerId: playerAPlayerId, status: 'TEMPORARILY_UNAVAILABLE' },
+    })
+    expect(unavailableResponse.status()).toBe(200)
+
+    // Both queue rows close -- neither member (not even the still-AVAILABLE
+    // playerB) is left queued alone.
+    const queueAfterUnavailable = (await (await request.get(`/api/pickleball/sessions/${sessionId}/queue`)).json()).queue
+    expect(queueAfterUnavailable.find((e) => e.sessionPlayerId === playerA)).toBeUndefined()
+    expect(queueAfterUnavailable.find((e) => e.sessionPlayerId === playerB)).toBeUndefined()
+
+    // The pair itself is NOT dissolved -- only its queue entries close.
+    const pairsAfterUnavailable = (await (await request.get(`/api/pickleball/sessions/${sessionId}/pairs`)).json()).pairs
+    expect(pairsAfterUnavailable.find((p) => p.id === pair.id)).toBeTruthy()
+
+    // A short real wait so a fresh queued_at is genuinely distinguishable
+    // from the original one once both members are AVAILABLE again.
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+
+    const availableResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players/availability`, {
+      data: { playerId: playerAPlayerId, status: 'AVAILABLE' },
+    })
+    expect(availableResponse.status()).toBe(200)
+
+    const rejoinResponse = await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId: playerA } })
+    expect(rejoinResponse.status()).toBe(201)
+
+    const queueAfterRejoin = (await (await request.get(`/api/pickleball/sessions/${sessionId}/queue`)).json()).queue
+    const rowAAfterRejoin = queueAfterRejoin.find((e) => e.sessionPlayerId === playerA)
+    const rowBAfterRejoin = queueAfterRejoin.find((e) => e.sessionPlayerId === playerB)
+    expect(rowAAfterRejoin).toBeTruthy()
+    expect(rowBAfterRejoin).toBeTruthy()
+    expect(rowAAfterRejoin.queuedAt).toBe(rowBAfterRejoin.queuedAt)
+    expect(rowAAfterRejoin.queuedAt).not.toBe(originalQueuedAt)
+  })
+
+  test('one member leaving the session dissolves the pair; the remaining member becomes unpaired', async ({ request }) => {
+    const { sessionId, sessionPlayerIds, playerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 3)
+    const [playerA, playerB, playerC] = sessionPlayerIds
+    const [playerAPlayerId] = playerIds
+    const pair = await formPair(request, sessionId, playerA, playerB)
+
+    const leaveResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players/leave`, {
+      data: { playerId: playerAPlayerId },
+    })
+    expect(leaveResponse.status()).toBe(200)
+
+    const pairsAfterLeave = (await (await request.get(`/api/pickleball/sessions/${sessionId}/pairs`)).json()).pairs
+    expect(pairsAfterLeave.find((p) => p.id === pair.id)).toBeUndefined()
+
+    // playerB (the remaining member) is unpaired and can form a new pair.
+    const rePairResponse = await request.post(`/api/pickleball/sessions/${sessionId}/pairs`, {
+      data: { sessionPlayerAId: playerB, sessionPlayerBId: playerC },
+    })
+    expect(rePairResponse.status()).toBe(201)
+  })
+
+  test('replaceAssignedPlayer is refused in a FIXED_PAIRS session', async ({ request }) => {
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 5, 1)
+    const [p1, p2, p3, p4, p5] = sessionPlayerIds
+    await formAndQueuePair(request, sessionId, p1, p2)
+    await formAndQueuePair(request, sessionId, p3, p4)
+
+    const assignResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })
+    expect(assignResponse.status()).toBe(200)
+
+    // p5 is checked in but unpaired and not queued -- immaterial, since the
+    // FIXED_PAIRS refusal must fire before any incoming-player eligibility
+    // check ever runs.
+    const replaceResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/replace`, {
+      data: {
+        sessionCourtId: sessionCourts[0].id,
+        outgoingSessionPlayerId: p1,
+        incomingSessionPlayerId: p5,
+        outgoingDisposition: 'REQUEUE',
+      },
+    })
+    expect(replaceResponse.status()).toBe(409)
+    expect((await replaceResponse.json()).error).toContain('dissolve')
+  })
+
+  // "Fewer than two eligible pairs -> no assignment offered" is already
+  // covered by 'rejects assignment when fewer than two eligible pairs are
+  // queued' above (selectNextPairs' own shortfall message, shipped in Task
+  // 5) -- verified there rather than reimplemented here.
+
+  // Mirrors pickleball-fixed-pairs.spec.js's own court-assignment CONCURRENCY
+  // test: two simultaneous formPair calls sharing ONE player. The DO
+  // serializes every command for a session (this file's own header comment),
+  // so the second call can never observe a state where the first hasn't
+  // already committed -- but this proves the OUTER behaviour end-to-end
+  // (never two 201s, never two active pairs for the shared player) rather
+  // than trusting that guarantee by inspection alone.
+  test('CONCURRENCY: two simultaneous attempts to pair the same player never result in two active pairs for them', async ({ request }) => {
+    const { sessionId, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 3)
+    const [playerA, playerB, playerC] = sessionPlayerIds
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      request.post(`/api/pickleball/sessions/${sessionId}/pairs`, { data: { sessionPlayerAId: playerA, sessionPlayerBId: playerB } }),
+      request.post(`/api/pickleball/sessions/${sessionId}/pairs`, { data: { sessionPlayerAId: playerA, sessionPlayerBId: playerC } }),
+    ])
+
+    const statuses = [firstResponse.status(), secondResponse.status()].sort()
+    expect(statuses).toEqual([201, 409])
+
+    const pairsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/pairs`)
+    const pairs = (await pairsResponse.json()).pairs
+    const pairsWithPlayerA = pairs.filter((p) => p.sessionPlayerAId === playerA || p.sessionPlayerBId === playerA)
+    expect(pairsWithPlayerA).toHaveLength(1)
   })
 })

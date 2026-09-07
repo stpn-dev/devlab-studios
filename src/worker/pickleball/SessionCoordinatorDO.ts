@@ -51,6 +51,7 @@ import {
   cancelRegistration as cancelRegistrationRepo,
   leaveSession as leaveSessionRepo,
   getSessionPlayerById,
+  getSessionPlayer,
 } from '../repositories/pickleball/sessionPlayers.js'
 import {
   createPair,
@@ -579,6 +580,20 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
 
     const db = this.env.PICKLEBALL_DB
+
+    // FIXED_PAIRS edge case (spec 2.6): swapping out one member of an
+    // assigned pair is not supported -- there is no "half a pair" state this
+    // codebase understands (no partial-pair play), so refusing outright and
+    // pointing the operator at dissolvePair + formPair is the honest answer
+    // rather than half-implementing a swap that would silently orphan the
+    // pair's stats or its remaining partner. Checked before the court/roster
+    // lookups below: this is a session-type-level refusal, not something a
+    // more specific 404/409 further down should ever get the chance to mask.
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+    if (session.sessionType === 'FIXED_PAIRS') {
+      return failure('Replacing one member of a fixed pair is not supported; dissolve the pair and form a new one instead.')
+    }
 
     const court = await getSessionCourt(db, sessionId, sessionCourtId)
     if (!court) return failure('Court not found.')
@@ -1493,9 +1508,45 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     return { ok: true as const, checkedInPlayerIds }
   }
 
+  // FIXED_PAIRS edge case (spec 2.6): a pair is only eligible while BOTH
+  // members are AVAILABLE (listEligiblePairs' own WHERE clause), so one
+  // member going anything other than AVAILABLE makes the whole pair
+  // undispatchable -- its queue entries (both rows, one per member, sharing
+  // one session_pair_id) are closed here so a stale QUEUED row never lingers
+  // for the fairness engine to see. The pair itself is NOT dissolved -- that
+  // only happens when a member actually LEAVES the session (leaveSession
+  // below) -- so nothing here needs to re-queue anyone: when both members
+  // are AVAILABLE again, an ordinary joinQueue call re-queues the pair with
+  // a fresh queued_at, same as any pair joining for the first time. The
+  // availability UPDATE and the queue-close DELETE must commit atomically
+  // (same reasoning as dissolvePair's block comment) -- an interruption
+  // between them could leave the player marked unavailable with the pair's
+  // queue rows still QUEUED, exactly the ghost state this exists to avoid.
   async setAvailability(sessionId: string, playerId: string, status: 'AVAILABLE' | 'TEMPORARILY_UNAVAILABLE' | 'RESTING') {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
-    const sessionPlayer = await setAvailabilityRepo(this.env.PICKLEBALL_DB, sessionId, playerId, status)
+    const db = this.env.PICKLEBALL_DB
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+
+    if (session.sessionType === 'FIXED_PAIRS' && status !== 'AVAILABLE') {
+      const sessionPlayer = await getSessionPlayer(db, sessionId, playerId)
+      if (!sessionPlayer || sessionPlayer.attendanceStatus !== 'CHECKED_IN') {
+        return failure('Player is not eligible for an availability change.')
+      }
+
+      const pair = await getActivePairForSessionPlayer(db, sessionId, sessionPlayer.id)
+      const statements = [
+        buildSetAvailabilityByIdStatement(db, sessionId, sessionPlayer.id, status),
+        ...(pair ? [buildCloseQueueEntriesForPairStatement(db, sessionId, pair.id)] : []),
+      ]
+      await db.batch(statements)
+
+      await this.broadcast(sessionId)
+      return { ok: true as const, sessionPlayer: await getSessionPlayer(db, sessionId, playerId) }
+    }
+
+    const sessionPlayer = await setAvailabilityRepo(db, sessionId, playerId, status)
     if (!sessionPlayer) return failure('Player is not eligible for an availability change.')
     await this.broadcast(sessionId)
     return { ok: true as const, sessionPlayer }
@@ -1509,9 +1560,47 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     return { ok: true as const, sessionPlayer }
   }
 
+  // FIXED_PAIRS edge case (spec 2.6): a member leaving the session leaves
+  // the OTHER member without a partner, so the pair cannot stay ACTIVE --
+  // it is dissolved (not merely closed out of the queue, unlike
+  // setAvailability above) and its open queue entries are closed the same
+  // way dissolvePair does. All three writes (the leave-session UPDATE, the
+  // pair dissolve, the queue close) commit in ONE db.batch(): an
+  // interruption between them could leave the departing player marked
+  // LEFT_SESSION with the pair still ACTIVE (or vice versa), which would
+  // either strand the remaining member unable to re-pair, or let a
+  // dissolved pair's ex-partner still look partnered.
   async leaveSession(sessionId: string, playerId: string) {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
-    const sessionPlayer = await leaveSessionRepo(this.env.PICKLEBALL_DB, sessionId, playerId)
+    const db = this.env.PICKLEBALL_DB
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+
+    if (session.sessionType === 'FIXED_PAIRS') {
+      const sessionPlayer = await getSessionPlayer(db, sessionId, playerId)
+      const pair = sessionPlayer ? await getActivePairForSessionPlayer(db, sessionId, sessionPlayer.id) : null
+
+      const leaveStatement = db
+        .prepare(
+          `UPDATE session_players SET attendance_status = 'LEFT_SESSION', updated_at = ?
+           WHERE session_id = ? AND player_id = ? AND attendance_status = 'CHECKED_IN'`,
+        )
+        .bind(new Date().toISOString(), sessionId, playerId)
+
+      const statements = [
+        leaveStatement,
+        ...(pair ? [buildDissolvePairStatement(db, sessionId, pair.id), buildCloseQueueEntriesForPairStatement(db, sessionId, pair.id)] : []),
+      ]
+
+      const [leaveResult] = await db.batch(statements)
+      if (!leaveResult.meta.changes) return failure('Player cannot leave in their current state.')
+
+      await this.broadcast(sessionId)
+      return { ok: true as const, sessionPlayer: await getSessionPlayer(db, sessionId, playerId) }
+    }
+
+    const sessionPlayer = await leaveSessionRepo(db, sessionId, playerId)
     if (!sessionPlayer) return failure('Player cannot leave in their current state.')
     await this.broadcast(sessionId)
     return { ok: true as const, sessionPlayer }
@@ -1542,6 +1631,22 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!playerA || !playerB) return failure('Both players must belong to this session.')
     if (playerA.attendanceStatus !== 'CHECKED_IN' || playerB.attendanceStatus !== 'CHECKED_IN') {
       return failure('Both players must be checked in to form a pair.')
+    }
+
+    // Defense-in-depth re-check alongside migration 0012's BEFORE INSERT
+    // trigger (trg_session_pairs_one_active_pair_per_player), which is the
+    // real enforcement -- this DO already serializes every command for this
+    // session, so this can never race with a concurrent formPair call for
+    // the SAME session (the platform guarantee this file's header describes).
+    // Checking explicitly here gives a clear, specific domain error instead
+    // of relying solely on createPair's null return, and keeps working even
+    // if the trigger's shape or message ever changes.
+    const [existingPairA, existingPairB] = await Promise.all([
+      getActivePairForSessionPlayer(db, sessionId, sessionPlayerAId),
+      getActivePairForSessionPlayer(db, sessionId, sessionPlayerBId),
+    ])
+    if (existingPairA || existingPairB) {
+      return failure('One or both players are already in an active pair.')
     }
 
     const pair = await createPair(db, { sessionId, sessionPlayerAId, sessionPlayerBId })
