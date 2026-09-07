@@ -47,6 +47,15 @@ export const POST: APIRoute = async ({ request }) => {
       return jsonResponse({ error: 'Scoring ruleset not found in this organization.' }, 400)
     }
 
+    // A fixed pair cannot play a singles game, so reject the combination here
+    // rather than let it fail confusingly at court-assignment time. The
+    // ruleset's format isn't in the request body -- only its id is -- so this
+    // can't be a pure Zod refinement on createSessionSchema; it has to wait
+    // until the ruleset is actually loaded, right here.
+    if (result.data.sessionType === 'FIXED_PAIRS' && ruleset.format !== 'DOUBLES') {
+      return jsonResponse({ error: 'A Fixed Pairs session requires a doubles scoring ruleset.' }, 400)
+    }
+
     // Session creation and court seeding must commit or fail together — a
     // court-seed failure after a standalone session INSERT already committed
     // would leave a permanent session with zero session_courts rows and no

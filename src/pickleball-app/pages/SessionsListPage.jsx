@@ -5,6 +5,9 @@ import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonLine } from '../components/SkeletonLoader'
 import EmptySessionGraphic from '../components/illustrations/EmptySessionGraphic'
 import SessionStatusChip from '../components/SessionStatusChip'
+import { humanizeEnum } from '../lib/humanizeEnum'
+
+const SESSION_TYPES = ['OPEN_PLAY', 'FIXED_PAIRS']
 
 const EMPTY_FORM = { venueId: '', name: '', sessionType: 'OPEN_PLAY', scoringRulesetId: '', scheduledStart: '', scheduledEnd: '' }
 
@@ -96,6 +99,14 @@ export default function SessionsListPage() {
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-700">Name</span>
             <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-700">Session type</span>
+            <select data-testid="session-type-select" value={form.sessionType} onChange={(e) => setForm({ ...form, sessionType: e.target.value })} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              {SESSION_TYPES.map((type) => (
+                <option key={type} value={type}>{humanizeEnum(type)}</option>
+              ))}
+            </select>
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-700">Venue</span>

@@ -7,6 +7,7 @@ import MetricCard from '../components/MetricCard'
 import SessionStatusChip from '../components/SessionStatusChip'
 import { SkeletonBlock, SkeletonMetricCard } from '../components/SkeletonLoader'
 import { Activity, ClipboardList, ListOrdered, Grid3x3, Play, Pause, CheckCircle2, Close, Trash2 } from '../../components/icons/icons'
+import { humanizeEnum } from '../lib/humanizeEnum'
 
 // Mirrors src/lib/pickleball/sessionStateMachine.ts's TARGET_TRANSITIONS --
 // this only decides which buttons to *show* for the session's current
@@ -32,17 +33,6 @@ const ACTIONS_BY_STATUS = {
 // sessionStateMachine.ts) and is deliberately kept visually distinct
 // (danger styling) from the forward-progress actions above.
 const CANCELLABLE_STATUSES = ['DRAFT', 'OPEN_FOR_CHECKIN', 'LIVE', 'PAUSED']
-
-// "OPEN_PLAY" -> "Open Play", "FIXED_PAIRS" -> "Fixed Pairs" -- generic
-// enum-to-title-case, not a hardcoded map, so it keeps working if
-// createSessionSchema's z.enum (src/lib/schemas/pickleball/sessions.ts) ever
-// gains a value.
-function humanizeEnum(value) {
-  return value
-    .split('_')
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(' ')
-}
 
 export default function SessionControlPage() {
   const { sessionId, session, snapshot, authRole, isPlatformAdmin, onSessionUpdated } = useOutletContext()

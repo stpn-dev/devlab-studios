@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { loginAsOperator } from './helpers.js'
 
 async function createFixedPairsSessionWithCheckedInPlayers(request, playerCount, courtCount = 1) {
   await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
@@ -95,6 +96,71 @@ async function formAndQueuePair(request, sessionId, sessionPlayerAId, sessionPla
   expect(joinResponse.status()).toBe(201)
   return pair
 }
+
+test.describe('Pickleball fixed pairs: session creation', () => {
+  test('rejects a FIXED_PAIRS session created against a SINGLES ruleset', async ({ request }) => {
+    await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+
+    const venueResponse = await request.post('/api/pickleball/venues', {
+      data: { name: `Pairs Creation Venue ${Date.now()}-${Math.random().toString(36).slice(2)}` },
+    })
+    const venueId = (await venueResponse.json()).venue.id
+
+    // The seeded default ruleset is DOUBLES-only, so a SINGLES ruleset has
+    // to be created through the real API rather than referenced by a fixed
+    // fixture id.
+    const rulesetResponse = await request.post('/api/pickleball/scoring-rulesets', {
+      data: { name: `Singles Reject Ruleset ${Date.now()}`, targetScore: 11, winBy: 2, format: 'SINGLES' },
+    })
+    expect(rulesetResponse.status()).toBe(201)
+    const singlesRulesetId = (await rulesetResponse.json()).ruleset.id
+
+    const sessionResponse = await request.post('/api/pickleball/sessions', {
+      data: {
+        venueId,
+        name: `Pairs Singles Reject ${Date.now()}`,
+        sessionType: 'FIXED_PAIRS',
+        scoringRulesetId: singlesRulesetId,
+        scheduledStart: '2026-08-30T18:00:00.000Z',
+        scheduledEnd: '2026-08-30T22:00:00.000Z',
+      },
+    })
+    expect(sessionResponse.status()).toBe(400)
+    expect((await sessionResponse.json()).error).toContain('doubles')
+  })
+
+  test('creates a FIXED_PAIRS session against a DOUBLES ruleset', async ({ request }) => {
+    await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+
+    const venueResponse = await request.post('/api/pickleball/venues', {
+      data: { name: `Pairs Creation Venue ${Date.now()}-${Math.random().toString(36).slice(2)}` },
+    })
+    const venueId = (await venueResponse.json()).venue.id
+
+    const sessionResponse = await request.post('/api/pickleball/sessions', {
+      data: {
+        venueId,
+        name: `Pairs Doubles Accept ${Date.now()}`,
+        sessionType: 'FIXED_PAIRS',
+        scoringRulesetId: 'usap-2026-sideout-11-doubles',
+        scheduledStart: '2026-08-30T18:00:00.000Z',
+        scheduledEnd: '2026-08-30T22:00:00.000Z',
+      },
+    })
+    expect(sessionResponse.status()).toBe(201)
+    expect((await sessionResponse.json()).session.sessionType).toBe('FIXED_PAIRS')
+  })
+
+  test('the create form offers both Open Play and Fixed Pairs session types', async ({ page, request, baseURL }) => {
+    await loginAsOperator(request, page.context(), baseURL)
+
+    await page.goto('/pickleball/app/sessions')
+    await page.getByRole('button', { name: 'New Session' }).click()
+
+    const options = await page.getByTestId('session-type-select').locator('option').allTextContents()
+    expect(options).toEqual(['Open Play', 'Fixed Pairs'])
+  })
+})
 
 test.describe('Pickleball fixed pairs: form and dissolve', () => {
   test('forms a pair from two checked-in players', async ({ request }) => {
