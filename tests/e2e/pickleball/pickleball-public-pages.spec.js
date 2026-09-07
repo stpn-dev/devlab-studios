@@ -111,6 +111,7 @@ test.describe('Pickleball public pages', () => {
     await expect(page.getByRole('heading', { name: 'Every match-up explains itself' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Nothing is ever lost' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Everyone sees the same score' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Standings from the first minute' })).toBeVisible()
     await expect(page.getByTestId('pb-faq').locator('> details')).toHaveCount(5)
   })
 
@@ -135,12 +136,21 @@ test.describe('Pickleball public pages', () => {
   for (const path of ['/pickleball', '/pickleball/how-it-works']) {
     test(`names no competitor and makes no comparative claim (${path})`, async ({ page }) => {
       await page.goto(path)
-      const text = await mainCopy(page)
-      const lowered = text.toLowerCase()
 
+      // Brand names are swept across the WHOLE served document, not just
+      // <main>: a competitor named in the <title>, the meta description or
+      // an OG tag is just as much a breach of the constraint as one in the
+      // body, and those live outside <main>.
+      const html = (await (await page.request.get(path)).text()).toLowerCase()
       for (const brand of COMPETITOR_BRANDS) {
-        expect(lowered, `must not name ${brand}`).not.toContain(brand)
+        expect(html, `must not name ${brand}`).not.toContain(brand)
       }
+
+      // Comparative language is checked against rendered <main> text only.
+      // The whole-document HTML carries CMS-authored nav and footer copy this
+      // plan does not own, plus class names and URLs where a bare "vs" would
+      // fire constantly — matching there would produce noise, not signal.
+      const text = await mainCopy(page)
       expect(text).not.toMatch(COMPARATIVE_LANGUAGE)
     })
   }
@@ -200,9 +210,15 @@ test.describe('Pickleball public pages', () => {
       phrases: [
         // Only reopen/correct is audited, not every change.
         'reopening or correcting a game is recorded in the audit log',
-        // Standings ship a confidence tier; "settled from the first minute"
-        // was never true.
+        // Standings ship a confidence tier.
         'confidence tier',
+        // listSessionStandings() starts from the attending roster, so every
+        // checked-in player is on the board before finishing a game. This
+        // claim was false until sessionStandings.js landed and was reverted
+        // twice; it is pinned so it cannot drift out of step with that query
+        // again in either direction.
+        'The board is populated the moment players check in',
+        'win-loss record and point differential',
         // recordRally.ts awards a point only to the serving team.
         'Side-out scoring',
         'Rally-by-rally scoring',
@@ -266,6 +282,25 @@ test.describe('Pickleball public pages', () => {
     expect(html).not.toContain('fixed pair')
     expect(html).not.toContain('tournament')
   })
+
+  // These two pages are the product's public front door and are linked from
+  // /services, so they need share metadata rather than a bare <title>. Both
+  // resolve it through loadPageSeo(), which falls back to src/data/
+  // seoContent.js when the CMS has no row — this asserts the fallback is
+  // wired, which is what a fresh environment actually serves.
+  for (const [path, slugTitle] of [
+    ['/pickleball', 'Devlab Pickleball'],
+    ['/pickleball/how-it-works', 'How Devlab Pickleball Works'],
+  ]) {
+    test(`serves share metadata (${path})`, async ({ page }) => {
+      const html = await (await page.request.get(path)).text()
+
+      expect(html).toMatch(/<meta name="description" content="[^"]{60,}"/)
+      expect(html).toContain('<meta property="og:image"')
+      expect(html).toContain('<meta name="twitter:card" content="summary_large_image">')
+      expect(html).toContain(slugTitle)
+    })
+  }
 
   test('a blocked sign-in offers a way to request access', async ({ page }) => {
     await page.goto('/pickleball/app?error=no_access')

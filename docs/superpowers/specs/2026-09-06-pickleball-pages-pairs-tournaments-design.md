@@ -82,14 +82,26 @@ in order:
    (`/pickleball/how-it-works`).
 2. **Feature grid** — four cards, each with its art: fair queueing, rally
    scoring, live standings, share live.
-3. **Three differentiator blocks**, artwork alternating left/right inside
+3. **Four differentiator blocks**, artwork alternating left/right inside
    `light-artifact` panels:
    - *Every match-up explains itself* — fewest games played, longest wait,
-     avoids repeat partners, and the app shows the reason for each pick. This
-     is real: `selectNextPlayers` returns a `reasons: string[]` array built
-     from the fields it actually used (`src/lib/pickleball/queueEngine.ts`).
+     and the app shows the reason for each pick. This is real:
+     `selectNextPlayers` returns a `reasons: string[]` array built from the
+     fields it actually used (`src/lib/pickleball/queueEngine.ts`).
+     **Amended 2026-09-07:** this bullet originally read "avoids repeat
+     partners" flat. That overstates the code twice over — repeat-avoidance
+     only applies when at least five players are eligible AND an
+     equal-`gamesPlayed` replacement exists, and it operates on group
+     *selection*, not partner *assignment* (`balanceTeams` pairs by OPI with
+     no repeat awareness at all). The page states the conditional version.
    - *Nothing is ever lost* — undo any rally, reopen and correct a finished
-     game, statistics recompute rather than layer on top, full audit trail.
+     game, statistics recompute rather than layer on top. **Amended
+     2026-09-07:** "full audit trail" was overstated — only `reopenGame` and
+     `correctGame` write `audit_events`; undo does not. The page scopes the
+     claim to reopen and correct.
+   - *Everyone sees the same score* — every applied command broadcasts a full
+     snapshot to every connected socket, and a reconnecting client is sent
+     current state rather than a diff (`SessionCoordinatorDO`).
    - *Standings from the first minute* — every checked-in player ranked before
      the first game finishes.
 4. **Three-step flow teaser**, linking to the guide.
@@ -121,12 +133,26 @@ Structure:
   3. Check players in
   4. The queue fills
   5. Assign a court
-  6. Score the game
-  7. Finish the game and read the standings
-  8. Complete the session
+  6. Start the game
+  7. Score the game
+  8. Finish the game and read the standings
+  9. Complete the session
+
+  **Amended after implementation (2026-09-07).** This list originally had
+  eight steps and omitted "Start the game". That was a spec defect, not a
+  simplification: `assignCourt` only seats the two teams and flips the court
+  to `ASSIGNED`. Play does not begin until a separate
+  `POST /api/pickleball/sessions/:id/games/start` carrying `servingTeam` and
+  both sides' starting server ids, driven by the start-a-game form on the
+  Games page. An operator following the original eight steps literally would
+  have reached "Score the game" with no game to score.
 - **What your players see** — three cards (QR, live view, TV display).
 - **When something goes wrong** — undo a rally, correct a finished game,
-  replace an assigned player, take a court out of service, abandon a game. All
+  take a court out of service. Two further cases named in the original draft
+  — replacing an assigned player, and abandoning a game — were dropped
+  during implementation: both exist only as API routes with no call site in
+  any committed operator UI, so documenting them would have violated §1.7.
+  All
   five are real commands on `SessionCoordinatorDO`.
 - **Who can do what** — the three roles, from
   `src/lib/pickleball/permissions.ts`.

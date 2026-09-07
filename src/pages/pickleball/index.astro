@@ -7,7 +7,12 @@ import StandingsArt from '../../components/pickleball/art/StandingsArt.jsx'
 import ShareLiveArt from '../../components/pickleball/art/ShareLiveArt.jsx'
 import ContactForm from '../../components/islands/ContactForm.jsx'
 import { getEnv } from '../../lib/env'
+import { loadPageSeo } from '../../lib/content/seo'
 import '../../pickleball-app/pickleball.css'
+
+// Same pattern as every other public page: static defaults from
+// src/data/seoContent.js, overridable per-page from the CMS.
+const seo = await loadPageSeo('pickleball')
 
 const features = [
   { Art: QueueFlowArt, title: 'Fair queueing', body: 'Fewest games played first, longest wait next. The app picks the match and tells you why it picked it.' },
@@ -32,7 +37,21 @@ const differentiators = [
     title: 'Everyone sees the same score',
     body: 'Every rally you record broadcasts live to every connected screen — the scorekeeper’s tablet, your players’ phones, and a TV in the hall. A device that drops off and reconnects is handed the full current state rather than a gap it has to guess at.',
   },
+  {
+    Art: StandingsArt,
+    title: 'Standings from the first minute',
+    body: 'The board is populated the moment players check in — nobody has to finish a game to appear on it. Everyone is listed with their win-loss record and point differential, marked when they are on court, and ranked as soon as they have played enough games to qualify.',
+  },
 ]
+
+// text-white, not text-brand: this is the page's only brand-coloured run
+// sitting directly on the dark .public-shell background, where #4500ff
+// measures ~2.5:1 and fails WCAG AA. `.public-shell` (src/index.css) remaps
+// text-slate-* and text-brand-ink but has no rule for .text-brand, and every
+// other text-brand on this page sits inside a white panel where it is fine —
+// so this is fixed here rather than in the shared stylesheet. Kept in the
+// frontmatter so the rationale does not ship in the served HTML.
+const walkthroughLinkClass = 'text-sm font-semibold text-white underline underline-offset-4'
 
 const faqs = [
   { q: 'Do players need an account?', a: 'No. Players never sign in — they scan a QR code to watch the live scoreboard. Only the person running the session signs in.' },
@@ -61,7 +80,7 @@ const accessFormCopy = {
 }
 ---
 
-<Layout title="Devlab Pickleball">
+<Layout title="Devlab Pickleball" seo={seo}>
   <div class="mx-auto max-w-6xl px-6 py-16 sm:py-20">
     <section class="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
       <div>
@@ -141,13 +160,7 @@ const accessFormCopy = {
         </article>
       </div>
       <p class="mt-6">
-        <!-- text-white, not text-brand: this is the page's only brand-coloured
-             run sitting directly on the dark .public-shell background, where
-             #4500ff measures ~2.5:1 and fails WCAG AA. `.public-shell` remaps
-             text-slate-* and text-brand-ink but has no rule for .text-brand,
-             and every other text-brand on this page sits inside a white panel
-             where it is fine — so this is fixed here, not in src/index.css. -->
-        <a href="/pickleball/how-it-works" class="text-sm font-semibold text-white underline underline-offset-4">
+        <a href="/pickleball/how-it-works" class={walkthroughLinkClass}>
           Read the full walkthrough
         </a>
       </p>
