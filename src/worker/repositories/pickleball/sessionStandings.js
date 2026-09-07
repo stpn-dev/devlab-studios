@@ -33,7 +33,24 @@ function toStandingsRow(row) {
 // session's standings (spec §15 #10 -- "registered, not arrived" never
 // counts), while LEFT_SESSION is kept, because the games they played before
 // leaving are real and must stay on the board.
-export async function listSessionStandings(db, sessionId, organizationId) {
+//
+// `isTournament` (task-8-brief.md's named trap, spec §3.7): finishGame writes
+// EVERY tournament game's player_game_stats rows with eligible_for_opi = 0
+// (tournament results must never feed OPI -- Task 7), so the `agg` subquery
+// below filtering on `pgs.eligible_for_opi = 1` unchanged would silently
+// report every entrant of a finished tournament as 0-0 here -- not an error,
+// zeroes. The `opi` column itself is untouched by this flag either way: it
+// comes from player_performance_snapshots (playerPerformanceSnapshots.js),
+// which applies its OWN eligible_for_opi filter independently, so a
+// tournament session's players still correctly show a null/unchanged OPI --
+// only the win/loss/points aggregate needed unblocking. Passing
+// `isTournament: true` drops the eligibility filter for the win/loss
+// aggregate ONLY; every non-tournament game always writes eligible_for_opi=1
+// today (the flag's only write site is gated on `!session.tournamentFormat`),
+// so this is a no-op for every existing call site unless the caller
+// explicitly says otherwise -- see pickleball-games.spec.js's regression
+// coverage of the default (tournament: false) path.
+export async function listSessionStandings(db, sessionId, organizationId, { isTournament = false } = {}) {
   const result = await db
     .prepare(
       `SELECT
@@ -62,7 +79,7 @@ export async function listSessionStandings(db, sessionId, organizationId) {
                 SUM(pgs.points_against) AS points_against
          FROM player_game_stats pgs
          JOIN games g ON g.id = pgs.game_id
-         WHERE g.session_id = ? AND pgs.eligible_for_opi = 1
+         WHERE g.session_id = ? AND (? = 1 OR pgs.eligible_for_opi = 1)
          GROUP BY pgs.player_id
        ) agg ON agg.player_id = sp.player_id
        LEFT JOIN (
@@ -77,7 +94,7 @@ export async function listSessionStandings(db, sessionId, organizationId) {
          AND sp.attendance_status IN ('CHECKED_IN', 'LEFT_SESSION')
        ORDER BY p.display_name ASC`,
     )
-    .bind(sessionId, sessionId, sessionId, organizationId)
+    .bind(sessionId, isTournament ? 1 : 0, sessionId, sessionId, organizationId)
     .all()
   return (result.results || []).map(toStandingsRow)
 }

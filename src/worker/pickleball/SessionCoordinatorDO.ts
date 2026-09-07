@@ -942,7 +942,14 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // at ASSIGNED.
     const sessionPlayerIds: string[] = await listAssignedSessionPlayerIdsForCourt(db, sessionId, sessionCourtId)
 
-    const requeued = session?.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
+    // Never auto-requeue a tournament pair into the ordinary fairness queue
+    // (task-8-9-report.md: a full round robin surfaced this) -- a tournament
+    // pair's next seating is decided by the fixture list
+    // (assignCourtToTournamentFixture), never the fairness queue. Requeueing
+    // it here left a stray QUEUED row that later collided with that same
+    // pair's next fixture assignment (idx_queue_entries_one_open_per_player,
+    // a real UNIQUE constraint violation surfacing as a raw 500).
+    const requeued = session?.postGameRotationPolicy === 'AUTO_REQUEUE_ALL' && !session?.tournamentFormat
 
     const statements = await this.buildRequeueStatements(
       db,
@@ -1622,7 +1629,9 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // skipped entirely rather than clobbering whatever occupancy took over.
     const holdsCourt = await this.gameStillHoldsItsCourt(db, sessionId, game)
     const releasedSessionPlayerIds = holdsCourt ? participants.map((p) => p.session_player_id) : []
-    const requeued = holdsCourt && session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
+    // See releaseCourt's identical guard: a tournament pair must never
+    // auto-rejoin the ordinary fairness queue after finishing a fixture.
+    const requeued = holdsCourt && session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL' && !session.tournamentFormat
     const releaseStatements = await this.buildRequeueStatements(
       db,
       { id: sessionId, sessionType: session.sessionType },
@@ -1734,7 +1743,9 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     const sessionPlayerIds: string[] = holdsCourt
       ? await listAssignedSessionPlayerIdsForCourt(db, sessionId, game.sessionCourtId)
       : []
-    const requeued = holdsCourt && session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL'
+    // See releaseCourt's identical guard: a tournament pair must never
+    // auto-rejoin the ordinary fairness queue after its fixture ends.
+    const requeued = holdsCourt && session.postGameRotationPolicy === 'AUTO_REQUEUE_ALL' && !session.tournamentFormat
     const releaseStatements = await this.buildRequeueStatements(
       db,
       { id: sessionId, sessionType: session.sessionType },

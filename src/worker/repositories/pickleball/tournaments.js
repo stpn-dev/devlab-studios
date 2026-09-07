@@ -243,6 +243,16 @@ export function buildLockBracketStatement(db, sessionId, timestamp) {
 // `participations` flattens each finished fixture into one row per entrant
 // (the entrant's own score first) so a single GROUP BY can aggregate wins,
 // losses and points without a self-join.
+//
+// This ORDER BY is only a stable base order (seed) for readability when
+// called on its own -- it is NOT the competitive ranking. Spec §3.7's real
+// ordering ("wins, losses, point differential, then head-to-head") is
+// computed by the pure, unit-tested rankTournamentStandings()
+// (src/lib/pickleball/tournament/rankTournamentStandings.ts), the same
+// SQL-supplies-aggregates/JS-does-the-sort split sessionStandings.js already
+// established for rankStandings(). The standings API route composes this
+// function's output with listFixtures' (for head-to-head) through that pure
+// function.
 export async function listTournamentStandings(db, sessionId) {
   const result = await db
     .prepare(

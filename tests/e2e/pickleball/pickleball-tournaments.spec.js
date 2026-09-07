@@ -796,3 +796,197 @@ test.describe('Pickleball tournaments: finish a fixture without feeding OPI', ()
     expect(rowsAfterCorrection.every((row) => row.eligible_for_opi === 0)).toBe(true)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Task 8: tournament standings -- and the trap spec §3.7 names explicitly.
+//
+// listSessionStandings (sessionStandings.js) filters its win/loss aggregate
+// on `pgs.eligible_for_opi = 1`. Every tournament game writes that flag `0`
+// (Task 7), so reusing the query unchanged for a tournament reports every
+// entrant 0-0 -- silently, not an error. The two describes below cover both
+// halves of the fix: the per-PLAYER leaderboard (sessionStandings.js itself,
+// the file the brief names) and the new per-ENTRANT tournament standings
+// endpoint (tournaments.js's listTournamentStandings, which Task 4/5 already
+// wrote clear of the trap, but which had no ordering or API route yet).
+
+async function getLeaderboard(request, sessionId) {
+  const response = await request.get(`/api/pickleball/sessions/${sessionId}/leaderboard`)
+  expect(response.status()).toBe(200)
+  return (await response.json()).leaderboard
+}
+
+async function getTournamentStandings(request, sessionId) {
+  const response = await request.get(`/api/pickleball/sessions/${sessionId}/tournament/standings`)
+  return response
+}
+
+// Which of `pairs` (by identity) a court-assignment "team" belongs to --
+// matched by sessionPlayerId, same technique the assign-a-court describe
+// block above already uses for `reusedSide`.
+function pairForTeam(pairs, teamPlayers) {
+  const ids = new Set(teamPlayers.map((p) => p.sessionPlayerId))
+  return pairs.find((pair) => ids.has(pair.sessionPlayerAId) || ids.has(pair.sessionPlayerBId))
+}
+
+// Plays whichever fixture assignCourt proposes on sessionCourtId to a
+// specific, real final score -- shutout (11-0) if the winner is expected to
+// dominate, or a controlled 11-9 (the exact rally pattern
+// pickleball-games.spec.js's own "terminal-score rejection" test already
+// proves reaches a legal, non-shutout final score) when the scenario needs a
+// real, non-coincidental point differential. `winnerPairIndex`/`loserPairIndex`
+// index into the `pairs` array the caller already holds.
+async function playFixture(request, sessionId, sessionCourtId, pairs, winnerPairIndex, loserPairIndex, mode) {
+  const assignResponse = await assignCourt(request, sessionId, sessionCourtId)
+  expect(assignResponse.status()).toBe(200)
+  const assignBody = await assignResponse.json()
+
+  const teamAPair = pairForTeam(pairs, assignBody.teamA.players)
+  const winnerLabel = teamAPair.id === pairs[winnerPairIndex].id ? 'A' : 'B'
+  const loserLabel = winnerLabel === 'A' ? 'B' : 'A'
+
+  const servingLabel = mode === 'shutout' ? winnerLabel : loserLabel
+  const startResponse = await startGame(request, sessionId, sessionCourtId, assignBody, servingLabel)
+  expect(startResponse.status()).toBe(201)
+  const gameId = (await startResponse.json()).game.id
+
+  const sequence = mode === 'shutout' ? Array(11).fill(winnerLabel) : [...Array(9).fill(loserLabel), winnerLabel, ...Array(11).fill(winnerLabel)]
+  await playSequence(request, sessionId, gameId, sequence)
+
+  const finishResponse = await finishGame(request, sessionId, gameId)
+  expect(finishResponse.status()).toBe(200)
+  const finishBody = await finishResponse.json()
+
+  const winnerScore = winnerLabel === 'A' ? finishBody.finalScoreA : finishBody.finalScoreB
+  const loserScore = winnerLabel === 'A' ? finishBody.finalScoreB : finishBody.finalScoreA
+  return { gameId, winnerScore, loserScore }
+}
+
+test.describe('Pickleball tournaments: standings (per-player leaderboard, sessionStandings.js)', () => {
+  test('control: a finished ordinary fixed-pairs game shows real (non-default) wins/losses on the session leaderboard', async ({ request }) => {
+    const { sessionId, gameId } = await createFinishedOrdinaryFixedPairsGame(request)
+    const rows = await getLeaderboard(request, sessionId)
+    expect(rows).toHaveLength(4)
+    // 4 players, 2 wins / 2 losses, each with a real +/-11 differential --
+    // never a coincidental zero.
+    expect(rows.filter((r) => r.wins === 1 && r.losses === 0 && r.pointDifferential === 11)).toHaveLength(2)
+    expect(rows.filter((r) => r.wins === 0 && r.losses === 1 && r.pointDifferential === -11)).toHaveLength(2)
+    void gameId
+  })
+
+  test('a finished TOURNAMENT game still shows real wins/losses on the session leaderboard, while OPI stays null (the OPI asymmetry, both halves at once)', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 2, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const { winnerScore, loserScore } = await playFixture(request, sessionId, sessionCourts[0].id, pairs, 0, 1, 'shutout')
+    expect(winnerScore).toBe(11)
+    expect(loserScore).toBe(0)
+
+    const rows = await getLeaderboard(request, sessionId)
+    expect(rows).toHaveLength(4)
+
+    // The trap this task exists for: without the fix, EVERY row here reads
+    // wins: 0, losses: 0, pointDifferential: 0 -- these two assertions are
+    // exactly what a naive (unfixed) run fails on. See task-8-9-report.md for
+    // the real captured output.
+    expect(rows.filter((r) => r.wins === 1 && r.losses === 0 && r.pointDifferential === 11)).toHaveLength(2)
+    expect(rows.filter((r) => r.wins === 0 && r.losses === 1 && r.pointDifferential === -11)).toHaveLength(2)
+
+    // The OTHER half of the asymmetry must stay intact: OPI itself (a
+    // SEPARATE table, playerPerformanceSnapshots.js, filtered independently)
+    // remains null/0-eligible-games for every one of these players --
+    // proving the fix only unblocked win/loss counting, not OPI.
+    expect(rows.every((r) => r.opi === null && r.eligibleGamesCount === 0)).toBe(true)
+  })
+})
+
+test.describe('Pickleball tournaments: standings (per-entrant, tournament/standings)', () => {
+  test('a full 3-entrant round robin played to completion produces real per-entrant W-L and point differential, ranked by wins', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 3, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    // pairs[0] beats everyone (2-0); pairs[1] splits (1-1, beating the
+    // weakest entrant); pairs[2] loses every fixture (0-2) -- the entrant
+    // that must be distinguishable from an absent/zeroed row. Single court:
+    // fixtures are played strictly one at a time (assignCourt proposes
+    // whichever is next-playable; finishGame releases the court atomically,
+    // proven by pickleball-games.spec.js's own regression), so this loop
+    // does not need to know round-robin's internal ordering.
+    for (let i = 0; i < 3; i += 1) {
+      const fixturesNow = await getFixtures(request, sessionId)
+      const remaining = fixturesNow.filter((f) => f.status !== 'FINISHED').length
+      expect(remaining).toBeGreaterThan(0)
+
+      const entrants = await getEntrants(request, sessionId)
+      const pairIdByEntrantId = new Map(entrants.map((e) => [e.id, e.sessionPairId]))
+      const next = fixturesNow.find((f) => f.status === 'READY')
+      const pairAId = pairIdByEntrantId.get(next.entrantAId)
+      const pairBId = pairIdByEntrantId.get(next.entrantBId)
+      const indexA = pairs.findIndex((p) => p.id === pairAId)
+      const indexB = pairs.findIndex((p) => p.id === pairBId)
+      const winnerIndex = Math.min(indexA, indexB)
+      const loserIndex = Math.max(indexA, indexB)
+      // Only the pairs[1] vs pairs[2] fixture gets a non-shutout score --
+      // every fixture involving pairs[0] is a shutout.
+      const mode = winnerIndex === 1 && loserIndex === 2 ? 'partial' : 'shutout'
+      await playFixture(request, sessionId, sessionCourts[0].id, pairs, winnerIndex, loserIndex, mode)
+    }
+
+    const finalFixtures = await getFixtures(request, sessionId)
+    expect(finalFixtures).toHaveLength(3)
+    expect(finalFixtures.every((f) => f.status === 'FINISHED')).toBe(true)
+
+    const entrants = await getEntrants(request, sessionId)
+    const entrantIdByPairId = new Map(entrants.map((e) => [e.sessionPairId, e.id]))
+
+    const standingsResponse = await getTournamentStandings(request, sessionId)
+    expect(standingsResponse.status()).toBe(200)
+    const standings = (await standingsResponse.json()).standings
+    expect(standings).toHaveLength(3)
+
+    const s0 = standings.find((s) => s.entrantId === entrantIdByPairId.get(pairs[0].id))
+    const s1 = standings.find((s) => s.entrantId === entrantIdByPairId.get(pairs[1].id))
+    const s2 = standings.find((s) => s.entrantId === entrantIdByPairId.get(pairs[2].id))
+
+    // pairs[0]: beat pairs[1] 11-0 and pairs[2] 11-0.
+    expect(s0.wins).toBe(2)
+    expect(s0.losses).toBe(0)
+    expect(s0.pointsFor).toBe(22)
+    expect(s0.pointsAgainst).toBe(0)
+    expect(s0.pointDifferential).toBe(22)
+
+    // pairs[1]: lost to pairs[0] 0-11, beat pairs[2] 11-9.
+    expect(s1.wins).toBe(1)
+    expect(s1.losses).toBe(1)
+    expect(s1.pointsFor).toBe(11)
+    expect(s1.pointsAgainst).toBe(20)
+    expect(s1.pointDifferential).toBe(-9)
+
+    // pairs[2]: THE ENTRANT THAT LOST EVERY FIXTURE. 0 wins paired with a
+    // real (non-zero) 2 losses and a real negative differential -- proves
+    // this row is genuinely present and aggregated, not silently absent.
+    expect(s2.wins).toBe(0)
+    expect(s2.losses).toBe(2)
+    expect(s2.pointsFor).toBe(9)
+    expect(s2.pointsAgainst).toBe(22)
+    expect(s2.pointDifferential).toBe(-13)
+
+    // Ordered by wins descending (spec §3.7's primary key) -- rank 1..3.
+    expect(standings.map((s) => s.entrantId)).toEqual([s0.entrantId, s1.entrantId, s2.entrantId])
+    expect(standings.map((s) => s.rank)).toEqual([1, 2, 3])
+  })
+
+  test('before any fixture is played, every entrant shows a real 0-0 row (not absent) -- the same shape as after, just with real zeroes', async ({ request }) => {
+    const { sessionId, pairs } = await createLiveTournamentWithPairs(request, 2, 0)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const standingsResponse = await getTournamentStandings(request, sessionId)
+    expect(standingsResponse.status()).toBe(200)
+    const standings = (await standingsResponse.json()).standings
+    expect(standings).toHaveLength(2)
+    expect(standings.every((s) => s.wins === 0 && s.losses === 0 && s.pointDifferential === 0)).toBe(true)
+    expect(standings.every((s) => typeof s.rank === 'number')).toBe(true)
+  })
+})

@@ -29,7 +29,13 @@ export const GET: APIRoute = async ({ request, params, url }) => {
     // `qualified: false` with a null rank, so the board is never blank while
     // a session is under way. `minGames` still governs who is *ranked*, so
     // the session's configured threshold keeps its exact spec meaning.
-    const rows = await listSessionStandings(env.PICKLEBALL_DB, sessionId, session.activeOrgId)
+    //
+    // isTournament unblocks this page's win/loss aggregate for a tournament
+    // session (task-8-brief.md's named trap -- see listSessionStandings'
+    // own comment). OPI itself is untouched either way.
+    const rows = await listSessionStandings(env.PICKLEBALL_DB, sessionId, session.activeOrgId, {
+      isTournament: Boolean(pickleballSession.tournamentFormat),
+    })
     const leaderboard = rankStandings(rows, minGames)
 
     return jsonResponse({ leaderboard, minGames }, 200)
