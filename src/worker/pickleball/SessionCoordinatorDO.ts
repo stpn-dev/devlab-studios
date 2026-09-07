@@ -56,6 +56,7 @@ import {
   createPair,
   buildDissolvePairStatement,
   getActivePairForSessionPlayer,
+  listEligiblePairs,
 } from '../repositories/pickleball/sessionPairs.js'
 import {
   buildCreateGameStatement,
@@ -77,6 +78,7 @@ import { buildRecomputePlayerSnapshotsStatements, getPlayerSnapshot } from '../r
 import { buildSessionSnapshot, buildPublicSnapshotExtras } from './sessionSnapshot.js'
 import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
 import { selectNextPlayers, balanceTeams, type QueueCandidate } from '../../lib/pickleball/queueEngine'
+import { selectNextPairs, type PairCandidate } from '../../lib/pickleball/pairSelection'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { initialGameState } from '../../lib/pickleball/scoring/gameState'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
@@ -325,8 +327,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     const session = await getSessionById(db, sessionId)
     if (!session) return failure('Session not found.')
-    if (session.sessionType !== 'OPEN_PLAY') {
-      return failure('Court assignment is only supported for Open Play sessions in this phase.')
+    if (session.sessionType !== 'OPEN_PLAY' && session.sessionType !== 'FIXED_PAIRS') {
+      return failure('Court assignment is only supported for Open Play and Fixed Pairs sessions in this phase.')
     }
     // LIVE only — assigning a court is an active-play action, so a DRAFT,
     // OPEN_FOR_CHECKIN, PAUSED, COMPLETED, or CANCELLED session must not take
@@ -337,6 +339,10 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!court) return failure('Court not found.')
     if (!court.enabled) return failure('Court is disabled.')
     if (court.status !== 'AVAILABLE') return failure('Court is not available.')
+
+    if (session.sessionType === 'FIXED_PAIRS') {
+      return this.assignCourtToPairs(db, sessionId, sessionCourtId)
+    }
 
     const ruleset = await getScoringRuleset(db, session.scoringRulesetId, session.organizationId)
     const needed = requiredPlayerCount(ruleset ? ruleset.format : 'DOUBLES')
@@ -448,6 +454,118 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       court: await getSessionCourt(db, sessionId, sessionCourtId),
       teamA: { id: teamA.id, players: teamAPlayers },
       teamB: { id: teamB.id, players: teamBPlayers },
+      reasons,
+    }
+  }
+
+  // FIXED_PAIRS sibling of the OPEN_PLAY body above: same shape (eligibility
+  // read -> pure fairness selection -> one all-or-nothing db.batch() ->
+  // broadcast -> seat-count guard), but the unit of work is a pair rather
+  // than a player. `balanceTeams` is deliberately NOT called here -- partners
+  // are fixed by definition in this session type, so there is nothing to
+  // balance within a side; the two pairs `selectNextPairs` returns become
+  // Team A and Team B in selection order.
+  private async assignCourtToPairs(db: D1Database, sessionId: string, sessionCourtId: string) {
+    const candidates: PairCandidate[] = await listEligiblePairs(db, sessionId)
+
+    const nowIso = new Date().toISOString()
+
+    // Repeat-avoidance tiebreak input (pairSelection.ts's rule 3): for each
+    // eligible pair, the sessionPairId of the one other CURRENTLY-ELIGIBLE
+    // pair it most recently OPPOSED, per matchmaking_history. Built the same
+    // way assignCourt's OPEN_PLAY path above builds `lastPairedWith` --
+    // joining matchmaking_history to session_players on (player_id,
+    // session_id) to resolve a player's identity within THIS session -- but
+    // restricted to relation = 'OPPONENT'. Unlike the player-level query,
+    // this restriction is required, not optional: a fixed pair's two members
+    // are ALSO in each other's candidate set and are permanently each
+    // other's PARTNER, so an unfiltered query would resolve "most recently
+    // paired with" to a pair's own other member every time -- never a real
+    // opposing pair.
+    const memberToPairId: Record<string, string> = {}
+    for (const pair of candidates) {
+      memberToPairId[pair.memberSessionPlayerIds[0]] = pair.sessionPairId
+      memberToPairId[pair.memberSessionPlayerIds[1]] = pair.sessionPairId
+    }
+    const candidateSessionPlayerIds = candidates.flatMap((pair) => pair.memberSessionPlayerIds)
+
+    const lastOpponentSessionPlayer: Record<string, string> = {}
+    if (candidateSessionPlayerIds.length) {
+      const placeholders = candidateSessionPlayerIds.map(() => '?').join(',')
+      const historyResult = await db
+        .prepare(
+          `SELECT sp1.id AS session_player_id, sp2.id AS other_session_player_id, mh.last_game_at
+           FROM matchmaking_history mh
+           JOIN session_players sp1 ON sp1.player_id = mh.player_id AND sp1.session_id = ?
+           JOIN session_players sp2 ON sp2.player_id = mh.other_player_id AND sp2.session_id = ?
+           WHERE mh.session_id = ? AND mh.relation = 'OPPONENT'
+             AND sp1.id IN (${placeholders}) AND sp2.id IN (${placeholders})
+           ORDER BY mh.last_game_at DESC`,
+        )
+        .bind(sessionId, sessionId, sessionId, ...candidateSessionPlayerIds, ...candidateSessionPlayerIds)
+        .all<{ session_player_id: string; other_session_player_id: string; last_game_at: string }>()
+      for (const row of historyResult.results || []) {
+        if (!(row.session_player_id in lastOpponentSessionPlayer)) lastOpponentSessionPlayer[row.session_player_id] = row.other_session_player_id
+      }
+    }
+
+    const lastOpponentPairId: Record<string, string | null> = {}
+    for (const pair of candidates) {
+      const [memberA, memberB] = pair.memberSessionPlayerIds
+      const opponentPairViaA = memberToPairId[lastOpponentSessionPlayer[memberA]]
+      const opponentPairViaB = memberToPairId[lastOpponentSessionPlayer[memberB]]
+      lastOpponentPairId[pair.sessionPairId] = opponentPairViaA ?? opponentPairViaB ?? null
+    }
+
+    const { selected, reasons, shortfall } = selectNextPairs(candidates, 2, nowIso, lastOpponentPairId)
+    if (shortfall) return failure(shortfall)
+
+    const [pairA, pairB] = selected
+    const allMemberIds = [...pairA.memberSessionPlayerIds, ...pairB.memberSessionPlayerIds]
+
+    // Same all-or-nothing batch shape as the OPEN_PLAY path: every id is
+    // generated client-side before any statement runs, so a mid-sequence
+    // failure can never leave players flipped to ASSIGNED while the court
+    // stays AVAILABLE.
+    const teamA = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind: 'FIXED_PAIR' })
+    const teamB = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind: 'FIXED_PAIR' })
+    const markAssignedStatement = buildMarkAssignedStatement(db, sessionId, allMemberIds)
+
+    const statements = [
+      teamA.statement,
+      ...pairA.memberSessionPlayerIds.map((sessionPlayerId) => buildAddTeamMemberStatement(db, { teamId: teamA.id, sessionPlayerId })),
+      teamB.statement,
+      ...pairB.memberSessionPlayerIds.map((sessionPlayerId) => buildAddTeamMemberStatement(db, { teamId: teamB.id, sessionPlayerId })),
+      markAssignedStatement,
+      buildSetCourtStatusStatement(db, sessionId, sessionCourtId, 'ASSIGNED'),
+    ].filter(Boolean)
+
+    const results = await db.batch(statements)
+
+    // Broadcast unconditionally right after the commit -- same reasoning as
+    // the OPEN_PLAY path: the batch has already committed either way, so
+    // connected clients must hear about it regardless of the seat-count
+    // check below.
+    await this.broadcast(sessionId)
+
+    // Mirrors the OPEN_PLAY path's post-commit seat-count guard: a
+    // leaveQueue racing between the eligibility read above and this commit
+    // could shrink the QUEUED rows out from under markAssignedStatement's
+    // `WHERE ... AND status = 'QUEUED'` clause. Surface that as a hard
+    // failure rather than returning success over an inconsistent seat count.
+    if (markAssignedStatement) {
+      const markAssignedIndex = statements.indexOf(markAssignedStatement)
+      const seated = results[markAssignedIndex]?.meta?.changes ?? 0
+      if (seated !== allMemberIds.length) {
+        return failure(`Assignment failed: expected to seat ${allMemberIds.length} players, only ${seated} were queued at commit time.`)
+      }
+    }
+
+    return {
+      ok: true as const,
+      court: await getSessionCourt(db, sessionId, sessionCourtId),
+      teamA: { id: teamA.id, players: pairA.memberSessionPlayerIds.map((sessionPlayerId) => ({ sessionPlayerId })) },
+      teamB: { id: teamB.id, players: pairB.memberSessionPlayerIds.map((sessionPlayerId) => ({ sessionPlayerId })) },
       reasons,
     }
   }

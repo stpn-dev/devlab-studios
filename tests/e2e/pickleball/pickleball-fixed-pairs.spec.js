@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-async function createFixedPairsSessionWithCheckedInPlayers(request, playerCount) {
+async function createFixedPairsSessionWithCheckedInPlayers(request, playerCount, courtCount = 1) {
   await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
 
   const venueResponse = await request.post('/api/pickleball/venues', {
@@ -9,8 +9,10 @@ async function createFixedPairsSessionWithCheckedInPlayers(request, playerCount)
   expect(venueResponse.ok()).toBe(true)
   const venueId = (await venueResponse.json()).venue.id
 
-  const courtResponse = await request.post('/api/pickleball/courts', { data: { venueId, name: 'Court 1' } })
-  expect(courtResponse.ok()).toBe(true)
+  for (let i = 0; i < courtCount; i += 1) {
+    const courtResponse = await request.post('/api/pickleball/courts', { data: { venueId, name: `Court ${i + 1}` } })
+    expect(courtResponse.ok()).toBe(true)
+  }
 
   const sessionResponse = await request.post('/api/pickleball/sessions', {
     data: {
@@ -31,6 +33,12 @@ async function createFixedPairsSessionWithCheckedInPlayers(request, playerCount)
   await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
   await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
 
+  // Courts are created on the venue BEFORE the session so that session
+  // creation's auto-provisioning (seedSessionCourtsFromVenue) has courts to
+  // seed session_courts rows from — same reasoning as pickleball-queue.spec.js.
+  const courtsListResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts`)
+  const sessionCourts = (await courtsListResponse.json()).courts
+
   const sessionPlayerIds = []
   for (let i = 0; i < playerCount; i += 1) {
     const playerResponse = await request.post('/api/pickleball/players', {
@@ -46,7 +54,7 @@ async function createFixedPairsSessionWithCheckedInPlayers(request, playerCount)
     sessionPlayerIds.push(sessionPlayerId)
   }
 
-  return { sessionId, sessionPlayerIds }
+  return { sessionId, sessionCourts, sessionPlayerIds }
 }
 
 async function registerUncheckedInPlayer(request, sessionId) {
@@ -73,6 +81,19 @@ async function formPair(request, sessionId, sessionPlayerAId, sessionPlayerBId) 
     data: { sessionPlayerAId, sessionPlayerBId },
   })
   return (await response.json()).pair
+}
+
+// Forms a pair and immediately queues it. Joining names only ONE member --
+// the DO resolves the pair from that member and queues both (see the "queue
+// a pair, not a player" tests below) -- so a single join call is enough to
+// make the pair court-assignment-eligible.
+async function formAndQueuePair(request, sessionId, sessionPlayerAId, sessionPlayerBId) {
+  const pair = await formPair(request, sessionId, sessionPlayerAId, sessionPlayerBId)
+  const joinResponse = await request.post(`/api/pickleball/sessions/${sessionId}/queue`, {
+    data: { sessionPlayerId: sessionPlayerAId },
+  })
+  expect(joinResponse.status()).toBe(201)
+  return pair
 }
 
 test.describe('Pickleball fixed pairs: form and dissolve', () => {
@@ -250,5 +271,95 @@ test.describe('Pickleball fixed pairs: queue a pair, not a player', () => {
     const queue = (await queueResponse.json()).queue
     expect(queue.find((e) => e.sessionPlayerId === playerA)).toBeUndefined()
     expect(queue.find((e) => e.sessionPlayerId === playerB)).toBeUndefined()
+  })
+})
+
+test.describe('Pickleball fixed pairs: assign a court to two pairs', () => {
+  test('assigns a court to two eligible pairs, creating two FIXED_PAIR teams that each hold one pair', async ({ request }) => {
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 4, 1)
+    const [p1, p2, p3, p4] = sessionPlayerIds
+    await formAndQueuePair(request, sessionId, p1, p2)
+    await formAndQueuePair(request, sessionId, p3, p4)
+
+    const assignResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })
+    expect(assignResponse.status()).toBe(200)
+    const body = await assignResponse.json()
+    expect(body.court.status).toBe('ASSIGNED')
+
+    const teamAIds = body.teamA.players.map((p) => p.sessionPlayerId).sort()
+    const teamBIds = body.teamB.players.map((p) => p.sessionPlayerId).sort()
+    expect(teamAIds).toHaveLength(2)
+    expect(teamBIds).toHaveLength(2)
+
+    // Each team must be exactly one of the two FORMED pairs -- never a mix
+    // of members from both pairs, which would mean a pair got split.
+    const expectedPairs = [[p1, p2].sort(), [p3, p4].sort()]
+    expect(expectedPairs).toContainEqual(teamAIds)
+    expect(expectedPairs).toContainEqual(teamBIds)
+    expect(teamAIds).not.toEqual(teamBIds)
+
+    // Verify the persisted teams/team_members rows directly, not just the
+    // command's response -- kind must be FIXED_PAIR (never AD_HOC, the
+    // open-play default), and each team's real roster must match one pair.
+    const teamsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourts[0].id}/teams`)
+    const teams = (await teamsResponse.json()).teams
+    expect(teams).toHaveLength(2)
+    for (const team of teams) {
+      expect(team.kind).toBe('FIXED_PAIR')
+      const memberIds = team.members.map((m) => m.sessionPlayerId).sort()
+      expect(expectedPairs).toContainEqual(memberIds)
+    }
+  })
+
+  test('rejects assignment when fewer than two eligible pairs are queued', async ({ request }) => {
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 2, 1)
+    const [p1, p2] = sessionPlayerIds
+    await formAndQueuePair(request, sessionId, p1, p2)
+
+    const assignResponse = await request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, {
+      data: { sessionCourtId: sessionCourts[0].id },
+    })
+    expect(assignResponse.status()).toBe(409)
+    expect((await assignResponse.json()).error).toContain('pair')
+  })
+
+  // Mirrors pickleball-queue.spec.js's CONCURRENCY test: two courts, two
+  // simultaneous assign calls, exactly enough eligible pairs (4) for two
+  // assignments with none left over -- if the DO's serialization were broken
+  // (or if this path read eligible pairs outside the serialized handler, or
+  // cached them), the same pair could be selected onto both courts and this
+  // test would catch it via the overlap/size assertions below. A flaky
+  // result here is a signal to investigate the DO, not to retry.
+  test('CONCURRENCY: two simultaneous assignments to two different courts never seat the same pair twice', async ({ request }) => {
+    const { sessionId, sessionCourts, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 8, 2)
+    expect(sessionCourts.length).toBeGreaterThanOrEqual(2)
+
+    for (let i = 0; i < sessionPlayerIds.length; i += 2) {
+      await formAndQueuePair(request, sessionId, sessionPlayerIds[i], sessionPlayerIds[i + 1])
+    }
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId: sessionCourts[0].id } }),
+      request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId: sessionCourts[1].id } }),
+    ])
+
+    expect(firstResponse.status()).toBe(200)
+    expect(secondResponse.status()).toBe(200)
+
+    const firstBody = await firstResponse.json()
+    const secondBody = await secondResponse.json()
+
+    const firstPlayers = [...firstBody.teamA.players, ...firstBody.teamB.players].map((p) => p.sessionPlayerId)
+    const secondPlayers = [...secondBody.teamA.players, ...secondBody.teamB.players].map((p) => p.sessionPlayerId)
+
+    expect(firstPlayers).toHaveLength(4)
+    expect(secondPlayers).toHaveLength(4)
+
+    const overlap = firstPlayers.filter((id) => secondPlayers.includes(id))
+    expect(overlap).toEqual([])
+    expect(new Set([...firstPlayers, ...secondPlayers]).size).toBe(8)
+    expect(new Set([...firstPlayers, ...secondPlayers])).toEqual(new Set(sessionPlayerIds))
   })
 })
