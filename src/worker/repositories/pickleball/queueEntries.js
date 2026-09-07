@@ -1,4 +1,5 @@
 import { nowIso } from '../../utils/responses.js'
+import { getPair } from './sessionPairs.js'
 
 function toQueueEntry(row) {
   if (!row) return null
@@ -6,6 +7,7 @@ function toQueueEntry(row) {
     id: row.id,
     sessionId: row.session_id,
     sessionPlayerId: row.session_player_id,
+    sessionPairId: row.session_pair_id ?? null,
     status: row.status,
     queuedAt: row.queued_at,
     assignedAt: row.assigned_at,
@@ -112,7 +114,7 @@ export async function leaveQueue(db, sessionId, sessionPlayerId) {
 export async function listQueueForSession(db, sessionId) {
   const result = await db
     .prepare(
-      `SELECT qe.id, qe.session_id, qe.session_player_id, qe.status, qe.queued_at, qe.assigned_at,
+      `SELECT qe.id, qe.session_id, qe.session_player_id, qe.session_pair_id, qe.status, qe.queued_at, qe.assigned_at,
               sp.player_id, p.display_name, sp.games_played
        FROM queue_entries qe
        JOIN session_players sp ON sp.id = qe.session_player_id
@@ -127,6 +129,7 @@ export async function listQueueForSession(db, sessionId) {
     id: row.id,
     sessionId: row.session_id,
     sessionPlayerId: row.session_player_id,
+    sessionPairId: row.session_pair_id ?? null,
     playerId: row.player_id,
     displayName: row.display_name,
     gamesPlayed: row.games_played,
@@ -198,4 +201,65 @@ export function buildCloseQueueEntryStatement(db, sessionId, sessionPlayerId) {
   return db
     .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_player_id = ?`)
     .bind(sessionId, sessionPlayerId)
+}
+
+// Queues a FIXED_PAIRS pair as a single unit (spec Part B, migration 0012):
+// two rows, one per member, sharing this session_pair_id and one queued_at.
+// Both inserts go through ONE db.batch() -- D1 batches are atomic, so a
+// mid-sequence constraint violation (either member already holding an open
+// entry, via idx_queue_entries_one_open_per_player from migration 0006)
+// leaves NEITHER row behind rather than stranding a lone half-queued member.
+// Returns null (a domain error the caller maps to 409, not a 500) when the
+// pair doesn't exist/isn't ACTIVE, or when either member already has an open
+// queue entry -- the same "return null instead of throwing" contract
+// joinQueue above uses.
+export async function joinQueueAsPair(db, { sessionId, sessionPairId }) {
+  const pair = await getPair(db, sessionId, sessionPairId)
+  if (!pair || pair.status !== 'ACTIVE') return null
+
+  const [memberAOpen, memberBOpen] = await Promise.all([
+    hasOpenQueueEntry(db, sessionId, pair.sessionPlayerAId),
+    hasOpenQueueEntry(db, sessionId, pair.sessionPlayerBId),
+  ])
+  if (memberAOpen || memberBOpen) return null
+
+  const timestamp = nowIso()
+  const statements = [pair.sessionPlayerAId, pair.sessionPlayerBId].map((sessionPlayerId) =>
+    db
+      .prepare(
+        `INSERT INTO queue_entries (id, session_id, session_player_id, session_pair_id, status, queued_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'QUEUED', ?, ?, ?)`,
+      )
+      .bind(crypto.randomUUID(), sessionId, sessionPlayerId, sessionPairId, timestamp, timestamp, timestamp),
+  )
+
+  try {
+    await db.batch(statements)
+  } catch (error) {
+    // Same race the pre-check above can't close on its own (see joinQueue's
+    // comment on hasOpenQueueEntry): a concurrent call could pass both
+    // pre-checks and still collide on migration 0006's unique index here.
+    if (isUniqueConstraintViolation(error)) return null
+    throw error
+  }
+
+  return {
+    sessionPairId,
+    sessionPlayerAId: pair.sessionPlayerAId,
+    sessionPlayerBId: pair.sessionPlayerBId,
+    queuedAt: timestamp,
+  }
+}
+
+// Closes both of a queued pair's rows in one statement -- the DELETE matches
+// on session_pair_id, not session_player_id, so it doesn't matter which
+// member's id the caller resolved the pair from (see SessionCoordinatorDO's
+// leaveQueue). Mirrors leaveQueue's contract: true if any row was removed,
+// false (a no-op the caller maps to a domain error) if none was.
+export async function leaveQueueAsPair(db, sessionId, sessionPairId) {
+  const deleted = await db
+    .prepare(`DELETE FROM queue_entries WHERE session_id = ? AND session_pair_id = ? AND status = 'QUEUED'`)
+    .bind(sessionId, sessionPairId)
+    .run()
+  return Boolean(deleted.meta.changes)
 }

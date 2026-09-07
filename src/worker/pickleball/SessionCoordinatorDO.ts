@@ -26,6 +26,8 @@ import {
   buildJoinQueueStatement,
   joinQueue as joinQueueRepo,
   leaveQueue as leaveQueueRepo,
+  joinQueueAsPair as joinQueueAsPairRepo,
+  leaveQueueAsPair as leaveQueueAsPairRepo,
 } from '../repositories/pickleball/queueEntries.js'
 import {
   buildCreateTeamStatement,
@@ -1459,9 +1461,29 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     return { ok: true as const }
   }
 
+  // A FIXED_PAIRS session queues pairs and nothing else (spec Part B): this
+  // branches on session type BEFORE ever touching queue_entries, so an
+  // OPEN_PLAY session's path below is completely unchanged (same repo call,
+  // same failure message, same shape) -- every new branch is conditional on
+  // `sessionType === 'FIXED_PAIRS'`, never the other way around.
   async joinQueue(sessionId: string, sessionPlayerId: string) {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
-    const queueEntry = await joinQueueRepo(this.env.PICKLEBALL_DB, { sessionId, sessionPlayerId })
+    const db = this.env.PICKLEBALL_DB
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+
+    if (session.sessionType === 'FIXED_PAIRS') {
+      const pair = await getActivePairForSessionPlayer(db, sessionId, sessionPlayerId)
+      if (!pair) return failure('Player is not part of an active pair; form a pair before joining the queue.')
+
+      const queueEntry = await joinQueueAsPairRepo(db, { sessionId, sessionPairId: pair.id })
+      if (!queueEntry) return failure('This pair already has an open queue entry.')
+      await this.broadcast(sessionId)
+      return { ok: true as const, queueEntry }
+    }
+
+    const queueEntry = await joinQueueRepo(db, { sessionId, sessionPlayerId })
     if (!queueEntry) return failure('Player already has an open queue entry.')
     await this.broadcast(sessionId)
     return { ok: true as const, queueEntry }
@@ -1469,7 +1491,22 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
   async leaveQueue(sessionId: string, sessionPlayerId: string) {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
-    const left = await leaveQueueRepo(this.env.PICKLEBALL_DB, sessionId, sessionPlayerId)
+    const db = this.env.PICKLEBALL_DB
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+
+    if (session.sessionType === 'FIXED_PAIRS') {
+      const pair = await getActivePairForSessionPlayer(db, sessionId, sessionPlayerId)
+      if (!pair) return failure('Player is not part of an active pair.')
+
+      const left = await leaveQueueAsPairRepo(db, sessionId, pair.id)
+      if (!left) return failure('No open queue entry to leave.')
+      await this.broadcast(sessionId)
+      return { ok: true as const }
+    }
+
+    const left = await leaveQueueRepo(db, sessionId, sessionPlayerId)
     if (!left) return failure('No open queue entry to leave.')
     await this.broadcast(sessionId)
     return { ok: true as const }

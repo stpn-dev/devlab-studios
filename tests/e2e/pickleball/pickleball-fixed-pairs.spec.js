@@ -68,6 +68,13 @@ async function loginAsScorekeeper(request, label) {
   await request.post('/api/pickleball/auth/test-login', { data: { email } })
 }
 
+async function formPair(request, sessionId, sessionPlayerAId, sessionPlayerBId) {
+  const response = await request.post(`/api/pickleball/sessions/${sessionId}/pairs`, {
+    data: { sessionPlayerAId, sessionPlayerBId },
+  })
+  return (await response.json()).pair
+}
+
 test.describe('Pickleball fixed pairs: form and dissolve', () => {
   test('forms a pair from two checked-in players', async ({ request }) => {
     const { sessionId, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 2)
@@ -161,5 +168,64 @@ test.describe('Pickleball fixed pairs: form and dissolve', () => {
       headers: { Origin: baseURL },
     })
     expect(dissolveResponse.status()).toBe(403)
+  })
+})
+
+test.describe('Pickleball fixed pairs: queue a pair, not a player', () => {
+  test('joining the queue as a pair creates two queue_entries rows sharing one session_pair_id and queued_at', async ({ request }) => {
+    const { sessionId, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 2)
+    const [playerA, playerB] = sessionPlayerIds
+    const pair = await formPair(request, sessionId, playerA, playerB)
+
+    // Joining names only ONE member (playerA) -- the DO must resolve the
+    // pair from that member and queue BOTH, not just the one named.
+    const joinResponse = await request.post(`/api/pickleball/sessions/${sessionId}/queue`, {
+      data: { sessionPlayerId: playerA },
+    })
+    expect(joinResponse.status()).toBe(201)
+
+    const queueResponse = await request.get(`/api/pickleball/sessions/${sessionId}/queue`)
+    const queue = (await queueResponse.json()).queue
+    const rowA = queue.find((e) => e.sessionPlayerId === playerA)
+    const rowB = queue.find((e) => e.sessionPlayerId === playerB)
+
+    expect(rowA).toBeTruthy()
+    expect(rowB).toBeTruthy()
+    expect(rowA.status).toBe('QUEUED')
+    expect(rowB.status).toBe('QUEUED')
+    expect(rowA.sessionPairId).toBe(pair.id)
+    expect(rowB.sessionPairId).toBe(pair.id)
+    expect(rowA.queuedAt).toBe(rowB.queuedAt)
+  })
+
+  test('joining the queue as an unpaired player is refused with a domain error naming the reason', async ({ request }) => {
+    const { sessionId, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 1)
+    const [playerA] = sessionPlayerIds
+
+    const joinResponse = await request.post(`/api/pickleball/sessions/${sessionId}/queue`, {
+      data: { sessionPlayerId: playerA },
+    })
+    expect(joinResponse.status()).toBe(409)
+    expect((await joinResponse.json()).error).toContain('pair')
+  })
+
+  test('leaving the queue as a pair closes both rows together', async ({ request }) => {
+    const { sessionId, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 2)
+    const [playerA, playerB] = sessionPlayerIds
+    await formPair(request, sessionId, playerA, playerB)
+
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId: playerA } })
+
+    // Leave named by the OTHER member (playerB) -- proves this closes the
+    // whole pair's rows, not merely "the row for the id you passed."
+    const leaveResponse = await request.post(`/api/pickleball/sessions/${sessionId}/queue/leave`, {
+      data: { sessionPlayerId: playerB },
+    })
+    expect(leaveResponse.status()).toBe(200)
+
+    const queueResponse = await request.get(`/api/pickleball/sessions/${sessionId}/queue`)
+    const queue = (await queueResponse.json()).queue
+    expect(queue.find((e) => e.sessionPlayerId === playerA)).toBeUndefined()
+    expect(queue.find((e) => e.sessionPlayerId === playerB)).toBeUndefined()
   })
 })
