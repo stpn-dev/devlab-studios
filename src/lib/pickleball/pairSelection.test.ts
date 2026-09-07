@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { selectNextPairs, type PairCandidate } from './pairSelection'
+import { selectNextPairs, buildLastOpponentPairId, type PairCandidate, type LastOpponentSessionPlayer } from './pairSelection'
 
 const NOW = '2026-08-25T18:30:00.000Z'
 
@@ -179,5 +179,85 @@ describe('selectNextPairs', () => {
     const first = selectNextPairs(candidates, 2, NOW, lastOpponentPairId)
     const second = selectNextPairs(candidates, 2, NOW, lastOpponentPairId)
     expect(second).toEqual(first)
+  })
+
+  it('defense-in-depth: a self-referencing lastOpponentPairId entry is never treated as a conflict', () => {
+    // Same shape as the "repeat-avoidance" test above, EXCEPT p2's entry is a
+    // self-reference (p2: 'p2') instead of pointing at p1. A caller-supplied
+    // map should never contain this (buildLastOpponentPairId resolves it to
+    // null at the source), but selectNextPairs must not misbehave if handed
+    // one anyway: p2 must not appear to conflict with itself, so no swap
+    // fires and the fairness-only selection ([p1, p2], by queued order)
+    // stands.
+    const candidates = [
+      pair({ sessionPairId: 'p1', gamesPlayed: 0 }),
+      pair({ sessionPairId: 'p2', gamesPlayed: 0 }),
+      pair({ sessionPairId: 'p3', gamesPlayed: 0 }),
+    ]
+    const lastOpponentPairId = { p1: 'p3', p2: 'p2' }
+    const result = selectNextPairs(candidates, 2, NOW, lastOpponentPairId)
+    expect(result.selected.map((p) => p.sessionPairId)).toEqual(['p1', 'p2'])
+  })
+})
+
+describe('buildLastOpponentPairId', () => {
+  function lastOpponent(sessionPlayerId: string, lastGameAt: string): LastOpponentSessionPlayer {
+    return { sessionPlayerId, lastGameAt }
+  }
+
+  it('resolves both members of a pair to the pair they most recently opposed', () => {
+    const candidates = [
+      pair({ sessionPairId: 'p1', memberSessionPlayerIds: ['a', 'b'] }),
+      pair({ sessionPairId: 'p2', memberSessionPlayerIds: ['c', 'd'] }),
+    ]
+    // Both of p1's members most recently opposed a member of p2 (the normal
+    // case: a fixed pair always plays -- and therefore always opposes --
+    // both members of the other side together). `a` resolves through p2's
+    // SECOND member ('d') and `b` through its FIRST ('c'), so this exercises
+    // both halves of the member->pair lookup, not just index 0.
+    const lastOpponentSessionPlayer: Record<string, LastOpponentSessionPlayer> = {
+      a: lastOpponent('d', '2026-08-25T18:00:00.000Z'),
+      b: lastOpponent('c', '2026-08-25T18:00:00.000Z'),
+    }
+    const result = buildLastOpponentPairId(candidates, lastOpponentSessionPlayer)
+    expect(result.p1).toBe('p2')
+  })
+
+  it('when the two members disagree, resolves to whichever record is more recent', () => {
+    const candidates = [
+      pair({ sessionPairId: 'p1', memberSessionPlayerIds: ['a', 'b'] }),
+      pair({ sessionPairId: 'p2', memberSessionPlayerIds: ['c', 'd'] }),
+      pair({ sessionPairId: 'p3', memberSessionPlayerIds: ['e', 'f'] }),
+    ]
+    // a's own most recent opponent (c, in p2) is OLDER than b's (e, in p3) --
+    // e.g. after a re-pairing, the two members' histories no longer agree.
+    // The newer record (p3) must win, not member A unconditionally.
+    const lastOpponentSessionPlayer: Record<string, LastOpponentSessionPlayer> = {
+      a: lastOpponent('c', '2026-08-25T18:00:00.000Z'),
+      b: lastOpponent('e', '2026-08-25T19:00:00.000Z'),
+    }
+    const result = buildLastOpponentPairId(candidates, lastOpponentSessionPlayer)
+    expect(result.p1).toBe('p3')
+  })
+
+  it('resolves a re-pairing self-reference to null instead of the pair\'s own id', () => {
+    // The exact scenario from the finding: P1={A,B} opposed P2={C,D}
+    // (matchmaking_history records A's last opponent as C). P1 and P2 later
+    // dissolve; A and C form a NEW pair P3. C is now P3's OWN other member,
+    // so naively resolving A's last-opponent (C) to "C's current pair"
+    // produces P3 itself -- a pair can never really be its own last
+    // opponent, so this must resolve to null.
+    const candidates = [pair({ sessionPairId: 'p3', memberSessionPlayerIds: ['a', 'c'] })]
+    const lastOpponentSessionPlayer: Record<string, LastOpponentSessionPlayer> = {
+      a: lastOpponent('c', '2026-08-25T18:00:00.000Z'),
+    }
+    const result = buildLastOpponentPairId(candidates, lastOpponentSessionPlayer)
+    expect(result.p3).toBeNull()
+  })
+
+  it('resolves to null when a pair has no matchmaking history at all', () => {
+    const candidates = [pair({ sessionPairId: 'p1', memberSessionPlayerIds: ['a', 'b'] })]
+    const result = buildLastOpponentPairId(candidates, {})
+    expect(result.p1).toBeNull()
   })
 })

@@ -78,7 +78,7 @@ import { buildRecomputePlayerSnapshotsStatements, getPlayerSnapshot } from '../r
 import { buildSessionSnapshot, buildPublicSnapshotExtras } from './sessionSnapshot.js'
 import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
 import { selectNextPlayers, balanceTeams, type QueueCandidate } from '../../lib/pickleball/queueEngine'
-import { selectNextPairs, type PairCandidate } from '../../lib/pickleball/pairSelection'
+import { selectNextPairs, buildLastOpponentPairId, type PairCandidate, type LastOpponentSessionPlayer } from '../../lib/pickleball/pairSelection'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { initialGameState } from '../../lib/pickleball/scoring/gameState'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
@@ -472,25 +472,28 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     // Repeat-avoidance tiebreak input (pairSelection.ts's rule 3): for each
     // eligible pair, the sessionPairId of the one other CURRENTLY-ELIGIBLE
-    // pair it most recently OPPOSED, per matchmaking_history. Built the same
-    // way assignCourt's OPEN_PLAY path above builds `lastPairedWith` --
-    // joining matchmaking_history to session_players on (player_id,
-    // session_id) to resolve a player's identity within THIS session -- but
-    // restricted to relation = 'OPPONENT'. Unlike the player-level query,
-    // this restriction is required, not optional: a fixed pair's two members
-    // are ALSO in each other's candidate set and are permanently each
-    // other's PARTNER, so an unfiltered query would resolve "most recently
-    // paired with" to a pair's own other member every time -- never a real
-    // opposing pair.
-    const memberToPairId: Record<string, string> = {}
-    for (const pair of candidates) {
-      memberToPairId[pair.memberSessionPlayerIds[0]] = pair.sessionPairId
-      memberToPairId[pair.memberSessionPlayerIds[1]] = pair.sessionPairId
-    }
+    // pair it most recently OPPOSED, per matchmaking_history. The player-level
+    // read is built the same way assignCourt's OPEN_PLAY path above builds
+    // `lastPairedWith` -- joining matchmaking_history to session_players on
+    // (player_id, session_id) to resolve a player's identity within THIS
+    // session -- but restricted to relation = 'OPPONENT'. Unlike the
+    // player-level query, this restriction is required, not optional: a
+    // fixed pair's two members are ALSO in each other's candidate set and
+    // are permanently each other's PARTNER, so an unfiltered query would
+    // resolve "most recently paired with" to a pair's own other member every
+    // time -- never a real opposing pair. The player->pair bridge itself
+    // (including the self-reference fix for a re-paired member) lives in
+    // buildLastOpponentPairId (pairSelection.ts), pure and unit-tested.
+    //
+    // Query guard: only worth running when a real swap could occur.
+    // pairSelection.ts's own contract guarantees rule 3 cannot change the
+    // outcome once sorted.length === count (=== 2 here) -- there is no
+    // candidate left outside the selection to swap in. Below that
+    // (candidates.length <= 2), this would be a pure extra D1 round-trip on
+    // the hot assignment path.
     const candidateSessionPlayerIds = candidates.flatMap((pair) => pair.memberSessionPlayerIds)
-
-    const lastOpponentSessionPlayer: Record<string, string> = {}
-    if (candidateSessionPlayerIds.length) {
+    const lastOpponentSessionPlayer: Record<string, LastOpponentSessionPlayer> = {}
+    if (candidates.length > 2) {
       const placeholders = candidateSessionPlayerIds.map(() => '?').join(',')
       const historyResult = await db
         .prepare(
@@ -505,17 +508,13 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
         .bind(sessionId, sessionId, sessionId, ...candidateSessionPlayerIds, ...candidateSessionPlayerIds)
         .all<{ session_player_id: string; other_session_player_id: string; last_game_at: string }>()
       for (const row of historyResult.results || []) {
-        if (!(row.session_player_id in lastOpponentSessionPlayer)) lastOpponentSessionPlayer[row.session_player_id] = row.other_session_player_id
+        if (!(row.session_player_id in lastOpponentSessionPlayer)) {
+          lastOpponentSessionPlayer[row.session_player_id] = { sessionPlayerId: row.other_session_player_id, lastGameAt: row.last_game_at }
+        }
       }
     }
 
-    const lastOpponentPairId: Record<string, string | null> = {}
-    for (const pair of candidates) {
-      const [memberA, memberB] = pair.memberSessionPlayerIds
-      const opponentPairViaA = memberToPairId[lastOpponentSessionPlayer[memberA]]
-      const opponentPairViaB = memberToPairId[lastOpponentSessionPlayer[memberB]]
-      lastOpponentPairId[pair.sessionPairId] = opponentPairViaA ?? opponentPairViaB ?? null
-    }
+    const lastOpponentPairId = buildLastOpponentPairId(candidates, lastOpponentSessionPlayer)
 
     const { selected, reasons, shortfall } = selectNextPairs(candidates, 2, nowIso, lastOpponentPairId)
     if (shortfall) return failure(shortfall)
