@@ -28,23 +28,35 @@ function toPair(row) {
   }
 }
 
-// True when a D1 write failed because of idx_session_pairs_member_a_active /
-// idx_session_pairs_member_b_active (migration 0012) -- the partial unique
-// indexes enforcing "a session_player belongs to at most one ACTIVE pair".
-// D1 doesn't expose a typed error code here, so this is a string match
+// True when an INSERT into session_pairs failed because of a domain rule
+// createPair's caller should see as "can't form this pair", not a 500:
+//
+//  - trg_session_pairs_one_active_pair_per_player (migration 0012, fix round
+//    1): a BEFORE INSERT trigger, since "a session_player belongs to at most
+//    one ACTIVE pair" spans both columns of every existing row and no
+//    same-column partial unique index can express that. Its RAISE(ABORT,...)
+//    message deliberately starts with "UNIQUE constraint failed" so it reads
+//    the same as a real unique-index violation here.
+//  - the table's `CHECK (session_player_a_id != session_player_b_id)`
+//    (also migration 0012): SQLite reports this as "CHECK constraint
+//    failed: ...", a distinct message shape from the trigger's, so both
+//    substrings must be checked.
+//
+// D1 doesn't expose a typed error code for either, so this is a string match
 // against the driver's SQLITE_CONSTRAINT message, same approach
 // queueEntries.js's joinQueue uses for idx_queue_entries_one_open_per_player.
-function isUniqueConstraintViolation(error) {
+function isPairConflictViolation(error) {
   const message = String((error && error.message) || error || '')
-  return message.includes('UNIQUE constraint failed')
+  return message.includes('UNIQUE constraint failed') || message.includes('CHECK constraint failed')
 }
 
 /**
  * Returns the new pair, or null if either member is already in an ACTIVE
- * pair. The unique indexes are the real enforcement (a read-then-write
- * pre-check would still race), so this always attempts the INSERT and
- * translates a constraint violation into null rather than letting it throw
- * -- callers treat null as a domain error (e.g. 409), not a 500.
+ * pair, or the two member ids are the same player. The trigger and CHECK
+ * constraint are the real enforcement (a read-then-write pre-check would
+ * still race), so this always attempts the INSERT and translates either
+ * violation into null rather than letting it throw -- callers treat null as
+ * a domain error (e.g. 409), not a 500.
  */
 export async function createPair(db, { sessionId, sessionPlayerAId, sessionPlayerBId }) {
   const id = crypto.randomUUID()
@@ -59,7 +71,7 @@ export async function createPair(db, { sessionId, sessionPlayerAId, sessionPlaye
       .bind(id, sessionId, sessionPlayerAId, sessionPlayerBId, timestamp, timestamp)
       .run()
   } catch (error) {
-    if (isUniqueConstraintViolation(error)) return null
+    if (isPairConflictViolation(error)) return null
     throw error
   }
 
