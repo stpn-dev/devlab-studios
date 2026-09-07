@@ -6,7 +6,7 @@
  * @param {Object} props
  * @param {string} [props.className]
  */
-export default function Step7FinishArt({ className = '' }) {
+export default function Step8FinishArt({ className = '' }) {
   return (
     <svg viewBox="0 0 120 90" fill="none" className={className} aria-hidden="true">
       {/* The final scoreline. */}

@@ -6,7 +6,7 @@
  * @param {Object} props
  * @param {string} [props.className]
  */
-export default function Step6ScoreArt({ className = '' }) {
+export default function Step7ScoreArt({ className = '' }) {
   return (
     <svg viewBox="0 0 120 90" fill="none" className={className} aria-hidden="true">
       {/* Two score panels, one currently serving. */}

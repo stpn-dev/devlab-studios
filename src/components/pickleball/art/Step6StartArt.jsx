@@ -2,17 +2,12 @@
 // this file follows (currentColor, aria-hidden, no third-party asset).
 // Subject: the first serve of a game — the seated foursome with one player
 // marked out as the chosen starting server.
-//
-// Deliberately NOT named "Step6…": the numbered Step*Art files were authored
-// against the guide's original eight-step running order and are not renamed
-// here, so their numbers are historical file names rather than live step
-// positions. See src/pages/pickleball/how-it-works.astro's import block.
 
 /**
  * @param {Object} props
  * @param {string} [props.className]
  */
-export default function StartGameArt({ className = '' }) {
+export default function Step6StartArt({ className = '' }) {
   return (
     <svg viewBox="0 0 120 90" fill="none" className={className} aria-hidden="true">
       {/* The assigned court, seats already filled. */}

@@ -1,20 +1,20 @@
 ---
 import Layout from '../../layouts/Layout.astro'
+import { loadPageSeo } from '../../lib/content/seo'
 import Step1CreateArt from '../../components/pickleball/art/Step1CreateArt.jsx'
 import Step2OpenArt from '../../components/pickleball/art/Step2OpenArt.jsx'
 import Step3CheckInArt from '../../components/pickleball/art/Step3CheckInArt.jsx'
 import Step4QueueArt from '../../components/pickleball/art/Step4QueueArt.jsx'
 import Step5AssignArt from '../../components/pickleball/art/Step5AssignArt.jsx'
-// StartGameArt sits between Step5AssignArt and Step6ScoreArt in the running
-// order below. The numbers baked into the Step*Art file names date from the
-// guide's original eight-step order and were deliberately not renamed when
-// the start-a-game step was added, so treat them as file names, not as step
-// positions — `steps` below is the only source of truth for the order.
-import StartGameArt from '../../components/pickleball/art/StartGameArt.jsx'
-import Step6ScoreArt from '../../components/pickleball/art/Step6ScoreArt.jsx'
-import Step7FinishArt from '../../components/pickleball/art/Step7FinishArt.jsx'
-import Step8CompleteArt from '../../components/pickleball/art/Step8CompleteArt.jsx'
+import Step6StartArt from '../../components/pickleball/art/Step6StartArt.jsx'
+import Step7ScoreArt from '../../components/pickleball/art/Step7ScoreArt.jsx'
+import Step8FinishArt from '../../components/pickleball/art/Step8FinishArt.jsx'
+import Step9CompleteArt from '../../components/pickleball/art/Step9CompleteArt.jsx'
 import '../../pickleball-app/pickleball.css'
+
+// Same pattern as every other public page: static defaults from
+// src/data/seoContent.js, overridable per-page from the CMS.
+const seo = await loadPageSeo('pickleball-how-it-works')
 
 const steps = [
   {
@@ -52,7 +52,7 @@ const steps = [
     ],
   },
   {
-    Art: StartGameArt,
+    Art: Step6StartArt,
     title: 'Start the game',
     body: 'Assigning a court does not start play. Open Games, pick the court under "Ready to start", then choose the serving team and each side\'s starting server. "Start game" stays disabled until both starting servers are picked.',
     sees: [
@@ -62,19 +62,19 @@ const steps = [
     ],
   },
   {
-    Art: Step6ScoreArt,
+    Art: Step7ScoreArt,
     title: 'Score the game',
     body: 'There are two buttons: which side won the rally. The app works out whether that was a point, a change of server, or a side out, and calls the score. Undo reverses the last rally whenever you need it.',
     sees: ['Both team scores side by side', 'Which team is serving — and, in doubles, which server', 'The official score call'],
   },
   {
-    Art: Step7FinishArt,
+    Art: Step8FinishArt,
     title: 'Finish the game',
     body: 'Finish once the score is a valid final under your ruleset. The court is released, the players return to the queue, and the standings update. Got it wrong? Reopen the game, correct it, and finish again — the statistics are recomputed from scratch.',
     sees: ['The final score locked in', 'Standings update, though a player only ranks once they hit the session’s eligible-games threshold — tick "Show provisional players" to see everyone sooner', 'The court free again'],
   },
   {
-    Art: Step8CompleteArt,
+    Art: Step9CompleteArt,
     title: 'Complete the session',
     body: 'When play is over, complete the session. It is a one-way transition — a completed session can never go back to live, and no further court can be assigned from then on.',
     sees: ['Final standings', 'Status shown as Completed, with no further status actions offered'],
@@ -88,7 +88,7 @@ const troubles = [
 ]
 ---
 
-<Layout title="How it works — Devlab Pickleball">
+<Layout title="How it works — Devlab Pickleball" seo={seo}>
   <div class="mx-auto max-w-5xl px-6 py-16">
     <p class="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Guide</p>
     <h1 class="mt-2 text-4xl font-extrabold tracking-tight text-slate-900">How Devlab Pickleball works</h1>

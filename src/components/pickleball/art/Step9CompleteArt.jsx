@@ -6,7 +6,7 @@
  * @param {Object} props
  * @param {string} [props.className]
  */
-export default function Step8CompleteArt({ className = '' }) {
+export default function Step9CompleteArt({ className = '' }) {
   return (
     <svg viewBox="0 0 120 90" fill="none" className={className} aria-hidden="true">
       {/* The court, dashed now that play is over. */}
