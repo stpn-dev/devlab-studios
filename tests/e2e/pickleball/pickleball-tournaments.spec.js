@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test'
 // fixed-pairs-formation flow, only adding `tournamentFormat` to the create
 // call.
 
-async function createTournamentSession(request, overrides = {}) {
+async function createTournamentSession(request, overrides = {}, courtCount = 0) {
   await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
 
   const venueResponse = await request.post('/api/pickleball/venues', {
@@ -14,6 +14,15 @@ async function createTournamentSession(request, overrides = {}) {
   })
   expect(venueResponse.ok()).toBe(true)
   const venueId = (await venueResponse.json()).venue.id
+
+  // Courts must exist on the venue BEFORE the session so that session
+  // creation's auto-provisioning (seedSessionCourtsFromVenue) has something
+  // to seed session_courts rows from -- same reasoning as
+  // pickleball-fixed-pairs.spec.js's own setup helper.
+  for (let i = 0; i < courtCount; i += 1) {
+    const courtResponse = await request.post('/api/pickleball/courts', { data: { venueId, name: `Court ${i + 1}` } })
+    expect(courtResponse.ok()).toBe(true)
+  }
 
   return request.post('/api/pickleball/sessions', {
     data: {
@@ -31,17 +40,22 @@ async function createTournamentSession(request, overrides = {}) {
 
 // Creates a live ROUND_ROBIN tournament with `pairCount` formed (but not yet
 // entered) pairs, each pair's two members freshly registered and checked in.
-async function createLiveTournamentWithPairs(request, pairCount) {
-  const sessionResponse = await createTournamentSession(request)
+async function createLiveTournamentWithPairs(request, pairCount, courtCount = 0) {
+  const sessionResponse = await createTournamentSession(request, {}, courtCount)
   expect(sessionResponse.status()).toBe(201)
   const sessionId = (await sessionResponse.json()).session.id
 
   await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
   await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
 
+  const sessionCourts = courtCount
+    ? (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts
+    : []
+
   const pairs = []
   for (let i = 0; i < pairCount; i += 1) {
     const sessionPlayerIds = []
+    const playerIds = []
     for (let member = 0; member < 2; member += 1) {
       const playerResponse = await request.post('/api/pickleball/players', {
         data: { displayName: `Tourney Player ${Date.now()}-${i}-${member}-${Math.random().toString(36).slice(2)}` },
@@ -51,16 +65,36 @@ async function createLiveTournamentWithPairs(request, pairCount) {
       const sessionPlayerId = (await registerResponse.json()).sessionPlayer.id
       await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
       sessionPlayerIds.push(sessionPlayerId)
+      playerIds.push(playerId)
     }
 
     const pairResponse = await request.post(`/api/pickleball/sessions/${sessionId}/pairs`, {
       data: { sessionPlayerAId: sessionPlayerIds[0], sessionPlayerBId: sessionPlayerIds[1] },
     })
     expect(pairResponse.status()).toBe(201)
-    pairs.push((await pairResponse.json()).pair)
+    const pair = (await pairResponse.json()).pair
+    pairs.push({ ...pair, playerIds })
   }
 
-  return { sessionId, pairs }
+  return { sessionId, sessionCourts, pairs }
+}
+
+// Game-lifecycle helpers, modeled directly on pickleball-fixed-pairs.spec.js's
+// own helpers of the same names -- needed here (rather than imported)
+// because that file's helpers are module-local, not exported.
+async function startGame(request, sessionId, sessionCourtId, assignBody, servingTeam) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/games/start`, {
+    data: {
+      sessionCourtId,
+      servingTeam,
+      teamAStartingServerSessionPlayerId: assignBody.teamA.players[0].sessionPlayerId,
+      teamBStartingServerSessionPlayerId: assignBody.teamB.players[0].sessionPlayerId,
+    },
+  })
+}
+
+function assignCourt(request, sessionId, sessionCourtId) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
 }
 
 function enterPair(request, sessionId, sessionPairId) {
@@ -86,6 +120,24 @@ async function loginAsScorekeeper(request, label) {
     data: { invitedEmail: email, role: 'SCOREKEEPER' },
   })
   await request.post('/api/pickleball/auth/test-login', { data: { email } })
+}
+
+async function getFixtures(request, sessionId) {
+  const response = await request.get(`/api/pickleball/sessions/${sessionId}/tournament/fixtures`)
+  expect(response.status()).toBe(200)
+  return (await response.json()).fixtures
+}
+
+async function getEntrants(request, sessionId) {
+  const response = await request.get(`/api/pickleball/sessions/${sessionId}/tournament/entrants`)
+  expect(response.status()).toBe(200)
+  return (await response.json()).entrants
+}
+
+async function getQueue(request, sessionId) {
+  const response = await request.get(`/api/pickleball/sessions/${sessionId}/queue`)
+  expect(response.status()).toBe(200)
+  return (await response.json()).queue
 }
 
 test.describe('Pickleball tournaments: session creation', () => {
@@ -213,5 +265,166 @@ test.describe('Pickleball tournaments: permissions', () => {
 
     const lockResponse = await lockBracket(request, sessionId)
     expect(lockResponse.status()).toBe(403)
+  })
+})
+
+test.describe('Pickleball tournaments: assign a court from the fixture list', () => {
+  test('assigns the lowest round/position playable fixture, stamping two FIXED_PAIR teams with session_pair_id; the fixture moves to IN_PROGRESS with its game_id once the game starts', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 4, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const fixtures = await getFixtures(request, sessionId)
+    const entrants = await getEntrants(request, sessionId)
+    const pairIdByEntrantId = new Map(entrants.map((entrant) => [entrant.id, entrant.sessionPairId]))
+
+    // Fixtures come back ordered by round then position (listFixtures'
+    // ORDER BY) -- fixtures[0] IS "the lowest round then position" fixture.
+    const target = fixtures[0]
+    const expectedPairA = pairs.find((p) => p.id === pairIdByEntrantId.get(target.entrantAId))
+    const expectedPairB = pairs.find((p) => p.id === pairIdByEntrantId.get(target.entrantBId))
+    expect(expectedPairA).toBeTruthy()
+    expect(expectedPairB).toBeTruthy()
+
+    const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(assignResponse.status()).toBe(200)
+    const assignBody = await assignResponse.json()
+    expect(assignBody.court.status).toBe('ASSIGNED')
+
+    const teamAIds = assignBody.teamA.players.map((p) => p.sessionPlayerId).sort()
+    const teamBIds = assignBody.teamB.players.map((p) => p.sessionPlayerId).sort()
+    expect(teamAIds).toEqual([expectedPairA.sessionPlayerAId, expectedPairA.sessionPlayerBId].sort())
+    expect(teamBIds).toEqual([expectedPairB.sessionPlayerAId, expectedPairB.sessionPlayerBId].sort())
+
+    // Both teams are FIXED_PAIR (never AD_HOC) -- GET .../teams doesn't
+    // expose session_pair_id, so that half is verified via the queue below,
+    // same as pickleball-fixed-pairs.spec.js's own "shares one
+    // session_pair_id" test does for the ordinary (non-tournament) case.
+    const teamsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/courts/${sessionCourts[0].id}/teams`)
+    const teams = (await teamsResponse.json()).teams
+    expect(teams).toHaveLength(2)
+    for (const team of teams) expect(team.kind).toBe('FIXED_PAIR')
+
+    const queueAfterAssign = await getQueue(request, sessionId)
+    const assignedRows = queueAfterAssign.filter((entry) => entry.status === 'ASSIGNED')
+    expect(assignedRows).toHaveLength(4)
+    expect(assignedRows.filter((entry) => entry.sessionPairId === expectedPairA.id)).toHaveLength(2)
+    expect(assignedRows.filter((entry) => entry.sessionPairId === expectedPairB.id)).toHaveLength(2)
+
+    // Assigning a COURT is not the same as STARTING a game -- the fixture
+    // stays READY, with no game_id, until startGame actually creates one.
+    const fixturesAfterAssign = await getFixtures(request, sessionId)
+    const targetAfterAssign = fixturesAfterAssign.find((f) => f.id === target.id)
+    expect(targetAfterAssign.status).toBe('READY')
+    expect(targetAfterAssign.gameId).toBeFalsy()
+
+    const startResponse = await startGame(request, sessionId, sessionCourts[0].id, assignBody, 'A')
+    expect(startResponse.status()).toBe(201)
+    const gameId = (await startResponse.json()).game.id
+
+    const fixturesAfterStart = await getFixtures(request, sessionId)
+    const targetAfterStart = fixturesAfterStart.find((f) => f.id === target.id)
+    expect(targetAfterStart.status).toBe('IN_PROGRESS')
+    expect(targetAfterStart.gameId).toBe(gameId)
+  })
+
+  test('assigning a second court seats the next fixture whose entrants are not already playing', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 4, 2)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const firstAssign = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(firstAssign.status()).toBe(200)
+    const firstBody = await firstAssign.json()
+    const firstPlayers = [...firstBody.teamA.players, ...firstBody.teamB.players].map((p) => p.sessionPlayerId)
+
+    const secondAssign = await assignCourt(request, sessionId, sessionCourts[1].id)
+    expect(secondAssign.status()).toBe(200)
+    const secondBody = await secondAssign.json()
+    const secondPlayers = [...secondBody.teamA.players, ...secondBody.teamB.players].map((p) => p.sessionPlayerId)
+
+    expect(secondPlayers.filter((id) => firstPlayers.includes(id))).toEqual([])
+
+    // With exactly 4 entrants, round-robin's own construction guarantees
+    // round 1 pairs every entrant disjointly across its 2 fixtures -- so
+    // both assignments together must cover every one of the 8 registered
+    // players exactly once, with none left over and none repeated.
+    const allPlayerIds = pairs.flatMap((p) => [p.sessionPlayerAId, p.sessionPlayerBId])
+    expect(new Set([...firstPlayers, ...secondPlayers])).toEqual(new Set(allPlayerIds))
+  })
+
+  // With exactly 3 entrants, round-robin generates 3 fixtures (X-Y, X-Z,
+  // Y-Z), each in ITS OWN round (one entrant always sits out). Whichever
+  // fixture is seated first consumes 2 of the 3 entrants; BOTH remaining
+  // fixtures then each contain exactly one of those two busy entrants plus
+  // the one still-free entrant -- never two free entrants together, so
+  // neither remaining fixture can ever be played until a court is released.
+  // This holds regardless of which fixture the seeding tie-break picks
+  // first, so the test does not need to know or assert which one that is.
+  test('every remaining fixture blocked by an entrant already on court -- assignment fails cleanly, not a crash, and seats no one twice', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 3, 2)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const firstAssign = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(firstAssign.status()).toBe(200)
+
+    const secondAssign = await assignCourt(request, sessionId, sessionCourts[1].id)
+    expect(secondAssign.status()).toBe(409)
+    expect((await secondAssign.json()).error).toContain('court')
+
+    // No one was double-seated: still exactly 4 ASSIGNED queue rows (the
+    // FIRST assignment's two pairs), not 8, and the second court is still
+    // untouched.
+    const queueAfter = await getQueue(request, sessionId)
+    expect(queueAfter.filter((entry) => entry.status === 'ASSIGNED')).toHaveLength(4)
+
+    const courtsAfter = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts
+    const secondCourtAfter = courtsAfter.find((c) => c.id === sessionCourts[1].id)
+    expect(secondCourtAfter.status).toBe('AVAILABLE')
+  })
+
+  // Mirrors pickleball-fixed-pairs.spec.js's own CONCURRENCY test: two
+  // courts, two simultaneous assign calls, exactly enough entrants (4) for
+  // two disjoint assignments with none left over -- if the DO's
+  // serialization were broken (or this path read fixtures/entrants-in-play
+  // outside the serialized handler, or cached them), the same entrant could
+  // be selected onto both courts and this test would catch it via the
+  // overlap/size assertions below.
+  test('CONCURRENCY: two simultaneous assignments to two different courts never seat the same entrant twice', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 4, 2)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      assignCourt(request, sessionId, sessionCourts[0].id),
+      assignCourt(request, sessionId, sessionCourts[1].id),
+    ])
+
+    expect(firstResponse.status()).toBe(200)
+    expect(secondResponse.status()).toBe(200)
+
+    const firstBody = await firstResponse.json()
+    const secondBody = await secondResponse.json()
+    const firstPlayers = [...firstBody.teamA.players, ...firstBody.teamB.players].map((p) => p.sessionPlayerId)
+    const secondPlayers = [...secondBody.teamA.players, ...secondBody.teamB.players].map((p) => p.sessionPlayerId)
+
+    expect(firstPlayers).toHaveLength(4)
+    expect(secondPlayers).toHaveLength(4)
+
+    const overlap = firstPlayers.filter((id) => secondPlayers.includes(id))
+    expect(overlap).toEqual([])
+    const allPlayerIds = pairs.flatMap((p) => [p.sessionPlayerAId, p.sessionPlayerBId])
+    expect(new Set([...firstPlayers, ...secondPlayers])).toEqual(new Set(allPlayerIds))
+  })
+
+  test('assigning a court before the bracket is locked is refused', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 2, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    // Deliberately never locked.
+
+    const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(assignResponse.status()).toBe(409)
+    expect((await assignResponse.json()).error).toBe('Lock the bracket before assigning courts.')
   })
 })

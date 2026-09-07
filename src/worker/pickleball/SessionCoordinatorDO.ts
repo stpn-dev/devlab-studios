@@ -88,6 +88,8 @@ import {
   buildSetSeedStatement,
   insertFixturesStatements,
   buildLockBracketStatement,
+  listFixtures as listTournamentFixtures,
+  buildSetFixtureGameStatement,
 } from '../repositories/pickleball/tournaments.js'
 import { buildSessionSnapshot, buildPublicSnapshotExtras } from './sessionSnapshot.js'
 import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
@@ -95,6 +97,7 @@ import { selectNextPlayers, balanceTeams, type QueueCandidate } from '../../lib/
 import { selectNextPairs, buildLastOpponentPairId, type PairCandidate, type LastOpponentSessionPlayer } from '../../lib/pickleball/pairSelection'
 import { seedEntrants, type SeedCandidate } from '../../lib/pickleball/tournament/seeding'
 import { generateFixtures } from '../../lib/pickleball/tournament/generateFixtures'
+import { nextPlayableFixture, type FixtureRow } from '../../lib/pickleball/tournament/nextPlayableFixture'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { initialGameState } from '../../lib/pickleball/scoring/gameState'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
@@ -460,6 +463,17 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!court.enabled) return failure('Court is disabled.')
     if (court.status !== 'AVAILABLE') return failure('Court is not available.')
 
+    // ORDERING HAZARD: a tournament IS a FIXED_PAIRS session (migration
+    // 0014's header) -- carrying `tournamentFormat` rather than being a
+    // third session_type. This check MUST come before the
+    // `sessionType === 'FIXED_PAIRS'` branch below, or a locked tournament's
+    // court assignment would fall into the ordinary fairness-queue path and
+    // seat whatever pair the queue selected instead of the fixture the
+    // bracket actually calls for next.
+    if (session.tournamentFormat) {
+      return this.assignCourtToTournamentFixture(db, sessionId, sessionCourtId, session)
+    }
+
     if (session.sessionType === 'FIXED_PAIRS') {
       return this.assignCourtToPairs(db, sessionId, sessionCourtId)
     }
@@ -693,6 +707,147 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     }
   }
 
+  // Tournament sibling of assignCourtToPairs above: the unit of work is
+  // still a pair, but WHICH pair plays next comes from the fixture list
+  // (nextPlayableFixture, pure/unit-tested in Task 3), never from
+  // listEligiblePairs' fairness queue -- a bracket match is not a fairness
+  // decision. Fixtures and "who's currently on a court" are both read HERE,
+  // inside this serialized handler, never cached across calls (this file's
+  // header CONCURRENCY guarantee): a call that read them earlier and reused
+  // a stale answer could seat an entrant onto two courts at once.
+  //
+  // Team creation reuses assignCourtToPairs' exact shape one line up: two
+  // FIXED_PAIR teams, each with session_pair_id stamped (migration 0013), so
+  // pair statistics and every other FIXED_PAIR-shaped reader (finishGame's
+  // pair games_played bookkeeping, hasOpenAssignmentForPair, etc.) work
+  // identically for a tournament pair as for an ordinary one.
+  private async assignCourtToTournamentFixture(
+    db: D1Database,
+    sessionId: string,
+    sessionCourtId: string,
+    session: { bracketLockedAt: string | null },
+  ) {
+    // Fixtures don't exist -- and there is nothing to seat -- until
+    // lockBracket has run (spec §3.2: entrants/seeds are frozen at lock,
+    // and that is also when fixtures are generated).
+    if (!session.bracketLockedAt) return failure('Lock the bracket before assigning courts.')
+
+    const [fixtures, entrants, entrantsInPlayResult] = await Promise.all([
+      listTournamentFixtures(db, sessionId),
+      listTournamentEntrants(db, sessionId),
+      // "In play" mirrors hasOpenAssignmentForPair's own definition (an
+      // ASSIGNED or PLAYING queue_entries row for the pair) rather than
+      // re-deriving it from teams.session_court_id -- same source of truth
+      // the rest of this file already trusts for "is this pair seated?".
+      db
+        .prepare(
+          `SELECT DISTINCT te.id AS entrant_id
+           FROM tournament_entrants te
+           JOIN queue_entries qe ON qe.session_pair_id = te.session_pair_id AND qe.session_id = te.session_id
+           WHERE te.session_id = ? AND qe.status IN ('ASSIGNED', 'PLAYING')`,
+        )
+        .bind(sessionId)
+        .all<{ entrant_id: string }>(),
+    ])
+
+    const entrantsInPlay = (entrantsInPlayResult.results || []).map((row) => row.entrant_id)
+    const fixture = nextPlayableFixture(fixtures as FixtureRow[], entrantsInPlay)
+    if (!fixture) {
+      return failure('No fixture is playable right now -- every remaining match has an entrant already on a court.')
+    }
+
+    const entrantById = new Map<string, { id: string; sessionPairId: string }>()
+    for (const entrant of entrants as Array<{ id: string; sessionPairId: string }>) {
+      entrantById.set(entrant.id, entrant)
+    }
+    const entrantA = fixture.entrantAId ? entrantById.get(fixture.entrantAId) : null
+    const entrantB = fixture.entrantBId ? entrantById.get(fixture.entrantBId) : null
+    if (!entrantA || !entrantB) {
+      return failure('This fixture is missing an entrant and cannot be played yet.')
+    }
+
+    const [pairA, pairB] = await Promise.all([
+      getSessionPairRepo(db, sessionId, entrantA.sessionPairId),
+      getSessionPairRepo(db, sessionId, entrantB.sessionPairId),
+    ])
+    if (!pairA || !pairB) {
+      return failure("This fixture's pair could not be resolved.")
+    }
+
+    const pairAMemberIds = [pairA.sessionPlayerAId, pairA.sessionPlayerBId]
+    const pairBMemberIds = [pairB.sessionPlayerAId, pairB.sessionPlayerBId]
+    const allMemberIds = [...pairAMemberIds, ...pairBMemberIds]
+
+    // Defensive re-check, not the real enforcement: nextPlayableFixture
+    // already excludes any entrant currently ASSIGNED/PLAYING, so this
+    // should never fire in a correct caller. It exists so a stray queue
+    // entry (e.g. an operator manually queuing a tournament pair through the
+    // ordinary queue routes) surfaces as a clean domain failure here instead
+    // of a raw SQLITE_CONSTRAINT 500 from idx_queue_entries_one_open_per_player
+    // when the INSERT below runs.
+    const alreadyOpen = await Promise.all(allMemberIds.map((id) => hasOpenAssignment(db, sessionId, id)))
+    if (alreadyOpen.some(Boolean)) {
+      return failure('One of this fixture\'s entrants already holds an open queue entry; resolve that first.')
+    }
+
+    // Same all-or-nothing batch shape as assignCourtToPairs: every id is
+    // generated client-side before any statement runs, so a mid-sequence
+    // failure can never leave players flipped to ASSIGNED while the court
+    // stays AVAILABLE.
+    const teamA = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind: 'FIXED_PAIR', sessionPairId: pairA.id })
+    const teamB = buildCreateTeamStatement(db, { sessionId, sessionCourtId, kind: 'FIXED_PAIR', sessionPairId: pairB.id })
+
+    // Tournament pairs never pass through joinQueueAsPair -- they are seated
+    // straight from the fixture list, not the fairness queue -- so there is
+    // no pre-existing QUEUED row for buildMarkAssignedStatement to flip.
+    // These rows are inserted ALREADY ASSIGNED instead. This is what lets
+    // hasOpenAssignmentForPair (dissolvePair/leaveSession's "pair is on a
+    // court" guard) and listAssignedSessionPlayerIdsForCourt (startGame,
+    // finishGame, releaseCourt) see this pair as genuinely seated, exactly as
+    // they do for an ordinary fixed-pairs assignment -- tournament code must
+    // not route around that guard (see this task's own brief).
+    const timestamp = new Date().toISOString()
+    const assignedQueueStatements = [
+      ...pairAMemberIds.map((sessionPlayerId) =>
+        db
+          .prepare(
+            `INSERT INTO queue_entries (id, session_id, session_player_id, session_pair_id, status, queued_at, assigned_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 'ASSIGNED', ?, ?, ?, ?)`,
+          )
+          .bind(crypto.randomUUID(), sessionId, sessionPlayerId, pairA.id, timestamp, timestamp, timestamp, timestamp),
+      ),
+      ...pairBMemberIds.map((sessionPlayerId) =>
+        db
+          .prepare(
+            `INSERT INTO queue_entries (id, session_id, session_player_id, session_pair_id, status, queued_at, assigned_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 'ASSIGNED', ?, ?, ?, ?)`,
+          )
+          .bind(crypto.randomUUID(), sessionId, sessionPlayerId, pairB.id, timestamp, timestamp, timestamp, timestamp),
+      ),
+    ]
+
+    const statements = [
+      teamA.statement,
+      ...pairAMemberIds.map((sessionPlayerId) => buildAddTeamMemberStatement(db, { teamId: teamA.id, sessionPlayerId })),
+      teamB.statement,
+      ...pairBMemberIds.map((sessionPlayerId) => buildAddTeamMemberStatement(db, { teamId: teamB.id, sessionPlayerId })),
+      ...assignedQueueStatements,
+      buildSetCourtStatusStatement(db, sessionId, sessionCourtId, 'ASSIGNED'),
+    ].filter(Boolean)
+
+    await db.batch(statements)
+
+    await this.broadcast(sessionId)
+
+    return {
+      ok: true as const,
+      court: await getSessionCourt(db, sessionId, sessionCourtId),
+      teamA: { id: teamA.id, players: pairAMemberIds.map((sessionPlayerId) => ({ sessionPlayerId })) },
+      teamB: { id: teamB.id, players: pairBMemberIds.map((sessionPlayerId) => ({ sessionPlayerId })) },
+      fixture,
+    }
+  }
+
   async replaceAssignedPlayer(
     sessionId: string,
     sessionCourtId: string,
@@ -914,6 +1069,42 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       payload: { servingTeam, teamAStartingServerSessionPlayerId, teamBStartingServerSessionPlayerId },
     })
 
+    // Tournament games (session.tournamentFormat, never sessionType --
+    // see assignCourt's own ordering-hazard comment) link the fixture that
+    // was seated for this court to the game JUST created above, in the SAME
+    // batch as the game's own creation -- buildSetFixtureGameStatement is
+    // named "for Task 6/7 to batch alongside the game-creation statements"
+    // in tournaments.js precisely because game creation happens HERE, not in
+    // assignCourt (no gameId exists yet when a court is merely assigned).
+    // The fixture is matched by its two entrants' underlying session_pair_id
+    // against this court's two teams' session_pair_id, in EITHER order --
+    // "team A" here is whichever side the caller named when starting the
+    // game (resolved by membership above), which need not match the
+    // fixture's own entrant_a/entrant_b labeling from assignCourt.
+    let fixtureLinkStatement: unknown = null
+    if (session.tournamentFormat) {
+      const [pairIdForTeamA, pairIdForTeamB] = await Promise.all([
+        getTeamSessionPairId(db, sessionId, teamAId),
+        getTeamSessionPairId(db, sessionId, teamBId),
+      ])
+      if (pairIdForTeamA && pairIdForTeamB) {
+        const fixtureRow = await db
+          .prepare(
+            `SELECT tf.id AS id
+             FROM tournament_fixtures tf
+             JOIN tournament_entrants ea ON ea.id = tf.entrant_a_id
+             JOIN tournament_entrants eb ON eb.id = tf.entrant_b_id
+             WHERE tf.session_id = ? AND tf.status = 'READY'
+               AND ((ea.session_pair_id = ? AND eb.session_pair_id = ?) OR (ea.session_pair_id = ? AND eb.session_pair_id = ?))`,
+          )
+          .bind(sessionId, pairIdForTeamA, pairIdForTeamB, pairIdForTeamB, pairIdForTeamA)
+          .first<{ id: string }>()
+        if (fixtureRow) {
+          fixtureLinkStatement = buildSetFixtureGameStatement(db, sessionId, fixtureRow.id, gameId)
+        }
+      }
+    }
+
     const statements = [
       gameStatement,
       ...participantStatements,
@@ -921,6 +1112,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       buildMarkPlayingStatement(db, sessionId, sessionPlayerIds),
       buildSetCourtStatusStatement(db, sessionId, sessionCourtId, 'PLAYING'),
       buildSetCourtCurrentGameStatement(db, sessionId, sessionCourtId, gameId),
+      fixtureLinkStatement,
     ].filter(Boolean)
 
     await db.batch(statements)
