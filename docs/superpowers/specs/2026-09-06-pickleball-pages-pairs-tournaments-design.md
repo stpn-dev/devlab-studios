@@ -373,13 +373,46 @@ eligible under the existing rules.
 
 ## 3.1 Shape
 
-A tournament is a **third session type**: `session_type` becomes
-`OPEN_PLAY | FIXED_PAIRS | TOURNAMENT`.
+**Amended 2026-09-08 — a tournament is NOT a third session type.** It is a
+`FIXED_PAIRS` session carrying a `tournament_format`. `session_type` stays
+`OPEN_PLAY | FIXED_PAIRS`.
+
+The original wording could not be implemented safely. `session_type` carries
+`CHECK (session_type IN ('OPEN_PLAY', 'FIXED_PAIRS'))`
+(`0001_foundation.sql:111`), SQLite cannot `ALTER` a CHECK, and the standard
+table-rebuild was measured against D1 rather than assumed:
+
+| Attempt | Outcome |
+|---|---|
+| Rebuild (create/copy/drop/rename) | CHECK widened and FK enforcement survived, but **every dependent row was silently deleted** by the `DROP TABLE` cascading |
+| Same, wrapped in `PRAGMA foreign_keys=OFF` | **Rows deleted again.** SQLite documents that pragma as a no-op inside a transaction, and D1 wraps migration batches in one, so it can never take effect there |
+
+Nine foreign keys across five migrations reference `pickleball_sessions`,
+most `ON DELETE CASCADE`. A rebuild would have destroyed every session's
+players, queue entries, teams, games and pairs — and reported success.
+
+The replacement model is a better fit for what a tournament actually is, not
+merely a workaround. §3.2 already requires entrants to be pairs, and this
+section already said only the "what plays next" decision swaps. A tournament
+*is* fixed-pairs play in which a fixture list replaces the fairness queue, so
+every pair mechanism Part B built — formation, both-members eligibility,
+`FIXED_PAIR` teams, `teams.session_pair_id` — is reused unchanged.
+
+`pickleball_sessions` gains one nullable column,
+`tournament_format TEXT CHECK (tournament_format IN ('ROUND_ROBIN',
+'SINGLE_ELIMINATION', 'POOL_TO_BRACKET', 'DOUBLE_ELIMINATION'))`. NULL means
+an ordinary fixed-pairs session. `ADD COLUMN` with a column-level CHECK was
+verified against D1: NULL is accepted, a bad value is rejected. The migration
+is purely additive and touches no existing row.
+
+**Generalised constraint, recorded for anything later:** no `CHECK` in this
+schema can be widened. Model new enum values as a new nullable column, or
+design the CHECK wide enough up front.
 
 This reuses venue, courts, check-in, the scoring engine and rulesets, undo and
-correction, the audit log, the realtime channel, and the public view wholesale.
-Only the "what plays next" decision swaps: the fairness queue is replaced by a
-fixture list.
+correction, the audit log, the realtime channel, the public view, and all of
+Part B's pair machinery wholesale. Only the "what plays next" decision swaps:
+the fairness queue is replaced by a fixture list.
 
 Session lifecycle is unchanged (`DRAFT → OPEN_FOR_CHECKIN → LIVE → COMPLETED`).
 Bracket state is separate and tracked on the tournament rows, not the session
@@ -406,8 +439,8 @@ input. Recording it here so a future reader does not "fix" one half of it.
 
 The mechanism is the existing `player_game_stats.eligible_for_opi` flag, set to
 `0` at finalization for any game whose session is a `TOURNAMENT`. No new column
-on `games` is needed — `games.session_id → pickleball_sessions.session_type` is
-the discriminator.
+on `games` is needed — `games.session_id → pickleball_sessions.tournament_format
+IS NOT NULL` is the discriminator (amended 2026-09-08 with §3.1's model).
 
 ## 3.3 Formats
 
@@ -504,7 +537,22 @@ New migrations, following the existing guard style
 never-edit-an-applied-migration rule:
 
 - `0012_session_pairs.sql` — `session_pairs`, `queue_entries.session_pair_id`.
-- `0013_tournaments.sql` — `tournament_entrants`, `tournament_fixtures`.
+- `0013_teams_session_pair.sql` — `teams.session_pair_id`.
+- `0014_tournaments.sql` — `tournament_entrants`, `tournament_fixtures`, and a
+  rebuild of `pickleball_sessions` to widen its `session_type` CHECK.
+
+**Amended 2026-09-08.** Two corrections found when Part C was planned. Part B
+shipped a `0013` of its own (`teams.session_pair_id`, needed to credit pair
+statistics to the pair that actually played), so tournaments take `0014`.
+
+More importantly, adding `TOURNAMENT` to `session_type` is not an additive
+change: `0001_foundation.sql:111` declares
+`CHECK (session_type IN ('OPEN_PLAY', 'FIXED_PAIRS'))`, and SQLite cannot
+`ALTER` a CHECK constraint. Widening it requires the full table-rebuild
+procedure — create the replacement, copy, drop, rename, recreate every index
+and foreign key — on a table many others reference. This is the single
+riskiest operation in Part C and is sequenced first, with its own
+verification, rather than assumed to work.
 
 ## 3.10 Testing (Part C)
 

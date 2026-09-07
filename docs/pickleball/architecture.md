@@ -96,6 +96,23 @@ USA-Pickleball-certified.
    played this game" once anyone re-pairs mid-session; see `schema.md`'s
    entry on that column for the failure mode this closes.
 
+### Schema constraint: CHECK clauses cannot be widened
+
+No `CHECK` in this schema can be extended once applied. SQLite has no
+`ALTER ... CHECK`, and the standard table-rebuild is unsafe on D1 — measured,
+not assumed: rebuilding a parent table silently deletes every dependent row
+through `ON DELETE CASCADE` when the old table is dropped, and
+`PRAGMA foreign_keys=OFF` does not help, because SQLite treats that pragma as
+a no-op inside a transaction and D1 wraps migration batches in one. The
+operation reports success while destroying data.
+
+`pickleball_sessions` alone is referenced by nine foreign keys across five
+migrations. So: model a new enum value as a **new nullable column** with its
+own CHECK (`ALTER TABLE ... ADD COLUMN` with a column-level CHECK does work,
+and is verified), or make the original CHECK wide enough up front. This is why
+a tournament is a `FIXED_PAIRS` session carrying a `tournament_format` rather
+than a third `session_type`.
+
 ## Multi-tenancy & RBAC
 
 - **Organization** — a club/venue operator's tenant. All operational data is
