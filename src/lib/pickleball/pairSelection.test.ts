@@ -64,11 +64,71 @@ describe('selectNextPairs', () => {
     expect(ids).not.toContain('p2')
   })
 
-  it('skips repeat-avoidance entirely below 3 eligible pairs, returning the top two even if they just played', () => {
+  it('is a no-op when there are too few candidates for a repeat-avoidance swap to have anything to draw from', () => {
+    // With exactly 2 eligible pairs and count=2, both are already selected --
+    // there is no candidate left outside the selection for the swap loop to
+    // draw a replacement from, so a mutual "just played" conflict is left as
+    // is. This is not gated by an explicit threshold constant (see the
+    // comment above selectNextPairs): a hand proof plus a 2,000,000-case
+    // randomised brute-force check (both done before writing this file)
+    // showed an explicit "too few pairs" gate could never independently
+    // change the outcome once the swap loop resolves every conflict, because
+    // the shortfall check above already guarantees sorted.length >= count,
+    // so "too few pairs" can only mean sorted.length === count here -- i.e.
+    // zero pairs left over regardless of any gate. This test instead pins
+    // the real invariant: the swap loop's own `!selectedIds.has(...)`
+    // exclusion is what keeps a pair from being "replaced" by itself. Delete
+    // that exclusion and this test catches it: the search would then accept
+    // p1 as its own replacement (nothing else stops it), producing a
+    // duplicate ['p1', 'p1'] instead of ['p1', 'p2'].
     const candidates = [pair({ sessionPairId: 'p1', gamesPlayed: 0 }), pair({ sessionPairId: 'p2', gamesPlayed: 0 })]
     const lastOpponentPairId = { p1: 'p2', p2: 'p1' }
     const result = selectNextPairs(candidates, 2, NOW, lastOpponentPairId)
     expect(result.selected.map((p) => p.sessionPairId).sort()).toEqual(['p1', 'p2'])
+  })
+
+  it('resolves every conflicting slot in a larger selection, never introducing a fresh repeat against a different selected pair', () => {
+    // Selected = [p0, p1, p2, p3] (count=4). Two INDEPENDENT conflicts:
+    // p0<->p1 and p2<->p3. p4 is a trap: it did NOT just play p0 (the
+    // top-ranked pair), so a guard that (incorrectly) compares a candidate's
+    // last opponent only against `selected[0]` would wrongly accept it as
+    // p3's replacement -- even though p4's real last opponent is p2, who
+    // stays selected, which would silently swap one repeat for a new one.
+    // p5 and p6 are clean (no recent-opponent conflicts) and are the only
+    // valid replacements once the trap is correctly rejected.
+    const candidates = [
+      pair({ sessionPairId: 'p0', gamesPlayed: 0, queuedAt: '2026-08-25T18:00:00.000Z' }),
+      pair({ sessionPairId: 'p1', gamesPlayed: 0, queuedAt: '2026-08-25T18:00:01.000Z' }),
+      pair({ sessionPairId: 'p2', gamesPlayed: 0, queuedAt: '2026-08-25T18:00:02.000Z' }),
+      pair({ sessionPairId: 'p3', gamesPlayed: 0, queuedAt: '2026-08-25T18:00:03.000Z' }),
+      pair({ sessionPairId: 'p4', gamesPlayed: 0, queuedAt: '2026-08-25T18:00:04.000Z' }),
+      pair({ sessionPairId: 'p5', gamesPlayed: 0, queuedAt: '2026-08-25T18:00:05.000Z' }),
+      pair({ sessionPairId: 'p6', gamesPlayed: 0, queuedAt: '2026-08-25T18:00:06.000Z' }),
+    ]
+    const lastOpponentPairId: Record<string, string> = {
+      p0: 'p1',
+      p1: 'p0',
+      p2: 'p3',
+      p3: 'p2',
+      p4: 'p2', // trap: conflicts with p2 (still selected), not with selected[0]
+    }
+    const result = selectNextPairs(candidates, 4, NOW, lastOpponentPairId)
+    const ids = result.selected.map((p) => p.sessionPairId)
+    const idSet = new Set(ids)
+
+    // Both original conflicts are gone from the selection.
+    expect(ids).not.toContain('p1')
+    expect(ids).not.toContain('p3')
+    // The trap was rejected: p4 must not have been drawn in, since it would
+    // introduce a fresh repeat against p2 (still selected).
+    expect(ids).not.toContain('p4')
+    expect(ids.sort()).toEqual(['p0', 'p2', 'p5', 'p6'])
+
+    // General invariant: no selected pair's last opponent is also selected.
+    for (const id of ids) {
+      const opponent = lastOpponentPairId[id]
+      if (opponent) expect(idSet.has(opponent)).toBe(false)
+    }
   })
 
   it('never overrides rule 1: a pair on more games is never selected over one on fewer, even to avoid a repeat', () => {

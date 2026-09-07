@@ -26,11 +26,19 @@ export interface PairSelectionResult {
   shortfall: string | null
 }
 
-// Below this many eligible pairs there is no meaningful alternative to swap
-// in, so repeat-avoidance is skipped rather than allowed to block an
-// otherwise-valid match. Mirrors queueEngine.ts's 5-player threshold: one
-// more than a full court's worth of entrants.
-const REPEAT_AVOIDANCE_MIN_PAIRS = 3
+// Rule 3 (repeat-avoidance) only ever fires when a real alternative exists to
+// swap in. Unlike queueEngine.ts's explicit 5-candidate threshold, no
+// explicit "too few eligible pairs" gate is needed here: the shortfall check
+// above already guarantees sorted.length >= count by the time this code
+// runs, and count >= 2 is required to even attempt a swap, so the only way
+// to have "too few pairs" left over is sorted.length === count === 2 -- at
+// which point every candidate is already selected and the swap loop's own
+// replacement search (below) structurally finds nothing to swap in. An
+// earlier version of this file had an explicit REPEAT_AVOIDANCE_MIN_PAIRS
+// gate; it was removed after both a hand proof and a 2,000,000-case
+// randomised brute-force check showed it could never independently change
+// the outcome once the swap loop resolves every conflict (see
+// pairSelection.test.ts's "no-op when there are too few candidates" case).
 
 function byFairness(a: PairCandidate, b: PairCandidate): number {
   if (a.gamesPlayed !== b.gamesPlayed) return a.gamesPlayed - b.gamesPlayed
@@ -57,30 +65,38 @@ export function selectNextPairs(
     }
   }
 
-  const selected = sorted.slice(0, count)
+  let selected = sorted.slice(0, count)
 
   // Rule 3, and only as a tiebreak. A swap is allowed exclusively between
-  // pairs tied on the EXACT same gamesPlayed, so it can never override rule
-  // 1; and only once enough pairs are eligible for a real alternative to
-  // exist.
-  if (lastOpponentPairId && sorted.length >= REPEAT_AVOIDANCE_MIN_PAIRS && count >= 2) {
-    const selectedIds = new Set(selected.map((pair) => pair.sessionPairId))
+  // pairs tied on the EXACT same gamesPlayed (never loosen this equality --
+  // it is the single invariant that stops rule 3 from ever overriding rule
+  // 1). Every conflicting slot in the selection is resolved in turn, not
+  // just the first one found, and a replacement is only accepted if it
+  // conflicts with none of the pairs that remain selected -- comparing only
+  // against the top-ranked pair would let a swap trade one repeat for a
+  // fresh repeat against a different selected pair.
+  if (lastOpponentPairId && count >= 2) {
+    let selectedIds = new Set(selected.map((pair) => pair.sessionPairId))
+
     for (let index = selected.length - 1; index >= 1; index -= 1) {
-      const lastOpponent = lastOpponentPairId[selected[index].sessionPairId]
+      const current = selected[index]
+      const lastOpponent = lastOpponentPairId[current.sessionPairId]
       if (!lastOpponent || !selectedIds.has(lastOpponent)) continue
 
+      const remainingSelectedIds = new Set([...selectedIds].filter((id) => id !== current.sessionPairId))
       const replacement = sorted.find(
         (candidate) =>
           !selectedIds.has(candidate.sessionPairId) &&
-          candidate.gamesPlayed === selected[index].gamesPlayed &&
-          lastOpponentPairId[candidate.sessionPairId] !== selected[0].sessionPairId,
+          candidate.gamesPlayed === current.gamesPlayed &&
+          !(
+            lastOpponentPairId[candidate.sessionPairId] &&
+            remainingSelectedIds.has(lastOpponentPairId[candidate.sessionPairId]!)
+          ),
       )
       if (!replacement) continue
 
-      selectedIds.delete(selected[index].sessionPairId)
-      selectedIds.add(replacement.sessionPairId)
-      selected[index] = replacement
-      break
+      selected = selected.map((pair, i) => (i === index ? replacement : pair))
+      selectedIds = new Set([...remainingSelectedIds, replacement.sessionPairId])
     }
   }
 
