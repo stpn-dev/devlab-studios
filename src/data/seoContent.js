@@ -107,6 +107,42 @@ export const seoContent = {
         'Hire Devlab Studios for software engineering, backend integrations, websites, or AI automation. Remote-first, available worldwide.',
       twitterImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
     },
+    {
+      id: 'seo-pickleball',
+      pageSlug: 'pickleball',
+      metaTitle: 'Devlab Pickleball — Open Play Session Management',
+      metaDescription:
+        'Run recreational pickleball open play from one screen: check-in, fair queueing, court assignment, rally-by-rally scoring, live standings, and a scoreboard your players follow from their own phones.',
+      metaKeywords:
+        'pickleball open play software, pickleball session management, pickleball queue app, pickleball court rotation, pickleball live scoreboard, open play check-in, pickleball club software',
+      canonicalUrl: 'https://www.devlabstudios.com/pickleball',
+      ogTitle: 'Devlab Pickleball — Open Play Session Management',
+      ogDescription:
+        'Check-in, queueing, court assignment and live scoring for recreational pickleball open play, all from one screen.',
+      ogImage: 'https://www.devlabstudios.com/og.png',
+      twitterTitle: 'Devlab Pickleball — Open Play Session Management',
+      twitterDescription:
+        'Run pickleball open play from one screen — fair queueing, court assignment, live scoring and a shareable scoreboard.',
+      twitterImage: 'https://www.devlabstudios.com/og.png',
+    },
+    {
+      id: 'seo-pickleball-how-it-works',
+      pageSlug: 'pickleball-how-it-works',
+      metaTitle: 'How Devlab Pickleball Works — Running an Open Play Session',
+      metaDescription:
+        'A full walkthrough of one open play session, written for the person holding the tablet: create the session, check players in, fill the queue, assign a court, start and score the game, then close it out.',
+      metaKeywords:
+        'how to run pickleball open play, pickleball session guide, pickleball court rotation guide, pickleball scorekeeping, open play facilitator guide',
+      canonicalUrl: 'https://www.devlabstudios.com/pickleball/how-it-works',
+      ogTitle: 'How Devlab Pickleball Works — Running an Open Play Session',
+      ogDescription:
+        'Every step of running an open play session, from creating it to closing it — written for the operator, not the player.',
+      ogImage: 'https://www.devlabstudios.com/og.png',
+      twitterTitle: 'How Devlab Pickleball Works — Running an Open Play Session',
+      twitterDescription:
+        'A step-by-step guide to running a pickleball open play session with Devlab Pickleball.',
+      twitterImage: 'https://www.devlabstudios.com/og.png',
+    },
   ],
 }
 
