@@ -1072,15 +1072,47 @@ test.describe('Pickleball games', () => {
     expect(selectedSessionPlayerIds).not.toContain(targetBSessionPlayerId)
   })
 
-  // Phase 5 (Performance/OPI): the leaderboard route (GET
-  // /api/pickleball/sessions/:id/leaderboard) has never had any automated
-  // coverage before this fix wave. A clean 4-player doubles shutout gives
-  // every participant a real SESSION-scoped snapshot (eligibleGamesCount 1),
-  // which is below this session's default leaderboardMinGames of 3 -- so
-  // this proves both the default-fallback path (no minGames param) and the
-  // explicit-override path (?minGames=1) in one test, matching this file's
-  // existing snapshot-cycle test's setup shape.
-  test('leaderboard: defaults to the session minGames, and an explicit override returns all players ordered by opi desc', async ({ request }) => {
+  // Session standings (GET /api/pickleball/sessions/:id/leaderboard). The
+  // route used to read player_performance_snapshots directly, so it returned
+  // `[]` for the whole first game of every session -- a snapshot row only
+  // exists once a player has finished an eligible game. It now starts from
+  // the attending roster instead: everyone checked in is present from the
+  // first minute, and `minGames` decides only who is *ranked*.
+  test('standings: lists the whole attending roster before any game finishes', async ({ request }) => {
+    const { sessionId } = await createLiveSessionWithPlayers(request, 4)
+
+    const response = await request.get(`/api/pickleball/sessions/${sessionId}/leaderboard`)
+    expect(response.status()).toBe(200)
+    const body = await response.json()
+    expect(body.minGames).toBe(3)
+    expect(body.leaderboard).toHaveLength(4)
+    // Nobody has played, so nobody is ranked -- but everybody is listed, with
+    // a null OPI rather than a misleading zero.
+    expect(body.leaderboard.every((row) => row.rank === null && row.qualified === false)).toBe(true)
+    expect(body.leaderboard.every((row) => row.opi === null && row.eligibleGamesCount === 0)).toBe(true)
+  })
+
+  test('standings: flags players on court while their game is still in progress', async ({ request }) => {
+    const { sessionId, sessionCourts } = await createLiveSessionWithPlayers(request, 4)
+    const sessionCourtId = sessionCourts[0].id
+    const assignBody = await assignCourt(request, sessionId, sessionCourtId)
+    const startResponse = await startGame(request, sessionId, sessionCourtId, assignBody, 'A')
+    expect(startResponse.status()).toBe(201)
+
+    const body = await (await request.get(`/api/pickleball/sessions/${sessionId}/leaderboard`)).json()
+    expect(body.leaderboard.filter((row) => row.onCourt)).toHaveLength(4)
+    // An in-progress game contributes nothing to OPI (spec §8 eligibility is
+    // FINISHED games only) -- only the on-court flag changes.
+    expect(body.leaderboard.every((row) => row.opi === null)).toBe(true)
+  })
+
+  // A clean 4-player doubles shutout gives every participant a real
+  // SESSION-scoped snapshot (eligibleGamesCount 1), which is below this
+  // session's default leaderboardMinGames of 3 -- so this proves both the
+  // default-fallback path (no minGames param, nobody ranked yet but everyone
+  // listed with real W-L and differential) and the explicit-override path
+  // (?minGames=1, everyone ranked) in one test.
+  test('standings: ranks by opi once players clear the session minGames, and carries real win/loss totals', async ({ request }) => {
     const { sessionId, sessionCourts } = await createLiveSessionWithPlayers(request, 4)
     const sessionCourtId = sessionCourts[0].id
     const assignBody = await assignCourt(request, sessionId, sessionCourtId)
@@ -1094,10 +1126,13 @@ test.describe('Pickleball games', () => {
 
     // No minGames param: the session's own default (3, per the
     // session-creation schema) applies, and every player here only has
-    // eligibleGamesCount 1 -- so nobody qualifies yet.
-    const defaultResponse = await request.get(`/api/pickleball/sessions/${sessionId}/leaderboard`)
-    expect(defaultResponse.status()).toBe(200)
-    expect(await defaultResponse.json()).toEqual({ leaderboard: [] })
+    // eligibleGamesCount 1 -- so nobody is *ranked* yet, but all four are
+    // still on the board with their real record.
+    const defaultBody = await (await request.get(`/api/pickleball/sessions/${sessionId}/leaderboard`)).json()
+    expect(defaultBody.leaderboard).toHaveLength(4)
+    expect(defaultBody.leaderboard.every((row) => row.rank === null)).toBe(true)
+    expect(defaultBody.leaderboard.filter((row) => row.wins === 1 && row.pointDifferential === 11)).toHaveLength(2)
+    expect(defaultBody.leaderboard.filter((row) => row.losses === 1 && row.pointDifferential === -11)).toHaveLength(2)
 
     // Explicit override: all 4 participants now qualify, ordered by opi
     // descending (the two winners at 100, the two losers at 0).
@@ -1105,6 +1140,7 @@ test.describe('Pickleball games', () => {
     expect(overrideResponse.status()).toBe(200)
     const overrideBody = await overrideResponse.json()
     expect(overrideBody.leaderboard).toHaveLength(4)
+    expect(overrideBody.leaderboard.map((row) => row.rank)).toEqual([1, 2, 3, 4])
     const opiValues = overrideBody.leaderboard.map((row) => row.opi)
     expect(opiValues).toEqual([...opiValues].sort((a, b) => b - a))
   })

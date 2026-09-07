@@ -955,12 +955,19 @@ test('shows the session leaderboard with the show-provisional toggle', async ({ 
   await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/finish`, { data: {} })
 
   await page.goto(`/pickleball/app/sessions/${sessionId}/leaderboard`)
-  await expect(page.getByText('No qualifying players yet.')).toBeVisible()
 
-  await page.getByLabel('Show provisional players').check()
+  // Standings show the whole attending roster by default -- all four players
+  // are listed after one finished game even though none of them has reached
+  // the session's leaderboardMinGames of 3 yet.
   await expect(page.getByTestId('leaderboard-list')).toBeVisible({ timeout: 10000 })
-  const rows = page.getByTestId('leaderboard-list').locator('> div')
+  const rows = page.getByTestId('leaderboard-list').locator('tbody tr[class]')
   await expect(rows).toHaveCount(4)
+  await expect(page.getByText(/Not yet ranked/)).toBeVisible()
+
+  // Unticking narrows the board to ranked players only -- nobody qualifies
+  // here, so the qualifying empty state takes over.
+  await page.getByLabel('Show provisional players').uncheck()
+  await expect(page.getByText('No qualifying players yet.')).toBeVisible()
 })
 
 test('opens a player profile from the Players page and shows all-time and per-session stats', async ({ page, request, context }) => {

@@ -41,6 +41,21 @@ USA-Pickleball-certified.
    only copy of anything. See `docs/architecture/decisions/0006-pickleball-durable-objects.md`
    for why this pattern was introduced, and `realtime.md` for the wire
    protocol.
+5. **Standings vs. OPI snapshots** — two deliberately different read models
+   over the same facts. `player_performance_snapshots` is the OPI store: a
+   row exists only once a player has finished an eligible game, which is the
+   right shape for an all-time leaderboard and the wrong one for a live
+   session board (it renders empty for the whole first game of every
+   session). The operator Standings page therefore reads
+   `listSessionStandings()`
+   (`src/worker/repositories/pickleball/sessionStandings.js`), which starts
+   from the attending roster and left-joins the snapshot, per-game W/L and
+   point totals, and an on-court flag; ranking is applied by the pure
+   `rankStandings()` (`src/lib/pickleball/standings.ts`). OPI itself is
+   unchanged: eligibility is still FINISHED games only, so an unplayed
+   player carries a null OPI and no rank rather than a misleading zero, and
+   an in-progress score never contributes. `leaderboard_min_games` still
+   decides who is *ranked* — it no longer decides who is *visible*.
 
 ## Multi-tenancy & RBAC
 

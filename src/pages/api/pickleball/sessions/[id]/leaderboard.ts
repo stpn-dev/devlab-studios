@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro'
 import { requirePickleballSession } from '../../../../../worker/pickleball/authContext.js'
 import { getSession } from '../../../../../worker/repositories/pickleball/sessions.js'
-import { listLeaderboard } from '../../../../../worker/repositories/pickleball/playerPerformanceSnapshots.js'
-import { confidenceTier } from '../../../../../lib/pickleball/opi'
+import { listSessionStandings } from '../../../../../worker/repositories/pickleball/sessionStandings.js'
+import { rankStandings } from '../../../../../lib/pickleball/standings'
 import { jsonResponse, apiErrorResponse } from '../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../lib/env'
 
@@ -24,16 +24,15 @@ export const GET: APIRoute = async ({ request, params, url }) => {
     const parsedMinGames = minGamesParam === null ? NaN : Number(minGamesParam)
     const minGames = Number.isFinite(parsedMinGames) && parsedMinGames >= 0 ? parsedMinGames : pickleballSession.leaderboardMinGames
 
-    const rows = await listLeaderboard(env.PICKLEBALL_DB, session.activeOrgId, 'SESSION', sessionId, minGames)
-    const leaderboard = rows.map((row: { playerId: string; displayName: string; opi: number; eligibleGamesCount: number }) => ({
-      playerId: row.playerId,
-      displayName: row.displayName,
-      opi: row.opi,
-      eligibleGamesCount: row.eligibleGamesCount,
-      confidenceTier: confidenceTier(row.eligibleGamesCount),
-    }))
+    // The full attending roster, ranked -- players below the threshold (a
+    // brand-new session's entire roster) come back too, flagged
+    // `qualified: false` with a null rank, so the board is never blank while
+    // a session is under way. `minGames` still governs who is *ranked*, so
+    // the session's configured threshold keeps its exact spec meaning.
+    const rows = await listSessionStandings(env.PICKLEBALL_DB, sessionId, session.activeOrgId)
+    const leaderboard = rankStandings(rows, minGames)
 
-    return jsonResponse({ leaderboard }, 200)
+    return jsonResponse({ leaderboard, minGames }, 200)
   } catch (error) {
     return apiErrorResponse(error)
   }
