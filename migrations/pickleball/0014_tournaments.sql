@@ -61,7 +61,14 @@ CREATE TABLE IF NOT EXISTS tournament_fixtures (
   FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE SET NULL
 );
 
+-- pool_label is part of the key, not decoration. POOL_TO_BRACKET (C3) runs
+-- several pools concurrently and each numbers its own rounds and positions
+-- from the start, so without it two pools' round-1/position-0 fixtures would
+-- collide on this index. Included now, while this migration is still local to
+-- an unmerged branch, rather than costing a second migration in C3 -- the
+-- same "make the constraint wide enough up front" lesson this file's own
+-- header records about CHECK clauses.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tournament_fixtures_slot
-  ON tournament_fixtures(session_id, bracket, round_number, position);
+  ON tournament_fixtures(session_id, bracket, pool_label, round_number, position);
 CREATE INDEX IF NOT EXISTS idx_tournament_fixtures_status ON tournament_fixtures(session_id, status);
 CREATE INDEX IF NOT EXISTS idx_tournament_fixtures_game ON tournament_fixtures(game_id);
