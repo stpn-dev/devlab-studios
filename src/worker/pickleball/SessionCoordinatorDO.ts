@@ -1726,8 +1726,19 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!session) return failure('Session not found.')
 
     if (session.sessionType === 'FIXED_PAIRS') {
+      // Guard BEFORE the batch, same shape as setAvailability's FIXED_PAIRS
+      // branch above -- checking attendanceStatus AFTER db.batch() had
+      // already committed the leave/dissolve/queue-close statements would
+      // let a caller be told nothing happened while their pair was in fact
+      // dissolved and their queue rows deleted. Unreachable today (formPair
+      // gates pairing on CHECKED_IN, so a player in an ACTIVE pair is always
+      // checked in), but the ordering must be correct regardless.
       const sessionPlayer = await getSessionPlayer(db, sessionId, playerId)
-      const pair = sessionPlayer ? await getActivePairForSessionPlayer(db, sessionId, sessionPlayer.id) : null
+      if (!sessionPlayer || sessionPlayer.attendanceStatus !== 'CHECKED_IN') {
+        return failure('Player cannot leave in their current state.')
+      }
+
+      const pair = await getActivePairForSessionPlayer(db, sessionId, sessionPlayer.id)
 
       const leaveStatement = db
         .prepare(
@@ -1741,8 +1752,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
         ...(pair ? [buildDissolvePairStatement(db, sessionId, pair.id), buildCloseQueueEntriesForPairStatement(db, sessionId, pair.id)] : []),
       ]
 
-      const [leaveResult] = await db.batch(statements)
-      if (!leaveResult.meta.changes) return failure('Player cannot leave in their current state.')
+      await db.batch(statements)
 
       await this.broadcast(sessionId)
       return { ok: true as const, sessionPlayer: await getSessionPlayer(db, sessionId, playerId) }

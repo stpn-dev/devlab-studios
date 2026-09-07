@@ -227,7 +227,40 @@ test.describe('Pickleball fixed pairs: form and dissolve', () => {
       data: { sessionPlayerAId: playerA, sessionPlayerBId: playerC },
     })
     expect(secondPairResponse.status()).toBe(409)
-    expect((await secondPairResponse.json()).error).toBeTruthy()
+    // Two independent layers both enforce "at most one ACTIVE pair per
+    // player" -- formPair's own defense-in-depth re-check (a clean domain
+    // error) and migration 0012's trg_session_pairs_one_active_pair_per_player
+    // trigger (the layer that actually closes the race, since this call is
+    // NOT concurrent with the first). Because this request runs strictly
+    // AFTER the first has already committed (no race), formPair's own
+    // re-check always sees playerA's pair and returns first -- so this exact
+    // string, not createPair's DB-conflict fallback message, is what a
+    // sequential caller must see. Asserting the literal string (not just
+    // "truthy") is what makes it possible to tell, from the response alone,
+    // which of the two layers fired.
+    expect((await secondPairResponse.json()).error).toBe('One or both players are already in an active pair.')
+  })
+
+  test('refuses to pair a player with themselves', async ({ request }) => {
+    // Exercises the OTHER database-level guard the trigger's own message
+    // above never reaches: migration 0012's table CHECK
+    // (session_player_a_id != session_player_b_id). formPair's own re-check
+    // (getActivePairForSessionPlayer for A and B) cannot catch this case --
+    // a lone unpaired player has no active pair to find for either id -- so
+    // this request reaches createPair's INSERT, which the CHECK constraint
+    // rejects, and createPair's null return is what produces this exact
+    // fallback message. Unlike the test above, this one is NOT racy or
+    // sequencing-dependent: it is always the DB layer that fires here, on
+    // every run, because formPair's own pre-check structurally cannot cover
+    // "the same player given twice".
+    const { sessionId, sessionPlayerIds } = await createFixedPairsSessionWithCheckedInPlayers(request, 1)
+    const [playerA] = sessionPlayerIds
+
+    const response = await request.post(`/api/pickleball/sessions/${sessionId}/pairs`, {
+      data: { sessionPlayerAId: playerA, sessionPlayerBId: playerA },
+    })
+    expect(response.status()).toBe(409)
+    expect((await response.json()).error).toBe('One or both players are already in an active pair, or the same player was given twice.')
   })
 
   test('refuses to pair a player who is not checked in', async ({ request }) => {
@@ -584,6 +617,19 @@ test.describe('Pickleball fixed pairs: edge cases', () => {
 
     const statuses = [firstResponse.status(), secondResponse.status()].sort()
     expect(statuses).toEqual([201, 409])
+
+    // Same reasoning as the sequential "already in an active pair" test
+    // above: the DO serializes every command for this session, so even
+    // though these two requests are FIRED concurrently, one is always fully
+    // processed (and committed) before the other's formPair call ever reads
+    // the database -- there is no genuine race here for migration 0012's
+    // trigger to close. That means formPair's own re-check always fires
+    // first for whichever request loses, and this exact string is what
+    // proves that: if the DO's pre-check were ever removed, this failing
+    // response would carry createPair's different DB-conflict fallback
+    // message instead.
+    const failedResponse = firstResponse.status() === 409 ? firstResponse : secondResponse
+    expect((await failedResponse.json()).error).toBe('One or both players are already in an active pair.')
 
     const pairsResponse = await request.get(`/api/pickleball/sessions/${sessionId}/pairs`)
     const pairs = (await pairsResponse.json()).pairs
