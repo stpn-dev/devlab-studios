@@ -640,3 +640,77 @@ test.describe('Pickleball fixed pairs: pair statistics', () => {
     expect(pairsAfterRefinish.find((p) => p.id === pairB.id).gamesPlayed).toBe(1)
   })
 })
+
+test.describe('Pickleball fixed pairs: operator UI', () => {
+  test('the check-in page lets an operator pair two checked-in players, shows each partner, and marks an unpaired player as needing one; the queue page renders the pair as one row', async ({
+    page,
+    request,
+    baseURL,
+  }) => {
+    await loginAsOperator(request, page.context(), baseURL)
+
+    const venueResponse = await request.post('/api/pickleball/venues', {
+      data: { name: `Pairs UI Venue ${Date.now()}-${Math.random().toString(36).slice(2)}` },
+    })
+    const venueId = (await venueResponse.json()).venue.id
+
+    const sessionResponse = await request.post('/api/pickleball/sessions', {
+      data: {
+        venueId,
+        name: `Pairs UI Session ${Date.now()}`,
+        sessionType: 'FIXED_PAIRS',
+        scoringRulesetId: 'usap-2026-sideout-11-doubles',
+        scheduledStart: '2026-08-30T18:00:00.000Z',
+        scheduledEnd: '2026-08-30T22:00:00.000Z',
+      },
+    })
+    const sessionId = (await sessionResponse.json()).session.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+
+    const playerAName = `Pairs UI Player A ${Date.now()}`
+    const playerBName = `Pairs UI Player B ${Date.now()}`
+    const playerAId = (await (await request.post('/api/pickleball/players', { data: { displayName: playerAName } })).json()).player.id
+    const playerBId = (await (await request.post('/api/pickleball/players', { data: { displayName: playerBName } })).json()).player.id
+    const sessionPlayerAId = (
+      await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId: playerAId } })).json()
+    ).sessionPlayer.id
+    const sessionPlayerBId = (
+      await (await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId: playerBId } })).json()
+    ).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId: playerAId } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId: playerBId } })
+
+    await page.goto(`/pickleball/app/sessions/${sessionId}/check-in`)
+    await expect(page.getByTestId('checkin-list').getByText(playerAName)).toBeVisible()
+    await expect(page.getByTestId('checkin-list').getByText(playerBName)).toBeVisible()
+
+    // Both checked-in players are unpaired -- each row is marked as needing a partner.
+    await expect(page.getByTestId(`checkin-needs-partner-${sessionPlayerAId}`)).toBeVisible()
+    await expect(page.getByTestId(`checkin-needs-partner-${sessionPlayerBId}`)).toBeVisible()
+
+    // Select both and form the pair.
+    await page.getByTestId(`checkin-pair-select-${sessionPlayerAId}`).check()
+    await page.getByTestId(`checkin-pair-select-${sessionPlayerBId}`).check()
+    await page.getByTestId('checkin-form-pair').click()
+
+    // Each row now shows its partner's name, and neither is marked
+    // "needs a partner" any more.
+    await expect(page.getByTestId(`checkin-partner-${sessionPlayerAId}`)).toContainText(playerBName)
+    await expect(page.getByTestId(`checkin-partner-${sessionPlayerBId}`)).toContainText(playerAName)
+    await expect(page.getByTestId(`checkin-needs-partner-${sessionPlayerAId}`)).toHaveCount(0)
+    await expect(page.getByTestId(`checkin-needs-partner-${sessionPlayerBId}`)).toHaveCount(0)
+
+    // Joining the queue names only ONE member -- the pair queues together.
+    await request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId: sessionPlayerAId } })
+
+    await page.goto(`/pickleball/app/sessions/${sessionId}/queue`)
+    await expect(page.getByTestId('queue-waiting-list').getByText(playerAName)).toBeVisible()
+    await expect(page.getByTestId('queue-waiting-list').getByText(playerBName)).toBeVisible()
+    // Exactly ONE row for the pair -- one "Leave queue" action, not two.
+    await expect(page.getByTestId('queue-waiting-list').getByRole('button', { name: 'Leave queue' })).toHaveCount(1)
+
+    await page.getByTestId('queue-waiting-list').getByRole('button', { name: 'Leave queue' }).click()
+    await expect(page.getByTestId('queue-waiting-list').getByText('Nobody waiting.')).toBeVisible({ timeout: 10000 })
+  })
+})

@@ -2,6 +2,7 @@ import { useOutletContext } from 'react-router-dom'
 import { useState } from 'react'
 import { pickleballApi } from '../lib/pickleballApi'
 import QueuePlayerRow from '../components/QueuePlayerRow'
+import PairRow from '../components/PairRow'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 import EmptyQueueGraphic from '../components/illustrations/EmptyQueueGraphic'
@@ -15,6 +16,34 @@ import EmptyQueueGraphic from '../components/illustrations/EmptyQueueGraphic'
 function waitMinutesSince(queuedAt) {
   if (!queuedAt) return 0
   return Math.max(0, Math.round((Date.now() - Date.parse(queuedAt)) / 60000))
+}
+
+// Groups queue entries sharing one session_pair_id (FIXED_PAIRS --
+// joinQueueAsPair inserts two rows, one per member, sharing one
+// session_pair_id and queued_at; see queueEntries.js's own header comment)
+// into a single group, so the waiting list can render one PairRow instead of
+// two separate QueuePlayerRows. An OPEN_PLAY entry's sessionPairId is always
+// null (plain joinQueue never sets it), so it always becomes its own
+// singleton group -- the grouping is entirely data-driven off what's already
+// in the snapshot, with no session-type branch anywhere, so an OPEN_PLAY
+// session's queue renders exactly as it did before this function existed.
+function groupQueueEntries(entries) {
+  const groups = []
+  const groupIndexByPairId = new Map()
+  for (const entry of entries) {
+    if (!entry.sessionPairId) {
+      groups.push([entry])
+      continue
+    }
+    const existingIndex = groupIndexByPairId.get(entry.sessionPairId)
+    if (existingIndex === undefined) {
+      groupIndexByPairId.set(entry.sessionPairId, groups.length)
+      groups.push([entry])
+    } else {
+      groups[existingIndex].push(entry)
+    }
+  }
+  return groups
 }
 
 export default function QueuePage() {
@@ -33,6 +62,7 @@ export default function QueuePage() {
   const loading = !snapshot
   const queued = loading ? [] : snapshot.queue.filter((entry) => entry.status === 'QUEUED')
   const assigned = loading ? [] : snapshot.queue.filter((entry) => entry.status !== 'QUEUED')
+  const queuedGroups = groupQueueEntries(queued)
 
   return (
     <div className="space-y-6">
@@ -51,18 +81,30 @@ export default function QueuePage() {
           <div>
             <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-500">Waiting ({queued.length})</h2>
             <div className="space-y-2" data-testid="queue-waiting-list">
-              {queued.map((entry, index) => (
-                <QueuePlayerRow
-                  key={entry.id}
-                  position={index + 1}
-                  player={{ displayName: entry.displayName, sessionPlayerId: entry.sessionPlayerId }}
-                  gamesPlayed={entry.gamesPlayed}
-                  waitMinutes={waitMinutesSince(entry.queuedAt)}
-                  reasons={entry.reasons}
-                  onLeave={() => handleLeave(entry.sessionPlayerId)}
-                />
-              ))}
-              {!queued.length ? <EmptyState title="Nobody waiting." illustration={EmptyQueueGraphic} /> : null}
+              {queuedGroups.map((group, index) =>
+                group.length === 2 ? (
+                  <PairRow
+                    key={group[0].id}
+                    position={index + 1}
+                    players={group.map((entry) => ({ displayName: entry.displayName, sessionPlayerId: entry.sessionPlayerId }))}
+                    gamesPlayed={group[0].gamesPlayed}
+                    waitMinutes={waitMinutesSince(group[0].queuedAt)}
+                    reasons={group[0].reasons}
+                    onLeave={() => handleLeave(group[0].sessionPlayerId)}
+                  />
+                ) : (
+                  <QueuePlayerRow
+                    key={group[0].id}
+                    position={index + 1}
+                    player={{ displayName: group[0].displayName, sessionPlayerId: group[0].sessionPlayerId }}
+                    gamesPlayed={group[0].gamesPlayed}
+                    waitMinutes={waitMinutesSince(group[0].queuedAt)}
+                    reasons={group[0].reasons}
+                    onLeave={() => handleLeave(group[0].sessionPlayerId)}
+                  />
+                )
+              )}
+              {!queuedGroups.length ? <EmptyState title="Nobody waiting." illustration={EmptyQueueGraphic} /> : null}
             </div>
           </div>
 

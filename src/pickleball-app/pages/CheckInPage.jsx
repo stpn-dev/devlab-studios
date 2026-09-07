@@ -5,18 +5,29 @@ import { canCheckIn, canSetAvailability, canLeaveSession, canCancelRegistration 
 import PlayerStatusChip from '../components/PlayerStatusChip'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
-import { Search, UserCheck, LogOut, ListOrdered } from '../../components/icons/icons'
+import { Search, UserCheck, LogOut, ListOrdered, AlertTriangle, Link2, Unlock } from '../../components/icons/icons'
 
 export default function CheckInPage() {
-  const { sessionId } = useOutletContext()
+  const { sessionId, session } = useOutletContext()
   const [sessionPlayers, setSessionPlayers] = useState([])
   const [counts, setCounts] = useState(null)
   const [orgPlayers, setOrgPlayers] = useState([])
   const [queuedSessionPlayerIds, setQueuedSessionPlayerIds] = useState(new Set())
+  const [pairs, setPairs] = useState([])
   const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState(null)
   const [selectedNewPlayerId, setSelectedNewPlayerId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [pairingSelection, setPairingSelection] = useState([])
+
+  // A FIXED_PAIRS session is the only session type with any session_pairs
+  // rows at all (spec Part B) -- `session` starts null (SessionLayout's own
+  // fetch hasn't resolved yet), so this is false on first render and flips
+  // true once it loads, which is exactly what gates the extra /pairs fetch
+  // in reload() below. An OPEN_PLAY session never flips it, so that fetch
+  // (and everything this flag renders) never happens there -- this page is
+  // provably unchanged for OPEN_PLAY.
+  const isFixedPairs = session?.sessionType === 'FIXED_PAIRS'
 
   async function reload() {
     // Queue membership isn't part of this page's own session-players fetch
@@ -28,15 +39,21 @@ export default function CheckInPage() {
     // open entry (QUEUED/ASSIGNED/PLAYING -- queue_entries' only possible
     // statuses per its own CHECK constraint) and shouldn't show "Join queue"
     // again.
-    const [sessionData, orgData, queueData] = await Promise.all([
+    // The pairs fetch only runs for a FIXED_PAIRS session -- an OPEN_PLAY
+    // session has no session_pairs rows and isFixedPairs never turns on
+    // for it, so this call (and the pairing UI it feeds) never happens
+    // there. See isFixedPairs' own comment.
+    const [sessionData, orgData, queueData, pairsData] = await Promise.all([
       pickleballApi.get(`/api/pickleball/sessions/${sessionId}/players`),
       pickleballApi.get('/api/pickleball/players'),
       pickleballApi.get(`/api/pickleball/sessions/${sessionId}/queue`),
+      isFixedPairs ? pickleballApi.get(`/api/pickleball/sessions/${sessionId}/pairs`) : Promise.resolve({ pairs: [] }),
     ])
     setSessionPlayers(sessionData.players)
     setCounts(sessionData.counts)
     setOrgPlayers(orgData.players)
     setQueuedSessionPlayerIds(new Set(queueData.queue.map((entry) => entry.sessionPlayerId)))
+    setPairs(pairsData.pairs)
     setStatus('ready')
   }
 
@@ -46,8 +63,13 @@ export default function CheckInPage() {
     return () => {
       ignore = true
     }
+    // isFixedPairs is included so the initial mount (before SessionLayout's
+    // own session fetch resolves) reruns reload() once it flips from false
+    // to true, picking up the /pairs fetch it gates above -- without this,
+    // a FIXED_PAIRS session's pairs would never load unless some OTHER
+    // dependency happened to change first.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId])
+  }, [sessionId, isFixedPairs])
 
   const registeredPlayerIds = new Set(
     sessionPlayers.filter((p) => p.registrationStatus === 'REGISTERED').map((p) => p.playerId)
@@ -73,6 +95,47 @@ export default function CheckInPage() {
     return player.attendanceStatus === 'CHECKED_IN' && player.availabilityStatus === 'AVAILABLE' && !queuedSessionPlayerIds.has(player.id)
   }
   const joinQueueEligibleSessionPlayerIds = filteredPlayers.filter(canJoinQueue).map((player) => player.id)
+
+  // Derived per-player pairing lookups (FIXED_PAIRS sessions only): which
+  // pair (if any) a session_player currently belongs to, and their
+  // partner's display name for that pair -- built fresh from `pairs` on
+  // every render rather than stored as its own piece of state, since `pairs`
+  // (refreshed by reload()) is already the single source of truth.
+  const pairIdBySessionPlayerId = new Map()
+  const partnerDisplayNameBySessionPlayerId = new Map()
+  for (const pair of pairs) {
+    pairIdBySessionPlayerId.set(pair.sessionPlayerAId, pair.id)
+    pairIdBySessionPlayerId.set(pair.sessionPlayerBId, pair.id)
+    partnerDisplayNameBySessionPlayerId.set(pair.sessionPlayerAId, pair.playerBDisplayName)
+    partnerDisplayNameBySessionPlayerId.set(pair.sessionPlayerBId, pair.playerADisplayName)
+  }
+
+  // Mirrors formPair's own checked-in requirement (spec Part B) -- the
+  // player-not-checked-in-yet 409 the server would otherwise return.
+  function canSelectForPairing(player) {
+    return isFixedPairs && player.attendanceStatus === 'CHECKED_IN' && !pairIdBySessionPlayerId.has(player.id)
+  }
+
+  function togglePairingSelection(sessionPlayerId) {
+    setPairingSelection((current) => {
+      if (current.includes(sessionPlayerId)) return current.filter((id) => id !== sessionPlayerId)
+      if (current.length >= 2) return current
+      return [...current, sessionPlayerId]
+    })
+  }
+
+  function handleFormPair() {
+    if (pairingSelection.length !== 2) return
+    const [sessionPlayerAId, sessionPlayerBId] = pairingSelection
+    runAction(
+      pickleballApi.post(`/api/pickleball/sessions/${sessionId}/pairs`, { sessionPlayerAId, sessionPlayerBId }),
+      () => setPairingSelection([]),
+    )
+  }
+
+  function handleUnpair(pairId) {
+    runAction(pickleballApi.delete(`/api/pickleball/sessions/${sessionId}/pairs/${pairId}`))
+  }
 
   async function runAction(actionPromise, onSuccess) {
     setMessage(null)
@@ -263,6 +326,18 @@ export default function CheckInPage() {
             <ListOrdered className="h-3.5 w-3.5" aria-hidden="true" />
             Join all to queue
           </button>
+          {isFixedPairs ? (
+            <button
+              type="button"
+              onClick={handleFormPair}
+              disabled={pairingSelection.length !== 2}
+              data-testid="checkin-form-pair"
+              className="pb-btn-primary inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Form pair {pairingSelection.length ? `(${pairingSelection.length}/2)` : ''}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -274,6 +349,29 @@ export default function CheckInPage() {
             <PlayerStatusChip status={player.attendanceStatus} />
             {player.attendanceStatus === 'CHECKED_IN' ? (
               <PlayerStatusChip status={player.availabilityStatus} />
+            ) : null}
+            {isFixedPairs && player.attendanceStatus === 'CHECKED_IN' ? (
+              partnerDisplayNameBySessionPlayerId.has(player.id) ? (
+                <span className="text-xs font-medium text-slate-500" data-testid={`checkin-partner-${player.id}`}>
+                  Paired with {partnerDisplayNameBySessionPlayerId.get(player.id)}
+                </span>
+              ) : canSelectForPairing(player) ? (
+                <>
+                  <span data-testid={`checkin-needs-partner-${player.id}`}>
+                    <PlayerStatusChip status="NEEDS_PARTNER" icon={AlertTriangle} label="Needs partner" />
+                  </span>
+                  <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={pairingSelection.includes(player.id)}
+                      onChange={() => togglePairingSelection(player.id)}
+                      disabled={pairingSelection.length >= 2 && !pairingSelection.includes(player.id)}
+                      data-testid={`checkin-pair-select-${player.id}`}
+                    />
+                    Select for pairing
+                  </label>
+                </>
+              ) : null
             ) : null}
             <div className="ml-auto flex gap-2">
               {canCheckIn(player) ? (
@@ -310,6 +408,17 @@ export default function CheckInPage() {
                 >
                   <ListOrdered className="h-3.5 w-3.5" aria-hidden="true" />
                   Join queue
+                </button>
+              ) : null}
+              {isFixedPairs && player.attendanceStatus === 'CHECKED_IN' && pairIdBySessionPlayerId.has(player.id) ? (
+                <button
+                  type="button"
+                  onClick={() => handleUnpair(pairIdBySessionPlayerId.get(player.id))}
+                  data-testid={`checkin-unpair-${player.id}`}
+                  className="inline-flex min-h-11 items-center gap-1.5 justify-center rounded border border-rose-300 px-3 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                >
+                  <Unlock className="h-3.5 w-3.5" aria-hidden="true" />
+                  Unpair
                 </button>
               ) : null}
             </div>
