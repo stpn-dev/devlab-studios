@@ -85,11 +85,14 @@ import { buildRecomputePlayerSnapshotsStatements, getPlayerSnapshot } from '../r
 import {
   enterPair as enterTournamentPairRepo,
   listEntrants as listTournamentEntrants,
+  getEntrant as getTournamentEntrant,
   buildSetSeedStatement,
   insertFixturesStatements,
   buildLockBracketStatement,
   listFixtures as listTournamentFixtures,
+  getFixtureByGameId,
   buildSetFixtureGameStatement,
+  buildFinishFixtureStatement,
 } from '../repositories/pickleball/tournaments.js'
 import { buildSessionSnapshot, buildPublicSnapshotExtras } from './sessionSnapshot.js'
 import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
@@ -1450,10 +1453,52 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       return buildCreatePlayerGameStatStatement(db, {
         gameId, playerId: p.player_id, pointsFor, pointsAgainst,
         gamePerformance: gamePerformance(pointsFor, pointsAgainst),
-        isWin: p.team_id === winningTeamId, eligibleForOpi: true,
+        // OPI is spent, never earned (spec §3.2): a tournament game's result
+        // counts toward the bracket (tournament standings, Task 8) but must
+        // NEVER feed a player's OPI. The discriminator is
+        // `session.tournamentFormat`, not `session.sessionType` -- an
+        // ordinary fixed-pairs game is ALSO a FIXED_PAIRS session and must
+        // keep writing 1 here (proven by this task's non-tournament control
+        // test).
+        isWin: p.team_id === winningTeamId, eligibleForOpi: !session.tournamentFormat,
       })
     })
     const affectedPlayerIds = participants.map((p) => p.player_id)
+
+    // Tournament fixture completion (Task 7): resolves to at most one
+    // statement, computed ONCE here (rather than duplicated in the
+    // correctionPending branch below and the normal path further down) since
+    // both branches share finishedEvent/projectionStatement/statStatements
+    // the same way -- see that comment. getFixtureByGameId finds nothing for
+    // an ordinary (non-tournament) game, so this is a no-op there. Matching
+    // the winner requires comparing each entrant's OWN session_pair_id
+    // (tournament_entrants.session_pair_id) against the winning TEAM's
+    // stamped session_pair_id, not team-A/team-B labels -- those labels are
+    // whichever side the operator called "Team A" when starting the game
+    // (startGame's own comment), which need not match the fixture's
+    // entrant_a/entrant_b assignment from assignCourt. Round robin has no
+    // advancement (C1), so nothing here fills a LATER fixture's entrant slot
+    // -- that seam is for C2's advanceBracket to fill.
+    const fixtureCompletionStatements: unknown[] = []
+    if (session.tournamentFormat) {
+      const fixture = await getFixtureByGameId(db, sessionId, gameId)
+      if (fixture) {
+        const [entrantA, entrantB] = await Promise.all([
+          fixture.entrantAId ? getTournamentEntrant(db, sessionId, fixture.entrantAId) : null,
+          fixture.entrantBId ? getTournamentEntrant(db, sessionId, fixture.entrantBId) : null,
+        ])
+        const winningPairId = await getTeamSessionPairId(db, sessionId, winningTeamId)
+        const winnerEntrantId =
+          entrantA && entrantA.sessionPairId === winningPairId
+            ? entrantA.id
+            : entrantB && entrantB.sessionPairId === winningPairId
+              ? entrantB.id
+              : null
+        if (winnerEntrantId) {
+          fixtureCompletionStatements.push(buildFinishFixtureStatement(db, sessionId, fixture.id, winnerEntrantId))
+        }
+      }
+    }
 
     // Re-finish after a historical correction (issue #12): the court was
     // already released and its players already moved on when this game
@@ -1514,6 +1559,13 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
         finishedEvent, projectionStatement, clearCorrectionStatement, ...statStatements,
         ...gamesPlayedStatements, ...pairGamesPlayedStatements, ...matchmakingRecomputeStatements,
         ...buildRecomputePlayerSnapshotsStatements(db, affectedPlayerIds, sessionId),
+        // Re-applied (not merely left alone) on every re-finish, including
+        // one where a correction flipped the winner -- see this task's own
+        // reopen/re-finish requirement, and the stronger mutation-tested
+        // assertion in the E2E spec that actually flips the winner via
+        // correctGame to prove this line is load-bearing rather than a
+        // no-op that happens to match the pre-existing row.
+        ...fixtureCompletionStatements,
       ]
       if (idempotencyKey) {
         statements.push(buildRecordIdempotentResultStatement(db, { gameId, commandType: 'FINISH_GAME', key: idempotencyKey, result }))
@@ -1619,6 +1671,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       finishedEvent, projectionStatement, ...statStatements, ...matchmakingStatements, ...gamesPlayedStatements,
       ...pairGamesPlayedStatements, ...releaseStatements,
       ...buildRecomputePlayerSnapshotsStatements(db, affectedPlayerIds, sessionId),
+      ...fixtureCompletionStatements,
     ]
     if (idempotencyKey) {
       statements.push(buildRecordIdempotentResultStatement(db, { gameId, commandType: 'FINISH_GAME', key: idempotencyKey, result }))

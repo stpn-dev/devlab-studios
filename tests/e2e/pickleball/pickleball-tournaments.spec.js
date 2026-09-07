@@ -1,10 +1,84 @@
 import { test, expect } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 
 // A tournament is a FIXED_PAIRS session carrying `tournamentFormat` -- NOT a
 // third session type (migration 0014's header, and this phase's own docs).
 // These helpers therefore reuse the ordinary session-creation and
 // fixed-pairs-formation flow, only adding `tournamentFormat` to the create
 // call.
+
+// ---------------------------------------------------------------------------
+// player_game_stats.eligible_for_opi has no read API anywhere in this app
+// (Task 7's own brief requires asserting it directly), so the only way to
+// verify it is a direct, READ-ONLY local D1 query -- mirrors
+// pickleball-games.spec.js's queryD1 helper exactly (module-local there too,
+// so duplicated rather than imported). Nothing in this file ever WRITES to
+// the database directly; every mutation goes through the real API.
+function resolveWranglerBin() {
+  const require = createRequire(import.meta.url)
+  return join(dirname(require.resolve('wrangler')), '..', 'bin', 'wrangler.js')
+}
+
+const D1_BUSY_RETRIES = 5
+const D1_LOCK_DIR = join(tmpdir(), 'pb-e2e-d1-read-lock')
+const D1_LOCK_WAIT_ATTEMPTS = 400
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+function withD1ReadLock(read) {
+  let held = false
+  for (let attempt = 0; attempt < D1_LOCK_WAIT_ATTEMPTS; attempt += 1) {
+    try {
+      mkdirSync(D1_LOCK_DIR)
+      held = true
+      break
+    } catch {
+      sleepSync(50)
+    }
+  }
+
+  try {
+    return read()
+  } finally {
+    if (held) {
+      try {
+        rmSync(D1_LOCK_DIR, { recursive: true, force: true })
+      } catch {
+        // Nothing to recover: the next caller's wait loop times out and
+        // proceeds anyway.
+      }
+    }
+  }
+}
+
+function queryD1(sql) {
+  const sqlPath = join(mkdtempSync(join(tmpdir(), 'pb-tournaments-e2e-')), 'query.sql')
+  writeFileSync(sqlPath, sql, 'utf8')
+
+  return withD1ReadLock(() => {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const out = execFileSync(
+          process.execPath,
+          [resolveWranglerBin(), 'd1', 'execute', 'devlab-pickleball', '--local', '--json', `--file=${sqlPath}`],
+          { encoding: 'utf-8', windowsHide: true },
+        )
+        const parsed = JSON.parse(out)
+        return parsed[0]?.results || []
+      } catch (error) {
+        const busy = String(error?.message || '').includes('SQLITE_BUSY')
+        if (!busy || attempt >= D1_BUSY_RETRIES) throw error
+        sleepSync(200 * (attempt + 1))
+      }
+    }
+  })
+}
 
 async function createTournamentSession(request, overrides = {}, courtCount = 0) {
   await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
@@ -93,8 +167,47 @@ async function startGame(request, sessionId, sessionCourtId, assignBody, serving
   })
 }
 
+async function rally(request, sessionId, gameId, winningTeam) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/rally`, { data: { winningTeam } })
+}
+
+async function playSequence(request, sessionId, gameId, winningTeamSequence) {
+  let lastResponse
+  for (const winningTeam of winningTeamSequence) {
+    lastResponse = await rally(request, sessionId, gameId, winningTeam)
+    expect(lastResponse.status()).toBe(200)
+  }
+  return lastResponse
+}
+
+async function finishGame(request, sessionId, gameId) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/finish`, { data: {} })
+}
+
+async function reopenGame(request, sessionId, gameId) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/reopen`, { data: {} })
+}
+
+async function correctGame(request, sessionId, gameId, correctedState) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/correct`, { data: correctedState })
+}
+
 function assignCourt(request, sessionId, sessionCourtId) {
   return request.post(`/api/pickleball/sessions/${sessionId}/courts/assign`, { data: { sessionCourtId } })
+}
+
+// Plays a full, physically reachable 11-0 game (team A serves and wins every
+// rally, same shape pickleball-fixed-pairs.spec.js's own pair-statistics test
+// uses) then finishes it -- the shortest path from "court assigned" to
+// "fixture FINISHED" this suite's Task 7 tests need repeatedly.
+async function playAndFinish(request, sessionId, sessionCourtId, assignBody, winningTeam = 'A') {
+  const startResponse = await startGame(request, sessionId, sessionCourtId, assignBody, winningTeam)
+  expect(startResponse.status()).toBe(201)
+  const gameId = (await startResponse.json()).game.id
+  await playSequence(request, sessionId, gameId, Array(11).fill(winningTeam))
+  const finishResponse = await finishGame(request, sessionId, gameId)
+  expect(finishResponse.status()).toBe(200)
+  return { gameId, finishBody: await finishResponse.json() }
 }
 
 function enterPair(request, sessionId, sessionPairId) {
@@ -138,6 +251,102 @@ async function getQueue(request, sessionId) {
   const response = await request.get(`/api/pickleball/sessions/${sessionId}/queue`)
   expect(response.status()).toBe(200)
   return (await response.json()).queue
+}
+
+// ---------------------------------------------------------------------------
+// Task 7's non-tournament control needs an ORDINARY (non-tournament)
+// FIXED_PAIRS session -- the exact ambiguous case, since a tournament is
+// ALSO a FIXED_PAIRS session. This mirrors pickleball-fixed-pairs.spec.js's
+// own setup (session -> OPEN_FOR_CHECKIN -> LIVE -> checked-in players ->
+// formAndQueuePair -> assignCourt), duplicated rather than imported for the
+// same module-local reason as every other helper here.
+async function createOrdinaryFixedPairsSessionWithCourts(request, playerCount, courtCount) {
+  await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+
+  const venueResponse = await request.post('/api/pickleball/venues', {
+    data: { name: `Tourney Control Venue ${Date.now()}-${Math.random().toString(36).slice(2)}` },
+  })
+  const venueId = (await venueResponse.json()).venue.id
+
+  for (let i = 0; i < courtCount; i += 1) {
+    await request.post('/api/pickleball/courts', { data: { venueId, name: `Court ${i + 1}` } })
+  }
+
+  const sessionResponse = await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId,
+      name: `Tourney Control Session ${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      sessionType: 'FIXED_PAIRS',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-09-08T18:00:00.000Z',
+      scheduledEnd: '2026-09-08T22:00:00.000Z',
+      // Deliberately no tournamentFormat -- this IS the control session.
+    },
+  })
+  expect(sessionResponse.status()).toBe(201)
+  const sessionId = (await sessionResponse.json()).session.id
+
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+  await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+
+  const sessionCourts = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts
+
+  const sessionPlayerIds = []
+  const playerIds = []
+  for (let i = 0; i < playerCount; i += 1) {
+    const playerResponse = await request.post('/api/pickleball/players', {
+      data: { displayName: `Tourney Control Player ${Date.now()}-${i}-${Math.random().toString(36).slice(2)}` },
+    })
+    const playerId = (await playerResponse.json()).player.id
+    const registerResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })
+    const sessionPlayerId = (await registerResponse.json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+    sessionPlayerIds.push(sessionPlayerId)
+    playerIds.push(playerId)
+  }
+
+  return { sessionId, sessionCourts, sessionPlayerIds, playerIds }
+}
+
+async function formPair(request, sessionId, sessionPlayerAId, sessionPlayerBId) {
+  const response = await request.post(`/api/pickleball/sessions/${sessionId}/pairs`, {
+    data: { sessionPlayerAId, sessionPlayerBId },
+  })
+  return (await response.json()).pair
+}
+
+async function formAndQueuePair(request, sessionId, sessionPlayerAId, sessionPlayerBId) {
+  const pair = await formPair(request, sessionId, sessionPlayerAId, sessionPlayerBId)
+  const joinResponse = await request.post(`/api/pickleball/sessions/${sessionId}/queue`, {
+    data: { sessionPlayerId: sessionPlayerAId },
+  })
+  expect(joinResponse.status()).toBe(201)
+  return pair
+}
+
+// Plays a full ORDINARY (non-tournament) fixed-pairs game to completion --
+// the control this suite's OPI/eligible_for_opi tests need. Returns the
+// gameId and the WINNING side's first player's real playerId, whose
+// ALL_TIME OPI is now a real, non-null 100 (an 11-0 shutout) -- reused by
+// the tournament OPI test below to prove a SEPARATE tournament game leaves
+// that value untouched.
+async function createFinishedOrdinaryFixedPairsGame(request) {
+  const { sessionId, sessionCourts, sessionPlayerIds, playerIds } = await createOrdinaryFixedPairsSessionWithCourts(request, 4, 1)
+  const [p1, p2, p3, p4] = sessionPlayerIds
+  await formAndQueuePair(request, sessionId, p1, p2)
+  await formAndQueuePair(request, sessionId, p3, p4)
+
+  const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+  expect(assignResponse.status()).toBe(200)
+  const assignBody = await assignResponse.json()
+
+  const { gameId } = await playAndFinish(request, sessionId, sessionCourts[0].id, assignBody, 'A')
+
+  const playerIdBySessionPlayerId = new Map(sessionPlayerIds.map((id, index) => [id, playerIds[index]]))
+  const winnerSessionPlayerId = assignBody.teamA.players[0].sessionPlayerId
+  const winnerPlayerId = playerIdBySessionPlayerId.get(winnerSessionPlayerId)
+
+  return { sessionId, gameId, winnerPlayerId }
 }
 
 test.describe('Pickleball tournaments: session creation', () => {
@@ -426,5 +635,164 @@ test.describe('Pickleball tournaments: assign a court from the fixture list', ()
     const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
     expect(assignResponse.status()).toBe(409)
     expect((await assignResponse.json()).error).toBe('Lock the bracket before assigning courts.')
+  })
+})
+
+test.describe('Pickleball tournaments: finish a fixture without feeding OPI', () => {
+  // The non-tournament control this task's own brief requires: an ordinary
+  // FIXED_PAIRS game (NOT a tournament -- the exact ambiguous case, since a
+  // tournament is ALSO a FIXED_PAIRS session) must still write
+  // eligible_for_opi = 1. Without this, a test asserting 0 on a tournament
+  // game cannot distinguish "the flag is conditional on tournamentFormat"
+  // from "the flag is unconditionally 0".
+  test('control: an ordinary fixed-pairs game in a non-tournament session still writes eligible_for_opi = 1', async ({ request }) => {
+    const { gameId } = await createFinishedOrdinaryFixedPairsGame(request)
+
+    const rows = queryD1(`SELECT eligible_for_opi FROM player_game_stats WHERE game_id = '${gameId}'`)
+    expect(rows.length).toBe(4)
+    expect(rows.every((row) => row.eligible_for_opi === 1)).toBe(true)
+  })
+
+  test('finishing a tournament game marks its fixture FINISHED with the correct winner, writes eligible_for_opi = 0 for every participant, and leaves ALL_TIME OPI unchanged', async ({ request }) => {
+    // Establish a REAL, non-null ALL_TIME OPI for one real player via an
+    // ordinary (non-tournament) game first -- player_performance_snapshots
+    // is keyed by player_id, not session_id, so this value persists into
+    // whatever session that same player next appears in. This is what lets
+    // the assertion below be a genuine non-null-to-non-null "unchanged"
+    // check, rather than a vacuous null-to-null one.
+    const { winnerPlayerId } = await createFinishedOrdinaryFixedPairsGame(request)
+    const beforeStats = await (await request.get(`/api/pickleball/players/${winnerPlayerId}/stats`)).json()
+    expect(beforeStats.allTime.opi).toBe(100)
+    expect(beforeStats.allTime.eligibleGamesCount).toBe(1)
+
+    const sessionResponse = await createTournamentSession(request, {}, 1)
+    expect(sessionResponse.status()).toBe(201)
+    const sessionId = (await sessionResponse.json()).session.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'OPEN_FOR_CHECKIN' } })
+    await request.post(`/api/pickleball/sessions/${sessionId}/status`, { data: { status: 'LIVE' } })
+    const sessionCourts = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts
+
+    const registerReusedResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId: winnerPlayerId } })
+    const reusedSessionPlayerId = (await registerReusedResponse.json()).sessionPlayer.id
+    await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId: winnerPlayerId } })
+
+    async function freshCheckedInSessionPlayer(label) {
+      const playerResponse = await request.post('/api/pickleball/players', {
+        data: { displayName: `Tourney OPI ${label} ${Date.now()}-${Math.random().toString(36).slice(2)}` },
+      })
+      const playerId = (await playerResponse.json()).player.id
+      const registerResponse = await request.post(`/api/pickleball/sessions/${sessionId}/players`, { data: { playerId } })
+      const sessionPlayerId = (await registerResponse.json()).sessionPlayer.id
+      await request.post(`/api/pickleball/sessions/${sessionId}/players/check-in`, { data: { playerId } })
+      return sessionPlayerId
+    }
+
+    const partnerSessionPlayerId = await freshCheckedInSessionPlayer('partner')
+    const opponentASessionPlayerId = await freshCheckedInSessionPlayer('opp-a')
+    const opponentBSessionPlayerId = await freshCheckedInSessionPlayer('opp-b')
+
+    const reusedPairResponse = await request.post(`/api/pickleball/sessions/${sessionId}/pairs`, {
+      data: { sessionPlayerAId: reusedSessionPlayerId, sessionPlayerBId: partnerSessionPlayerId },
+    })
+    const reusedPair = (await reusedPairResponse.json()).pair
+    const opponentPairResponse = await request.post(`/api/pickleball/sessions/${sessionId}/pairs`, {
+      data: { sessionPlayerAId: opponentASessionPlayerId, sessionPlayerBId: opponentBSessionPlayerId },
+    })
+    const opponentPair = (await opponentPairResponse.json()).pair
+
+    expect((await enterPair(request, sessionId, reusedPair.id)).status()).toBe(201)
+    expect((await enterPair(request, sessionId, opponentPair.id)).status()).toBe(201)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(assignResponse.status()).toBe(200)
+    const assignBody = await assignResponse.json()
+
+    // Whichever side the reused player landed on -- "team A" here is
+    // whichever pair the fixture called entrant A, an implementation detail
+    // -- have THAT side win, so the fixture's winner_entrant_id is
+    // unambiguous to assert below.
+    const reusedSide = assignBody.teamA.players.some((p) => p.sessionPlayerId === reusedSessionPlayerId) ? 'A' : 'B'
+    const winningPair = reusedSide === 'A' ? reusedPair : opponentPair
+
+    const { gameId } = await playAndFinish(request, sessionId, sessionCourts[0].id, assignBody, reusedSide)
+
+    const rows = queryD1(`SELECT eligible_for_opi FROM player_game_stats WHERE game_id = '${gameId}'`)
+    expect(rows.length).toBe(4)
+    expect(rows.every((row) => row.eligible_for_opi === 0)).toBe(true)
+
+    const afterStats = await (await request.get(`/api/pickleball/players/${winnerPlayerId}/stats`)).json()
+    expect(afterStats.allTime.opi).toBe(beforeStats.allTime.opi)
+    expect(afterStats.allTime.eligibleGamesCount).toBe(beforeStats.allTime.eligibleGamesCount)
+
+    const fixtures = await getFixtures(request, sessionId)
+    expect(fixtures).toHaveLength(1)
+    const finishedFixture = fixtures[0]
+    expect(finishedFixture.status).toBe('FINISHED')
+
+    const entrants = await getEntrants(request, sessionId)
+    const winningEntrant = entrants.find((entrant) => entrant.sessionPairId === winningPair.id)
+    expect(finishedFixture.winnerEntrantId).toBe(winningEntrant.id)
+  })
+
+  test('reopening and re-finishing a tournament game does not double-count anything and leaves the fixture FINISHED with the same winner', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 2, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(assignResponse.status()).toBe(200)
+    const assignBody = await assignResponse.json()
+
+    const { gameId } = await playAndFinish(request, sessionId, sessionCourts[0].id, assignBody, 'A')
+
+    const fixturesAfterFirstFinish = await getFixtures(request, sessionId)
+    const fixture = fixturesAfterFirstFinish[0]
+    expect(fixture.status).toBe('FINISHED')
+    expect(fixture.winnerEntrantId).toBeTruthy()
+    const winnerEntrantId = fixture.winnerEntrantId
+
+    const reopenResponse = await reopenGame(request, sessionId, gameId)
+    expect(reopenResponse.status()).toBe(200)
+
+    const refinishResponse = await finishGame(request, sessionId, gameId)
+    expect(refinishResponse.status()).toBe(200)
+
+    const fixturesAfterRefinish = await getFixtures(request, sessionId)
+    const fixtureAfterRefinish = fixturesAfterRefinish.find((f) => f.id === fixture.id)
+    expect(fixtureAfterRefinish.status).toBe('FINISHED')
+    expect(fixtureAfterRefinish.winnerEntrantId).toBe(winnerEntrantId)
+
+    // Not double-counted: still exactly one stat row per participant (4),
+    // all still eligible_for_opi = 0.
+    const rows = queryD1(`SELECT eligible_for_opi FROM player_game_stats WHERE game_id = '${gameId}'`)
+    expect(rows.length).toBe(4)
+    expect(rows.every((row) => row.eligible_for_opi === 0)).toBe(true)
+
+    // A stronger check than "same winner unchanged" alone: reopen again, and
+    // this time actually CORRECT the score so the OTHER entrant wins, then
+    // re-finish. If the fixture-completion statement were only applied on a
+    // FRESH finish (never re-applied on a re-finish), the fixture would keep
+    // reporting the ORIGINAL winner even though the game itself now says the
+    // opposite side won -- a real, silent scoring-page bug this proves does
+    // not happen.
+    const entrants = await getEntrants(request, sessionId)
+    const otherEntrantId = entrants.find((entrant) => entrant.id !== winnerEntrantId).id
+
+    expect((await reopenGame(request, sessionId, gameId)).status()).toBe(200)
+    expect((await correctGame(request, sessionId, gameId, { scoreA: 3, scoreB: 11, servingTeam: 'B', serverNumber: 1 })).status()).toBe(200)
+    expect((await finishGame(request, sessionId, gameId)).status()).toBe(200)
+
+    const fixturesAfterCorrection = await getFixtures(request, sessionId)
+    const fixtureAfterCorrection = fixturesAfterCorrection.find((f) => f.id === fixture.id)
+    expect(fixtureAfterCorrection.status).toBe('FINISHED')
+    expect(fixtureAfterCorrection.winnerEntrantId).toBe(otherEntrantId)
+
+    // Still exactly one stat row per participant -- a correction replaces
+    // the row (reopenGame deletes, the re-finish recreates), never adds a
+    // second one on top.
+    const rowsAfterCorrection = queryD1(`SELECT eligible_for_opi FROM player_game_stats WHERE game_id = '${gameId}'`)
+    expect(rowsAfterCorrection.length).toBe(4)
+    expect(rowsAfterCorrection.every((row) => row.eligible_for_opi === 0)).toBe(true)
   })
 })
