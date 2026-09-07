@@ -56,6 +56,20 @@ USA-Pickleball-certified.
    player carries a null OPI and no rank rather than a misleading zero, and
    an in-progress score never contributes. `leaderboard_min_games` still
    decides who is *ranked* — it no longer decides who is *visible*.
+6. **Public pages** — `/pickleball` (landing) and `/pickleball/how-it-works`
+   (a nine-step operator walkthrough) are plain Astro on the shared dark
+   public shell, alongside `/pickleball/methodology`. Their artwork is
+   hand-authored SVG under `src/components/pickleball/art/`, imported into
+   `.astro` with **no** `client:*` directive, so the pages ship zero
+   JavaScript for illustration; the only hydrated island is the
+   request-access `ContactForm`, mounted `client:visible`. Two conventions
+   these pages must keep: they render inside `Layout.astro`'s own `<main>`
+   and must not open a second one, and **every factual claim in their copy
+   has to map to committed code.** Ten claims that did not were caught in
+   review before ship — the guard against a recurrence is
+   `tests/e2e/pickleball/pickleball-public-pages.spec.js`, which pins the
+   corrected phrasings verbatim, blocks copy about features that exist only
+   as API routes, and asserts the artwork never gains a hydration directive.
 
 ## Multi-tenancy & RBAC
 
