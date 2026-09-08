@@ -219,6 +219,10 @@ function lockBracket(request, sessionId) {
   return request.post(`/api/pickleball/sessions/${sessionId}/tournament/lock`, { data: {} })
 }
 
+function withdrawEntrant(request, sessionId, entrantId) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/tournament/entrants/${entrantId}/withdraw`, { data: {} })
+}
+
 async function enterAllPairs(request, sessionId, pairs) {
   for (const pair of pairs) {
     const response = await enterPair(request, sessionId, pair.id)
@@ -1401,5 +1405,353 @@ test.describe('Pickleball tournaments: lifecycle gaps (C1 join-queue, C2 abandon
     const fixturesAfterAssign = await getFixtures(request, sessionId)
     const firstTriedAfterAssign = fixturesAfterAssign.find((f) => f.id === firstTriedFixture.id)
     expect(firstTriedAfterAssign.status).toBe('READY')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Phase C2 (follow-up to C1): withdrawing an entrant. C1's final review
+// disclosed dissolvePair/leaveSession refuse a pair that is still an ACTIVE
+// tournament entrant of a locked bracket (see the C3 test above) with no way
+// to ever lift that -- so a genuinely injured/unavailable player's remaining
+// fixtures could never reach FINISHED and the round robin could never
+// complete. withdrawEntrant is the escape hatch: it moves the entrant off
+// ACTIVE (the exact thing hasActiveEntrantForPair consults) and resolves
+// every one of its still-unplayed fixtures in the same write.
+
+test.describe('Pickleball tournaments: withdraw an entrant', () => {
+  test('withdrawing before the bracket is locked is refused', async ({ request }) => {
+    const { sessionId, pairs } = await createLiveTournamentWithPairs(request, 2, 0)
+    await enterAllPairs(request, sessionId, pairs)
+    // Deliberately never locked.
+
+    const entrants = await getEntrants(request, sessionId)
+    const withdrawResponse = await withdrawEntrant(request, sessionId, entrants[0].id)
+    expect(withdrawResponse.status()).toBe(409)
+    expect((await withdrawResponse.json()).error).toBe('Lock the bracket before withdrawing an entrant.')
+  })
+
+  test('withdrawing an entrant currently on a court is refused -- finish or abandon the game first', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 2, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(assignResponse.status()).toBe(200)
+    const assignBody = await assignResponse.json()
+    const startResponse = await startGame(request, sessionId, sessionCourts[0].id, assignBody, 'A')
+    expect(startResponse.status()).toBe(201)
+
+    const fixtures = await getFixtures(request, sessionId)
+    const inProgressFixture = fixtures.find((f) => f.status === 'IN_PROGRESS')
+    expect(inProgressFixture).toBeTruthy()
+
+    const withdrawResponse = await withdrawEntrant(request, sessionId, inProgressFixture.entrantAId)
+    expect(withdrawResponse.status()).toBe(409)
+    expect((await withdrawResponse.json()).error).toBe(
+      'This entrant is on a court right now. Finish or abandon that game before withdrawing.',
+    )
+
+    // The refused attempt left the fixture untouched -- still IN_PROGRESS
+    // with its real game_id, not half-resolved.
+    const fixturesAfterRefusal = await getFixtures(request, sessionId)
+    const sameFixture = fixturesAfterRefusal.find((f) => f.id === inProgressFixture.id)
+    expect(sameFixture.status).toBe('IN_PROGRESS')
+    expect(sameFixture.gameId).toBe(inProgressFixture.gameId)
+  })
+
+  test('withdrawing the same entrant twice is refused the second time', async ({ request }) => {
+    const { sessionId, pairs } = await createLiveTournamentWithPairs(request, 2, 0)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const entrants = await getEntrants(request, sessionId)
+    const targetEntrantId = entrants[0].id
+
+    const firstWithdraw = await withdrawEntrant(request, sessionId, targetEntrantId)
+    expect(firstWithdraw.status()).toBe(200)
+
+    const secondWithdraw = await withdrawEntrant(request, sessionId, targetEntrantId)
+    expect(secondWithdraw.status()).toBe(409)
+    expect((await secondWithdraw.json()).error).toBe('This entrant has already withdrawn.')
+  })
+
+  test('a SCOREKEEPER cannot withdraw an entrant', async ({ request }) => {
+    const { sessionId, pairs } = await createLiveTournamentWithPairs(request, 2, 0)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+    const entrants = await getEntrants(request, sessionId)
+
+    await loginAsScorekeeper(request, 'withdraw')
+
+    const withdrawResponse = await withdrawEntrant(request, sessionId, entrants[0].id)
+    expect(withdrawResponse.status()).toBe(403)
+  })
+
+  // The test that matters most: walks the WHOLE path a real injury/emergency
+  // withdrawal takes. 3 entrants (pairs[0]=X, pairs[1]=Y, pairs[2]=Z) means
+  // every fixture pairs exactly two of them and each entrant plays exactly 2
+  // fixtures (n-1). Sequence: play X vs Y for real, withdraw Y (who has now
+  // played one real fixture AND still has one unplayed fixture, against Z),
+  // then play the one fixture withdrawal did NOT touch (X vs Z) to actually
+  // finish the round robin.
+  test('withdrawing an entrant mid-tournament resolves its unplayed fixtures as walkovers, keeps its real record, completes the round robin, and unblocks dissolve', async ({
+    request,
+    baseURL,
+  }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 3, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const entrants = await getEntrants(request, sessionId)
+    const pairIdByEntrantId = new Map(entrants.map((e) => [e.id, e.sessionPairId]))
+    const entrantIdByPairId = new Map(entrants.map((e) => [e.sessionPairId, e.id]))
+
+    // Play whichever fixture is first playable -- call its winner/loser X/Y
+    // by whichever pair actually landed on each side, so this test does not
+    // need to know or assert the seeding tie-break's own internal order.
+    const { winnerScore: firstWinnerScore, loserScore: firstLoserScore } = await (async () => {
+      const fixturesNow = await getFixtures(request, sessionId)
+      const target = fixturesNow.find((f) => f.status === 'READY')
+      const pairXId = pairIdByEntrantId.get(target.entrantAId)
+      const pairYId = pairIdByEntrantId.get(target.entrantBId)
+      const indexX = pairs.findIndex((p) => p.id === pairXId)
+      const indexY = pairs.findIndex((p) => p.id === pairYId)
+      return playFixture(request, sessionId, sessionCourts[0].id, pairs, indexX, indexY, 'shutout')
+    })()
+    expect(firstWinnerScore).toBe(11)
+    expect(firstLoserScore).toBe(0)
+
+    const fixturesAfterFirstGame = await getFixtures(request, sessionId)
+    const playedFixture = fixturesAfterFirstGame.find((f) => f.status === 'FINISHED')
+    expect(playedFixture).toBeTruthy()
+    const winnerEntrantId = playedFixture.winnerEntrantId
+    const loserEntrantId = playedFixture.entrantAId === winnerEntrantId ? playedFixture.entrantBId : playedFixture.entrantAId
+    // The third entrant -- has not played anything yet, and after the
+    // withdrawal below is the ONLY one still with a real, playable fixture
+    // left (against the winner of the first game).
+    const untouchedEntrantId = entrants.map((e) => e.id).find((id) => id !== winnerEntrantId && id !== loserEntrantId)
+
+    // Withdraw the LOSER of the first game -- it has a real record (a real
+    // loss with real points) AND one unplayed fixture left, against the
+    // untouched third entrant.
+    const withdrawResponse = await withdrawEntrant(request, sessionId, loserEntrantId)
+    expect(withdrawResponse.status()).toBe(200)
+
+    // (a) The withdrawn entrant's remaining fixture is FINISHED with the
+    // opponent (the untouched third entrant, still ACTIVE) as winner -- a
+    // walkover, no game attached.
+    const fixturesAfterWithdraw = await getFixtures(request, sessionId)
+    const walkoverFixture = fixturesAfterWithdraw.find(
+      (f) => f.id !== playedFixture.id && (f.entrantAId === loserEntrantId || f.entrantBId === loserEntrantId),
+    )
+    expect(walkoverFixture.status).toBe('FINISHED')
+    expect(walkoverFixture.winnerEntrantId).toBe(untouchedEntrantId)
+    expect(walkoverFixture.gameId).toBeFalsy()
+
+    // The one fixture NOT touched by the withdrawal (winner of game 1 vs the
+    // untouched third entrant) is still READY -- the round robin is not
+    // "done", just no longer blocked.
+    const remainingPlayableFixture = fixturesAfterWithdraw.find(
+      (f) => f.id !== playedFixture.id && f.id !== walkoverFixture.id,
+    )
+    expect(remainingPlayableFixture.status).toBe('READY')
+
+    // (d) The tournament can now be COMPLETED: play the one remaining real
+    // fixture out for real.
+    const secondPairIndex = pairs.findIndex((p) => entrantIdByPairId.get(p.id) === winnerEntrantId)
+    const thirdPairIndex = pairs.findIndex((p) => entrantIdByPairId.get(p.id) === untouchedEntrantId)
+    const { winnerScore: secondWinnerScore, loserScore: secondLoserScore } = await playFixture(
+      request,
+      sessionId,
+      sessionCourts[0].id,
+      pairs,
+      thirdPairIndex,
+      secondPairIndex,
+      'partial',
+    )
+    expect(secondWinnerScore).toBe(11)
+    expect(secondLoserScore).toBe(9)
+
+    const finalFixtures = await getFixtures(request, sessionId)
+    expect(finalFixtures).toHaveLength(3)
+    expect(finalFixtures.every((f) => f.status === 'FINISHED')).toBe(true)
+
+    // (b) + (c): standings.
+    const standingsResponse = await getTournamentStandings(request, sessionId)
+    expect(standingsResponse.status()).toBe(200)
+    const standings = (await standingsResponse.json()).standings
+
+    const untouchedStanding = standings.find((s) => s.entrantId === untouchedEntrantId)
+    const winnerStanding = standings.find((s) => s.entrantId === winnerEntrantId)
+    const withdrawnStanding = standings.find((s) => s.entrantId === loserEntrantId)
+
+    // The untouched third entrant: 1 real win (11-9 over the game-1 winner)
+    // PLUS 1 walkover win (over the withdrawn entrant) = 2 wins, 0 losses.
+    // (b) The walkover added a win but NO points: its pointsFor equals
+    // EXACTLY the real game's score (11) -- if the walkover had silently
+    // invented a score, this would be a different, larger number.
+    expect(untouchedStanding.wins).toBe(2)
+    expect(untouchedStanding.losses).toBe(0)
+    expect(untouchedStanding.pointsFor).toBe(11)
+    expect(untouchedStanding.pointsAgainst).toBe(9)
+    expect(untouchedStanding.status).toBe('ACTIVE')
+
+    // The game-1 winner: 1 real win (11-0) and 1 real loss (9-11) -- real,
+    // distinguishing numbers on both sides of its record.
+    expect(winnerStanding.wins).toBe(1)
+    expect(winnerStanding.losses).toBe(1)
+    expect(winnerStanding.pointsFor).toBe(11 + 9)
+    expect(winnerStanding.pointsAgainst).toBe(0 + 11)
+
+    // (c) The WITHDRAWN entrant still appears (proves it was not silently
+    // dropped from standings) with its REAL record from the fixture it did
+    // play (0-11) -- losses=2 alone would be ambiguous with "just a default",
+    // but pointsAgainst=11 from the real played fixture is not a coincidental
+    // zero, and is distinguishable from the walkover loss's own 0-0 line.
+    expect(withdrawnStanding).toBeTruthy()
+    expect(withdrawnStanding.status).toBe('WITHDRAWN')
+    expect(withdrawnStanding.wins).toBe(0)
+    expect(withdrawnStanding.losses).toBe(2)
+    expect(withdrawnStanding.pointsFor).toBe(0)
+    expect(withdrawnStanding.pointsAgainst).toBe(11)
+
+    // And finally: dissolving the withdrawn entrant's pair -- refused before
+    // this feature existed (the C3 test above) -- now succeeds, because
+    // hasActiveEntrantForPair no longer matches a WITHDRAWN entrant.
+    const withdrawnPairId = pairIdByEntrantId.get(loserEntrantId)
+    const dissolveResponse = await dissolvePairRequest(request, sessionId, withdrawnPairId, baseURL)
+    expect(dissolveResponse.status()).toBe(200)
+  })
+
+  // The scenario C1's own I7 test (C3 pre-lock) proved was permanently
+  // wedged, now with the cure attached. A pair dissolved BEFORE the bracket
+  // locks is still an ACTIVE entrant -- enterPair required ACTIVE, and
+  // dissolving pre-lock is allowed -- but its pair is DISSOLVED, so the
+  // assignment site's own `pair.status === 'ACTIVE'` check can never seat any
+  // fixture referencing it. With 3 entrants that strands TWO of the three
+  // fixtures: once the one resolvable fixture is played, assignCourt has
+  // nothing left to offer and the round robin can never reach completion.
+  //
+  // This is the case withdrawal exists for, and it is distinct from the
+  // mid-tournament test above: there the withdrawing entrant had actually
+  // played, here it never could. Asserting the wedge FIRST (a 409 with two
+  // fixtures still unfinished) is what makes the recovery afterwards mean
+  // something -- without it, "all fixtures FINISHED" would be satisfied by a
+  // tournament that was never stuck.
+  test('withdrawing an entrant whose pair was dissolved before the lock completes a round robin that was otherwise permanently unfinishable', async ({
+    request,
+    baseURL,
+  }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 3, 2)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await dissolvePairRequest(request, sessionId, pairs[2].id, baseURL)).status()).toBe(200)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const entrants = await getEntrants(request, sessionId)
+    const strandedEntrantId = entrants.find((e) => e.sessionPairId === pairs[2].id).id
+    const entrantIdByPairId = new Map(entrants.map((e) => [e.sessionPairId, e.id]))
+
+    // The only seatable fixture is pairs[0] vs pairs[1]; play it out for real
+    // so the surviving entrants carry a genuine result, not just walkovers.
+    const { winnerScore, loserScore } = await playFixture(request, sessionId, sessionCourts[0].id, pairs, 0, 1, 'shutout')
+    expect(winnerScore).toBe(11)
+    expect(loserScore).toBe(0)
+
+    // The wedge itself: two fixtures still unfinished, and no court can be
+    // assigned -- not "not right now", but never again, since nothing about
+    // a DISSOLVED pair can change back.
+    const wedgedFixtures = await getFixtures(request, sessionId)
+    expect(wedgedFixtures.filter((f) => f.status !== 'FINISHED')).toHaveLength(2)
+    const blockedAssign = await assignCourt(request, sessionId, sessionCourts[1].id)
+    expect(blockedAssign.status()).toBe(409)
+
+    expect((await withdrawEntrant(request, sessionId, strandedEntrantId)).status()).toBe(200)
+
+    // Both stranded fixtures resolve as walkovers to whichever survivor each
+    // one faced -- never to the withdrawn entrant, and with no invented game.
+    const finalFixtures = await getFixtures(request, sessionId)
+    expect(finalFixtures).toHaveLength(3)
+    expect(finalFixtures.every((f) => f.status === 'FINISHED')).toBe(true)
+    const walkovers = finalFixtures.filter((f) => !f.gameId)
+    expect(walkovers).toHaveLength(2)
+    expect(new Set(walkovers.map((f) => f.winnerEntrantId))).toEqual(
+      new Set([entrantIdByPairId.get(pairs[0].id), entrantIdByPairId.get(pairs[1].id)]),
+    )
+
+    const standingsResponse = await getTournamentStandings(request, sessionId)
+    expect(standingsResponse.status()).toBe(200)
+    const standings = (await standingsResponse.json()).standings
+    const byEntrantId = new Map(standings.map((row) => [row.entrantId, row]))
+
+    // pairs[0] won its real game AND took a walkover: 2-0, but only the real
+    // game's points. pairs[1] lost the real game and took a walkover: 1-1.
+    const winner = byEntrantId.get(entrantIdByPairId.get(pairs[0].id))
+    expect(winner.wins).toBe(2)
+    expect(winner.losses).toBe(0)
+    expect(winner.pointsFor).toBe(11)
+    expect(winner.pointsAgainst).toBe(0)
+
+    const runnerUp = byEntrantId.get(entrantIdByPairId.get(pairs[1].id))
+    expect(runnerUp.wins).toBe(1)
+    expect(runnerUp.losses).toBe(1)
+    expect(runnerUp.pointsFor).toBe(0)
+    expect(runnerUp.pointsAgainst).toBe(11)
+
+    // The stranded entrant never played a single point, yet still appears --
+    // two walkover losses and no points either way.
+    const stranded = byEntrantId.get(strandedEntrantId)
+    expect(stranded.status).toBe('WITHDRAWN')
+    expect(stranded.wins).toBe(0)
+    expect(stranded.losses).toBe(2)
+    expect(stranded.pointsFor).toBe(0)
+    expect(stranded.pointsAgainst).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Operator UI: a withdraw action per entrant, only once the bracket is
+// locked, and both the entrant list and standings mark a withdrawn entrant as
+// such (TournamentPage.jsx).
+
+test.describe('Pickleball tournaments: withdraw an entrant (operator UI)', () => {
+  test('shows a withdraw action once locked, and marks a withdrawn entrant as withdrawn in both the entrant list and standings', async ({
+    page,
+    request,
+    context,
+  }) => {
+    const baseURL = test.info().project.use.baseURL
+    await loginAsOperator(request, context, baseURL)
+
+    const { sessionId, pairs } = await createLiveTournamentWithPairs(request, 2, 0)
+    await enterAllPairs(request, sessionId, pairs)
+
+    await page.goto(`/pickleball/app/sessions/${sessionId}/tournament`)
+    await expect(page.getByTestId('tournament-entrants-list')).toBeVisible({ timeout: 10000 })
+
+    // Before lock: no withdraw action anywhere, even though entrants exist.
+    const entrantsBeforeLock = await getEntrants(request, sessionId)
+    for (const entrant of entrantsBeforeLock) {
+      await expect(page.getByTestId(`tournament-withdraw-entrant-${entrant.id}`)).not.toBeVisible()
+    }
+
+    await page.getByTestId('tournament-lock-bracket-button').click()
+    await expect(page.getByTestId('tournament-enter-pair-select')).toBeDisabled()
+
+    const entrants = await getEntrants(request, sessionId)
+    const targetEntrant = entrants[0]
+
+    await expect(page.getByTestId(`tournament-withdraw-entrant-${targetEntrant.id}`)).toBeVisible()
+    await page.getByTestId(`tournament-withdraw-entrant-${targetEntrant.id}`).click()
+
+    // Entrant list: the withdrawn entrant is marked, and its own withdraw
+    // button is gone (it cannot be withdrawn twice); the survivor's action
+    // is still there.
+    await expect(page.getByTestId(`tournament-entrant-withdrawn-${targetEntrant.id}`)).toBeVisible()
+    await expect(page.getByTestId(`tournament-withdraw-entrant-${targetEntrant.id}`)).not.toBeVisible()
+    const survivor = entrants.find((e) => e.id !== targetEntrant.id)
+    await expect(page.getByTestId(`tournament-withdraw-entrant-${survivor.id}`)).toBeVisible()
+
+    // Standings: the withdrawn entrant still appears, marked withdrawn.
+    await expect(page.getByTestId(`tournament-standing-withdrawn-${targetEntrant.id}`)).toBeVisible()
   })
 })

@@ -97,6 +97,10 @@ import {
   buildFinishFixtureStatement,
   buildResetFixtureStatement,
   hasActiveEntrantForPair,
+  hasInProgressFixtureForEntrant,
+  listUnplayedFixturesForEntrant,
+  buildWithdrawEntrantStatement,
+  buildWithdrawFixtureStatement,
 } from '../repositories/pickleball/tournaments.js'
 import { buildSessionSnapshot, buildPublicSnapshotExtras } from './sessionSnapshot.js'
 import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
@@ -2336,6 +2340,83 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     const [dissolveResult] = await db.batch([dissolveStatement, closeQueueStatement])
     if (!dissolveResult.meta.changes) return failure('Pair not found, or already dissolved.')
+
+    await this.broadcast(sessionId)
+    return { ok: true as const }
+  }
+
+  // The escape hatch C1's final review disclosed was missing: once a bracket
+  // is locked, dissolvePair/leaveSession both refuse a pair that is still an
+  // ACTIVE tournament entrant (hasActiveEntrantForPair, both methods' own C3
+  // comments) -- correctly, since a dissolved pair must never be seated for
+  // its next fixture. But nothing ever moved `tournament_entrants.status` off
+  // ACTIVE, so a player who genuinely cannot continue (injury, emergency) had
+  // no way to ever unblock that pair, and their remaining fixtures could
+  // never reach FINISHED -- the round robin could never complete. Withdrawing
+  // sets status = 'WITHDRAWN', which is exactly what hasActiveEntrantForPair
+  // consults: once this method returns ok, dissolvePair/leaveSession for the
+  // SAME pair succeed where they previously could not.
+  //
+  // Every unplayed fixture (READY or PENDING) this entrant still had is
+  // resolved in the SAME db.batch() as the withdrawal UPDATE itself -- a
+  // half-applied withdrawal (entrant withdrawn but a fixture still
+  // PENDING/READY referencing it, or the reverse) is exactly the class of
+  // state this file has repeatedly had to fix for other tournament writes
+  // (lockBracket, dissolvePair, both above). Per fixture, the opponent
+  // (whichever of entrant_a/entrant_b isn't this entrant) decides the
+  // outcome: a still-ACTIVE opponent gets credited a walkover win (no game,
+  // no points -- tournaments.js's buildWithdrawFixtureStatement).
+  //
+  // The `winnerEntrantId = null` branch below (absent or already-withdrawn
+  // opponent, so neither side could play the fixture out) is NOT reachable
+  // through any public API today, and is not covered by any test: this
+  // method resolves ALL of an entrant's unplayed fixtures in one batch, so a
+  // later withdrawal never meets an already-withdrawn opponent, and no
+  // ROUND_ROBIN fixture carries a NULL entrant id. It is kept for the byes
+  // SINGLE_ELIMINATION will introduce in phase C2 -- see the matching note
+  // on listTournamentStandings, whose `winner_entrant_id IS NOT NULL` clause
+  // is the other half of the same unreachable-today guard.
+  async withdrawEntrant(sessionId: string, entrantId: string) {
+    if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
+    const db = this.env.PICKLEBALL_DB
+
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+    if (!session.tournamentFormat) return failure('This session is not a tournament.')
+    if (!session.bracketLockedAt) return failure('Lock the bracket before withdrawing an entrant.')
+
+    const entrant = await getTournamentEntrant(db, sessionId, entrantId)
+    if (!entrant) return failure('Entrant not found.')
+    if (entrant.status !== 'ACTIVE') return failure('This entrant has already withdrawn.')
+
+    // Refused while this entrant is mid-game, for the same reason
+    // dissolvePair refuses a pair that is on a court: there is no half-a-game
+    // state this codebase understands, and unwinding a LIVE game here would
+    // repeat the exact mistake C1 already learned from (see this method's own
+    // header). The operator finishes or abandons the game first -- both
+    // paths already resolve the fixture (FINISHED or back to READY) before
+    // withdrawal is attempted again.
+    if (await hasInProgressFixtureForEntrant(db, sessionId, entrantId)) {
+      return failure('This entrant is on a court right now. Finish or abandon that game before withdrawing.')
+    }
+
+    const [unplayedFixtures, entrants] = await Promise.all([
+      listUnplayedFixturesForEntrant(db, sessionId, entrantId),
+      listTournamentEntrants(db, sessionId),
+    ])
+    const activeOpponentIds = new Set(
+      (entrants as Array<{ id: string; status: string }>)
+        .filter((candidate) => candidate.status === 'ACTIVE' && candidate.id !== entrantId)
+        .map((candidate) => candidate.id),
+    )
+
+    const fixtureStatements = (unplayedFixtures as Array<{ id: string; entrantAId: string | null; entrantBId: string | null }>).map((fixture) => {
+      const opponentId = fixture.entrantAId === entrantId ? fixture.entrantBId : fixture.entrantAId
+      const winnerEntrantId = opponentId && activeOpponentIds.has(opponentId) ? opponentId : null
+      return buildWithdrawFixtureStatement(db, sessionId, fixture.id, winnerEntrantId)
+    })
+
+    await db.batch([buildWithdrawEntrantStatement(db, sessionId, entrantId), ...fixtureStatements])
 
     await this.broadcast(sessionId)
     return { ok: true as const }

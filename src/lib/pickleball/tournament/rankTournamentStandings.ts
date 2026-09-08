@@ -40,6 +40,11 @@ export interface TournamentStandingsInput {
   losses: number
   pointsFor: number
   pointsAgainst: number
+  // ACTIVE or WITHDRAWN (tournaments.js's listTournamentStandings) -- pure
+  // passthrough, this module's own ranking never branches on it. Optional so
+  // this file's own unit tests (which predate withdrawal and never set it)
+  // keep compiling unchanged.
+  status?: string
 }
 
 export interface TournamentStandingsEntry extends TournamentStandingsInput {

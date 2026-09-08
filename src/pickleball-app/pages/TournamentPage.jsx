@@ -92,6 +92,16 @@ export default function TournamentPage() {
     }
   }
 
+  async function handleWithdrawEntrant(entrantId) {
+    setMessage(null)
+    try {
+      await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/tournament/entrants/${entrantId}/withdraw`, {})
+      await reload()
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message })
+    }
+  }
+
   async function handleLockBracket() {
     setMessage(null)
     try {
@@ -188,16 +198,39 @@ export default function TournamentPage() {
             </div>
 
             <div className="space-y-1.5" data-testid="tournament-entrants-list">
-              {entrants.map((entrant) => (
-                <div
-                  key={entrant.id}
-                  data-testid={`tournament-entrant-${entrant.id}`}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                >
-                  <span className="font-medium text-slate-900">{entrant.displayName}</span>
-                  <span className="pb-score text-xs text-slate-400">{entrant.seed ? `Seed ${entrant.seed}` : 'Unseeded'}</span>
-                </div>
-              ))}
+              {entrants.map((entrant) => {
+                const isWithdrawn = entrant.status === 'WITHDRAWN'
+                return (
+                  <div
+                    key={entrant.id}
+                    data-testid={`tournament-entrant-${entrant.id}`}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  >
+                    <span className={`font-medium ${isWithdrawn ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                      {entrant.displayName}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      {isWithdrawn ? (
+                        <span className="pb-status-chip pb-status-chip--muted" data-testid={`tournament-entrant-withdrawn-${entrant.id}`}>
+                          Withdrawn
+                        </span>
+                      ) : (
+                        <span className="pb-score text-xs text-slate-400">{entrant.seed ? `Seed ${entrant.seed}` : 'Unseeded'}</span>
+                      )}
+                      {isLocked && !isWithdrawn ? (
+                        <button
+                          type="button"
+                          onClick={() => handleWithdrawEntrant(entrant.id)}
+                          data-testid={`tournament-withdraw-entrant-${entrant.id}`}
+                          className="inline-flex min-h-8 items-center justify-center rounded-lg border border-slate-300 px-3 text-xs font-semibold hover:bg-slate-50"
+                        >
+                          Withdraw
+                        </button>
+                      ) : null}
+                    </span>
+                  </div>
+                )
+              })}
               {!entrants.length ? (
                 <EmptyState title="No entrants yet." description="Enter formed pairs above to build the bracket." compact />
               ) : null}
@@ -244,7 +277,17 @@ export default function TournamentPage() {
                   {standings.map((entry) => (
                     <tr key={entry.entrantId} data-testid={`tournament-standing-${entry.entrantId}`} className="border-b border-slate-100">
                       <td className="px-2 py-1.5 text-right tabular-nums text-slate-400">{entry.rank}</td>
-                      <td className="px-2 py-1.5 text-left font-medium text-slate-900">{entry.displayName}</td>
+                      <td className="px-2 py-1.5 text-left font-medium text-slate-900">
+                        {entry.displayName}
+                        {entry.status === 'WITHDRAWN' ? (
+                          <span
+                            className="pb-status-chip pb-status-chip--muted ml-2 align-middle"
+                            data-testid={`tournament-standing-withdrawn-${entry.entrantId}`}
+                          >
+                            Withdrawn
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-slate-600">
                         {entry.wins}&ndash;{entry.losses}
                       </td>

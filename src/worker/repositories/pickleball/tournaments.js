@@ -97,11 +97,91 @@ export async function hasActiveEntrantForPair(db, sessionId, sessionPairId) {
   return Boolean(row)
 }
 
-// Active entrants with both pair members' display names and the pair's own
-// session_pair_id, ordered by seed then created_at -- the ordering
-// lockBracket's caller and the entrants list page both rely on. Seed is
-// nullable (unseeded until the bracket locks), so `seed IS NULL` sorts last
-// rather than relying on SQLite version-specific NULLS LAST syntax.
+// Unexecuted UPDATE moving an entrant off ACTIVE, for withdrawEntrant to
+// batch alongside its own per-fixture walkover statements below -- see that
+// method's own comment for why all of it must commit in ONE db.batch().
+// Scoped to `status = 'ACTIVE'` (a compare-and-swap, same spirit as
+// buildLockBracketStatement's `bracket_locked_at IS NULL`) so a second
+// withdraw attempt against an already-WITHDRAWN entrant changes nothing here
+// -- withdrawEntrant's own pre-check is what turns that into a clean domain
+// failure rather than a silent no-op UPDATE.
+//
+// This is the ONLY place in the codebase that ever writes 'WITHDRAWN':
+// hasActiveEntrantForPair (above) is what dissolvePair/leaveSession consult,
+// so once this UPDATE lands, that predicate stops matching this pair and
+// both of those commands succeed where they previously refused.
+export function buildWithdrawEntrantStatement(db, sessionId, entrantId) {
+  return db
+    .prepare(`UPDATE tournament_entrants SET status = 'WITHDRAWN', updated_at = ? WHERE id = ? AND session_id = ? AND status = 'ACTIVE'`)
+    .bind(nowIso(), entrantId, sessionId)
+}
+
+// True when `entrantId` currently holds an IN_PROGRESS fixture -- the guard
+// withdrawEntrant applies before touching anything else. A live game must be
+// finished or abandoned first; withdrawEntrant does not attempt to unwind
+// one itself, the same lesson dissolvePair's own C3 fix already learned (see
+// hasActiveEntrantForPair's header) for the identical class of mistake.
+export async function hasInProgressFixtureForEntrant(db, sessionId, entrantId) {
+  const row = await db
+    .prepare(
+      `SELECT id FROM tournament_fixtures
+       WHERE session_id = ? AND status = 'IN_PROGRESS' AND (entrant_a_id = ? OR entrant_b_id = ?)`,
+    )
+    .bind(sessionId, entrantId, entrantId)
+    .first()
+  return Boolean(row)
+}
+
+// Every one of `entrantId`'s fixtures not yet played (READY or PENDING --
+// PENDING never actually occurs for ROUND_ROBIN today, generateFixtures only
+// ever emits READY, but withdrawEntrant handles it generically rather than
+// assuming), for withdrawEntrant to resolve into either a walkover (the
+// opponent is a known, still-ACTIVE entrant) or a no-decision FINISH
+// (opponent absent or also withdrawn) -- see that method's own comment for
+// the full rule. Already-FINISHED fixtures are deliberately excluded: results
+// that happened, happened.
+export async function listUnplayedFixturesForEntrant(db, sessionId, entrantId) {
+  const result = await db
+    .prepare(
+      `SELECT * FROM tournament_fixtures
+       WHERE session_id = ? AND status IN ('READY', 'PENDING') AND (entrant_a_id = ? OR entrant_b_id = ?)`,
+    )
+    .bind(sessionId, entrantId, entrantId)
+    .all()
+  return (result.results || []).map((row) => toFixture(row))
+}
+
+// Unexecuted UPDATE recording a walkover or a no-decision FINISH for a
+// fixture neither side can now play, for withdrawEntrant to batch alongside
+// buildWithdrawEntrantStatement above. `winnerEntrantId` is either the
+// surviving opponent (a walkover win -- no game was played, so `game_id`
+// stays NULL, exactly as the spec requires: "a walkover is a win with no
+// points") or NULL when nobody gets credit (the opponent is absent or also
+// withdrawn -- "nobody gets a walkover win from a fixture neither side could
+// play"). Scoped to the fixture's current id/session only; withdrawEntrant's
+// own `listUnplayedFixturesForEntrant` read is what guarantees this only
+// ever targets a READY/PENDING row, never one already FINISHED.
+export function buildWithdrawFixtureStatement(db, sessionId, fixtureId, winnerEntrantId) {
+  return db
+    .prepare(`UPDATE tournament_fixtures SET status = 'FINISHED', winner_entrant_id = ?, updated_at = ? WHERE id = ? AND session_id = ?`)
+    .bind(winnerEntrantId, nowIso(), fixtureId, sessionId)
+}
+
+// Every entrant (ACTIVE or WITHDRAWN) with both pair members' display names
+// and the pair's own session_pair_id, ordered by seed then created_at -- the
+// ordering lockBracket's caller and the entrants list page both rely on. Seed
+// is nullable (unseeded until the bracket locks), so `seed IS NULL` sorts
+// last rather than relying on SQLite version-specific NULLS LAST syntax.
+//
+// Deliberately NOT filtered to `status = 'ACTIVE'` (it once was): a withdrawn
+// entrant's completed fixtures are real results, and hiding the entrant
+// itself would make a surviving opponent's win count unexplainable in the
+// UI ("a win against nobody") -- withdrawEntrant's own header has the full
+// reasoning. Callers that need only the currently-competing set (lockBracket,
+// pre-lock, when no entrant can be WITHDRAWN yet; assignCourtToTournamentFixture,
+// which only ever seats a fixture still READY -- a withdrawn entrant's
+// fixtures are never READY, see withdrawEntrant) are unaffected by including
+// withdrawn rows here, since neither reads te.status itself.
 //
 // Also exposes each member's raw player_id (not just their session_player_id)
 // -- lockBracket needs it to read ALL_TIME OPI via getPlayerSnapshot, which is
@@ -118,7 +198,7 @@ export async function listEntrants(db, sessionId) {
        JOIN players pa ON pa.id = spa.player_id
        JOIN session_players spb ON spb.id = sp.session_player_b_id
        JOIN players pb ON pb.id = spb.player_id
-       WHERE te.session_id = ? AND te.status = 'ACTIVE'
+       WHERE te.session_id = ?
        ORDER BY (te.seed IS NULL) ASC, te.seed ASC, te.created_at ASC`,
     )
     .bind(sessionId)
@@ -274,6 +354,41 @@ export function buildLockBracketStatement(db, sessionId, timestamp) {
 // Per-entrant wins, losses, points for/against, computed directly from
 // tournament_fixtures + games rather than player_game_stats.
 //
+// Withdrawal changed two things here. Only the first fixed a live bug; the
+// second is deliberate dead defence, and is labelled as such rather than
+// left to read like a fix:
+//
+// 1. REAL BUG. `JOIN game_teams gt ON gt.game_id = f.game_id` used to be an
+//    INNER JOIN. A walkover fixture (withdrawEntrant) has NO game at all --
+//    `game_id` stays NULL -- so an inner join dropped that fixture from
+//    `participations` entirely and the walkover win vanished from standings.
+//    Now a LEFT JOIN, with every points expression wrapped in
+//    `COALESCE(..., 0)`: a walkover is a win with no points, per spec, never
+//    an invented score. Reverting this single word drops the surviving
+//    entrant from 2 wins to 1 in the mid-tournament withdrawal test --
+//    measured, not assumed.
+//
+// 2. NOT REACHABLE TODAY. Both UNION branches also require
+//    `f.winner_entrant_id IS NOT NULL`, so a no-decision FINISH
+//    (withdrawEntrant's NULL-winner branch) could not silently count as a
+//    LOSS for both sides via the `win = 0` branch of the aggregate below.
+//    No public API path can currently produce such a row: withdrawEntrant
+//    resolves ALL of an entrant's unplayed fixtures in one batch, so a later
+//    withdrawal can never meet an already-withdrawn opponent, and no fixture
+//    ever carries a NULL entrant id (ROUND_ROBIN emits no byes, and
+//    dissolvePair sets a pair's status rather than deleting its entrant row).
+//    Removing this clause therefore fails NO test -- verified by applying
+//    that mutation and watching all 35 still pass. It is kept because
+//    SINGLE_ELIMINATION byes (phase C2) will make the state reachable, and a
+//    silent double-loss is a bad way to discover that. Do not treat it as
+//    covered.
+//
+// Also no longer filters `te.status = 'ACTIVE'` (see listEntrants' own
+// comment for the identical reasoning): a withdrawn entrant's ALREADY-PLAYED
+// fixtures are real results, and dropping the entrant would make a surviving
+// opponent's win look like a win against nobody. `te.status` is exposed on
+// every row so the caller (and the UI) can mark a withdrawn entrant as such.
+//
 // Deliberately NOT `agg.eligible_for_opi = 1` (sessionStandings.js's filter):
 // finishGame writes every tournament game's player_game_stats rows with
 // eligible_for_opi = 0 (tournament games must never feed OPI -- spec §3.2,
@@ -324,24 +439,24 @@ export async function listTournamentStandings(db, sessionId) {
        ),
        participations AS (
          SELECT f.entrant_a_id AS entrant_id,
-                CASE WHEN gt.team_a_pair_id = ea.session_pair_id THEN gt.final_score_a ELSE gt.final_score_b END AS points_for,
-                CASE WHEN gt.team_a_pair_id = ea.session_pair_id THEN gt.final_score_b ELSE gt.final_score_a END AS points_against,
+                COALESCE(CASE WHEN gt.team_a_pair_id = ea.session_pair_id THEN gt.final_score_a ELSE gt.final_score_b END, 0) AS points_for,
+                COALESCE(CASE WHEN gt.team_a_pair_id = ea.session_pair_id THEN gt.final_score_b ELSE gt.final_score_a END, 0) AS points_against,
                 CASE WHEN f.winner_entrant_id = f.entrant_a_id THEN 1 ELSE 0 END AS win
          FROM tournament_fixtures f
-         JOIN game_teams gt ON gt.game_id = f.game_id
+         LEFT JOIN game_teams gt ON gt.game_id = f.game_id
          JOIN tournament_entrants ea ON ea.id = f.entrant_a_id
-         WHERE f.session_id = ? AND f.status = 'FINISHED' AND f.entrant_a_id IS NOT NULL
+         WHERE f.session_id = ? AND f.status = 'FINISHED' AND f.entrant_a_id IS NOT NULL AND f.winner_entrant_id IS NOT NULL
          UNION ALL
          SELECT f.entrant_b_id AS entrant_id,
-                CASE WHEN gt.team_b_pair_id = eb.session_pair_id THEN gt.final_score_b ELSE gt.final_score_a END AS points_for,
-                CASE WHEN gt.team_b_pair_id = eb.session_pair_id THEN gt.final_score_a ELSE gt.final_score_b END AS points_against,
+                COALESCE(CASE WHEN gt.team_b_pair_id = eb.session_pair_id THEN gt.final_score_b ELSE gt.final_score_a END, 0) AS points_for,
+                COALESCE(CASE WHEN gt.team_b_pair_id = eb.session_pair_id THEN gt.final_score_a ELSE gt.final_score_b END, 0) AS points_against,
                 CASE WHEN f.winner_entrant_id = f.entrant_b_id THEN 1 ELSE 0 END AS win
          FROM tournament_fixtures f
-         JOIN game_teams gt ON gt.game_id = f.game_id
+         LEFT JOIN game_teams gt ON gt.game_id = f.game_id
          JOIN tournament_entrants eb ON eb.id = f.entrant_b_id
-         WHERE f.session_id = ? AND f.status = 'FINISHED' AND f.entrant_b_id IS NOT NULL
+         WHERE f.session_id = ? AND f.status = 'FINISHED' AND f.entrant_b_id IS NOT NULL AND f.winner_entrant_id IS NOT NULL
        )
-       SELECT te.id, te.seed,
+       SELECT te.id, te.seed, te.status,
               pa.display_name AS player_a_display_name, pb.display_name AS player_b_display_name,
               COALESCE(SUM(p.win), 0) AS wins,
               COALESCE(SUM(CASE WHEN p.win = 0 THEN 1 ELSE 0 END), 0) AS losses,
@@ -354,7 +469,7 @@ export async function listTournamentStandings(db, sessionId) {
        JOIN session_players spb ON spb.id = sp.session_player_b_id
        JOIN players pb ON pb.id = spb.player_id
        LEFT JOIN participations p ON p.entrant_id = te.id
-       WHERE te.session_id = ? AND te.status = 'ACTIVE'
+       WHERE te.session_id = ?
        GROUP BY te.id
        ORDER BY (te.seed IS NULL) ASC, te.seed ASC`,
     )
@@ -364,6 +479,7 @@ export async function listTournamentStandings(db, sessionId) {
   return (result.results || []).map((row) => ({
     entrantId: row.id,
     seed: row.seed,
+    status: row.status,
     displayName: `${row.player_a_display_name} / ${row.player_b_display_name}`,
     wins: row.wins,
     losses: row.losses,
