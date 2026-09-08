@@ -22,6 +22,7 @@ numbered file.
 | `0011_platform_pilot.sql` | Platform admin & self-serve pilot orgs: `users.is_platform_admin`; `organizations.status`, `.max_admins`, `.max_facilitators`, `.max_scorekeepers`; and the new `organization_invites` table. |
 | `0012_session_pairs.sql` | Fixed pairs (spec Part B): the new `session_pairs` table, a `BEFORE INSERT` trigger enforcing one `ACTIVE` pair per session player, and `queue_entries.session_pair_id`. |
 | `0013_teams_session_pair.sql` | Fixed pairs statistics fix: `teams.session_pair_id`, recording which pair a team actually was at the moment it was seated. |
+| `0014_tournaments.sql` | Phase C1: `pickleball_sessions.tournament_format` and `.bracket_locked_at`, plus `tournament_entrants` and `tournament_fixtures`. |
 
 ## Tables
 
@@ -196,7 +197,8 @@ Indexes:
 
 #### `pickleball_sessions`
 
-*Created in `0001_foundation.sql`.*
+*Created in `0001_foundation.sql`; `tournament_format` and
+`bracket_locked_at` added by `0014_tournaments.sql`.*
 
 | Column | Type | Constraints |
 |---|---|---|
@@ -218,6 +220,8 @@ Indexes:
 | `created_by_user_id` | TEXT | NOT NULL |
 | `created_at` | TEXT | NOT NULL |
 | `updated_at` | TEXT | NOT NULL |
+| `tournament_format` | TEXT | added by `0014`; nullable, CHECK (`tournament_format` IN (`'ROUND_ROBIN'`, `'SINGLE_ELIMINATION'`, `'POOL_TO_BRACKET'`, `'DOUBLE_ELIMINATION'`)) — NULL means an ordinary `FIXED_PAIRS` session with no tournament. **A tournament is not a third `session_type`**: it is a `FIXED_PAIRS` session with this column set. See "Schema constraint: CHECK clauses cannot be widened" in `architecture.md` for why — in short, `session_type`'s CHECK cannot grow another value without a table rebuild, and rebuilding `pickleball_sessions` is unsafe on D1 (nine foreign keys reference it; the rebuild's `ON DELETE CASCADE` would delete all of them, and `PRAGMA foreign_keys=OFF` is a no-op inside D1's single-transaction migration batch). Only `ROUND_ROBIN` ships in C1; the other three values are accepted by the CHECK now so C2–C4 need no further column-level migration, but nothing in this codebase generates their fixtures yet. |
+| `bracket_locked_at` | TEXT | added by `0014`; NULL until the operator locks the bracket (fixtures generated, seeds frozen). Regenerating a bracket after lock is out of scope for C1 — the column is a one-way gate, not a re-lockable flag. |
 
 Indexes:
 - `idx_sessions_org_status` on `(organization_id, status)`
@@ -412,6 +416,91 @@ join through — never a member's current pairing.
 Indexes:
 - `idx_team_members_team` on `(team_id)`
 - `idx_team_members_session_player` on `(session_player_id)`
+
+### Tournaments (Phase C1, §3)
+
+A tournament does not introduce a fourth participant shape: its entrant is a
+`session_pairs` row (see above), and the tournament itself is a `FIXED_PAIRS`
+session with `pickleball_sessions.tournament_format` set. These two tables
+add only what a bracket needs beyond an ordinary fixed-pairs session: who is
+entered (with a seed and a withdraw state independent of the pair itself),
+and the fixture list that entrant plays through.
+
+#### `tournament_entrants`
+
+*Created in `0014_tournaments.sql`.* An entrant is deliberately a separate
+row from `session_pairs`, not a column on it: a pair can exist in a
+`FIXED_PAIRS` session without ever being entered into its tournament, and
+seeding/withdrawal are tournament concerns, not pair concerns. A pair can
+have at most one entrant row (`idx_tournament_entrants_pair` is UNIQUE on
+`session_pair_id`), and only ever in one tournament, because C1 does not
+support a pair being entered in more than one tournament session
+simultaneously.
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | TEXT | PRIMARY KEY |
+| `session_id` | TEXT | NOT NULL, FOREIGN KEY → `pickleball_sessions(id)` ON DELETE CASCADE |
+| `session_pair_id` | TEXT | NOT NULL, FOREIGN KEY → `session_pairs(id)` ON DELETE CASCADE |
+| `seed` | INTEGER | nullable — assigned by `seedEntrants()` at generation time; only meaningful for formats that seed (bracket formats in C2+); round robin seeds only to order fixture generation deterministically |
+| `status` | TEXT | NOT NULL, DEFAULT `'ACTIVE'`, CHECK (`status` IN (`'ACTIVE'`, `'WITHDRAWN'`)) |
+| `created_at` | TEXT | NOT NULL |
+| `updated_at` | TEXT | NOT NULL |
+
+Indexes:
+- `idx_tournament_entrants_pair` UNIQUE on `(session_pair_id)`
+- `idx_tournament_entrants_session` on `(session_id, status)`
+
+#### `tournament_fixtures`
+
+*Created in `0014_tournaments.sql`.* The whole fixture list is generated up
+front as slots (by `generateFixtures()`), one row per match, and advancement
+fills the slots that were not already known. For `ROUND_ROBIN` (the only
+format C1 ships) both entrants of every fixture are known at generation time,
+so `entrant_a_id`/`entrant_b_id` are populated immediately and
+`source_a`/`source_b` stay NULL for every row this branch's UI can create.
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | TEXT | PRIMARY KEY |
+| `session_id` | TEXT | NOT NULL, FOREIGN KEY → `pickleball_sessions(id)` ON DELETE CASCADE |
+| `bracket` | TEXT | NOT NULL, DEFAULT `'MAIN'`, CHECK (`bracket` IN (`'POOL'`, `'MAIN'`, `'LOSERS'`)) — round robin only ever writes `'MAIN'` |
+| `pool_label` | TEXT | nullable; NULL for every format C1 ships, including `ROUND_ROBIN`. Reserved for `POOL_TO_BRACKET` (C3), where concurrent pools each need their own round/position numbering — see the fixture-slot indexes below for why this column being nullable is exactly the problem they exist to solve |
+| `round_number` | INTEGER | NOT NULL |
+| `position` | INTEGER | NOT NULL |
+| `entrant_a_id` | TEXT | FOREIGN KEY → `tournament_entrants(id)` ON DELETE SET NULL (nullable) |
+| `entrant_b_id` | TEXT | FOREIGN KEY → `tournament_entrants(id)` ON DELETE SET NULL (nullable) |
+| `source_a` | TEXT | nullable; a tagged string — `WINNER_OF:<fixture_id>`, `LOSER_OF:<fixture_id>`, or `POOL_RANK:<pool>:<n>` — recording where this slot's entrant will come from before it exists. **Unused by every format C1 ships** (round robin knows both entrants at generation time); the column exists now, ahead of any consumer, so that C2's single-elimination bracket, C3's pool-to-bracket crossover, and C4's double-elimination losers bracket — all of which fill a fixture from a previous fixture's result rather than from the entrant list — need no schema migration when they land. Adding it later would mean another `ALTER TABLE` against a table that, by then, other fixtures already reference. |
+| `source_b` | TEXT | nullable; same shape and same rationale as `source_a` |
+| `game_id` | TEXT | FOREIGN KEY → `games(id)` ON DELETE SET NULL (nullable) — set once the fixture's game is created; a tournament fixture's game is an ordinary `games` row, scored by the same engine as any other game, so finishing it goes through the normal `FINISH_GAME` command (see `architecture.md` for how that command is told not to feed this game into OPI) |
+| `winner_entrant_id` | TEXT | nullable; set once the fixture finishes |
+| `status` | TEXT | NOT NULL, DEFAULT `'PENDING'`, CHECK (`status` IN (`'PENDING'`, `'READY'`, `'IN_PROGRESS'`, `'FINISHED'`, `'BYE'`)) |
+| `created_at` | TEXT | NOT NULL |
+| `updated_at` | TEXT | NOT NULL |
+
+Indexes:
+- `idx_tournament_fixtures_slot_nopool` UNIQUE on `(session_id, bracket, round_number, position)` WHERE `pool_label IS NULL`
+- `idx_tournament_fixtures_slot_pool` UNIQUE on `(session_id, bracket, pool_label, round_number, position)` WHERE `pool_label IS NOT NULL`
+- `idx_tournament_fixtures_status` on `(session_id, status)`
+- `idx_tournament_fixtures_game` on `(game_id)`
+
+**Why the slot-uniqueness constraint is two partial indexes, not one.** The
+first version of this migration used a single composite UNIQUE index over
+`(session_id, bracket, pool_label, round_number, position)`. SQLite treats
+NULL as distinct from any other value — including another NULL — inside a
+unique index, so two rows with the same `session_id`/`bracket`/`round_number`/
+`position` and `pool_label IS NULL` were never seen as duplicates by that
+index. Since `pool_label` is NULL for every format C1 ships (round robin
+included), that single index enforced **nothing** for this branch's own
+fixture generation. This was not a hypothetical read of the SQLite docs:
+mutation testing flipped the uniqueness check, no test failed, and by the
+time that was investigated real duplicate fixture rows for the same slot had
+already been inserted against a dev database. The fix is the two indexes
+above: one covering the "no pool" case with a `WHERE pool_label IS NULL`
+partial index (equal NULLs excluded from the index's own comparison because
+the row simply isn't indexed by it, so uniqueness is enforced by the other
+three columns instead), and one covering the pool case where `pool_label` is
+always non-NULL and therefore comparable normally.
 
 #### `games`
 

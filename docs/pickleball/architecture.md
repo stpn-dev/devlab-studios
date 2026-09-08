@@ -95,6 +95,46 @@ USA-Pickleball-certified.
    because a member's *current* pairing cannot answer "which pair actually
    played this game" once anyone re-pairs mid-session; see `schema.md`'s
    entry on that column for the failure mode this closes.
+8. **Tournaments (Phase C1)** — a round-robin bracket layered on top of
+   fixed pairs, not a new session concept: see "Schema constraint" below for
+   why a tournament is a `FIXED_PAIRS` session carrying
+   `pickleball_sessions.tournament_format` rather than a third
+   `session_type`. An operator enters `session_pairs` as
+   `tournament_entrants` (migration `0014`), then locks the bracket in one
+   `db.batch()` that assigns seeds, generates the full `ROUND_ROBIN` fixture
+   list (the pure `generateFixtures()`,
+   `src/lib/pickleball/tournament/generateFixtures.ts`) and sets
+   `bracket_locked_at` — a half-locked bracket (seeds without fixtures, or
+   fixtures without the lock) is exactly the inconsistent-state class Part B
+   kept having to fix, so this repeats that lesson rather than relearning it.
+   Court assignment for a tournament fixture reuses the ordinary court-and-
+   game machinery: the pure `nextPlayableFixture()`
+   (`src/lib/pickleball/tournament/nextPlayableFixture.ts`) picks the next
+   `READY` fixture whose entrants aren't already on another court, and
+   `SessionCoordinatorDO` seats its two entrants as Team A/B directly, the
+   same way it seats a fixed pair without calling `balanceTeams`. Finishing a
+   tournament fixture's game goes through the normal `FINISH_GAME` command,
+   with one deliberate difference: it writes that game's
+   `player_game_stats` rows with `eligible_for_opi = 0`, so a tournament game
+   is scored like any other game but never moves a player's `ALL_TIME` OPI —
+   spec §3.2's requirement that a tournament stay a self-contained,
+   OPI-neutral event. Standings are a second read model for the same reason
+   `sessionStandings.js` exists for Open Play: `listTournamentStandings()`
+   (`src/worker/repositories/pickleball/tournaments.js`) aggregates wins,
+   losses and points directly from `tournament_fixtures`/`games` —
+   deliberately not filtering on `eligible_for_opi`, since every tournament
+   game has that flag cleared and such a filter would report every entrant
+   0-0 — and the pure `rankTournamentStandings()`
+   (`src/lib/pickleball/tournament/rankTournamentStandings.ts`) applies spec
+   §3.7's ordering (wins, losses, point differential, then head-to-head) on
+   top. `source_a`/`source_b` on `tournament_fixtures` are unused by
+   `ROUND_ROBIN` — both entrants are known when fixtures are generated — but
+   exist now, ahead of any consumer, so that the elimination and pool formats
+   in C2–C4 (which fill a fixture from a previous fixture's winner/loser or a
+   pool rank) need no further migration against a table other fixtures
+   already reference. Operator-only today: the public/TV bracket view is C5,
+   and `pickleball-public-pages.spec.js` still blocks the word "tournament"
+   on both public pages until that phase ships it.
 
 ### Schema constraint: CHECK clauses cannot be widened
 
@@ -145,6 +185,7 @@ full role→permission matrix.
 | 7 | Polish — audit log, operator management UI, dashboard consolidation, documentation | Complete |
 | A | Public pages — landing & guide rewrite, illustration system, request-access form, sign-in exit, services CTA | Complete |
 | B | Fixed pairs in Open Play — `session_pairs`, pair-aware queue/eligibility/assignment, pair statistics, guide gains a pairs section | Complete |
+| C1 | Tournaments, round robin — `tournament_format`/`bracket_locked_at`, `tournament_entrants`/`tournament_fixtures`, seeding, fixture generation and court assignment, OPI-neutral finishing, standings, operator UI | Complete |
 
 **Deliberately not built** (disclosed, not overlooked): the public sanitized
 leaderboard extension to `toPublicSessionView` (spec §9 — deferred, requires
