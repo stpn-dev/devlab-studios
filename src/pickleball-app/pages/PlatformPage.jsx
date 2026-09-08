@@ -25,8 +25,27 @@ export default function PlatformPage() {
     setInvites(invitesData.invites)
   }
 
+  // The load is awaited inside the effect rather than left as a floating
+  // `.catch(setMessage)`, which react-hooks/set-state-in-effect flags: from
+  // the rule's point of view the callback is indistinguishable from a
+  // synchronous setState during the effect, which is what triggers cascading
+  // renders. Awaiting it also makes the unmount case explicit -- the previous
+  // form would still call setMessage on a component that had gone away if the
+  // request failed after navigation.
   useEffect(() => {
-    reload().catch((error) => setMessage({ type: 'error', text: error.message }))
+    let cancelled = false
+
+    void (async () => {
+      try {
+        await reload()
+      } catch (error) {
+        if (!cancelled) setMessage({ type: 'error', text: error.message })
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   async function handleInvite() {
