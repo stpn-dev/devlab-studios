@@ -5,6 +5,7 @@ import { listGamesForSession } from '../repositories/pickleball/games.js'
 import { getTeamWithMembers } from '../repositories/pickleball/teams.js'
 import { listLeaderboard } from '../repositories/pickleball/playerPerformanceSnapshots.js'
 import { confidenceTier } from '../../lib/pickleball/opi'
+import { listFixtures } from '../repositories/pickleball/tournaments.js'
 
 // The one place that assembles "everything a connected operator/public
 // client needs to render the current session" — reused by both the
@@ -53,5 +54,32 @@ export async function buildPublicSnapshotExtras(db, session, games) {
     }))
   }
 
-  return { teamNames, leaderboard }
+  // C5: the bracket, for the public/TV view. Only for a tournament session --
+  // every other session type gets null and the view renders nothing.
+  //
+  // Entrant DISPLAY NAMES only, resolved here rather than passing entrant rows
+  // through: listFixtures already joins the pair's two players, and this keeps
+  // the public mapper's allowlist honest -- it never sees a session_player or
+  // pair row it might forward by accident. A pair's display name is two player
+  // names, which is the same class of data as the team names above and is
+  // already published on the live scoreboard.
+  let bracket = null
+  if (session.tournamentFormat) {
+    const fixtures = await listFixtures(db, session.id)
+    bracket = fixtures.map((fixture) => ({
+      id: fixture.id,
+      bracket: fixture.bracket,
+      poolLabel: fixture.poolLabel,
+      roundNumber: fixture.roundNumber,
+      position: fixture.position,
+      status: fixture.status,
+      entrantAId: fixture.entrantAId,
+      entrantBId: fixture.entrantBId,
+      entrantAName: fixture.entrantADisplayName ?? null,
+      entrantBName: fixture.entrantBDisplayName ?? null,
+      winnerEntrantId: fixture.winnerEntrantId,
+    }))
+  }
+
+  return { teamNames, leaderboard, bracket, tournamentFormat: session.tournamentFormat ?? null }
 }

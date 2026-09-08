@@ -100,7 +100,7 @@ const troubles = [
 
     <section class="mt-12">
       <h2 class="font-semibold text-slate-900">Find your next step</h2>
-      <div class="mt-4 grid gap-4 sm:grid-cols-3" data-testid="pb-guide-jump-links">
+      <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="pb-guide-jump-links">
         <a href="#run-a-session" class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200 transition hover:ring-brand/35">
           <span class="block font-semibold text-brand-ink">Run a session</span>
           <span class="mt-2 block text-sm text-slate-600">Every step from creating the session to closing it.</span>
@@ -112,6 +112,10 @@ const troubles = [
         <a href="#what-players-see" class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200 transition hover:ring-brand/35">
           <span class="block font-semibold text-brand-ink">What players see</span>
           <span class="mt-2 block text-sm text-slate-600">The QR code, the live view and the TV display.</span>
+        </a>
+        <a href="#tournaments" class="rounded-2xl bg-white/[0.92] p-5 ring-1 ring-slate-200 transition hover:ring-brand/35">
+          <span class="block font-semibold text-brand-ink">Run a tournament</span>
+          <span class="mt-2 block text-sm text-slate-600">Formats, locking the draw, withdrawals and corrections.</span>
         </a>
       </div>
     </section>
@@ -158,6 +162,42 @@ const troubles = [
         <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>The queue moves whole pairs, not individual players — a pair joins, waits and is assigned as one entrant.</li>
         <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>Both partners have to be available for the pair to be offered a court. If one goes temporarily unavailable, the pair gives up its place in the queue; once both are available again, join the queue for the pair again.</li>
         <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>You can't swap one player out of a pair that's already on a court, and you can't dissolve that pair either — both are refused while it holds a court. Release the court first, then dissolve the pair and form a new one.</li>
+      </ul>
+    </section>
+
+    <section id="tournaments" class="mt-16 scroll-mt-24 rounded-2xl bg-white/[0.92] p-6 ring-1 ring-slate-200">
+      <h2 class="text-3xl font-semibold text-slate-900">Running a tournament</h2>
+      <p class="mt-4 max-w-2xl text-sm leading-relaxed text-slate-600">
+        A tournament is a fixed-pairs session with a format attached, so everything above about
+        forming pairs still applies. Pick a format when you create the session; you can't change
+        it afterwards.
+      </p>
+      <ul class="mt-4 space-y-2 text-sm leading-relaxed text-slate-600">
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span><strong class="font-semibold text-slate-800">Round robin</strong> — every pair plays every other pair once. No knockouts; the table decides it.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span><strong class="font-semibold text-slate-800">Single elimination</strong> — one loss and you're out. The draw is padded to the next power of two and the byes go to the top seeds.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span><strong class="font-semibold text-slate-800">Pool play into a bracket</strong> — round-robin pools first, then the top two from each pool go through to a knockout bracket. Needs at least four pairs.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span><strong class="font-semibold text-slate-800">Double elimination</strong> — a first loss drops a pair into the losers bracket instead of knocking them out. Needs at least three pairs.</li>
+      </ul>
+      <h3 class="mt-6 text-lg font-semibold text-slate-900">How a tournament runs</h3>
+      <ul class="mt-3 space-y-2 text-sm leading-relaxed text-slate-600">
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>Form your pairs, then enter each one. When everyone is in, lock the draw — that freezes the entrants, sets the seeds from all-time ratings, and generates every match at once.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>After locking, you can't add or re-enter a pair, and the draw can't be regenerated. Lock when the field is final.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>Assign a court as usual and the app proposes the next match itself, working through the rounds in order. Tournament pairs are seated from the draw, not from the ordinary waiting queue.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>Later rounds show as "TBD" until the matches feeding them are played. That's expected — the whole draw exists from the moment you lock it.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>Tournament results don't feed player ratings. The session leaderboard still shows wins and losses; the rating stays put.</li>
+      </ul>
+      <h3 class="mt-6 text-lg font-semibold text-slate-900">When a pair can't continue</h3>
+      <ul class="mt-3 space-y-2 text-sm leading-relaxed text-slate-600">
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>Withdraw the entrant. Their remaining matches are awarded to their opponents as walkovers — a win with no points — and the draw carries on.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>A withdrawn pair keeps the results it already earned, so the pairs that beat it still add up.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>You can't withdraw a pair that's sitting on a court. Finish or abandon that game first.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>Withdrawing also releases the pair, so you can dissolve it afterwards if a player is leaving.</li>
+      </ul>
+      <h3 class="mt-6 text-lg font-semibold text-slate-900">Fixing a result</h3>
+      <ul class="mt-3 space-y-2 text-sm leading-relaxed text-slate-600">
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>Reopen the game, correct it and finish it again. The winner is taken back out of the next round and the corrected winner put in.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>If the next match has already been played, reopening is refused and tells you which match is in the way. Sort that one out first.</li>
+        <li class="flex gap-2"><span class="text-brand" aria-hidden="true">•</span>In double elimination the grand final is a single match — winning it from the losers bracket takes the title outright, with no decider.</li>
       </ul>
     </section>
 

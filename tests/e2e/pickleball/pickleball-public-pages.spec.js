@@ -186,12 +186,13 @@ test.describe('Pickleball public pages', () => {
     await page.goto('/pickleball/how-it-works')
 
     const jumpLinks = page.getByTestId('pb-guide-jump-links').locator('> a')
-    await expect(jumpLinks).toHaveCount(3)
+    await expect(jumpLinks).toHaveCount(4)
 
     for (const [name, href] of [
       ['Run a session', '#run-a-session'],
       ['Fix a mistake', '#when-something-goes-wrong'],
       ['What players see', '#what-players-see'],
+      ['Run a tournament', '#tournaments'],
     ]) {
       const link = page.getByTestId('pb-guide-jump-links').getByRole('link', { name })
       await expect(link).toHaveAttribute('href', href)
@@ -275,23 +276,37 @@ test.describe('Pickleball public pages', () => {
     })
   }
 
-  // Tournaments are still inert — assignCourt refuses any session whose type
-  // is not OPEN_PLAY or FIXED_PAIRS, and no fixture/bracket model exists yet
-  // (spec Part C, unbuilt). Documenting it would be a lie, so 'tournament'
-  // stays blocked here. 'fixed pair' was removed from this guard: fixed
-  // pairs shipped (spec Part B) — pair formation, pair-aware queueing and
-  // assignment, and pair statistics are all real, and the guide's fixed-pairs
-  // section documents them, so the string now appears in committed copy
-  // rather than describing an inert feature. Both public pages are swept,
-  // not just the guide: the landing page could gain unbuilt-feature copy
-  // just as easily. Do not delete this test — when tournaments ship, retire
-  // it then.
+  // 'tournament' was blocked here while Part C was unbuilt, and that guard is
+  // now retired as its own comment instructed: all four formats ship, so the
+  // guide documents them and the string appears in committed copy.
+  //
+  // The DISCIPLINE is kept, pointed at what is still genuinely unbuilt. These
+  // are the spec's own out-of-scope list (§5) plus the one simplification C4
+  // made deliberately -- a grand final is not replayed. Documenting any of
+  // them would be describing a feature that does not exist, which is the
+  // thing this test has always been for.
+  const UNBUILT_CLAIMS = ['third-place', 'consolation', 'bracket reset', 'singles tournament', 'reseed']
+
   for (const path of ['/pickleball', '/pickleball/how-it-works']) {
     test(`documents no unbuilt feature (${path})`, async ({ page }) => {
       const html = (await (await page.request.get(path)).text()).toLowerCase()
-      expect(html).not.toContain('tournament')
+      for (const claim of UNBUILT_CLAIMS) {
+        expect(html, `${path} claims "${claim}", which is not built`).not.toContain(claim)
+      }
     })
   }
+
+  // The other half of the same rule: a feature that DOES exist should be
+  // documented, or the guide is out of date in the other direction. This is
+  // what actually retires the old guard rather than just deleting it.
+  test('the guide documents tournaments now that they ship', async ({ page }) => {
+    const html = (await (await page.request.get('/pickleball/how-it-works')).text()).toLowerCase()
+    expect(html).toContain('tournament')
+    // Every format an operator can actually pick from the create form.
+    for (const format of ['round robin', 'single elimination', 'pool', 'double elimination']) {
+      expect(html, `the guide does not mention ${format}`).toContain(format)
+    }
+  })
 
   // These two pages are the product's public front door and are linked from
   // /services, so they need share metadata rather than a bare <title>. Both

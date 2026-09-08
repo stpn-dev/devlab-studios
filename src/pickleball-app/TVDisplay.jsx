@@ -1,5 +1,6 @@
 import './pickleball.css'
 import { usePublicSessionView } from './lib/usePublicSessionView'
+import PublicBracket from './PublicBracket.jsx'
 
 function servingLabel(game) {
   if (!game) return null
@@ -47,6 +48,8 @@ export default function TVDisplay({ code }) {
           )
         })}
       </div>
+
+      <PublicBracket bracket={view.bracket} />
 
       {view.leaderboard && view.leaderboard.length > 0 && (
         <div className="pb-scoreboard p-8" data-testid="tv-leaderboard">

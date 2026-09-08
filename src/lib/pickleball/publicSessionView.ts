@@ -1,5 +1,19 @@
 import type { GameState } from './scoring/gameState'
 
+export interface PublicBracketFixture {
+  id: string
+  bracket: string
+  poolLabel: string | null
+  roundNumber: number
+  position: number
+  status: string
+  entrantAId: string | null
+  entrantBId: string | null
+  entrantAName: string | null
+  entrantBName: string | null
+  winnerEntrantId: string | null
+}
+
 export interface PublicLeaderboardRow {
   displayName: string
   opi: number
@@ -17,6 +31,8 @@ interface PublicSessionView {
     teamAName: string | null; teamBName: string | null
   }>
   leaderboard: PublicLeaderboardRow[] | null
+  tournamentFormat: string | null
+  bracket: PublicBracketFixture[] | null
 }
 
 // Explicit allowlist mapper (spec's realtime design, §9/§10 of the parent
@@ -42,6 +58,8 @@ export function toPublicSessionView(snapshot: {
   }>
   teamNames?: Record<string, string | null>
   leaderboard?: PublicLeaderboardRow[] | null
+  tournamentFormat?: string | null
+  bracket?: PublicBracketFixture[] | null
 }): PublicSessionView {
   return {
     session: {
@@ -72,5 +90,10 @@ export function toPublicSessionView(snapshot: {
       teamBName: snapshot.teamNames?.[game.teamBId] ?? null,
     })),
     leaderboard: snapshot.leaderboard ?? null,
+    tournamentFormat: snapshot.tournamentFormat ?? null,
+    // Named field-by-field in buildPublicSnapshotExtras rather than forwarded
+    // wholesale, for the same reason as `leaderboard`: what arrives here is
+    // already the sanitized shape, never a raw fixture row.
+    bracket: snapshot.bracket ?? null,
   }
 }

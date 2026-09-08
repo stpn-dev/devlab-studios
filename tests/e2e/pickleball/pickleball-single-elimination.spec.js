@@ -535,3 +535,83 @@ test.describe('Pickleball single elimination: abandoning a reopened game', () =>
     expect((await getFixtures(request, sessionId)).every((f) => f.status === 'FINISHED')).toBe(true)
   })
 })
+
+// C5: the bracket on the public / TV view.
+test.describe('Pickleball single elimination: public bracket', () => {
+  test('the public live view shows the bracket by pair name, with TBD for slots nobody has reached', async ({ page, request }) => {
+    const { sessionId, sessionCourts } = await createLiveBracket(request, 4, 1)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const code = (await (await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)).json()).code
+    expect(code).toBeTruthy()
+
+    await page.goto(`/pickleball/live/${code}`)
+    await expect(page.getByTestId('live-bracket')).toBeVisible({ timeout: 15000 })
+
+    const bracket = page.getByTestId('live-bracket')
+    await expect(bracket).toContainText('Round 1')
+    await expect(bracket).toContainText('Round 2')
+    // The final exists from the moment the draw is locked, and nobody has
+    // qualified for it yet.
+    await expect(bracket).toContainText('TBD')
+
+    // A real pair name is shown, not an internal id.
+    const semis = await getFixtures(request, sessionId)
+    const someName = semis.find((f) => f.roundNumber === 1).entrantADisplayName
+    expect(someName).toBeTruthy()
+    await expect(bracket).toContainText(someName.split(' / ')[0])
+
+    // Playing a match replaces a TBD with the winner.
+    const played = await playProposedFixture(request, sessionId, sessionCourts[0].id)
+    await page.reload()
+    await expect(page.getByTestId('live-bracket')).toContainText('finished', { timeout: 15000 })
+    void played
+  })
+
+  test('the public bracket payload carries names and results only — no queue, no player ids', async ({ request }) => {
+    const { sessionId } = await createLiveBracket(request, 4, 1)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const code = (await (await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)).json()).code
+    const response = await request.get(`/api/pickleball/public/${code}/state`)
+    expect(response.status()).toBe(200)
+    const view = await response.json()
+
+    expect(Array.isArray(view.bracket)).toBe(true)
+    expect(view.bracket.length).toBe(3)
+    expect(view.tournamentFormat).toBe('SINGLE_ELIMINATION')
+
+    // The allowlist: exactly these keys, so a field added to the fixture row
+    // later cannot ride along into a public payload by omission.
+    for (const fixture of view.bracket) {
+      expect(Object.keys(fixture).sort()).toEqual(
+        [
+          'bracket',
+          'entrantAId',
+          'entrantAName',
+          'entrantBId',
+          'entrantBName',
+          'id',
+          'poolLabel',
+          'position',
+          'roundNumber',
+          'status',
+          'winnerEntrantId',
+        ].sort(),
+      )
+    }
+
+    // The public channel has never exposed the admissions queue and must not
+    // start doing so via the bracket.
+    expect(view.queue).toBeUndefined()
+  })
+
+  test('a non-tournament session gets no bracket at all, rather than an empty one', async ({ request }) => {
+    const { sessionId } = await createLiveBracket(request, 4, 1)
+    // Deliberately NOT locked: fixtures do not exist until lock, so the
+    // bracket must come back empty rather than half-formed.
+    const code = (await (await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)).json()).code
+    const view = await (await request.get(`/api/pickleball/public/${code}/state`)).json()
+    expect(view.bracket).toEqual([])
+  })
+})
