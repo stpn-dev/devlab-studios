@@ -7,13 +7,13 @@ import { z } from 'zod'
 // schema alone can't see -- the ruleset's format -- so it isn't a superRefine
 // either).
 //
-// Restricted to 'ROUND_ROBIN' only, though the DB CHECK (0014) already allows
-// three other formats reserved for C2-C4: generateFixtures.ts intentionally
-// THROWS for any format it doesn't implement yet, and this phase implements
-// only ROUND_ROBIN. Accepting the other literals here would let an operator
-// create a tournament that can never be locked without a 500 -- narrower than
-// the schema strictly needs to be, on purpose.
-export const tournamentFormatSchema = z.literal('ROUND_ROBIN')
+// Restricted to the formats generateFixtures.ts actually implements, which is
+// narrower than the DB CHECK (0014) on purpose. That function intentionally
+// THROWS for a format it doesn't implement, so accepting POOL_TO_BRACKET or
+// DOUBLE_ELIMINATION here would let an operator create a tournament that can
+// never be locked without a 500. C2 added SINGLE_ELIMINATION; the remaining
+// two widen this union as C3 and C4 land.
+export const tournamentFormatSchema = z.enum(['ROUND_ROBIN', 'SINGLE_ELIMINATION'])
 
 export const createSessionSchema = z.object({
   venueId: z.string().uuid(),

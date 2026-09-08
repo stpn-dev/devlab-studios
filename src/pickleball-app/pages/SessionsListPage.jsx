@@ -9,11 +9,11 @@ import { humanizeEnum } from '../lib/humanizeEnum'
 
 const SESSION_TYPES = ['OPEN_PLAY', 'FIXED_PAIRS']
 
-// C1 ships ROUND_ROBIN only (generateFixtures throws for the other three
-// spec-named formats -- src/lib/schemas/pickleball/tournaments.ts restricts
-// the API to the same single literal), so this is the only real option this
-// select can offer today.
-const TOURNAMENT_FORMATS = ['ROUND_ROBIN']
+// The formats generateFixtures actually implements -- it throws for the other
+// two spec-named ones, and tournamentFormatSchema restricts the API to this
+// same set, so offering more here would only produce a tournament that cannot
+// be locked. C2 added SINGLE_ELIMINATION.
+const TOURNAMENT_FORMATS = ['ROUND_ROBIN', 'SINGLE_ELIMINATION']
 
 const EMPTY_FORM = { venueId: '', name: '', sessionType: 'OPEN_PLAY', scoringRulesetId: '', scheduledStart: '', scheduledEnd: '', tournamentFormat: '' }
 

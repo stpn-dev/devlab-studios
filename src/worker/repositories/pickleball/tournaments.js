@@ -237,8 +237,29 @@ export function buildSetSeedStatement(db, sessionId, entrantId, seed) {
 // without the lock) is the exact class of state Part B kept having to fix.
 // All fixtures from one lock share a single `nowIso()` call rather than one
 // per row, since they are conceptually one atomic write.
+// Ids are minted here, BEFORE any statement runs, so that `source_a`/`source_b`
+// can be rewritten from generateFixtures' local keys (`WINNER_OF:MAIN:2:0`)
+// into real fixture ids (`WINNER_OF:<uuid>`). advanceBracket matches sources
+// against fixture ids by exact equality, so the rewrite has to happen on the
+// way in -- there is no later point where a key could still be resolved,
+// since the keys are never stored.
+//
+// A source naming a key that is not in this batch is a generator bug, not
+// something to paper over: it would be written to the database as an
+// unresolvable pointer and silently strand every fixture downstream of it, so
+// it throws before the INSERTs are ever handed to lockBracket's db.batch().
+function resolveSource(source, idByKey) {
+  if (!source) return null
+  const [tag, key] = [source.slice(0, source.indexOf(':') + 1), source.slice(source.indexOf(':') + 1)]
+  const id = idByKey.get(key)
+  if (!id) throw new Error(`Fixture source references an unknown slot: ${source}`)
+  return `${tag}${id}`
+}
+
 export function insertFixturesStatements(db, sessionId, fixtures) {
   const timestamp = nowIso()
+  const idByKey = new Map(fixtures.map((fixture) => [fixture.key, crypto.randomUUID()]))
+
   return fixtures.map((fixture) =>
     db
       .prepare(
@@ -248,7 +269,7 @@ export function insertFixturesStatements(db, sessionId, fixtures) {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
-        crypto.randomUUID(),
+        idByKey.get(fixture.key),
         sessionId,
         fixture.bracket,
         fixture.poolLabel,
@@ -256,13 +277,31 @@ export function insertFixturesStatements(db, sessionId, fixtures) {
         fixture.position,
         fixture.entrantAId,
         fixture.entrantBId,
-        fixture.sourceA,
-        fixture.sourceB,
+        resolveSource(fixture.sourceA, idByKey),
+        resolveSource(fixture.sourceB, idByKey),
         fixture.status,
         timestamp,
         timestamp,
       ),
   )
+}
+
+// Unexecuted UPDATE filling one side of a downstream fixture from
+// advanceBracket's own output (or clearing it, for unadvanceBracket).
+//
+// Scoped to `status IN ('PENDING', 'READY')` as a compare-and-swap: a fixture
+// that has since been started or played must never have an entrant slot
+// rewritten underneath it. unadvanceBracket already refuses in that case and
+// names the blocker, so on the ordinary path this clause changes nothing --
+// it is here so the two cannot disagree.
+export function buildFillFixtureSlotStatement(db, sessionId, { fixtureId, side, entrantId, status }) {
+  const column = side === 'A' ? 'entrant_a_id' : 'entrant_b_id'
+  return db
+    .prepare(
+      `UPDATE tournament_fixtures SET ${column} = ?, status = ?, updated_at = ?
+       WHERE id = ? AND session_id = ? AND status IN ('PENDING', 'READY')`,
+    )
+    .bind(entrantId, status, nowIso(), fixtureId, sessionId)
 }
 
 function toFixture(row, displayNameByEntrantId) {
