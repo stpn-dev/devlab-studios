@@ -140,4 +140,24 @@ describe('generateFixtures — ROUND_ROBIN', () => {
     generateFixtures('ROUND_ROBIN', input)
     expect(input).toEqual(snapshot)
   })
+
+  // Test-quality fix: `entrants(n)` (this file's own helper) always hands
+  // generateFixtures its input already in seed order, so a version that
+  // ignored `SeededEntrant.seed` entirely and read array position instead
+  // (which is exactly what this function used to do) passed every test
+  // above without ever being caught. This test supplies the SAME entrants
+  // shuffled into a different array order, with `seed` as the only thing
+  // that still says who is really #1..#6 -- proving the function reads
+  // `seed`, not array position, to decide the bracket.
+  it('reads SeededEntrant.seed, not array order, to decide the bracket -- a shuffled-array input produces the identical fixture list', () => {
+    const seedOrder = entrants(6)
+    const shuffled = [seedOrder[3], seedOrder[0], seedOrder[5], seedOrder[1], seedOrder[4], seedOrder[2]]
+    // Sanity check the shuffle actually did something, or this test would
+    // vacuously pass no matter what.
+    expect(shuffled.map((e) => e.entrantId)).not.toEqual(seedOrder.map((e) => e.entrantId))
+
+    const fromSeedOrder = generateFixtures('ROUND_ROBIN', seedOrder)
+    const fromShuffled = generateFixtures('ROUND_ROBIN', shuffled)
+    expect(fromShuffled).toEqual(fromSeedOrder)
+  })
 })

@@ -67,7 +67,19 @@ export function generateFixtures(format: TournamentFormat, entrants: SeededEntra
     throw new Error(`Tournament format not yet supported: ${format}`)
   }
 
-  const entrantIds = entrants.map((entrant) => entrant.entrantId)
+  // Sorted by seed (ascending) rather than trusting the caller's array
+  // order -- `entrants` here is `seedEntrants`'s own output (seeding.ts),
+  // whose seed values are the actual competitive ranking, and the circle
+  // method's fixed/rotating split (roundRobinRounds below) is sensitive to
+  // the order entrant ids arrive in: it determines who sits out which round
+  // when the entrant count is odd, and which round each pair meets in.
+  // Every pair still meets exactly once regardless of input order (that
+  // property is inherent to the circle method, not seed-dependent), but a
+  // caller supplying entrants out of seed order previously got a different,
+  // silently-unseeded bracket -- generateFixtures read array position, never
+  // `entrant.seed`, making the field dead weight on the interface.
+  const sortedEntrants = [...entrants].sort((a, b) => a.seed - b.seed)
+  const entrantIds = sortedEntrants.map((entrant) => entrant.entrantId)
   const rounds = roundRobinRounds(entrantIds)
 
   const fixtures: GeneratedFixture[] = []
