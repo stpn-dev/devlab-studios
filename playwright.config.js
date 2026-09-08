@@ -6,6 +6,12 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: 'list',
+  // Playwright's 30s default was written for page interactions, not for a
+  // tournament suite where a single test plays a whole bracket -- ~2n matches,
+  // each a dozen or more HTTP round-trips against a local wrangler dev worker.
+  // Those tests were passing on a quiet machine and timing out on a busy one,
+  // which is a flaky suite pretending to be a failing one.
+  timeout: 180_000,
   use: {
     trace: 'retain-on-failure',
     ...devices['Desktop Chrome'],

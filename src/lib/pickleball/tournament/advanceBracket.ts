@@ -55,6 +55,7 @@ export type BracketOp =
   | { kind: 'FINISH'; fixtureId: string; winnerEntrantId: string | null }
 
 const WINNER_OF = 'WINNER_OF:'
+const LOSER_OF = 'LOSER_OF:'
 
 function otherSide(side: 'A' | 'B'): 'A' | 'B' {
   return side === 'A' ? 'B' : 'A'
@@ -81,13 +82,61 @@ function isDeadSide(fixture: BracketFixture, side: 'A' | 'B'): boolean {
 // local keys into real ids), so this is an equality check, never a prefix or
 // substring match -- a substring match would let one fixture id that happens
 // to contain another as a prefix feed the wrong slot.
-function downstreamOf(fixtures: BracketFixture[], fixtureId: string): { fixture: BracketFixture; side: 'A' | 'B' } | null {
-  const token = `${WINNER_OF}${fixtureId}`
+function downstreamOf(
+  fixtures: BracketFixture[],
+  fixtureId: string,
+  tag: string = WINNER_OF,
+): { fixture: BracketFixture; side: 'A' | 'B' } | null {
+  const token = `${tag}${fixtureId}`
   for (const fixture of fixtures) {
     if (fixture.sourceA === token) return { fixture, side: 'A' }
     if (fixture.sourceB === token) return { fixture, side: 'B' }
   }
   return null
+}
+
+// Walks one entrant forward from `fromFixtureId`: the first hop follows `tag`
+// (WINNER_OF for the winner, LOSER_OF for a double-elimination drop-down),
+// and every hop after that follows WINNER_OF, because once an entrant is in a
+// bracket they progress by winning.
+function chainFrom(fixtures: BracketFixture[], tag: string, fromFixtureId: string, entrantId: string): BracketOp[] {
+  const ops: BracketOp[] = []
+  const seen = new Set<string>([fromFixtureId])
+
+  let currentTag = tag
+  let currentFrom = fromFixtureId
+
+  for (;;) {
+    const downstream = downstreamOf(fixtures, currentFrom, currentTag)
+    if (!downstream) return ops
+
+    const { fixture, side } = downstream
+    // A bracket is a DAG, so this can only trip on cyclic data -- but an
+    // infinite loop inside a Durable Object command would hang the session,
+    // so the guard is cheap insurance rather than dead code.
+    if (seen.has(fixture.id)) return ops
+    seen.add(fixture.id)
+
+    const opposite = otherSide(side)
+
+    if (entrantOn(fixture, opposite) !== null) {
+      ops.push({ kind: 'FILL', fixtureId: fixture.id, side, entrantId, status: 'READY' })
+      return ops
+    }
+
+    if (!isDeadSide(fixture, opposite)) {
+      ops.push({ kind: 'FILL', fixtureId: fixture.id, side, entrantId, status: 'PENDING' })
+      return ops
+    }
+
+    // Nobody is coming to the other side. Record who arrived (so the bracket
+    // still shows who won it and against whom), finish it as a walkover, and
+    // carry the same entrant onward -- by winning, from here on.
+    ops.push({ kind: 'FILL', fixtureId: fixture.id, side, entrantId, status: 'PENDING' })
+    ops.push({ kind: 'FINISH', fixtureId: fixture.id, winnerEntrantId: entrantId })
+    currentTag = WINNER_OF
+    currentFrom = fixture.id
+  }
 }
 
 /**
@@ -106,51 +155,22 @@ function downstreamOf(fixtures: BracketFixture[], fixtureId: string): { fixture:
  * Without this, filling a slot whose opponent had withdrawn produced a fixture
  * that was never playable and never finished, and the bracket stopped dead
  * with no command that could restart it.
+ *
+ * `loserEntrantId` matters only for DOUBLE_ELIMINATION, where a first loss is
+ * a drop into the losers bracket rather than elimination. The two chains are
+ * independent -- a fixture can feed a winner one way and a loser another --
+ * and a format with no LOSER_OF sources anywhere simply produces nothing from
+ * the second, so no caller has to branch on format.
  */
 export function resolveAdvancement(
   fixtures: BracketFixture[],
   finishedFixtureId: string,
   winnerEntrantId: string,
+  loserEntrantId: string | null = null,
 ): BracketOp[] {
-  const ops: BracketOp[] = []
-  const seen = new Set<string>([finishedFixtureId])
-
-  let fromFixtureId = finishedFixtureId
-  let advancing = winnerEntrantId
-
-  for (;;) {
-    const downstream = downstreamOf(fixtures, fromFixtureId)
-    if (!downstream) return ops
-
-    const { fixture, side } = downstream
-    // A bracket is a tree, so this can only trip if the fixture data is
-    // cyclic -- but an infinite loop inside a Durable Object command would
-    // hang the session, so the guard is cheap insurance rather than dead code.
-    if (seen.has(fixture.id)) return ops
-    seen.add(fixture.id)
-
-    const opposite = otherSide(side)
-
-    if (entrantOn(fixture, opposite) !== null) {
-      ops.push({ kind: 'FILL', fixtureId: fixture.id, side, entrantId: advancing, status: 'READY' })
-      return ops
-    }
-
-    if (!isDeadSide(fixture, opposite)) {
-      // Still waiting on a real match: fill this side and stop.
-      ops.push({ kind: 'FILL', fixtureId: fixture.id, side, entrantId: advancing, status: 'PENDING' })
-      return ops
-    }
-
-    // Nobody is coming to the other side. Record who arrived (so the bracket
-    // still shows who won it and against whom), finish it as a walkover, and
-    // carry the same entrant onward.
-    ops.push({ kind: 'FILL', fixtureId: fixture.id, side, entrantId: advancing, status: 'PENDING' })
-    ops.push({ kind: 'FINISH', fixtureId: fixture.id, winnerEntrantId: advancing })
-    // `advancing` is unchanged: the same entrant carries on into the next
-    // round, which may itself turn out to be another walkover.
-    fromFixtureId = fixture.id
-  }
+  const ops = chainFrom(fixtures, WINNER_OF, finishedFixtureId, winnerEntrantId)
+  if (loserEntrantId) ops.push(...chainFrom(fixtures, LOSER_OF, finishedFixtureId, loserEntrantId))
+  return ops
 }
 
 /**
@@ -245,6 +265,11 @@ function cascadeDeadFixture(fixtures: BracketFixture[], deadFixtureId: string): 
 
     ops.push({ kind: 'VACATE', fixtureId: fixture.id, side })
 
+    // A fixture nobody can win also drops nobody, so its LOSER_OF consumer is
+    // dead as well.
+    const loserConsumer = downstreamOf(fixtures, fromFixtureId, LOSER_OF)
+    if (loserConsumer) ops.push({ kind: 'VACATE', fixtureId: loserConsumer.fixture.id, side: loserConsumer.side })
+
     const opposite = otherSide(side)
     // If the other side still has, or can still get, an entrant, that entrant
     // wins this fixture by walkover once they arrive -- resolveAdvancement
@@ -270,25 +295,32 @@ function cascadeDeadFixture(fixtures: BracketFixture[], deadFixtureId: string): 
  * refusal, and the caller must not conflate them.
  */
 export function unadvanceBracket(fixtures: BracketFixture[], finishedFixtureId: string): UnadvanceBlocked | UnadvanceApplied {
-  const downstream = downstreamOf(fixtures, finishedFixtureId)
-  if (!downstream) return { ok: true, updates: [] }
+  // BOTH consumers, not just the winner's. In double elimination a finished
+  // match also placed its LOSER into the losers bracket; undoing the result
+  // while leaving that drop in place would keep a pair in a bracket they may
+  // no longer belong in, and nothing would ever remove them.
+  const downstreams = [
+    downstreamOf(fixtures, finishedFixtureId, WINNER_OF),
+    downstreamOf(fixtures, finishedFixtureId, LOSER_OF),
+  ].filter((entry): entry is { fixture: BracketFixture; side: 'A' | 'B' } => entry !== null)
 
-  const { fixture, side } = downstream
-  if (fixture.status === 'IN_PROGRESS' || fixture.status === 'FINISHED') {
-    return { ok: false, blockingFixtureId: fixture.id }
+  if (downstreams.length === 0) return { ok: true, updates: [] }
+
+  for (const { fixture } of downstreams) {
+    if (fixture.status === 'IN_PROGRESS' || fixture.status === 'FINISHED') {
+      return { ok: false, blockingFixtureId: fixture.id }
+    }
   }
 
   return {
     ok: true,
-    updates: [
-      {
-        fixtureId: fixture.id,
-        side,
-        entrantId: null,
-        // Always PENDING: this side is being emptied, so the fixture cannot
-        // be READY regardless of what the other side holds.
-        status: 'PENDING',
-      },
-    ],
+    updates: downstreams.map(({ fixture, side }) => ({
+      fixtureId: fixture.id,
+      side,
+      entrantId: null,
+      // Always PENDING: this side is being emptied, so the fixture cannot be
+      // READY regardless of what the other side holds.
+      status: 'PENDING' as const,
+    })),
   }
 }

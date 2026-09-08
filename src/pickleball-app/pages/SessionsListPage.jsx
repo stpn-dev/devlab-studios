@@ -12,8 +12,8 @@ const SESSION_TYPES = ['OPEN_PLAY', 'FIXED_PAIRS']
 // The formats generateFixtures actually implements -- it throws for the other
 // two spec-named ones, and tournamentFormatSchema restricts the API to this
 // same set, so offering more here would only produce a tournament that cannot
-// be locked. C2 added SINGLE_ELIMINATION.
-const TOURNAMENT_FORMATS = ['ROUND_ROBIN', 'SINGLE_ELIMINATION', 'POOL_TO_BRACKET']
+// be locked. All four spec formats are implemented.
+const TOURNAMENT_FORMATS = ['ROUND_ROBIN', 'SINGLE_ELIMINATION', 'POOL_TO_BRACKET', 'DOUBLE_ELIMINATION']
 
 const EMPTY_FORM = { venueId: '', name: '', sessionType: 'OPEN_PLAY', scoringRulesetId: '', scheduledStart: '', scheduledEnd: '', tournamentFormat: '' }
 

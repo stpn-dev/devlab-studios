@@ -11,9 +11,11 @@ import { z } from 'zod'
 // narrower than the DB CHECK (0014) on purpose. That function intentionally
 // THROWS for a format it doesn't implement, so accepting POOL_TO_BRACKET or
 // DOUBLE_ELIMINATION here would let an operator create a tournament that can
-// never be locked without a 500. C2 added SINGLE_ELIMINATION; the remaining
-// two widen this union as C3 and C4 land.
-export const tournamentFormatSchema = z.enum(['ROUND_ROBIN', 'SINGLE_ELIMINATION', 'POOL_TO_BRACKET'])
+// never be locked without a 500. All four spec formats are now implemented,
+// so this union matches generateFixtures exactly; it stays an explicit list
+// rather than mirroring the DB CHECK, so adding a format to the schema is a
+// deliberate act and not a side effect of a migration.
+export const tournamentFormatSchema = z.enum(['ROUND_ROBIN', 'SINGLE_ELIMINATION', 'POOL_TO_BRACKET', 'DOUBLE_ELIMINATION'])
 
 export const createSessionSchema = z.object({
   venueId: z.string().uuid(),

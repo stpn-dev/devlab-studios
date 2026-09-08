@@ -179,7 +179,4 @@ describe('generateFixtures — SINGLE_ELIMINATION', () => {
     expect(generateFixtures('SINGLE_ELIMINATION', [])).toEqual([])
   })
 
-  it('still throws for the formats that are not built yet', () => {
-    expect(() => generateFixtures('DOUBLE_ELIMINATION', entrants(4))).toThrow(/not yet supported/)
-  })
 })

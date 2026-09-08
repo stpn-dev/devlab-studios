@@ -127,15 +127,12 @@ describe('generateFixtures — ROUND_ROBIN', () => {
     }
   })
 
-  // SINGLE_ELIMINATION was on this list until C2 built it; its own coverage
-  // lives in singleElimination.test.ts. The two formats left here are still
-  // genuinely unbuilt, and must keep failing loudly rather than returning an
-  // empty fixture list that would present as a tournament with no matches.
-  it('throws for each unsupported format, naming it', () => {
-    const unsupported: TournamentFormat[] = ['DOUBLE_ELIMINATION']
-    for (const format of unsupported) {
-      expect(() => generateFixtures(format, entrants(4))).toThrow(format)
-    }
+  // Every spec format is implemented now, so this guards the remaining case:
+  // a format string that is not one of them at all. It still has to throw
+  // rather than return an empty list -- an empty fixture list would present to
+  // an operator as a locked tournament with no matches.
+  it('throws for a format it does not implement, naming it', () => {
+    expect(() => generateFixtures('SWISS' as TournamentFormat, entrants(4))).toThrow('SWISS')
   })
 
   it('does not mutate the input entrants array', () => {

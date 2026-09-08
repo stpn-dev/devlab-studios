@@ -1624,12 +1624,21 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
           // march a withdrawn pair into the next round. Their downstream slot
           // is vacated instead, which hands that round to whoever arrives on
           // the other side, exactly as any other withdrawal does.
+          // The LOSER is carried too, for DOUBLE_ELIMINATION: a first defeat
+          // drops a pair into the losers bracket rather than eliminating them.
+          // Only passed on when they are still ACTIVE -- a pair who withdrew
+          // must not be dropped into a bracket they cannot play out, the same
+          // rule the winner is held to just below. Formats with no LOSER_OF
+          // sources produce nothing from it, so this needs no branch on format.
           const winnerEntrant = entrantA?.id === winnerEntrantId ? entrantA : entrantB
+          const loserEntrant = entrantA?.id === winnerEntrantId ? entrantB : entrantA
+          const droppingEntrantId = loserEntrant && loserEntrant.status === 'ACTIVE' ? loserEntrant.id : null
+
           const allFixtures = await listTournamentFixtures(db, sessionId)
           const ops =
             winnerEntrant && winnerEntrant.status !== 'ACTIVE'
               ? resolveWinnerUnavailable(allFixtures, fixture.id)
-              : resolveAdvancement(allFixtures, fixture.id, winnerEntrantId)
+              : resolveAdvancement(allFixtures, fixture.id, winnerEntrantId, droppingEntrantId)
           fixtureCompletionStatements.push(...this.buildBracketOpStatements(db, sessionId, ops))
 
           // C3: a POOL_RANK slot is settled by a whole pool finishing, not by
