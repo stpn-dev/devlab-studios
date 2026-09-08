@@ -129,9 +129,18 @@ export async function getTeamWithMembers(db, teamId) {
 // extracted here so a read-only route can serve it without duplicating the
 // query. Returns 0, 1, or 2 teams depending on the court's actual state; a
 // normally ASSIGNED/PLAYING court has exactly 2.
+//
+// `ORDER BY rowid` (insertion order): GamesListPage.jsx's StartGameForm
+// destructures this array as `const [teamA, teamB] = teams` and without any
+// ORDER BY, SQLite makes no guarantee about row order at all -- the two
+// teams could come back swapped from one call to the next, silently
+// flipping which roster the "Team A" starting-server picker shows. Team A's
+// create statement always runs before team B's in the same db.batch() (see
+// assignCourt/assignCourtToPairs/assignCourtToTournamentFixture), so
+// insertion order is exactly "team A first, team B second".
 export async function listTeamsForCourt(db, sessionId, sessionCourtId) {
   const result = await db
-    .prepare(`SELECT id FROM teams WHERE session_court_id = ? AND session_id = ?`)
+    .prepare(`SELECT id FROM teams WHERE session_court_id = ? AND session_id = ? ORDER BY rowid ASC`)
     .bind(sessionCourtId, sessionId)
     .all()
   const teamIds = (result.results || []).map((row) => row.id)
