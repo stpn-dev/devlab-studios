@@ -127,8 +127,12 @@ describe('generateFixtures — ROUND_ROBIN', () => {
     }
   })
 
+  // SINGLE_ELIMINATION was on this list until C2 built it; its own coverage
+  // lives in singleElimination.test.ts. The two formats left here are still
+  // genuinely unbuilt, and must keep failing loudly rather than returning an
+  // empty fixture list that would present as a tournament with no matches.
   it('throws for each unsupported format, naming it', () => {
-    const unsupported: TournamentFormat[] = ['SINGLE_ELIMINATION', 'POOL_TO_BRACKET', 'DOUBLE_ELIMINATION']
+    const unsupported: TournamentFormat[] = ['POOL_TO_BRACKET', 'DOUBLE_ELIMINATION']
     for (const format of unsupported) {
       expect(() => generateFixtures(format, entrants(4))).toThrow(format)
     }
