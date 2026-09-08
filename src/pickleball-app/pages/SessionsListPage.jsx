@@ -13,7 +13,7 @@ const SESSION_TYPES = ['OPEN_PLAY', 'FIXED_PAIRS']
 // two spec-named ones, and tournamentFormatSchema restricts the API to this
 // same set, so offering more here would only produce a tournament that cannot
 // be locked. C2 added SINGLE_ELIMINATION.
-const TOURNAMENT_FORMATS = ['ROUND_ROBIN', 'SINGLE_ELIMINATION']
+const TOURNAMENT_FORMATS = ['ROUND_ROBIN', 'SINGLE_ELIMINATION', 'POOL_TO_BRACKET']
 
 const EMPTY_FORM = { venueId: '', name: '', sessionType: 'OPEN_PLAY', scoringRulesetId: '', scheduledStart: '', scheduledEnd: '', tournamentFormat: '' }
 

@@ -13,7 +13,7 @@ import { z } from 'zod'
 // DOUBLE_ELIMINATION here would let an operator create a tournament that can
 // never be locked without a 500. C2 added SINGLE_ELIMINATION; the remaining
 // two widen this union as C3 and C4 land.
-export const tournamentFormatSchema = z.enum(['ROUND_ROBIN', 'SINGLE_ELIMINATION'])
+export const tournamentFormatSchema = z.enum(['ROUND_ROBIN', 'SINGLE_ELIMINATION', 'POOL_TO_BRACKET'])
 
 export const createSessionSchema = z.object({
   venueId: z.string().uuid(),

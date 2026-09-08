@@ -448,7 +448,7 @@ test.describe('Pickleball tournaments: lock the bracket', () => {
 
     const lockResponse = await lockBracket(request, sessionId)
     expect(lockResponse.status()).toBe(409)
-    expect((await lockResponse.json()).error).toBe('At least 2 entrants are required to lock the bracket.')
+    expect((await lockResponse.json()).error).toBe('At least 2 entrants are required to lock this tournament.')
   })
 
   // n = 4 -> n(n-1)/2 = 6 fixtures. Asserting the fixture COUNT and that

@@ -229,10 +229,22 @@ export function buildSetSeedStatement(db, sessionId, entrantId, seed) {
 // something to paper over: it would be written to the database as an
 // unresolvable pointer and silently strand every fixture downstream of it, so
 // it throws before the INSERTs are ever handed to lockBracket's db.batch().
+// Only sources that NAME ANOTHER FIXTURE are rewritten. `WINNER_OF:` and
+// `LOSER_OF:` carry a generator slot key that has to become a real id;
+// `POOL_RANK:<label>:<rank>` is a pool coordinate, not a fixture reference, and
+// has no id to resolve to -- resolvePoolQualifiers reads it as written. Trying
+// to rewrite it threw "unknown slot" and failed every POOL_TO_BRACKET lock,
+// which is exactly what the throw is for: an unresolvable pointer must surface
+// before it reaches the database, not after.
+const FIXTURE_REF_TAGS = ['WINNER_OF:', 'LOSER_OF:']
+
 function resolveSource(source, idByKey) {
   if (!source) return null
-  const [tag, key] = [source.slice(0, source.indexOf(':') + 1), source.slice(source.indexOf(':') + 1)]
-  const id = idByKey.get(key)
+
+  const tag = FIXTURE_REF_TAGS.find((candidate) => source.startsWith(candidate))
+  if (!tag) return source
+
+  const id = idByKey.get(source.slice(tag.length))
   if (!id) throw new Error(`Fixture source references an unknown slot: ${source}`)
   return `${tag}${id}`
 }

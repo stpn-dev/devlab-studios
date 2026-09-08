@@ -87,6 +87,7 @@ import { buildRecomputePlayerSnapshotsStatements, getPlayerSnapshot } from '../r
 import {
   enterPair as enterTournamentPairRepo,
   listEntrants as listTournamentEntrants,
+  listTournamentStandings,
   getEntrant as getTournamentEntrant,
   buildSetSeedStatement,
   insertFixturesStatements,
@@ -108,9 +109,10 @@ import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
 import { selectNextPlayers, balanceTeams, type QueueCandidate } from '../../lib/pickleball/queueEngine'
 import { selectNextPairs, buildLastOpponentPairId, type PairCandidate, type LastOpponentSessionPlayer } from '../../lib/pickleball/pairSelection'
 import { seedEntrants, type SeedCandidate } from '../../lib/pickleball/tournament/seeding'
-import { generateFixtures } from '../../lib/pickleball/tournament/generateFixtures'
+import { generateFixtures, minimumEntrants, type TournamentFormat } from '../../lib/pickleball/tournament/generateFixtures'
 import { nextPlayableFixture, type FixtureRow } from '../../lib/pickleball/tournament/nextPlayableFixture'
 import { resolveAdvancement, resolveWithdrawal, resolveWinnerUnavailable, unadvanceBracket, type BracketOp } from '../../lib/pickleball/tournament/advanceBracket'
+import { resolvePoolQualifiers } from '../../lib/pickleball/tournament/resolvePoolQualifiers'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { initialGameState } from '../../lib/pickleball/scoring/gameState'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
@@ -1629,6 +1631,65 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
               ? resolveWinnerUnavailable(allFixtures, fixture.id)
               : resolveAdvancement(allFixtures, fixture.id, winnerEntrantId)
           fixtureCompletionStatements.push(...this.buildBracketOpStatements(db, sessionId, ops))
+
+          // C3: a POOL_RANK slot is settled by a whole pool finishing, not by
+          // one match, so it cannot ride on resolveAdvancement. This game may
+          // have been the last of its pool, which is the moment every bracket
+          // slot that pool feeds becomes knowable at once.
+          //
+          // Called unconditionally rather than behind a "was this the last
+          // pool match?" check: resolvePoolQualifiers returns nothing unless a
+          // pool is genuinely complete, and deriving that condition twice --
+          // once to decide whether to call, once inside -- is how the two
+          // would eventually disagree. The fixture list read here is the
+          // pre-FINISH snapshot, so the fixture just won is passed as already
+          // finished; otherwise its own pool would look one match short and
+          // the last pool would never qualify anybody.
+          const fixturesForPools = (allFixtures as Array<{ id: string; status: string }>).map((candidate) =>
+            candidate.id === fixture.id ? { ...candidate, status: 'FINISHED', winnerEntrantId } : candidate,
+          )
+
+          // listTournamentStandings aggregates FINISHED fixtures straight from
+          // D1, and THIS game's FINISH is still sitting unexecuted in
+          // fixtureCompletionStatements -- so the query cannot see it. Left
+          // uncorrected, the very match that completes a pool would be the one
+          // missing from that pool's table, and qualification would rank on an
+          // incomplete record. The result is folded in here rather than by
+          // committing early, so the whole thing stays one atomic batch.
+          //
+          // NOT COVERED BY A TEST, and labelled rather than left to look
+          // verified. Removing this correction fails nothing in the suite:
+          // dropping one win from the pair who just won only changes who
+          // qualifies when that single result decides the 2nd/3rd cut, and no
+          // scenario here lands on it. It is kept because ranking a pool on a
+          // table that is missing a match already played is wrong by
+          // construction, not because a test forces it.
+          const loserEntrantId = winnerEntrantId === fixture.entrantAId ? fixture.entrantBId : fixture.entrantAId
+          const winnerPoints = winningTeamId === game.teamAId ? game.scoreA : game.scoreB
+          const loserPoints = winningTeamId === game.teamAId ? game.scoreB : game.scoreA
+          const standingsWithThisGame = (
+              (await listTournamentStandings(db, sessionId)) as Array<{
+                entrantId: string
+                wins: number
+                losses: number
+                pointsFor: number
+                pointsAgainst: number
+              }>
+            ).map((row) => {
+              if (row.entrantId === winnerEntrantId) {
+                return { ...row, wins: row.wins + 1, pointsFor: row.pointsFor + winnerPoints, pointsAgainst: row.pointsAgainst + loserPoints }
+              }
+              if (loserEntrantId && row.entrantId === loserEntrantId) {
+                return { ...row, losses: row.losses + 1, pointsFor: row.pointsFor + loserPoints, pointsAgainst: row.pointsAgainst + winnerPoints }
+              }
+              return row
+            })
+
+          const poolOps = resolvePoolQualifiers(
+            fixturesForPools as Parameters<typeof resolvePoolQualifiers>[0],
+            standingsWithThisGame as Parameters<typeof resolvePoolQualifiers>[1],
+          )
+          fixtureCompletionStatements.push(...this.buildBracketOpStatements(db, sessionId, poolOps))
         }
       }
     }
@@ -2339,7 +2400,14 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (session.bracketLockedAt) return failure('The bracket is already locked.')
 
     const entrants = await listTournamentEntrants(db, sessionId)
-    if (entrants.length < 2) return failure('At least 2 entrants are required to lock the bracket.')
+    // Per-format, because a pool stage needs enough entrants to make two real
+    // pools -- generateFixtures returns nothing below that rather than
+    // emitting a degenerate draw, and an empty fixture list would present to
+    // an operator as a locked tournament with no matches and no way back.
+    const minimum = minimumEntrants(session.tournamentFormat as TournamentFormat)
+    if (entrants.length < minimum) {
+      return failure(`At least ${minimum} entrants are required to lock this tournament.`)
+    }
 
     // ALL_TIME OPI is per player_id, mean of the pair's two members, null if
     // either has no snapshot yet (seeding.ts sorts a null OPI last, never as
@@ -2363,7 +2431,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // tournamentFormat to exactly the formats it does, so that throw is
     // unreachable via the public API, not caught into an empty fixture list
     // here. C2 added SINGLE_ELIMINATION to both sides of that pairing.
-    const fixtures = generateFixtures(session.tournamentFormat as 'ROUND_ROBIN' | 'SINGLE_ELIMINATION', seeds)
+    const fixtures = generateFixtures(session.tournamentFormat as TournamentFormat, seeds)
 
     // This file's other methods use `new Date().toISOString()` directly
     // (e.g. joinQueueAsPair above) rather than importing nowIso() from
