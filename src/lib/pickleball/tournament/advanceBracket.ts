@@ -38,7 +38,42 @@ export interface UnadvanceApplied {
   updates: BracketSlotUpdate[]
 }
 
+// One database-shaped change to a fixture. A withdrawal or a finished match
+// can imply a CHAIN of these (see resolveAdvancement), so callers get an
+// ordered list rather than a single update.
+export type BracketOp =
+  // Put an entrant into one side of a fixture.
+  | { kind: 'FILL'; fixtureId: string; side: 'A' | 'B'; entrantId: string; status: 'PENDING' | 'READY' }
+  // Permanently empty one side: no entrant, and no source either, so nothing
+  // will ever arrive there. Clearing the SOURCE as well as the entrant is what
+  // makes the dead slot self-describing -- "no entrant and no source" is then
+  // an unambiguous marker, where an entrant-only clear would be
+  // indistinguishable from a slot still waiting on an unplayed match.
+  | { kind: 'VACATE'; fixtureId: string; side: 'A' | 'B' }
+  // Close a fixture. `winnerEntrantId` is null only for a fixture neither side
+  // could ever play.
+  | { kind: 'FINISH'; fixtureId: string; winnerEntrantId: string | null }
+
 const WINNER_OF = 'WINNER_OF:'
+
+function otherSide(side: 'A' | 'B'): 'A' | 'B' {
+  return side === 'A' ? 'B' : 'A'
+}
+
+function entrantOn(fixture: BracketFixture, side: 'A' | 'B'): string | null {
+  return side === 'A' ? fixture.entrantAId : fixture.entrantBId
+}
+
+function sourceOn(fixture: BracketFixture, side: 'A' | 'B'): string | null {
+  return side === 'A' ? fixture.sourceA : fixture.sourceB
+}
+
+// A side nobody will ever occupy: empty, and with no source that could still
+// fill it. Only a VACATE produces this state -- at generation every empty side
+// either carries a source or belongs to a fixture that is already READY.
+function isDeadSide(fixture: BracketFixture, side: 'A' | 'B'): boolean {
+  return entrantOn(fixture, side) === null && sourceOn(fixture, side) === null
+}
 
 // The fixture (if any) that takes its entrant from `fixtureId`'s winner, and
 // which side of it that is. Sources are exact `WINNER_OF:<fixture id>`
@@ -56,38 +91,154 @@ function downstreamOf(fixtures: BracketFixture[], fixtureId: string): { fixture:
 }
 
 /**
- * The slot update that a finished fixture's winner produces, or `null` when
- * nothing feeds from it (the final, or any round-robin fixture -- round robin
- * writes no sources at all, so this is a no-op there rather than a special
- * case the caller has to know about).
+ * Everything that follows from `winnerEntrantId` winning `finishedFixtureId`
+ * -- the promotion, plus any walkover it triggers, cascading.
  *
- * Returns at most ONE update: a fixture feeds exactly one downstream slot in
- * single elimination. Returning a list would suggest otherwise.
+ * The cascade exists because a withdrawal can leave a DEAD side behind
+ * (`VACATE`): an entrant with a bye, or one who already won an earlier round,
+ * sits in a fixture that is still PENDING because the other side is waiting on
+ * an unplayed match. Withdrawing them cannot finish that fixture -- the match
+ * that fills the other side has not happened yet -- so their side is vacated
+ * instead. When the real qualifier finally arrives, they arrive to an empty
+ * chair, and that is a walkover win: the fixture finishes with no game, and
+ * they carry straight on to the next round, which may itself be a walkover.
+ *
+ * Without this, filling a slot whose opponent had withdrawn produced a fixture
+ * that was never playable and never finished, and the bracket stopped dead
+ * with no command that could restart it.
  */
-export function advanceBracket(
+export function resolveAdvancement(
   fixtures: BracketFixture[],
   finishedFixtureId: string,
   winnerEntrantId: string,
-): BracketSlotUpdate | null {
-  const downstream = downstreamOf(fixtures, finishedFixtureId)
-  if (!downstream) return null
+): BracketOp[] {
+  const ops: BracketOp[] = []
+  const seen = new Set<string>([finishedFixtureId])
 
-  const { fixture, side } = downstream
-  const otherSideFilled = side === 'A' ? fixture.entrantBId !== null : fixture.entrantAId !== null
+  let fromFixtureId = finishedFixtureId
+  let advancing = winnerEntrantId
 
-  return {
-    fixtureId: fixture.id,
-    side,
-    entrantId: winnerEntrantId,
-    // READY only once BOTH sides are known. Filling one side of a fixture
-    // whose other side is still waiting on an unplayed match must leave it
-    // PENDING, or assignCourt would offer a match with one empty chair.
-    status: otherSideFilled ? 'READY' : 'PENDING',
+  for (;;) {
+    const downstream = downstreamOf(fixtures, fromFixtureId)
+    if (!downstream) return ops
+
+    const { fixture, side } = downstream
+    // A bracket is a tree, so this can only trip if the fixture data is
+    // cyclic -- but an infinite loop inside a Durable Object command would
+    // hang the session, so the guard is cheap insurance rather than dead code.
+    if (seen.has(fixture.id)) return ops
+    seen.add(fixture.id)
+
+    const opposite = otherSide(side)
+
+    if (entrantOn(fixture, opposite) !== null) {
+      ops.push({ kind: 'FILL', fixtureId: fixture.id, side, entrantId: advancing, status: 'READY' })
+      return ops
+    }
+
+    if (!isDeadSide(fixture, opposite)) {
+      // Still waiting on a real match: fill this side and stop.
+      ops.push({ kind: 'FILL', fixtureId: fixture.id, side, entrantId: advancing, status: 'PENDING' })
+      return ops
+    }
+
+    // Nobody is coming to the other side. Record who arrived (so the bracket
+    // still shows who won it and against whom), finish it as a walkover, and
+    // carry the same entrant onward.
+    ops.push({ kind: 'FILL', fixtureId: fixture.id, side, entrantId: advancing, status: 'PENDING' })
+    ops.push({ kind: 'FINISH', fixtureId: fixture.id, winnerEntrantId: advancing })
+    // `advancing` is unchanged: the same entrant carries on into the next
+    // round, which may itself turn out to be another walkover.
+    fromFixtureId = fixture.id
   }
 }
 
 /**
- * Undo what `advanceBracket` did, for a result being reopened or corrected.
+ * Everything that follows from `entrantId` withdrawing.
+ *
+ * Per fixture the entrant still has open:
+ *
+ * - READY (both sides known) -- the opponent takes a walkover win, if they are
+ *   themselves still active, and advances.
+ * - PENDING (the other side is still waiting on an unplayed match) -- the
+ *   fixture must NOT be finished. Doing so was the bug this function exists to
+ *   fix: it closed a fixture whose other side had not resolved, and the real
+ *   winner of the feeding match then had nowhere to go, because the slot
+ *   update that would have seated them no longer matched a PENDING/READY row.
+ *   That entrant vanished from the tournament with no error anywhere. The
+ *   withdrawing side is vacated instead, and resolveAdvancement turns it into
+ *   a walkover when the qualifier actually arrives.
+ * - PENDING with the other side ALREADY dead (both entrants withdrawn) --
+ *   nobody can ever play it, so it finishes with no winner and the slot it
+ *   feeds is vacated in turn, cascading.
+ */
+export function resolveWithdrawal(
+  fixtures: BracketFixture[],
+  entrantId: string,
+  activeOpponentIds: ReadonlySet<string>,
+): BracketOp[] {
+  const ops: BracketOp[] = []
+
+  const open = fixtures.filter(
+    (fixture) =>
+      (fixture.status === 'READY' || fixture.status === 'PENDING') &&
+      (fixture.entrantAId === entrantId || fixture.entrantBId === entrantId),
+  )
+
+  for (const fixture of open) {
+    const side = fixture.entrantAId === entrantId ? 'A' : 'B'
+    const opposite = otherSide(side)
+    const opponentId = entrantOn(fixture, opposite)
+
+    if (opponentId !== null) {
+      const winnerEntrantId = activeOpponentIds.has(opponentId) ? opponentId : null
+      ops.push({ kind: 'FINISH', fixtureId: fixture.id, winnerEntrantId })
+      if (winnerEntrantId) ops.push(...resolveAdvancement(fixtures, fixture.id, winnerEntrantId))
+      continue
+    }
+
+    ops.push({ kind: 'VACATE', fixtureId: fixture.id, side })
+
+    if (isDeadSide(fixture, opposite)) {
+      // Both sides withdrawn: this match can never be played by anyone.
+      ops.push({ kind: 'FINISH', fixtureId: fixture.id, winnerEntrantId: null })
+      ops.push(...cascadeDeadFixture(fixtures, fixture.id))
+    }
+  }
+
+  return ops
+}
+
+// A fixture that nobody can win feeds a slot nobody will fill, so that slot is
+// dead too -- and if its sibling is already dead, so is the fixture above it.
+function cascadeDeadFixture(fixtures: BracketFixture[], deadFixtureId: string): BracketOp[] {
+  const ops: BracketOp[] = []
+  const seen = new Set<string>([deadFixtureId])
+
+  let fromFixtureId = deadFixtureId
+  for (;;) {
+    const downstream = downstreamOf(fixtures, fromFixtureId)
+    if (!downstream) return ops
+
+    const { fixture, side } = downstream
+    if (seen.has(fixture.id)) return ops
+    seen.add(fixture.id)
+
+    ops.push({ kind: 'VACATE', fixtureId: fixture.id, side })
+
+    const opposite = otherSide(side)
+    // If the other side still has, or can still get, an entrant, that entrant
+    // wins this fixture by walkover once they arrive -- resolveAdvancement
+    // handles that at the time, so the cascade stops here.
+    if (entrantOn(fixture, opposite) !== null || !isDeadSide(fixture, opposite)) return ops
+
+    ops.push({ kind: 'FINISH', fixtureId: fixture.id, winnerEntrantId: null })
+    fromFixtureId = fixture.id
+  }
+}
+
+/**
+ * Undo what `resolveAdvancement` did, for a result being reopened or corrected.
  *
  * Refuses when the downstream fixture has already been started or played:
  * clearing an entrant out of a match that has a real game attached would

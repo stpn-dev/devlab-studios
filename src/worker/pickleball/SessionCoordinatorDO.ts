@@ -96,6 +96,7 @@ import {
   buildSetFixtureGameStatement,
   buildFinishFixtureStatement,
   buildFillFixtureSlotStatement,
+  buildVacateFixtureSlotStatement,
   buildResetFixtureStatement,
   hasActiveEntrantForPair,
   hasInProgressFixtureForEntrant,
@@ -110,7 +111,7 @@ import { selectNextPairs, buildLastOpponentPairId, type PairCandidate, type Last
 import { seedEntrants, type SeedCandidate } from '../../lib/pickleball/tournament/seeding'
 import { generateFixtures } from '../../lib/pickleball/tournament/generateFixtures'
 import { nextPlayableFixture, type FixtureRow } from '../../lib/pickleball/tournament/nextPlayableFixture'
-import { advanceBracket, unadvanceBracket } from '../../lib/pickleball/tournament/advanceBracket'
+import { resolveAdvancement, resolveWithdrawal, unadvanceBracket, type BracketOp } from '../../lib/pickleball/tournament/advanceBracket'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { initialGameState } from '../../lib/pickleball/scoring/gameState'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
@@ -356,6 +357,27 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // joinQueueAsPair produces. A released player whose pair has since been
   // dissolved is closed but NOT requeued — a lone player has nothing to be
   // seated as, and requeueing them would recreate the orphan row this fixes.
+  // Turns advanceBracket's operation list into statements. One helper for
+  // every caller (finishGame, withdrawEntrant) so the three op kinds can never
+  // be applied inconsistently at one site and not another -- the same reason
+  // buildRequeueStatements below exists for the release sites.
+  //
+  // Order is preserved exactly as the resolver emitted it: a FILL that records
+  // who arrived must land before the FINISH that closes the same fixture,
+  // since the FINISH's own compare-and-swap would otherwise be evaluated
+  // against a row the FILL had not yet touched.
+  private buildBracketOpStatements(db: D1Database, sessionId: string, ops: BracketOp[]): unknown[] {
+    return ops.map((op) => {
+      if (op.kind === 'FILL') {
+        return buildFillFixtureSlotStatement(db, sessionId, op)
+      }
+      if (op.kind === 'VACATE') {
+        return buildVacateFixtureSlotStatement(db, sessionId, op.fixtureId, op.side)
+      }
+      return buildWithdrawFixtureStatement(db, sessionId, op.fixtureId, op.winnerEntrantId)
+    })
+  }
+
   private async buildRequeueStatements(
     db: D1Database,
     session: { id: string; sessionType: string },
@@ -1589,10 +1611,12 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
           // finished fixture whose winner never reached the next round would
           // leave the bracket stuck at exactly the point an operator is
           // waiting on, with no command that repairs it.
-          const advancement = advanceBracket(await listTournamentFixtures(db, sessionId), fixture.id, winnerEntrantId)
-          if (advancement) {
-            fixtureCompletionStatements.push(buildFillFixtureSlotStatement(db, sessionId, advancement))
-          }
+          // resolveAdvancement rather than a single-step advance: if the
+          // opponent waiting in the next round withdrew while this match was
+          // still being played, the winner arrives to an empty chair and takes
+          // that round by walkover too, possibly more than once.
+          const ops = resolveAdvancement(await listTournamentFixtures(db, sessionId), fixture.id, winnerEntrantId)
+          fixtureCompletionStatements.push(...this.buildBracketOpStatements(db, sessionId, ops))
         }
       }
     }
@@ -1866,7 +1890,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (session.tournamentFormat) {
       const fixture = await getFixtureByGameId(db, sessionId, gameId)
       if (fixture) {
-        fixtureResetStatements.push(buildResetFixtureStatement(db, sessionId, fixture.id))
+        fixtureResetStatements.push(buildResetFixtureStatement(db, sessionId, fixture.id, gameId))
       }
     }
 
@@ -2508,18 +2532,27 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // same pre-withdrawal snapshot, and a withdrawn entrant only ever holds
     // one unplayed fixture per round, so no two updates here can target the
     // same slot.
-    const allFixtures = await listTournamentFixtures(db, sessionId)
-    const fixtureStatements: unknown[] = []
-    for (const fixture of unplayedFixtures as Array<{ id: string; entrantAId: string | null; entrantBId: string | null }>) {
-      const opponentId = fixture.entrantAId === entrantId ? fixture.entrantBId : fixture.entrantAId
-      const winnerEntrantId = opponentId && activeOpponentIds.has(opponentId) ? opponentId : null
-      fixtureStatements.push(buildWithdrawFixtureStatement(db, sessionId, fixture.id, winnerEntrantId))
-
-      if (winnerEntrantId) {
-        const advancement = advanceBracket(allFixtures, fixture.id, winnerEntrantId)
-        if (advancement) fixtureStatements.push(buildFillFixtureSlotStatement(db, sessionId, advancement))
-      }
-    }
+    // resolveWithdrawal decides, per open fixture, between three outcomes that
+    // a single "finish it as a walkover" rule got wrong for brackets:
+    //
+    // - both sides known: the opponent takes the walkover and advances;
+    // - the other side still waiting on an unplayed match: the withdrawing
+    //   side is VACATED, not finished. Finishing it closed a fixture whose
+    //   opponent had not been decided yet, and the real winner of the feeding
+    //   match then had nowhere to be seated -- their promotion silently
+    //   matched zero rows and they vanished from the bracket entirely;
+    // - both sides withdrawn: nobody can win it, so it closes with no winner
+    //   and the slot it feeds is vacated in turn.
+    //
+    // Round robin reaches this too and always lands in the first case (its
+    // fixtures are generated READY with both sides known and no sources), so
+    // the format needs no branch here.
+    const ops = resolveWithdrawal(
+      (await listTournamentFixtures(db, sessionId)) as Parameters<typeof resolveWithdrawal>[0],
+      entrantId,
+      activeOpponentIds,
+    )
+    const fixtureStatements = this.buildBracketOpStatements(db, sessionId, ops)
 
     await db.batch([buildWithdrawEntrantStatement(db, sessionId, entrantId), ...fixtureStatements])
 

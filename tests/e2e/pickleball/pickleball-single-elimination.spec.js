@@ -407,4 +407,97 @@ test.describe('Pickleball single elimination: withdrawal', () => {
     await playProposedFixture(request, sessionId, sessionCourts[0].id)
     expect((await getFixtures(request, sessionId)).every((f) => f.status === 'FINISHED')).toBe(true)
   })
+
+  // Review finding. The test above withdraws from a READY fixture -- both
+  // sides already known -- which is the easy case. An entrant with a BYE sits
+  // instead in a fixture that is still PENDING, because the side facing them
+  // waits on a match nobody has played yet.
+  //
+  // Closing that fixture on withdrawal (the original behaviour) looked
+  // reasonable and was badly wrong: it went FINISHED with no winner, and when
+  // the feeding match was later played, the promotion that should have seated
+  // its winner matched zero rows -- the slot was no longer PENDING or READY.
+  // A pair who had genuinely won their match disappeared from the bracket,
+  // with nothing reported anywhere.
+  test('withdrawing a bye entrant waiting in a PENDING fixture still lets the eventual qualifier win it by walkover', async ({ request }) => {
+    const { sessionId, sessionCourts } = await createLiveBracket(request, 3, 1)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const beforeFixtures = await getFixtures(request, sessionId)
+    const finalBefore = beforeFixtures.find((f) => f.roundNumber === 2)
+    const semi = beforeFixtures.find((f) => f.roundNumber === 1)
+    const byeEntrantId = [finalBefore.entrantAId, finalBefore.entrantBId].find(Boolean)
+
+    // The precondition that makes this the hard case, not the easy one.
+    expect(finalBefore.status).toBe('PENDING')
+    expect(semi.status).toBe('READY')
+
+    expect(
+      (await request.post(`/api/pickleball/sessions/${sessionId}/tournament/entrants/${byeEntrantId}/withdraw`, { data: {} })).status(),
+    ).toBe(200)
+
+    // The final must NOT have been closed: the semi has not been played, so
+    // who reaches it is still genuinely undecided.
+    const afterWithdraw = await getFixtures(request, sessionId)
+    const finalAfterWithdraw = afterWithdraw.find((f) => f.id === finalBefore.id)
+    expect(finalAfterWithdraw.status).toBe('PENDING')
+    expect(finalAfterWithdraw.winnerEntrantId).toBeFalsy()
+    // The withdrawn side is emptied of entrant AND source, so nothing can ever
+    // arrive there -- which is what later makes it a walkover rather than a
+    // match still waiting on someone.
+    expect(finalAfterWithdraw.entrantAId).toBeFalsy()
+    expect(finalAfterWithdraw.sourceA).toBeFalsy()
+
+    // Now play the semi: its winner must become champion by walkover, not
+    // vanish from the bracket.
+    const played = await playProposedFixture(request, sessionId, sessionCourts[0].id)
+    expect(played.winnerEntrantId).toBeTruthy()
+
+    const finalFixtures = await getFixtures(request, sessionId)
+    const finalAfterPlay = finalFixtures.find((f) => f.id === finalBefore.id)
+    expect(finalAfterPlay.status).toBe('FINISHED')
+    expect(finalAfterPlay.winnerEntrantId).toBe(played.winnerEntrantId)
+    expect(finalAfterPlay.gameId).toBeFalsy()
+
+    expect(finalFixtures.every((f) => f.status === 'FINISHED')).toBe(true)
+    expect((await assignCourt(request, sessionId, sessionCourts[0].id)).status()).toBe(409)
+  })
+})
+
+test.describe('Pickleball single elimination: abandoning a reopened game', () => {
+  // Review finding. reopenGame deliberately leaves the fixture FINISHED (it
+  // keeps game_id so the re-finish can find it again) while emptying the
+  // downstream slot. abandonGame's fixture reset was scoped to
+  // `status = 'IN_PROGRESS'`, so for a REOPENED game it matched zero rows: the
+  // game went ABANDONED while the fixture stayed FINISHED with a stale winner
+  // and a pointer to the abandoned game, and the slot reopen had already
+  // emptied was never refilled. The bracket was stuck below that fixture for
+  // good, and abandonGame returned ok.
+  test('abandoning a reopened semi-final returns its fixture to READY so the bracket can still be completed', async ({ request }) => {
+    const { sessionId, sessionCourts } = await createLiveBracket(request, 4, 1)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const semi = await playProposedFixture(request, sessionId, sessionCourts[0].id)
+    expect((await request.post(`/api/pickleball/sessions/${sessionId}/games/${semi.gameId}/reopen`, { data: {} })).status()).toBe(200)
+    expect((await request.post(`/api/pickleball/sessions/${sessionId}/games/${semi.gameId}/abandon`, { data: {} })).status()).toBe(200)
+
+    const afterAbandon = await getFixtures(request, sessionId)
+    const semiAfter = afterAbandon.find((f) => f.id === semi.fixture.id)
+    // Replayable, and carrying no result from the game that was thrown away.
+    expect(semiAfter.status).toBe('READY')
+    expect(semiAfter.gameId).toBeFalsy()
+    expect(semiAfter.winnerEntrantId).toBeFalsy()
+
+    // The final is still waiting for both sides, with nothing stale in it.
+    const finalAfter = afterAbandon.find((f) => f.roundNumber === 2)
+    expect(finalAfter.status).toBe('PENDING')
+    expect([finalAfter.entrantAId, finalAfter.entrantBId].filter(Boolean)).toEqual([])
+
+    // And the tournament genuinely still completes: replay the semi, then the
+    // other semi, then the final.
+    for (let i = 0; i < 3; i += 1) {
+      await playProposedFixture(request, sessionId, sessionCourts[0].id)
+    }
+    expect((await getFixtures(request, sessionId)).every((f) => f.status === 'FINISHED')).toBe(true)
+  })
 })

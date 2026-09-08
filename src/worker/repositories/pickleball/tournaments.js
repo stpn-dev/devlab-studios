@@ -384,9 +384,48 @@ export function buildFinishFixtureStatement(db, sessionId, fixtureId, winnerEntr
 // nothing telling the operator why. Scoped to `status = 'IN_PROGRESS'` so it
 // can never clobber a fixture some other path has already moved on from
 // (e.g. one that finished through a different, later game).
-export function buildResetFixtureStatement(db, sessionId, fixtureId) {
+// Scoped by `game_id` rather than by status. The status check this used to
+// carry (`status = 'IN_PROGRESS'`) was meant to stop a fixture some LATER game
+// had already moved on from being clobbered -- but matching on the abandoned
+// game's own id says that directly and more precisely, while the status check
+// silently did nothing in the one case that mattered:
+//
+// reopenGame deliberately leaves a bracket fixture FINISHED (it keeps the
+// game_id so the re-finish can find it again). If the operator then ABANDONED
+// that reopened game instead of correcting and re-finishing it, this reset
+// matched zero rows: the game went ABANDONED while the fixture stayed FINISHED
+// with a stale winner, pointing at an abandoned game, and the downstream slot
+// reopenGame had already emptied was never refilled. The bracket was stuck
+// below that fixture for good, and abandonGame returned ok.
+//
+// winner_entrant_id is cleared too -- without it a fixture reset from FINISHED
+// would go back to READY still carrying the winner of a game that no longer
+// counts.
+export function buildResetFixtureStatement(db, sessionId, fixtureId, gameId) {
   return db
-    .prepare(`UPDATE tournament_fixtures SET game_id = NULL, status = 'READY', updated_at = ? WHERE id = ? AND session_id = ? AND status = 'IN_PROGRESS'`)
+    .prepare(
+      `UPDATE tournament_fixtures
+       SET game_id = NULL, winner_entrant_id = NULL, status = 'READY', updated_at = ?
+       WHERE id = ? AND session_id = ? AND game_id = ?`,
+    )
+    .bind(nowIso(), fixtureId, sessionId, gameId)
+}
+
+// Unexecuted UPDATE emptying one side of a fixture permanently: no entrant and
+// no source, so nothing can ever arrive there (advanceBracket's isDeadSide).
+// Clearing the source as well as the entrant is the whole point -- an
+// entrant-only clear is indistinguishable from a side still waiting on an
+// unplayed match, which is exactly how a withdrawn bye entrant's fixture came
+// to look playable when it never would be.
+export function buildVacateFixtureSlotStatement(db, sessionId, fixtureId, side) {
+  const entrantColumn = side === 'A' ? 'entrant_a_id' : 'entrant_b_id'
+  const sourceColumn = side === 'A' ? 'source_a' : 'source_b'
+  return db
+    .prepare(
+      `UPDATE tournament_fixtures
+       SET ${entrantColumn} = NULL, ${sourceColumn} = NULL, status = 'PENDING', updated_at = ?
+       WHERE id = ? AND session_id = ? AND status IN ('PENDING', 'READY')`,
+    )
     .bind(nowIso(), fixtureId, sessionId)
 }
 
