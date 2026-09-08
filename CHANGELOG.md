@@ -51,12 +51,25 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-08
+
+### Added
+- Added Devlab Pickleball's public pages: a product landing page (`/pickleball`), an operator guide (`/pickleball/how-it-works`) and a methodology page, each with share metadata, original inline court artwork that renders without JavaScript, and a request-access path so a prospective operator who is not yet in the system has somewhere to go instead of a dead-end sign-in.
+- Added fixed-pairs sessions. A pair is formed from the check-in page and persists for the whole session: it queues and is assigned as a single unit, both partners must be available for it to be offered a court, and it carries its own games-played count so pair fairness is tracked separately from individual fairness.
+- Added tournaments in all four specified formats — round robin, single elimination, pool play into a bracket, and double elimination. The entire draw is generated when the bracket is locked and seeded from all-time ratings; later rounds exist as empty slots that fill as results come in. Courts are proposed from the fixture list rather than the fairness queue, and tournament games deliberately do not feed player ratings while still counting toward session wins and losses.
+- Added entrant withdrawal. Remaining opponents are awarded walkovers (a win with no points) so a draw still completes after an injury or departure, the withdrawn pair keeps the results it already earned so the pairs that beat it still add up, and withdrawing releases the pair so it can then be dissolved.
+- Added the bracket to the public and TV views, showing pools, winners and losers brackets by pair name, with slots nobody has reached yet marked `TBD` rather than left blank.
+- Added per-session standings that rank every attending player from check-in, so a leaderboard exists from the first minute of a session rather than only once enough games have been played.
+- Added four D1 migrations (`0012`–`0015`) introducing `session_pairs`, `tournament_entrants` and `tournament_fixtures`, three new nullable columns on existing tables, and a trigger enforcing one active pair per player. All are additive: no table is rebuilt, renamed or dropped, and code predating them continues to run against the migrated schema.
+
 ### Changed
+- Modelled a tournament as a fixed-pairs session carrying a format rather than as a third session type. Everything already built for pairs — formation, availability, assignment, statistics — applies unchanged, and only the parts that genuinely differ (seeding, fixtures, advancement) are new.
 - Replaced the Zoho Flow webhook as the contact-form lead-delivery target with the Resend API. A webhook trigger only confirms Zoho *received* the ping, not that its flow actually ran and sent an email — with the flow's subscription lapsed, leads were silently persisting to D1 while reporting "delivered" and no email ever arrived. Resend's response only reports success once the message is actually accepted for delivery, so lead status now reflects reality. Sends from and to `hello@devlabstudios.com` by default (both configurable), and preview intentionally has no working key so preview/e2e runs never send a real email.
 
 ### Fixed
 - Fixed the mobile navigation panel rendering with no background at all instead of a near-opaque dark surface, letting page content bleed through behind its links. The cause: Tailwind's opacity modifier (`/NN`) only resolves values on its opacity scale (multiples of 5); `bg-[#080d21]/98` used an unsupported value and silently compiled to nothing. Corrected this and two other same-shape instances (light gradient card treatments using `/92` and `/88`) to valid scale values.
 - Fixed the admin Leads list silently showing only the single most recent lead. The admin UI always requests `/api/admin/leads` with no `limit` param; `Number(null)` evaluates to `0` in JavaScript, and a `Number.isFinite()` guard let that `0` through as an explicit "limit 1" instead of falling back to the intended default of 100.
+- Fixed migration `0012` being impossible to apply to a remote D1 database, which blocked the entire feature from deploying. Every attempt failed with `incomplete input: SQLITE_ERROR`, reproduced on both production and preview, and had gone unnoticed because the migration had only ever been applied to local SQLite files, where wrangler takes a different code path. The trigger it defines is rejected when it travels in the same request as other statements, where something re-splits on the `;` that SQLite's grammar requires inside `BEGIN ... END`; wrangler's own splitter and D1 itself were each ruled out by test. Splitting the trigger into its own migration (`0015`) lets the rest apply normally. `0015` still cannot be applied by `wrangler d1 migrations apply`, because that command appends its own bookkeeping insert to the same request — it is created with a single `d1 execute --command` and the migration recorded manually, which the migration file documents so a new environment cannot silently end up without the constraint.
 
 ## [1.6.0] - 2026-08-14
 
