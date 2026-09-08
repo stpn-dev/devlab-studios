@@ -213,7 +213,23 @@ export function resolveWithdrawal(
     if (opponentId !== null) {
       const winnerEntrantId = activeOpponentIds.has(opponentId) ? opponentId : null
       ops.push({ kind: 'FINISH', fixtureId: fixture.id, winnerEntrantId })
-      if (winnerEntrantId) ops.push(...resolveAdvancement(fixtures, fixture.id, winnerEntrantId))
+
+      if (winnerEntrantId) {
+        ops.push(...resolveAdvancement(fixtures, fixture.id, winnerEntrantId))
+        // DOUBLE_ELIMINATION: a walkover produces a winner but NO loser -- the
+        // withdrawing pair never played, and could not continue in the losers
+        // bracket even if they had. The slot waiting on `LOSER_OF:<this>` must
+        // therefore be vacated. Skipping it stranded that slot forever: the
+        // winners fixture is now FINISHED, so nothing ever revisits it, and
+        // the losers-bracket match could never become READY -- taking every
+        // round above it down with it, with no operator command able to
+        // recover. Formats with no LOSER_OF sources emit nothing here.
+        ops.push(...vacateLoserSlot(fixtures, fixture.id))
+      } else {
+        // Neither side can play it out, so nobody advances from it at all --
+        // both consumers are dead, exactly as for a fixture nobody can win.
+        ops.push(...cascadeDeadFixture(fixtures, fixture.id))
+      }
       continue
     }
 
@@ -246,6 +262,29 @@ export function resolveWithdrawal(
  */
 export function resolveWinnerUnavailable(fixtures: BracketFixture[], finishedFixtureId: string): BracketOp[] {
   return cascadeDeadFixture(fixtures, finishedFixtureId)
+}
+
+// Empties the losers-bracket slot fed by a fixture that produced no loser --
+// a walkover. If that leaves the losers-bracket match with BOTH sides dead,
+// nobody can ever win it either, so it closes with no winner and the vacating
+// carries on upward.
+//
+// Only the LOSER_OF consumer is touched: the WINNER_OF consumer of a walkover
+// has a real winner arriving and must be left alone. That is the difference
+// between this and cascadeDeadFixture, which kills both.
+function vacateLoserSlot(fixtures: BracketFixture[], fixtureId: string): BracketOp[] {
+  const consumer = downstreamOf(fixtures, fixtureId, LOSER_OF)
+  if (!consumer) return []
+
+  const ops: BracketOp[] = [{ kind: 'VACATE', fixtureId: consumer.fixture.id, side: consumer.side }]
+
+  const opposite = otherSide(consumer.side)
+  if (entrantOn(consumer.fixture, opposite) === null && isDeadSide(consumer.fixture, opposite)) {
+    ops.push({ kind: 'FINISH', fixtureId: consumer.fixture.id, winnerEntrantId: null })
+    ops.push(...cascadeDeadFixture(fixtures, consumer.fixture.id))
+  }
+
+  return ops
 }
 
 // A fixture that nobody can win feeds a slot nobody will fill, so that slot is

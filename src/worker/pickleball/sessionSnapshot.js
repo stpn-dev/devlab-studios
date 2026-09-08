@@ -57,10 +57,13 @@ export async function buildPublicSnapshotExtras(db, session, games) {
   // C5: the bracket, for the public/TV view. Only for a tournament session --
   // every other session type gets null and the view renders nothing.
   //
-  // Entrant DISPLAY NAMES only, resolved here rather than passing entrant rows
+  // Entrant display names are resolved here rather than passing entrant rows
   // through: listFixtures already joins the pair's two players, and this keeps
   // the public mapper's allowlist honest -- it never sees a session_player or
-  // pair row it might forward by accident. A pair's display name is two player
+  // pair row it might forward by accident. Opaque tournament_entrants ids DO
+  // go out alongside the names, because the view needs them to mark a winner;
+  // they resolve to nothing without authenticated access, but "display names
+  // only" would overstate what is withheld. A pair's display name is two player
   // names, which is the same class of data as the team names above and is
   // already published on the live scoreboard.
   let bracket = null

@@ -282,3 +282,49 @@ test.describe('Pickleball double elimination: playing it out', () => {
     expect((await getFixtures(request, sessionId)).every((f) => f.status === 'FINISHED')).toBe(true)
   })
 })
+
+test.describe('Pickleball double elimination: withdrawal', () => {
+  // Review finding. A walkover produces a winner but NO loser -- the
+  // withdrawing pair never played. The losers-bracket slot waiting on that
+  // match must be vacated, or it waits forever on a drop that cannot come,
+  // and because the winners fixture is FINISHED nothing ever revisits it. The
+  // whole losers bracket, and every round above it, was stranded with no
+  // operator command able to recover -- while the guide told operators the
+  // draw carries on.
+  test('withdrawing before a first-round match still lets the whole draw finish', async ({ request }) => {
+    const { sessionId, sessionCourts } = await createLiveDoubleElim(request, 4, 1)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const before = await getFixtures(request, sessionId)
+    const opening = before.filter((f) => f.bracket === 'MAIN' && f.roundNumber === 1)
+    expect(opening).toHaveLength(2)
+
+    const forfeited = opening[0]
+    const withdrawingId = forfeited.entrantAId
+    const survivorId = forfeited.entrantBId
+
+    expect(
+      (await request.post(`/api/pickleball/sessions/${sessionId}/tournament/entrants/${withdrawingId}/withdraw`, { data: {} })).status(),
+    ).toBe(200)
+
+    const afterWithdraw = await getFixtures(request, sessionId)
+    const forfeitedAfter = afterWithdraw.find((f) => f.id === forfeited.id)
+    expect(forfeitedAfter.status).toBe('FINISHED')
+    expect(forfeitedAfter.winnerEntrantId).toBe(survivorId)
+
+    // The losers-bracket slot that match fed is emptied of both entrant and
+    // source, so nothing is left waiting on a loser who will never exist.
+    const strandedSlot = afterWithdraw.find(
+      (f) => f.bracket === 'LOSERS' && [f.sourceA, f.sourceB].includes(`LOSER_OF:${forfeited.id}`),
+    )
+    expect(strandedSlot, 'no losers-bracket slot should still reference the forfeited match').toBeFalsy()
+
+    // And the draw genuinely completes -- the claim the guide makes.
+    await playUntilStuck(request, sessionId, sessionCourts[0].id)
+    const final = await getFixtures(request, sessionId)
+    expect(final.every((f) => f.status === 'FINISHED')).toBe(true)
+
+    const grandFinalRound = Math.max(...final.filter((f) => f.bracket === 'MAIN').map((f) => f.roundNumber))
+    expect(final.find((f) => f.bracket === 'MAIN' && f.roundNumber === grandFinalRound).winnerEntrantId).toBeTruthy()
+  })
+})

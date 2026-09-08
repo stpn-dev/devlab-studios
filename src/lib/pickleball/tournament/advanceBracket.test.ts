@@ -158,7 +158,22 @@ describe('resolveWithdrawal', () => {
     const opponent = (semi.entrantAId === 'e1' ? semi.entrantBId : semi.entrantAId) as string
 
     const ops = resolveWithdrawal(bracket, 'e1', new Set(['e2', 'e3', 'e4'].filter((id) => id !== opponent)))
-    expect(ops).toEqual([{ kind: 'FINISH', fixtureId: semi.id, winnerEntrantId: null }])
+
+    // Closed with nobody credited...
+    expect(ops).toContainEqual({ kind: 'FINISH', fixtureId: semi.id, winnerEntrantId: null })
+    // ...and crucially no walkover handed to anyone.
+    expect(ops.some((op) => op.kind === 'FILL')).toBe(false)
+
+    // The slot this match feeds is now dead too -- nobody will ever arrive
+    // from it -- so it is vacated rather than left waiting on a result that
+    // cannot come. Whoever reaches the other side of that fixture takes it by
+    // walkover, which is what keeps the bracket finishable.
+    const consumer = bracket.find((f) => f.sourceA === `WINNER_OF:${semi.id}` || f.sourceB === `WINNER_OF:${semi.id}`)!
+    expect(ops).toContainEqual({
+      kind: 'VACATE',
+      fixtureId: consumer.id,
+      side: consumer.sourceA === `WINNER_OF:${semi.id}` ? 'A' : 'B',
+    })
   })
 
   // The Critical this function was written to fix.
@@ -292,5 +307,82 @@ describe('unadvanceBracket', () => {
 
     expect(back.updates[0].side).toBe((forward[0] as { side: string }).side)
     expect(back.updates[0].entrantId).toBeNull()
+  })
+})
+
+describe('resolveWithdrawal — double elimination', () => {
+  // Review finding. A withdrawal hands the opponent a walkover, but the
+  // withdrawing pair never plays, so no loser drops. The losers-bracket slot
+  // waiting on `LOSER_OF:<that fixture>` must be VACATED, or it waits for a
+  // result that can never arrive -- and because the winners fixture is now
+  // FINISHED, nothing will ever look at it again. That strands the losers
+  // bracket permanently, taking down every round above it with no operator
+  // command able to recover.
+  function doubleElimFixtures(): BracketFixture[] {
+    return generateFixtures('DOUBLE_ELIMINATION', entrants(4)).map((f) => ({
+      id: f.key,
+      entrantAId: f.entrantAId,
+      entrantBId: f.entrantBId,
+      sourceA: f.sourceA,
+      sourceB: f.sourceB,
+      status: f.status as BracketFixture['status'],
+    }))
+  }
+
+  it('vacates the losers-bracket slot the withdrawing pair would have dropped into', () => {
+    const fixtures = doubleElimFixtures()
+    const firstMatch = fixtures.find((f) => f.entrantAId === 'e1' || f.entrantBId === 'e1')!
+    const opponent = (firstMatch.entrantAId === 'e1' ? firstMatch.entrantBId : firstMatch.entrantAId) as string
+
+    const ops = resolveWithdrawal(fixtures, 'e1', new Set([opponent, 'e2', 'e3', 'e4'].filter((id) => id !== 'e1')))
+
+    const losersConsumer = fixtures.find(
+      (f) => f.sourceA === `LOSER_OF:${firstMatch.id}` || f.sourceB === `LOSER_OF:${firstMatch.id}`,
+    )
+    expect(losersConsumer).toBeTruthy()
+
+    const vacate = ops.find((op) => op.kind === 'VACATE' && op.fixtureId === losersConsumer!.id)
+    expect(vacate, 'the losers-bracket slot fed by the forfeited match must be vacated').toBeTruthy()
+  })
+
+  it('still advances the walkover winner in the winners bracket', () => {
+    const fixtures = doubleElimFixtures()
+    const firstMatch = fixtures.find((f) => f.entrantAId === 'e1' || f.entrantBId === 'e1')!
+    const opponent = (firstMatch.entrantAId === 'e1' ? firstMatch.entrantBId : firstMatch.entrantAId) as string
+
+    const ops = resolveWithdrawal(fixtures, 'e1', new Set(['e2', 'e3', 'e4']))
+    expect(ops).toContainEqual({ kind: 'FINISH', fixtureId: firstMatch.id, winnerEntrantId: opponent })
+    expect(ops.some((op) => op.kind === 'FILL' && op.entrantId === opponent)).toBe(true)
+  })
+
+  it('leaves the losers-bracket match playable for the pair that legitimately lost the other side', () => {
+    // The whole point: after the vacate, the pair who lost the OTHER opening
+    // match arrives to an empty chair and takes it by walkover, rather than
+    // sitting in a fixture that can never become READY.
+    const fixtures = doubleElimFixtures()
+    const matches = fixtures.filter((f) => f.entrantAId && f.entrantBId)
+    const forfeited = matches.find((f) => f.entrantAId === 'e1' || f.entrantBId === 'e1')!
+    const other = matches.find((f) => f.id !== forfeited.id)!
+
+    const withdrawalOps = resolveWithdrawal(fixtures, 'e1', new Set(['e2', 'e3', 'e4']))
+    let state = apply(fixtures, withdrawalOps)
+    state = state.map((f) => (f.id === forfeited.id ? { ...f, status: 'FINISHED' as const } : f))
+
+    // Now the other opening match is played for real.
+    const otherWinner = other.entrantAId as string
+    const otherLoser = other.entrantBId as string
+    const afterOther = apply(
+      state.map((f) => (f.id === other.id ? { ...f, status: 'FINISHED' as const } : f)),
+      resolveAdvancement(state, other.id, otherWinner, otherLoser),
+    )
+
+    const losersConsumer = afterOther.find(
+      (f) => f.sourceB === `LOSER_OF:${other.id}` || f.sourceA === `LOSER_OF:${other.id}`,
+    )!
+    // The genuine loser is seated, and the fixture is resolved rather than
+    // stuck waiting on a drop that will never come.
+    const seated = [losersConsumer.entrantAId, losersConsumer.entrantBId].filter(Boolean)
+    expect(seated).toContain(otherLoser)
+    expect(losersConsumer.status).not.toBe('PENDING')
   })
 })
