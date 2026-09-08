@@ -132,25 +132,6 @@ export async function hasInProgressFixtureForEntrant(db, sessionId, entrantId) {
   return Boolean(row)
 }
 
-// Every one of `entrantId`'s fixtures not yet played (READY or PENDING --
-// PENDING never actually occurs for ROUND_ROBIN today, generateFixtures only
-// ever emits READY, but withdrawEntrant handles it generically rather than
-// assuming), for withdrawEntrant to resolve into either a walkover (the
-// opponent is a known, still-ACTIVE entrant) or a no-decision FINISH
-// (opponent absent or also withdrawn) -- see that method's own comment for
-// the full rule. Already-FINISHED fixtures are deliberately excluded: results
-// that happened, happened.
-export async function listUnplayedFixturesForEntrant(db, sessionId, entrantId) {
-  const result = await db
-    .prepare(
-      `SELECT * FROM tournament_fixtures
-       WHERE session_id = ? AND status IN ('READY', 'PENDING') AND (entrant_a_id = ? OR entrant_b_id = ?)`,
-    )
-    .bind(sessionId, entrantId, entrantId)
-    .all()
-  return (result.results || []).map((row) => toFixture(row))
-}
-
 // Unexecuted UPDATE recording a walkover or a no-decision FINISH for a
 // fixture neither side can now play, for withdrawEntrant to batch alongside
 // buildWithdrawEntrantStatement above. `winnerEntrantId` is either the
@@ -239,7 +220,7 @@ export function buildSetSeedStatement(db, sessionId, entrantId, seed) {
 // per row, since they are conceptually one atomic write.
 // Ids are minted here, BEFORE any statement runs, so that `source_a`/`source_b`
 // can be rewritten from generateFixtures' local keys (`WINNER_OF:MAIN:2:0`)
-// into real fixture ids (`WINNER_OF:<uuid>`). advanceBracket matches sources
+// into real fixture ids (`WINNER_OF:<uuid>`). The bracket resolvers match sources
 // against fixture ids by exact equality, so the rewrite has to happen on the
 // way in -- there is no later point where a key could still be resolved,
 // since the keys are never stored.

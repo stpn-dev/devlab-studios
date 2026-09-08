@@ -100,7 +100,6 @@ import {
   buildResetFixtureStatement,
   hasActiveEntrantForPair,
   hasInProgressFixtureForEntrant,
-  listUnplayedFixturesForEntrant,
   buildWithdrawEntrantStatement,
   buildWithdrawFixtureStatement,
 } from '../repositories/pickleball/tournaments.js'
@@ -111,7 +110,7 @@ import { selectNextPairs, buildLastOpponentPairId, type PairCandidate, type Last
 import { seedEntrants, type SeedCandidate } from '../../lib/pickleball/tournament/seeding'
 import { generateFixtures } from '../../lib/pickleball/tournament/generateFixtures'
 import { nextPlayableFixture, type FixtureRow } from '../../lib/pickleball/tournament/nextPlayableFixture'
-import { resolveAdvancement, resolveWithdrawal, unadvanceBracket, type BracketOp } from '../../lib/pickleball/tournament/advanceBracket'
+import { resolveAdvancement, resolveWithdrawal, resolveWinnerUnavailable, unadvanceBracket, type BracketOp } from '../../lib/pickleball/tournament/advanceBracket'
 import { recordRally, classifyRallyOutcome } from '../../lib/pickleball/scoring/recordRally'
 import { initialGameState } from '../../lib/pickleball/scoring/gameState'
 import { replayEvents } from '../../lib/pickleball/scoring/replayEvents'
@@ -357,7 +356,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
   // joinQueueAsPair produces. A released player whose pair has since been
   // dissolved is closed but NOT requeued — a lone player has nothing to be
   // seated as, and requeueing them would recreate the orphan row this fixes.
-  // Turns advanceBracket's operation list into statements. One helper for
+  // Turns a bracket resolver's operation list into statements. One helper for
   // every caller (finishGame, withdrawEntrant) so the three op kinds can never
   // be applied inconsistently at one site and not another -- the same reason
   // buildRequeueStatements below exists for the release sites.
@@ -1580,9 +1579,9 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // stamped session_pair_id, not team-A/team-B labels -- those labels are
     // whichever side the operator called "Team A" when starting the game
     // (startGame's own comment), which need not match the fixture's
-    // entrant_a/entrant_b assignment from assignCourt. Round robin has no
-    // advancement (C1), so nothing here fills a LATER fixture's entrant slot
-    // -- that seam is for C2's advanceBracket to fill.
+    // entrant_a/entrant_b assignment from assignCourt. Round robin writes no
+    // fixture sources, so resolveAdvancement returns an empty op list there
+    // and nothing fills a LATER fixture's entrant slot.
     const fixtureCompletionStatements: unknown[] = []
     if (session.tournamentFormat) {
       const fixture = await getFixtureByGameId(db, sessionId, gameId)
@@ -1602,20 +1601,33 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
           fixtureCompletionStatements.push(buildFinishFixtureStatement(db, sessionId, fixture.id, winnerEntrantId))
 
           // C2: carry the winner into whichever later fixture takes its
-          // entrant from this one. advanceBracket returns null for round
-          // robin (no sources at all) and for the final (nothing downstream),
-          // so this stays a no-op for C1's formats rather than needing a
-          // branch on tournamentFormat here.
+          // entrant from this one. Round robin writes no sources and the final
+          // has nothing downstream, so both yield an empty op list -- no
+          // branch on tournamentFormat is needed here.
           //
           // Batched with the fixture's own FINISHED update, deliberately: a
           // finished fixture whose winner never reached the next round would
           // leave the bracket stuck at exactly the point an operator is
           // waiting on, with no command that repairs it.
+          //
           // resolveAdvancement rather than a single-step advance: if the
           // opponent waiting in the next round withdrew while this match was
           // still being played, the winner arrives to an empty chair and takes
           // that round by walkover too, possibly more than once.
-          const ops = resolveAdvancement(await listTournamentFixtures(db, sessionId), fixture.id, winnerEntrantId)
+          //
+          // A winner who has WITHDRAWN is not promoted at all. That is
+          // reachable, not hypothetical: reopening a game leaves its fixture
+          // FINISHED, so the entrant holds no open fixture and withdrawal is
+          // allowed -- and re-finishing the corrected game would otherwise
+          // march a withdrawn pair into the next round. Their downstream slot
+          // is vacated instead, which hands that round to whoever arrives on
+          // the other side, exactly as any other withdrawal does.
+          const winnerEntrant = entrantA?.id === winnerEntrantId ? entrantA : entrantB
+          const allFixtures = await listTournamentFixtures(db, sessionId)
+          const ops =
+            winnerEntrant && winnerEntrant.status !== 'ACTIVE'
+              ? resolveWinnerUnavailable(allFixtures, fixture.id)
+              : resolveAdvancement(allFixtures, fixture.id, winnerEntrantId)
           fixtureCompletionStatements.push(...this.buildBracketOpStatements(db, sessionId, ops))
         }
       }
@@ -1993,7 +2005,7 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // game_id: the re-finish path locates it via getFixtureByGameId, so
     // clearing that link here would leave the fixture stranded as a finished
     // result that never gets updated with the corrected winner. Only the
-    // DOWNSTREAM slot is emptied; finishGame's own advanceBracket refills it
+    // DOWNSTREAM slot is emptied; finishGame's own advancement refills it
     // with whoever actually won once the correction lands.
     const fixtureUnadvanceStatements: unknown[] = []
     if (session.tournamentFormat) {
@@ -2509,10 +2521,12 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       return failure('This entrant is on a court right now. Finish or abandon that game before withdrawing.')
     }
 
-    const [unplayedFixtures, entrants] = await Promise.all([
-      listUnplayedFixturesForEntrant(db, sessionId, entrantId),
-      listTournamentEntrants(db, sessionId),
-    ])
+    // resolveWithdrawal selects the entrant's own open fixtures out of the
+    // full list itself, so there is no separate per-entrant fetch here. There
+    // was one until the op-list refactor, left behind when the loop that used
+    // it was replaced -- a D1 round-trip on every withdrawal whose result went
+    // nowhere.
+    const entrants = await listTournamentEntrants(db, sessionId)
     const activeOpponentIds = new Set(
       (entrants as Array<{ id: string; status: string }>)
         .filter((candidate) => candidate.status === 'ACTIVE' && candidate.id !== entrantId)
@@ -2524,8 +2538,8 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // round. Without this the bracket stalls at exactly the point the
     // withdrawal was supposed to unblock: the fixture reads FINISHED, but the
     // round above it stays PENDING forever with an empty slot and no command
-    // that fills it. Round robin writes no sources, so advanceBracket returns
-    // null there and this whole loop is inert for C1's format.
+    // that fills it. Round robin writes no sources, so nothing cascades
+    // there and every fixture lands in the plain-walkover case.
     //
     // `allFixtures` is read once and advanced against repeatedly rather than
     // re-read per fixture: every update in this batch is computed from the

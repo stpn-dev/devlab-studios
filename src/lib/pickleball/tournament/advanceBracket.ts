@@ -209,6 +209,25 @@ export function resolveWithdrawal(
   return ops
 }
 
+/**
+ * The ops for "whoever won `finishedFixtureId` cannot take their place in the
+ * next round".
+ *
+ * Two situations reach this. A fixture nobody could win feeds a slot nobody
+ * will fill. And a winner who has since WITHDRAWN cannot be promoted: that is
+ * reachable because reopening a game leaves its fixture FINISHED, so the
+ * entrant has no open fixture and withdrawal is allowed -- then re-finishing
+ * the corrected game would otherwise march a withdrawn pair into the next
+ * round.
+ *
+ * Either way the downstream slot is vacated, which turns it into a walkover
+ * for whoever arrives on the other side. If that other side is already dead
+ * too, the fixture above is unwinnable in turn and the vacating cascades.
+ */
+export function resolveWinnerUnavailable(fixtures: BracketFixture[], finishedFixtureId: string): BracketOp[] {
+  return cascadeDeadFixture(fixtures, finishedFixtureId)
+}
+
 // A fixture that nobody can win feeds a slot nobody will fill, so that slot is
 // dead too -- and if its sibling is already dead, so is the fixture above it.
 function cascadeDeadFixture(fixtures: BracketFixture[], deadFixtureId: string): BracketOp[] {

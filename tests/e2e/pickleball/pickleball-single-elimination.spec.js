@@ -328,6 +328,40 @@ test.describe('Pickleball single elimination: correcting a result (un-advance)',
     expect(final.entrantBId).toBeTruthy()
   })
 
+  // A winner who WITHDREW while their game was reopened must not be marched
+  // into the next round by the re-finish. This is reachable rather than
+  // hypothetical: reopening leaves the fixture FINISHED, so the entrant holds
+  // no open fixture and the withdrawal is accepted.
+  test('re-finishing a reopened game does NOT promote a winner who has withdrawn in the meantime', async ({ request }) => {
+    const { sessionId, sessionCourts } = await createLiveBracket(request, 4, 1)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const semi = await playProposedFixture(request, sessionId, sessionCourts[0].id)
+    expect((await request.post(`/api/pickleball/sessions/${sessionId}/games/${semi.gameId}/reopen`, { data: {} })).status()).toBe(200)
+
+    // Withdrawal is allowed here precisely because the fixture reads FINISHED.
+    const withdrawResponse = await request.post(
+      `/api/pickleball/sessions/${sessionId}/tournament/entrants/${semi.winnerEntrantId}/withdraw`,
+      { data: {} },
+    )
+    expect(withdrawResponse.status()).toBe(200)
+
+    expect((await request.post(`/api/pickleball/sessions/${sessionId}/games/${semi.gameId}/finish`, { data: {} })).status()).toBe(200)
+
+    const fixtures = await getFixtures(request, sessionId)
+    const final = fixtures.find((f) => f.roundNumber === 2)
+    // The withdrawn winner is NOT sitting in the final.
+    expect(final.entrantAId).not.toBe(semi.winnerEntrantId)
+    expect(final.entrantBId).not.toBe(semi.winnerEntrantId)
+
+    // Their side is vacated instead, so whoever wins the other semi takes the
+    // final by walkover and the bracket still completes.
+    await playProposedFixture(request, sessionId, sessionCourts[0].id)
+    const done = await getFixtures(request, sessionId)
+    expect(done.every((f) => f.status === 'FINISHED')).toBe(true)
+    expect(done.find((f) => f.roundNumber === 2).winnerEntrantId).toBeTruthy()
+  })
+
   test('reopening the FINAL itself is allowed — nothing downstream depends on it', async ({ request }) => {
     const { sessionId, sessionCourts } = await createLiveBracket(request, 4, 1)
     expect((await lockBracket(request, sessionId)).status()).toBe(200)
