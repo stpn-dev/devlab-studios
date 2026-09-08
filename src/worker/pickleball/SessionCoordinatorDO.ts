@@ -2389,13 +2389,36 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!entrant) return failure('Entrant not found.')
     if (entrant.status !== 'ACTIVE') return failure('This entrant has already withdrawn.')
 
-    // Refused while this entrant is mid-game, for the same reason
-    // dissolvePair refuses a pair that is on a court: there is no half-a-game
-    // state this codebase understands, and unwinding a LIVE game here would
-    // repeat the exact mistake C1 already learned from (see this method's own
-    // header). The operator finishes or abandons the game first -- both
-    // paths already resolve the fixture (FINISHED or back to READY) before
-    // withdrawal is attempted again.
+    // Refused while this entrant is on a court, for the same reason
+    // dissolvePair refuses a seated pair: there is no half-a-game state this
+    // codebase understands, and unwinding a LIVE game here would repeat the
+    // exact mistake C1 already learned from (see this method's own header).
+    // The operator finishes or abandons the game first -- both paths already
+    // resolve the fixture (FINISHED or back to READY) before withdrawal is
+    // attempted again.
+    //
+    // BOTH predicates are required, and this is the review finding that
+    // caught it: `tournament_fixtures.status` only becomes IN_PROGRESS in
+    // startGame (buildSetFixtureGameStatement); assignCourtToTournamentFixture
+    // creates the teams and queue rows and marks the court ASSIGNED but
+    // leaves the fixture READY. So between "court assigned" and "whistle
+    // blown" -- an entirely ordinary sequential window, no concurrency
+    // needed -- hasInProgressFixtureForEntrant reports false even though the
+    // pair is physically seated. Withdrawing there resolved the fixture to a
+    // fabricated 0-point walkover while the players stayed on court; the
+    // game could then still be started, and because startGame's own fixture
+    // lookup requires `status = 'READY'` it would find nothing and create an
+    // UNLINKED game, so the real 11-0 result finished into no fixture at all
+    // and never reached standings. hasOpenAssignmentForPair (ASSIGNED or
+    // PLAYING on the pair's queue entry) is the predicate dissolvePair and
+    // leaveSession already use for exactly this question, and it covers the
+    // window the fixture status misses. hasInProgressFixtureForEntrant is
+    // kept alongside it because it is keyed on the ENTRANT rather than the
+    // pair, and so still answers correctly if a fixture is ever left
+    // IN_PROGRESS without a matching open assignment.
+    if (await hasOpenAssignmentForPair(db, sessionId, entrant.sessionPairId)) {
+      return failure('This entrant is on a court right now. Finish or abandon that game before withdrawing.')
+    }
     if (await hasInProgressFixtureForEntrant(db, sessionId, entrantId)) {
       return failure('This entrant is on a court right now. Finish or abandon that game before withdrawing.')
     }

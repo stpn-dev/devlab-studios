@@ -1459,6 +1459,78 @@ test.describe('Pickleball tournaments: withdraw an entrant', () => {
     expect(sameFixture.gameId).toBe(inProgressFixture.gameId)
   })
 
+  // The window the fixture-status guard alone could not see, and the reason
+  // withdrawEntrant checks hasOpenAssignmentForPair too. assignCourt seats
+  // the pair -- teams, queue entries, court ASSIGNED -- but does NOT move the
+  // fixture off READY; only startGame does that. So the test above (which
+  // starts the game first) never covered "assigned, whistle not yet blown",
+  // an entirely ordinary sequence: assign the court, then hear about the
+  // injury.
+  //
+  // Left unguarded this was not merely a refused-action gap: the withdrawal
+  // succeeded, the fixture became a fabricated 0-point walkover while both
+  // pairs sat on the court, and the game could then still be started --
+  // startGame's own fixture lookup requires READY, so it found nothing and
+  // created an UNLINKED game whose real 11-0 result finished into no fixture
+  // and never reached standings. Asserting the fixture is still READY before
+  // withdrawing is what pins this test to that specific window rather than
+  // silently re-testing the IN_PROGRESS case.
+  test('withdrawing an entrant seated on a court but whose game has not started yet is refused -- the fixture is still READY, and the real game still counts', async ({
+    request,
+  }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 2, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(assignResponse.status()).toBe(200)
+    const assignBody = await assignResponse.json()
+
+    // The window itself: seated, but the fixture has NOT moved to
+    // IN_PROGRESS -- so hasInProgressFixtureForEntrant alone reports false.
+    const seatedFixtures = await getFixtures(request, sessionId)
+    expect(seatedFixtures.every((f) => f.status !== 'IN_PROGRESS')).toBe(true)
+    const readyFixture = seatedFixtures.find((f) => f.status === 'READY')
+    expect(readyFixture).toBeTruthy()
+
+    const withdrawResponse = await withdrawEntrant(request, sessionId, readyFixture.entrantAId)
+    expect(withdrawResponse.status()).toBe(409)
+    expect((await withdrawResponse.json()).error).toBe(
+      'This entrant is on a court right now. Finish or abandon that game before withdrawing.',
+    )
+
+    // Nothing was half-applied: the fixture is untouched, with no fabricated
+    // walkover winner standing in for a game that is about to be played.
+    const afterRefusal = await getFixtures(request, sessionId)
+    const sameFixture = afterRefusal.find((f) => f.id === readyFixture.id)
+    expect(sameFixture.status).toBe('READY')
+    expect(sameFixture.winnerEntrantId).toBeFalsy()
+    expect(sameFixture.gameId).toBeFalsy()
+
+    // And the game the operator was about to start still plays out normally,
+    // still LINKED to its fixture -- the real result reaches standings
+    // instead of vanishing behind a walkover.
+    const startResponse = await startGame(request, sessionId, sessionCourts[0].id, assignBody, 'A')
+    expect(startResponse.status()).toBe(201)
+    const gameId = (await startResponse.json()).game.id
+    await playSequence(request, sessionId, gameId, Array(11).fill('A'))
+    expect((await finishGame(request, sessionId, gameId)).status()).toBe(200)
+
+    const finalFixtures = await getFixtures(request, sessionId)
+    const finished = finalFixtures.find((f) => f.id === readyFixture.id)
+    expect(finished.status).toBe('FINISHED')
+    expect(finished.gameId).toBe(gameId)
+    expect(finished.winnerEntrantId).toBeTruthy()
+
+    const standings = (await (await getTournamentStandings(request, sessionId)).json()).standings
+    const winner = standings.find((row) => row.entrantId === finished.winnerEntrantId)
+    expect(winner.wins).toBe(1)
+    expect(winner.pointsFor).toBe(11)
+    const loser = standings.find((row) => row.entrantId !== finished.winnerEntrantId)
+    expect(loser.losses).toBe(1)
+    expect(loser.pointsAgainst).toBe(11)
+  })
+
   test('withdrawing the same entrant twice is refused the second time', async ({ request }) => {
     const { sessionId, pairs } = await createLiveTournamentWithPairs(request, 2, 0)
     await enterAllPairs(request, sessionId, pairs)

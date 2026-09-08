@@ -158,12 +158,24 @@ export async function listUnplayedFixturesForEntrant(db, sessionId, entrantId) {
 // stays NULL, exactly as the spec requires: "a walkover is a win with no
 // points") or NULL when nobody gets credit (the opponent is absent or also
 // withdrawn -- "nobody gets a walkover win from a fixture neither side could
-// play"). Scoped to the fixture's current id/session only; withdrawEntrant's
-// own `listUnplayedFixturesForEntrant` read is what guarantees this only
-// ever targets a READY/PENDING row, never one already FINISHED.
+// play").
+//
+// `AND status IN ('READY', 'PENDING')` makes this a compare-and-swap rather
+// than a blind overwrite, in the same spirit as buildLockBracketStatement's
+// `bracket_locked_at IS NULL` and buildWithdrawEntrantStatement's own
+// `status = 'ACTIVE'`. withdrawEntrant's `listUnplayedFixturesForEntrant`
+// read already selects only READY/PENDING rows, so on the ordinary path this
+// clause changes nothing -- it is here so that a row which moved on between
+// that read and the batch (the reads are several awaits before the single
+// db.batch()) is skipped instead of having a real, already-recorded result
+// overwritten by a fabricated walkover. Cheap, and the class of mistake this
+// file has had to fix before.
 export function buildWithdrawFixtureStatement(db, sessionId, fixtureId, winnerEntrantId) {
   return db
-    .prepare(`UPDATE tournament_fixtures SET status = 'FINISHED', winner_entrant_id = ?, updated_at = ? WHERE id = ? AND session_id = ?`)
+    .prepare(
+      `UPDATE tournament_fixtures SET status = 'FINISHED', winner_entrant_id = ?, updated_at = ?
+       WHERE id = ? AND session_id = ? AND status IN ('READY', 'PENDING')`,
+    )
     .bind(winnerEntrantId, nowIso(), fixtureId, sessionId)
 }
 
