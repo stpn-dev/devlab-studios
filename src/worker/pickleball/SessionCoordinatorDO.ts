@@ -20,6 +20,7 @@ import { getSessionCourt, buildSetCourtStatusStatement, buildSetCourtCurrentGame
 import {
   listEligibleQueueCandidates,
   hasOpenAssignment,
+  hasOpenQueueEntry,
   buildMarkAssignedStatement,
   buildMarkPlayingStatement,
   buildCloseQueueEntryStatement,
@@ -62,6 +63,7 @@ import {
   buildDissolvePairStatement,
   getActivePairForSessionPlayer,
   listEligiblePairs,
+  isPairEligible,
   buildIncrementPairGamesPlayedStatement,
   buildRecomputePairGamesPlayedStatement,
 } from '../repositories/pickleball/sessionPairs.js'
@@ -93,6 +95,8 @@ import {
   getFixtureByGameId,
   buildSetFixtureGameStatement,
   buildFinishFixtureStatement,
+  buildResetFixtureStatement,
+  hasActiveEntrantForPair,
 } from '../repositories/pickleball/tournaments.js'
 import { buildSessionSnapshot, buildPublicSnapshotExtras } from './sessionSnapshot.js'
 import { toPublicSessionView } from '../../lib/pickleball/publicSessionView'
@@ -754,28 +758,83 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     ])
 
     const entrantsInPlay = (entrantsInPlayResult.results || []).map((row) => row.entrant_id)
-    const fixture = nextPlayableFixture(fixtures as FixtureRow[], entrantsInPlay)
-    if (!fixture) {
-      return failure('No fixture is playable right now -- every remaining match has an entrant already on a court.')
-    }
-
     const entrantById = new Map<string, { id: string; sessionPairId: string }>()
     for (const entrant of entrants as Array<{ id: string; sessionPairId: string }>) {
       entrantById.set(entrant.id, entrant)
     }
-    const entrantA = fixture.entrantAId ? entrantById.get(fixture.entrantAId) : null
-    const entrantB = fixture.entrantBId ? entrantById.get(fixture.entrantBId) : null
-    if (!entrantA || !entrantB) {
-      return failure('This fixture is missing an entrant and cannot be played yet.')
+
+    // I7: one unresolvable fixture must not block every court. The ORIGINAL
+    // shape here called nextPlayableFixture ONCE and hard-failed the whole
+    // assignment the moment the fixture it proposed turned out unresolvable
+    // (a missing entrant, a DISSOLVED pair -- C3 -- or an ineligible member --
+    // I5) -- turning any single problem fixture into a total stop for this
+    // court, even when a perfectly playable fixture sat right behind it.
+    // This loop instead excludes an unresolvable fixture from the candidate
+    // list and asks nextPlayableFixture again, so it keeps trying playable
+    // fixtures (in the SAME round/position order nextPlayableFixture already
+    // guarantees) until one actually resolves or none are left. Only "no
+    // fixture is playable at all" (the loop's own exit) is a real failure.
+    interface ResolvedPair {
+      id: string
+      status: string
+      sessionPlayerAId: string
+      sessionPlayerBId: string
     }
 
-    const [pairA, pairB] = await Promise.all([
-      getSessionPairRepo(db, sessionId, entrantA.sessionPairId),
-      getSessionPairRepo(db, sessionId, entrantB.sessionPairId),
-    ])
-    if (!pairA || !pairB) {
-      return failure("This fixture's pair could not be resolved.")
+    let remainingFixtures = fixtures as FixtureRow[]
+    let resolved: { fixture: FixtureRow; pairA: ResolvedPair; pairB: ResolvedPair } | null = null
+
+    for (;;) {
+      const fixture = nextPlayableFixture(remainingFixtures, entrantsInPlay)
+      if (!fixture) {
+        return failure('No fixture is playable right now -- every remaining match has an entrant already on a court.')
+      }
+
+      const entrantA = fixture.entrantAId ? entrantById.get(fixture.entrantAId) : null
+      const entrantB = fixture.entrantBId ? entrantById.get(fixture.entrantBId) : null
+      if (!entrantA || !entrantB) {
+        remainingFixtures = remainingFixtures.filter((f) => f.id !== fixture.id)
+        continue
+      }
+
+      const [pairA, pairB] = await Promise.all([
+        getSessionPairRepo(db, sessionId, entrantA.sessionPairId),
+        getSessionPairRepo(db, sessionId, entrantB.sessionPairId),
+      ])
+      // C3: `getPair` (unlike `getActivePairForSessionPlayer`) does NOT
+      // filter on status, so a pair dissolved before the bracket locked --
+      // dissolving was still allowed then, see hasActiveEntrantForPair's own
+      // comment -- would otherwise be seated here despite being DISSOLVED,
+      // potentially including a member who has since LEFT_SESSION. Mirrors
+      // enterPair's own `pair.status !== 'ACTIVE'` check.
+      if (!pairA || !pairB || pairA.status !== 'ACTIVE' || pairB.status !== 'ACTIVE') {
+        remainingFixtures = remainingFixtures.filter((f) => f.id !== fixture.id)
+        continue
+      }
+
+      // I5: this path never goes through listEligiblePairs (a bracket match
+      // is not a fairness decision), so member eligibility -- REGISTERED +
+      // CHECKED_IN + AVAILABLE, the exact gate listEligiblePairs applies --
+      // was never checked here at all. A member marked
+      // TEMPORARILY_UNAVAILABLE (e.g. injured mid-tournament) must not be
+      // seated just because the fixture calls for their pair next.
+      const [pairAEligible, pairBEligible] = await Promise.all([isPairEligible(db, sessionId, pairA), isPairEligible(db, sessionId, pairB)])
+      if (!pairAEligible || !pairBEligible) {
+        remainingFixtures = remainingFixtures.filter((f) => f.id !== fixture.id)
+        continue
+      }
+
+      resolved = { fixture, pairA, pairB }
+      break
     }
+
+    // Belt-and-suspenders for TypeScript's narrowing, not real dead code:
+    // every exit from the loop above either `return`s directly or `break`s
+    // right after assigning `resolved`, so this is unreachable in practice.
+    if (!resolved) {
+      return failure('No fixture is playable right now -- every remaining match has an entrant already on a court.')
+    }
+    const { fixture, pairA, pairB } = resolved
 
     const pairAMemberIds = [pairA.sessionPlayerAId, pairA.sessionPlayerBId]
     const pairBMemberIds = [pairB.sessionPlayerAId, pairB.sessionPlayerBId]
@@ -788,7 +847,17 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     // ordinary queue routes) surfaces as a clean domain failure here instead
     // of a raw SQLITE_CONSTRAINT 500 from idx_queue_entries_one_open_per_player
     // when the INSERT below runs.
-    const alreadyOpen = await Promise.all(allMemberIds.map((id) => hasOpenAssignment(db, sessionId, id)))
+    //
+    // C1 fix: this used to call `hasOpenAssignment`, which matches only
+    // ASSIGNED/PLAYING -- but idx_queue_entries_one_open_per_player (the
+    // index this comment claims to protect) ALSO covers QUEUED. A tournament
+    // pair that reached the ordinary fairness queue (joinQueue now refuses
+    // that outright for a tournament session, but this stays as the
+    // defense-in-depth it always was) held a QUEUED row that `hasOpenAssignment`
+    // could not see, so this check passed anyway and the INSERT below hit the
+    // index for real, as a raw 500. `hasOpenQueueEntry` covers all three
+    // statuses, matching what the index actually enforces.
+    const alreadyOpen = await Promise.all(allMemberIds.map((id) => hasOpenQueueEntry(db, sessionId, id)))
     if (alreadyOpen.some(Boolean)) {
       return failure('One of this fixture\'s entrants already holds an open queue entry; resolve that first.')
     }
@@ -1758,7 +1827,29 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
       releaseStatements.push(buildSetCourtCurrentGameStatement(db, sessionId, game.sessionCourtId, null))
     }
 
-    await db.batch([abandonedEvent, projectionStatement, ...releaseStatements])
+    // C2 fix: without this, an abandoned tournament fixture stayed
+    // IN_PROGRESS with `game_id` still pointing at the now-ABANDONED game
+    // forever. `nextPlayableFixture` only ever admits a READY fixture, so it
+    // could never be selected again; `listTournamentStandings` only counts
+    // FINISHED fixtures, so it silently vanished from standings instead of
+    // erroring. There is no fixture-reset route, no `unlockBracket`, and
+    // re-locking is refused (`bracketLockedAt` is already set) -- so the
+    // round robin could never complete, with nothing telling the operator
+    // why. Resetting the fixture back to READY (clearing game_id) lets
+    // assignCourt seat it again like any other still-open match, the same
+    // way abandoning an ordinary (non-tournament) game already lets its
+    // players requeue instead of being stranded. Batched alongside the rest
+    // of this abandon so it cannot half-apply -- see this file's header
+    // CONCURRENCY comment.
+    const fixtureResetStatements: unknown[] = []
+    if (session.tournamentFormat) {
+      const fixture = await getFixtureByGameId(db, sessionId, gameId)
+      if (fixture) {
+        fixtureResetStatements.push(buildResetFixtureStatement(db, sessionId, fixture.id))
+      }
+    }
+
+    await db.batch([abandonedEvent, projectionStatement, ...releaseStatements, ...fixtureResetStatements])
 
     await this.broadcast(sessionId)
 
@@ -2009,6 +2100,18 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
       const pair = await getActivePairForSessionPlayer(db, sessionId, sessionPlayer.id)
 
+      // C3 fix: same guard as dissolvePair -- leaving dissolves the pair
+      // (below), and an ACTIVE entrant of a LOCKED bracket must never be
+      // dissolved. See dissolvePair's own comment for the full reasoning;
+      // checked here too because leaveSession dissolves the pair via the
+      // SAME buildDissolvePairStatement a few lines down, so it needs the
+      // SAME protection, not a route around it.
+      if (pair && session.tournamentFormat && session.bracketLockedAt && (await hasActiveEntrantForPair(db, sessionId, pair.id))) {
+        return failure(
+          'This player is part of a pair entered in a locked tournament bracket and cannot leave the session. Mark them unavailable instead.',
+        )
+      }
+
       // Same refusal as dissolvePair: leaving dissolves the pair, and doing
       // that while it is seated strands the court in the state described
       // there. The operator releases the court first.
@@ -2191,6 +2294,31 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
     if (!this.ownsSession(sessionId)) return failure('Coordinator/session mismatch.')
     const db = this.env.PICKLEBALL_DB
 
+    const session = await getSessionById(db, sessionId)
+    if (!session) return failure('Session not found.')
+
+    // C3 fix: an ACTIVE entrant of a LOCKED bracket must never be dissolved.
+    // This phase has no bracket-advancement or withdrawal path, so
+    // dissolving here would leave finished/in-flight fixtures referencing a
+    // session_pair the roster no longer recognizes as paired -- and, before
+    // this fix, `assignCourtToTournamentFixture` used `getPair` (which does
+    // NOT filter on status, unlike `getActivePairForSessionPlayer`) and only
+    // checked for null, so a DISSOLVED pair could still be seated for its
+    // next fixture, potentially including a member who has since
+    // LEFT_SESSION. `hasActiveEntrantForPair` is checked in the SAME place
+    // `hasOpenAssignmentForPair` already is -- that predicate's own comment
+    // calls itself "the single answer ... every pair-mutating command must
+    // consult before it changes pair state"; this is the tournament half of
+    // that same discipline, not a second mechanism. Gated on
+    // `bracketLockedAt`, not `tournamentFormat` alone: entering a tournament
+    // does not itself freeze anything, so a pair may still be dissolved
+    // freely before the bracket locks.
+    if (session.tournamentFormat && session.bracketLockedAt && (await hasActiveEntrantForPair(db, sessionId, pairId))) {
+      return failure(
+        'This pair is entered in a locked tournament bracket and cannot be dissolved. If a player can no longer continue, mark them unavailable instead.',
+      )
+    }
+
     // Refused while the pair is seated, for the same reason
     // replaceAssignedPlayer is refused: there is no half-a-pair state this
     // codebase understands. Dissolving here used to delete the pair's
@@ -2224,6 +2352,27 @@ export class SessionCoordinatorDO extends DurableObject<Env> {
 
     const session = await getSessionById(db, sessionId)
     if (!session) return failure('Session not found.')
+
+    // C1 fix: a tournament is a FIXED_PAIRS session carrying
+    // `tournamentFormat` (see assignCourt's own ordering-hazard comment), so
+    // without this check a tournament pair fell straight into the
+    // FIXED_PAIRS branch below and got a real QUEUED row. That row is
+    // invisible to `assignCourtToTournamentFixture`'s own eligibility read
+    // (`entrantsInPlay` only looks for ASSIGNED/PLAYING, matching
+    // `hasOpenAssignmentForPair`'s definition of "in play"), so the fixture
+    // path went on to select that same entrant and attempt a second INSERT
+    // for the same session_player_id -- which
+    // idx_queue_entries_one_open_per_player (a real UNIQUE index covering
+    // QUEUED too) rejects as a raw SQLITE_CONSTRAINT 500. A tournament pair
+    // has no business in the fairness queue at all -- its next seating is
+    // decided entirely by the fixture list -- so this refuses the ROOT
+    // cause outright rather than relying only on assignCourtToTournamentFixture's
+    // own defensive re-check (now fixed separately to use
+    // `hasOpenQueueEntry`, which at least turns the 500 into a clean domain
+    // failure if this refusal is ever bypassed).
+    if (session.tournamentFormat) {
+      return failure('This pair is entered in a tournament; tournament pairs are seated from the fixture list, not the fairness queue.')
+    }
 
     if (session.sessionType === 'FIXED_PAIRS') {
       const pair = await getActivePairForSessionPlayer(db, sessionId, sessionPlayerId)

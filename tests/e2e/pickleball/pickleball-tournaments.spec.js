@@ -255,6 +255,38 @@ async function getQueue(request, sessionId) {
 }
 
 // ---------------------------------------------------------------------------
+// Lifecycle-gap helpers (abandon, dissolve/leave, join-queue, availability):
+// the final whole-branch review found this file had ZERO coverage of these
+// paths for a tournament session (grep for abandon|dissolve|availability|
+// withdraw|release across this file returned nothing) -- every Critical
+// finding lives in exactly this gap. These mirror pickleball-fixed-pairs.spec.js
+// and pickleball-games.spec.js's own same-named helpers, duplicated (not
+// imported) for the same module-local reason as every other helper here.
+
+function abandonGame(request, sessionId, gameId) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/abandon`, { data: {} })
+}
+
+// Explicit Origin header -- Astro's CSRF check rejects a bodyless
+// request.delete() with none (same pattern pickleball-fixed-pairs.spec.js's
+// own dissolve tests already use).
+function dissolvePairRequest(request, sessionId, pairId, baseURL) {
+  return request.delete(`/api/pickleball/sessions/${sessionId}/pairs/${pairId}`, { headers: { Origin: baseURL } })
+}
+
+function leaveSessionRequest(request, sessionId, playerId) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/players/leave`, { data: { playerId } })
+}
+
+function setAvailabilityRequest(request, sessionId, playerId, status) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/players/availability`, { data: { playerId, status } })
+}
+
+function joinQueueRequest(request, sessionId, sessionPlayerId) {
+  return request.post(`/api/pickleball/sessions/${sessionId}/queue`, { data: { sessionPlayerId } })
+}
+
+// ---------------------------------------------------------------------------
 // Task 7's non-tournament control needs an ORDINARY (non-tournament)
 // FIXED_PAIRS session -- the exact ambiguous case, since a tournament is
 // ALSO a FIXED_PAIRS session. This mirrors pickleball-fixed-pairs.spec.js's
@@ -442,7 +474,14 @@ test.describe('Pickleball tournaments: lock the bracket', () => {
     const sessionsResponse = await request.get('/api/pickleball/sessions')
     const sessions = (await sessionsResponse.json()).sessions
     const lockedSession = sessions.find((s) => s.id === sessionId)
-    expect(lockedSession.bracketLockedAt).toBeTruthy()
+    // Test-quality fix: `toBeTruthy()` on the field the whole lock semantics
+    // hang from passes for ANY truthy value -- including a string that isn't
+    // even a real timestamp, which `buildLockBracketStatement` would still
+    // have written wrong without this test noticing. Assert it actually
+    // parses to a real, recent instant instead.
+    const lockedAt = new Date(lockedSession.bracketLockedAt)
+    expect(Number.isNaN(lockedAt.getTime())).toBe(false)
+    expect(Date.now() - lockedAt.getTime()).toBeLessThan(60_000)
   })
 
   // Seeds are frozen the moment the bracket locks (spec §3.2) -- locking
@@ -581,7 +620,15 @@ test.describe('Pickleball tournaments: assign a court from the fixture list', ()
 
     const secondAssign = await assignCourt(request, sessionId, sessionCourts[1].id)
     expect(secondAssign.status()).toBe(409)
-    expect((await secondAssign.json()).error).toContain('court')
+    // Test-quality fix: `toContain('court')` also matches "Lock the bracket
+    // before assigning courts." -- the UNLOCKED-bracket error, a completely
+    // different reason for the same 409 status -- so a regression that
+    // started returning THAT message instead (e.g. bracketLockedAt getting
+    // cleared somewhere) would still pass this assertion. Match the exact
+    // string, as the rest of this file does everywhere else.
+    expect((await secondAssign.json()).error).toBe(
+      'No fixture is playable right now -- every remaining match has an entrant already on a court.',
+    )
 
     // No one was double-seated: still exactly 4 ASSIGNED queue rows (the
     // FIRST assignment's two pairs), not 8, and the second court is still
@@ -893,11 +940,18 @@ test.describe('Pickleball tournaments: standings (per-player leaderboard, sessio
     expect(rows.filter((r) => r.wins === 1 && r.losses === 0 && r.pointDifferential === 11)).toHaveLength(2)
     expect(rows.filter((r) => r.wins === 0 && r.losses === 1 && r.pointDifferential === -11)).toHaveLength(2)
 
-    // The OTHER half of the asymmetry must stay intact: OPI itself (a
-    // SEPARATE table, playerPerformanceSnapshots.js, filtered independently)
-    // remains null/0-eligible-games for every one of these players --
-    // proving the fix only unblocked win/loss counting, not OPI.
-    expect(rows.every((r) => r.opi === null && r.eligibleGamesCount === 0)).toBe(true)
+    // Test-quality fix: this used to also assert
+    // `rows.every((r) => r.opi === null && r.eligibleGamesCount === 0)`. That
+    // passes regardless of whether the OPI exclusion guard exists at all --
+    // every player here is FRESH (registered by createLiveTournamentWithPairs
+    // moments ago) and has never played any OTHER, non-tournament game
+    // either, so `opi === null` is guaranteed by "never played anything",
+    // not by "this tournament game correctly stayed OPI-blind". The
+    // 'finishing a tournament game ... leaves ALL_TIME OPI unchanged' test
+    // above already carries that weight properly: it establishes a REAL,
+    // non-null OPI via a real prior game, then proves a tournament game
+    // leaves that specific non-null value untouched -- a genuinely
+    // discriminating check the vacuous one here could never be.
   })
 })
 
@@ -1126,5 +1180,226 @@ test.describe('Pickleball tournaments: operator UI', () => {
     await expect(fixtureRows.first()).toContainText(pairs[0].playerADisplayName)
     await expect(fixtureRows.first()).toContainText(pairs[1].playerADisplayName)
     await expect(fixtureRows.first()).toContainText('Ready')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Final whole-branch review, lifecycle-gap findings (C1/C2/C3/I5/I7): every
+// path below (abandon, dissolve, leave, availability, join-queue) is a
+// lifecycle path the tournament code never taught about itself -- and, per
+// the review, this file previously had zero coverage of any of them. Each
+// test here walks the ACTUAL reachable path the finding names, not merely a
+// refusal in isolation.
+
+test.describe('Pickleball tournaments: lifecycle gaps (C1 join-queue, C2 abandon, C3 dissolve/leave, I5/I7 fixture resolution)', () => {
+  test('C1: a tournament pair cannot join the ordinary fairness queue -- refused with a domain error, and the fixture-assignment path is unaffected by the refused attempt', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 2, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    // The reachable path this finding names: an operator taps "Join queue"
+    // on a tournament pair from the Check-in page. The session is
+    // FIXED_PAIRS (a tournament always is), so without the fix the button
+    // renders and the request reaches joinQueueAsPairRepo, inserting a real
+    // QUEUED row.
+    const joinResponse = await joinQueueRequest(request, sessionId, pairs[0].sessionPlayerAId)
+    expect(joinResponse.status()).toBe(409)
+    expect((await joinResponse.json()).error).toBe(
+      'This pair is entered in a tournament; tournament pairs are seated from the fixture list, not the fairness queue.',
+    )
+
+    // The refused call left no trace at all -- no stray QUEUED row for the
+    // next fixture assignment to collide with.
+    expect(await getQueue(request, sessionId)).toEqual([])
+
+    // And the fixture-assignment path -- the exact path the finding says
+    // would otherwise hit a raw SQLITE_CONSTRAINT 500 -- still works
+    // normally afterward.
+    const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(assignResponse.status()).toBe(200)
+  })
+
+  test('C2: abandoning an in-progress tournament fixture resets it to READY -- the round robin still completes and the finished result appears in standings', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 2, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(assignResponse.status()).toBe(200)
+    const assignBody = await assignResponse.json()
+
+    const startResponse = await startGame(request, sessionId, sessionCourts[0].id, assignBody, 'A')
+    expect(startResponse.status()).toBe(201)
+    const gameId = (await startResponse.json()).game.id
+
+    // Real rallies first -- proves abandon works against a genuinely live
+    // game, not merely a freshly-started one with a 0-0 score.
+    await playSequence(request, sessionId, gameId, ['A', 'A', 'B'])
+
+    const fixturesBeforeAbandon = await getFixtures(request, sessionId)
+    const targetFixture = fixturesBeforeAbandon[0]
+    expect(targetFixture.status).toBe('IN_PROGRESS')
+    expect(targetFixture.gameId).toBe(gameId)
+
+    const abandonResponse = await abandonGame(request, sessionId, gameId)
+    expect(abandonResponse.status()).toBe(200)
+    expect((await abandonResponse.json()).game.status).toBe('ABANDONED')
+
+    // C2's actual fix: the fixture must come back READY with no game_id --
+    // not stuck IN_PROGRESS forever (nextPlayableFixture only ever admits
+    // READY, so an IN_PROGRESS fixture can never be selected again).
+    const fixturesAfterAbandon = await getFixtures(request, sessionId)
+    const fixtureAfterAbandon = fixturesAfterAbandon.find((f) => f.id === targetFixture.id)
+    expect(fixtureAfterAbandon.status).toBe('READY')
+    expect(fixtureAfterAbandon.gameId).toBeFalsy()
+
+    // The court itself was released too, as an ordinary abandon already does.
+    const courtsAfterAbandon = (await (await request.get(`/api/pickleball/sessions/${sessionId}/courts`)).json()).courts
+    expect(courtsAfterAbandon.find((c) => c.id === sessionCourts[0].id).status).toBe('AVAILABLE')
+
+    // The round robin actually COMPLETES: reassign the very same fixture,
+    // play it out for real, and finish it. Before this fix, the fixture
+    // would never become playable again and this reassignment would fail
+    // with "no fixture is playable right now".
+    const reassignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(reassignResponse.status()).toBe(200)
+    const reassignBody = await reassignResponse.json()
+
+    await playAndFinish(request, sessionId, sessionCourts[0].id, reassignBody, 'A')
+
+    const finalFixtures = await getFixtures(request, sessionId)
+    expect(finalFixtures).toHaveLength(1)
+    expect(finalFixtures[0].status).toBe('FINISHED')
+
+    // ...and the result is not silently missing from standings either (the
+    // OTHER half of this finding's failure scenario).
+    const standingsResponse = await getTournamentStandings(request, sessionId)
+    expect(standingsResponse.status()).toBe(200)
+    const standings = (await standingsResponse.json()).standings
+    expect(standings.some((s) => s.wins === 1)).toBe(true)
+    expect(standings.some((s) => s.losses === 1)).toBe(true)
+  })
+
+  test('C3: dissolving or leaving is refused once a pair is an active entrant of a locked bracket -- marking a player unavailable (the real recovery) still works', async ({ request, baseURL }) => {
+    const { sessionId, pairs } = await createLiveTournamentWithPairs(request, 2, 0)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    const targetPair = pairs[0]
+
+    const dissolveResponse = await dissolvePairRequest(request, sessionId, targetPair.id, baseURL)
+    expect(dissolveResponse.status()).toBe(409)
+    expect((await dissolveResponse.json()).error).toBe(
+      'This pair is entered in a locked tournament bracket and cannot be dissolved. If a player can no longer continue, mark them unavailable instead.',
+    )
+
+    const leaveResponse = await leaveSessionRequest(request, sessionId, targetPair.playerIds[0])
+    expect(leaveResponse.status()).toBe(409)
+    expect((await leaveResponse.json()).error).toBe(
+      'This player is part of a pair entered in a locked tournament bracket and cannot leave the session. Mark them unavailable instead.',
+    )
+
+    // The real recovery path both messages point at: marking a player
+    // unavailable is a completely different code path (setAvailability, not
+    // dissolvePair/leaveSession) and is unaffected by this guard.
+    const availabilityResponse = await setAvailabilityRequest(request, sessionId, targetPair.playerIds[0], 'TEMPORARILY_UNAVAILABLE')
+    expect(availabilityResponse.status()).toBe(200)
+
+    // The pair is STILL an active tournament entrant after that -- dissolve
+    // remains refused (this phase has no bracket-advancement/withdrawal path
+    // to ever lift this), proving the guard isn't accidentally keyed off
+    // availability.
+    const dissolveAfterUnavailableResponse = await dissolvePairRequest(request, sessionId, targetPair.id, baseURL)
+    expect(dissolveAfterUnavailableResponse.status()).toBe(409)
+  })
+
+  test('C3 (pre-lock) + I7: a pair dissolved BEFORE the bracket locks leaves an unresolvable fixture behind, but a single assignCourt call still finds and seats the other, resolvable fixture', async ({ request, baseURL }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 3, 2)
+    // Entered while still ACTIVE (enterPair requires that), THEN dissolved --
+    // dissolving is still allowed here because the bracket has not locked
+    // yet (C3's guard is keyed on bracketLockedAt, not tournamentFormat
+    // alone).
+    await enterAllPairs(request, sessionId, pairs)
+    const preLockDissolveResponse = await dissolvePairRequest(request, sessionId, pairs[2].id, baseURL)
+    expect(preLockDissolveResponse.status()).toBe(200)
+
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    // Round robin over 3 entrants generates 3 fixtures: pairs[0] vs pairs[1]
+    // (the only fully-resolvable one), pairs[0] vs pairs[2], and pairs[1] vs
+    // pairs[2] -- the latter two both reference the now-DISSOLVED pairs[2]
+    // and can never be seated (C3's `pair.status === 'ACTIVE'` check at the
+    // assignment site).
+    const fixturesAfterLock = await getFixtures(request, sessionId)
+    expect(fixturesAfterLock).toHaveLength(3)
+
+    // I7's fix: a SINGLE assignCourt call must still find the one
+    // resolvable fixture, regardless of how many unresolvable ones sort
+    // before it in nextPlayableFixture's own round/position order -- the
+    // whole point is that this succeeds in ONE call, not "eventually after
+    // retries".
+    const firstAssign = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(firstAssign.status()).toBe(200)
+    const firstBody = await firstAssign.json()
+
+    const seatedPairA = pairForTeam(pairs, firstBody.teamA.players)
+    const seatedPairB = pairForTeam(pairs, firstBody.teamB.players)
+    expect(new Set([seatedPairA.id, seatedPairB.id])).toEqual(new Set([pairs[0].id, pairs[1].id]))
+
+    // The second court has nothing left to offer: the two remaining
+    // fixtures are now blocked by pairs[0]/pairs[1] already being in play
+    // (on top of pairs[2] being permanently unresolvable) -- a clean domain
+    // failure, never a crash.
+    const secondAssign = await assignCourt(request, sessionId, sessionCourts[1].id)
+    expect(secondAssign.status()).toBe(409)
+    expect((await secondAssign.json()).error).toBe(
+      'No fixture is playable right now -- every remaining match has an entrant already on a court.',
+    )
+  })
+
+  test('I5 + I7: a fixture whose pair has a TEMPORARILY_UNAVAILABLE member is skipped -- assignCourt seats a different, eligible fixture instead of seating the unavailable player', async ({ request }) => {
+    const { sessionId, sessionCourts, pairs } = await createLiveTournamentWithPairs(request, 4, 1)
+    await enterAllPairs(request, sessionId, pairs)
+    expect((await lockBracket(request, sessionId)).status()).toBe(200)
+
+    // Read the fixture nextPlayableFixture would try FIRST (nothing is busy
+    // yet, so listFixtures' own round/position order IS the try order) --
+    // determined empirically from the real, locked bracket rather than
+    // predicted from seeding, so this holds regardless of which pair the
+    // seeding tie-break happened to rank first.
+    const fixturesAfterLock = await getFixtures(request, sessionId)
+    const firstTriedFixture = fixturesAfterLock[0]
+
+    const entrants = await getEntrants(request, sessionId)
+    const pairIdByEntrantId = new Map(entrants.map((e) => [e.id, e.sessionPairId]))
+    const disabledPair = pairs.find((p) => p.id === pairIdByEntrantId.get(firstTriedFixture.entrantAId))
+    expect(disabledPair).toBeTruthy()
+
+    // I5's fix target: mark one member of the FIRST-tried fixture's pair
+    // unavailable. Without the fix, assignCourtToTournamentFixture read no
+    // eligibility at all and would happily seat this player anyway.
+    const disabledPlayerId = disabledPair.playerIds[0]
+    const unavailableResponse = await setAvailabilityRequest(request, sessionId, disabledPlayerId, 'TEMPORARILY_UNAVAILABLE')
+    expect(unavailableResponse.status()).toBe(200)
+
+    // I7's fix: a single assignCourt call must still succeed by moving on
+    // to a different, eligible fixture -- not hard-fail just because the
+    // very first candidate it tried is now ineligible.
+    const assignResponse = await assignCourt(request, sessionId, sessionCourts[0].id)
+    expect(assignResponse.status()).toBe(200)
+    const assignBody = await assignResponse.json()
+
+    const seatedSessionPlayerIds = [...assignBody.teamA.players, ...assignBody.teamB.players].map((p) => p.sessionPlayerId)
+    // Neither member of the disabled pair was seated -- listEligiblePairs'
+    // own rule (both members must be eligible) applies here too, so the
+    // disabled pair's partner must not have been seated alone either.
+    expect(seatedSessionPlayerIds).not.toContain(disabledPair.sessionPlayerAId)
+    expect(seatedSessionPlayerIds).not.toContain(disabledPair.sessionPlayerBId)
+
+    // The skipped fixture is untouched -- still READY, not consumed or
+    // corrupted by being passed over.
+    const fixturesAfterAssign = await getFixtures(request, sessionId)
+    const firstTriedAfterAssign = fixturesAfterAssign.find((f) => f.id === firstTriedFixture.id)
+    expect(firstTriedAfterAssign.status).toBe('READY')
   })
 })

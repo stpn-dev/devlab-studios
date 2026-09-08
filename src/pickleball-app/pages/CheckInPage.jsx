@@ -96,8 +96,21 @@ export default function CheckInPage() {
   // CHECK constraint only allows QUEUED/ASSIGNED/PLAYING, so any row at all
   // for this sessionPlayerId means "already has an open entry") -- checked
   // in, available, and not already queued.
+  //
+  // C1 fix: a tournament pair (session.tournamentFormat set -- a tournament
+  // is ALSO a FIXED_PAIRS session, so `isFixedPairs` alone does not exclude
+  // it) has no business in the fairness queue at all -- its next seating is
+  // decided entirely by the fixture list. Without this, the button rendered
+  // for a tournament pair's members, and tapping it reached the server-side
+  // refusal added to joinQueue -- correct, but a button that always 409s is
+  // still the wrong thing to show.
   function canJoinQueue(player) {
-    return player.attendanceStatus === 'CHECKED_IN' && player.availabilityStatus === 'AVAILABLE' && !queuedSessionPlayerIds.has(player.id)
+    return (
+      !session?.tournamentFormat &&
+      player.attendanceStatus === 'CHECKED_IN' &&
+      player.availabilityStatus === 'AVAILABLE' &&
+      !queuedSessionPlayerIds.has(player.id)
+    )
   }
   const joinQueueEligibleSessionPlayerIds = filteredPlayers.filter(canJoinQueue).map((player) => player.id)
 

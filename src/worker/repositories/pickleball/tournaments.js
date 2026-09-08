@@ -71,6 +71,32 @@ export async function getEntrant(db, sessionId, entrantId) {
   return toEntrant(row)
 }
 
+/**
+ * True when `sessionPairId` is a currently-ACTIVE tournament entrant.
+ *
+ * The guard `dissolvePair`/`leaveSession` consult (alongside
+ * `hasOpenAssignmentForPair`, queueEntries.js's "single predicate every
+ * pair-mutating command consults") once a bracket is locked: entrants are
+ * frozen at lock (spec §3.2) and this phase has no bracket-advancement or
+ * withdrawal path, so a pair that is still an active entrant of a LOCKED
+ * bracket must never be dissolved -- doing so would leave finished/in-flight
+ * fixtures referencing a session_pair the roster no longer recognizes as
+ * paired, and (via C3) a court could seat half of it against a departed
+ * player. A pair may still be dissolved freely BEFORE the bracket locks
+ * (entering the tournament does not itself freeze anything) -- callers gate
+ * this check on `session.bracketLockedAt`, not on `session.tournamentFormat`
+ * alone.
+ *
+ * @returns {Promise<boolean>}
+ */
+export async function hasActiveEntrantForPair(db, sessionId, sessionPairId) {
+  const row = await db
+    .prepare(`SELECT id FROM tournament_entrants WHERE session_id = ? AND session_pair_id = ? AND status = 'ACTIVE'`)
+    .bind(sessionId, sessionPairId)
+    .first()
+  return Boolean(row)
+}
+
 // Active entrants with both pair members' display names and the pair's own
 // session_pair_id, ordered by seed then created_at -- the ordering
 // lockBracket's caller and the entrants list page both rely on. Seed is
@@ -217,6 +243,22 @@ export function buildFinishFixtureStatement(db, sessionId, fixtureId, winnerEntr
     .bind(winnerEntrantId, nowIso(), fixtureId, sessionId)
 }
 
+// Unexecuted UPDATE undoing buildSetFixtureGameStatement's effect, for
+// abandonGame (Task C1 hardening) to batch alongside its own court-release
+// statements. Without this, an abandoned game's fixture was left
+// IN_PROGRESS with `game_id` still set: `nextPlayableFixture` only ever
+// admits READY fixtures, so it could never be selected again, and
+// `listTournamentStandings` only counts FINISHED fixtures, so it silently
+// vanished from standings -- wedging that round robin permanently, with
+// nothing telling the operator why. Scoped to `status = 'IN_PROGRESS'` so it
+// can never clobber a fixture some other path has already moved on from
+// (e.g. one that finished through a different, later game).
+export function buildResetFixtureStatement(db, sessionId, fixtureId) {
+  return db
+    .prepare(`UPDATE tournament_fixtures SET game_id = NULL, status = 'READY', updated_at = ? WHERE id = ? AND session_id = ? AND status = 'IN_PROGRESS'`)
+    .bind(nowIso(), fixtureId, sessionId)
+}
+
 // Unexecuted UPDATE freezing the bracket, for lockBracket to batch alongside
 // the seed statements and insertFixturesStatements above -- see that method's
 // comment for why all three must commit or fail together. The
@@ -244,6 +286,23 @@ export function buildLockBracketStatement(db, sessionId, timestamp) {
 // (the entrant's own score first) so a single GROUP BY can aggregate wins,
 // losses and points without a self-join.
 //
+// I4 fix: this used to read `points_for`/`points_against` straight off
+// `g.final_score_a`/`g.final_score_b` by ASSUMING entrant_a's score is
+// final_score_a. That is false in general -- `startGame` resolves "team A"
+// from the operator-supplied starting-server id (see that method's own
+// comment: it "need not match the fixture's own entrant_a/entrant_b
+// labeling"), so a game can easily finish with the fixture's entrant A
+// seated as the game's team B. `finishGame` already gets this right for
+// `winner_entrant_id` by resolving through `teams.session_pair_id`
+// (`getTeamSessionPairId`), never through team-A/B labels; this query now
+// does the same via the `game_teams` CTE below, matching each entrant's OWN
+// session_pair_id (via tournament_entrants -> session_pairs) against
+// whichever of the game's two teams actually carries that pair id, and
+// reading THAT team's score. Getting this wrong silently inverted both
+// pointsFor/pointsAgainst and the point differential -- spec §3.7's #2
+// ranking key -- for any fixture where team-A labeling happened to disagree
+// with entrant-A labeling.
+//
 // This ORDER BY is only a stable base order (seed) for readability when
 // called on its own -- it is NOT the competitive ranking. Spec §3.7's real
 // ordering ("wins, losses, point differential, then head-to-head") is
@@ -256,19 +315,30 @@ export function buildLockBracketStatement(db, sessionId, timestamp) {
 export async function listTournamentStandings(db, sessionId) {
   const result = await db
     .prepare(
-      `WITH participations AS (
+      `WITH game_teams AS (
+         SELECT g.id AS game_id, g.final_score_a, g.final_score_b,
+                ta.session_pair_id AS team_a_pair_id, tb.session_pair_id AS team_b_pair_id
+         FROM games g
+         JOIN teams ta ON ta.id = g.team_a_id
+         JOIN teams tb ON tb.id = g.team_b_id
+       ),
+       participations AS (
          SELECT f.entrant_a_id AS entrant_id,
-                g.final_score_a AS points_for, g.final_score_b AS points_against,
+                CASE WHEN gt.team_a_pair_id = ea.session_pair_id THEN gt.final_score_a ELSE gt.final_score_b END AS points_for,
+                CASE WHEN gt.team_a_pair_id = ea.session_pair_id THEN gt.final_score_b ELSE gt.final_score_a END AS points_against,
                 CASE WHEN f.winner_entrant_id = f.entrant_a_id THEN 1 ELSE 0 END AS win
          FROM tournament_fixtures f
-         JOIN games g ON g.id = f.game_id
+         JOIN game_teams gt ON gt.game_id = f.game_id
+         JOIN tournament_entrants ea ON ea.id = f.entrant_a_id
          WHERE f.session_id = ? AND f.status = 'FINISHED' AND f.entrant_a_id IS NOT NULL
          UNION ALL
          SELECT f.entrant_b_id AS entrant_id,
-                g.final_score_b AS points_for, g.final_score_a AS points_against,
+                CASE WHEN gt.team_b_pair_id = eb.session_pair_id THEN gt.final_score_b ELSE gt.final_score_a END AS points_for,
+                CASE WHEN gt.team_b_pair_id = eb.session_pair_id THEN gt.final_score_a ELSE gt.final_score_b END AS points_against,
                 CASE WHEN f.winner_entrant_id = f.entrant_b_id THEN 1 ELSE 0 END AS win
          FROM tournament_fixtures f
-         JOIN games g ON g.id = f.game_id
+         JOIN game_teams gt ON gt.game_id = f.game_id
+         JOIN tournament_entrants eb ON eb.id = f.entrant_b_id
          WHERE f.session_id = ? AND f.status = 'FINISHED' AND f.entrant_b_id IS NOT NULL
        )
        SELECT te.id, te.seed,

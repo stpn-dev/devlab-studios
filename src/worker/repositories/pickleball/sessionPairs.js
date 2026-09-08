@@ -13,6 +13,7 @@
 // sessionPairId, memberSessionPlayerIds, displayName, gamesPlayed, queuedAt.
 
 import { nowIso } from '../../utils/responses.js'
+import { getSessionPlayerById } from './sessionPlayers.js'
 
 function toPair(row) {
   if (!row) return null
@@ -110,6 +111,43 @@ export async function getPair(db, sessionId, pairId) {
     .bind(pairId, sessionId)
     .first()
   return toPair(row)
+}
+
+/**
+ * Whether BOTH members of `pair` are currently eligible to be seated:
+ * REGISTERED + CHECKED_IN + AVAILABLE, the exact gate `listEligiblePairs`
+ * applies for the ordinary fairness-queue path (see that function's own
+ * comment).
+ *
+ * The tournament fixture-assignment path (SessionCoordinatorDO's
+ * assignCourtToTournamentFixture) never goes through listEligiblePairs at
+ * all -- fixtures pick who plays next, not the fairness queue -- so without
+ * this it read no eligibility whatsoever and would happily seat a pair with
+ * a member marked TEMPORARILY_UNAVAILABLE (e.g. an injury mid-tournament).
+ * This is that same eligibility check, callable against a pair the caller
+ * already resolved instead of the queue-joined rows `listEligiblePairs`
+ * requires (a tournament pair never holds a QUEUED row).
+ *
+ * @param {D1Database} db
+ * @param {string} sessionId
+ * @param {{ sessionPlayerAId: string, sessionPlayerBId: string }} pair
+ * @returns {Promise<boolean>}
+ */
+export async function isPairEligible(db, sessionId, pair) {
+  const [playerA, playerB] = await Promise.all([
+    getSessionPlayerById(db, sessionId, pair.sessionPlayerAId),
+    getSessionPlayerById(db, sessionId, pair.sessionPlayerBId),
+  ])
+  return Boolean(
+    playerA &&
+      playerB &&
+      playerA.registrationStatus === 'REGISTERED' &&
+      playerA.attendanceStatus === 'CHECKED_IN' &&
+      playerA.availabilityStatus === 'AVAILABLE' &&
+      playerB.registrationStatus === 'REGISTERED' &&
+      playerB.attendanceStatus === 'CHECKED_IN' &&
+      playerB.availabilityStatus === 'AVAILABLE',
+  )
 }
 
 export async function getActivePairForSessionPlayer(db, sessionId, sessionPlayerId) {
