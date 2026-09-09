@@ -339,3 +339,51 @@ test('lists the two teams currently assigned to a court', async ({ request }) =>
   expect(body.teams[0].members).toHaveLength(2)
   expect(body.teams[1].members).toHaveLength(2)
 })
+
+// The roster endpoint pages. Before this it returned every player in the
+// organisation with no LIMIT, which is fine for a club of twenty and sends
+// the whole table for a club of two thousand.
+test.describe('Pickleball players pagination', () => {
+  test('returns a bounded page with a total, and pages through the roster', async ({ request }) => {
+    await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+
+    const stamp = `Page ${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    for (let i = 0; i < 3; i += 1) {
+      expect((await request.post('/api/pickleball/players', { data: { displayName: `${stamp} ${i}` } })).status()).toBe(201)
+    }
+
+    const firstPage = await (await request.get('/api/pickleball/players?limit=2&search=' + encodeURIComponent(stamp))).json()
+    expect(firstPage.players).toHaveLength(2)
+    expect(firstPage.total).toBe(3)
+    expect(firstPage.hasMore).toBe(true)
+
+    const secondPage = await (await request.get('/api/pickleball/players?limit=2&offset=2&search=' + encodeURIComponent(stamp))).json()
+    expect(secondPage.players).toHaveLength(1)
+    expect(secondPage.hasMore).toBe(false)
+
+    // No row is skipped or repeated across the two pages.
+    const names = [...firstPage.players, ...secondPage.players].map((p) => p.displayName).sort()
+    expect(new Set(names).size).toBe(3)
+  })
+
+  test('caps an oversized limit instead of returning the whole table', async ({ request }) => {
+    await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+    const res = await (await request.get('/api/pickleball/players?limit=100000')).json()
+    expect(res.players.length).toBeLessThanOrEqual(200)
+    expect(res.limit).toBe(200)
+  })
+
+  test('search narrows the roster and reports a matching total', async ({ request }) => {
+    await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+    const unique = `Findme${Date.now()}`
+    expect((await request.post('/api/pickleball/players', { data: { displayName: unique } })).status()).toBe(201)
+
+    const found = await (await request.get(`/api/pickleball/players?search=${encodeURIComponent(unique)}`)).json()
+    expect(found.total).toBe(1)
+    expect(found.players[0].displayName).toBe(unique)
+
+    const missing = await (await request.get('/api/pickleball/players?search=zzz-no-such-player-zzz')).json()
+    expect(missing.total).toBe(0)
+    expect(missing.players).toEqual([])
+  })
+})

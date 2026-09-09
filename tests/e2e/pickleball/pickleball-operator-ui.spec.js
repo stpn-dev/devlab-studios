@@ -28,11 +28,17 @@ test('creates a player through the Players page and it appears in the list', asy
   await page.getByRole('button', { name: 'Save' }).click()
 
   await expect(page.getByText('Saved.')).toBeVisible()
+
+  // The roster is paged and sorted by name, so a new player is only on the
+  // first page of a small org. Searching is both what makes this assertion
+  // reliable and what an operator with a real roster would actually do.
+  await page.getByTestId('players-search').fill(name)
   await expect(page.getByTestId('players-list').getByText(name)).toBeVisible()
 
   // Reload to prove it was actually persisted server-side, not just held in
   // local component state.
   await page.reload()
+  await page.getByTestId('players-search').fill(name)
   await expect(page.getByTestId('players-list').getByText(name)).toBeVisible()
 })
 
@@ -213,6 +219,9 @@ test('checks in a registered player through the Check-in page', async ({ page, r
   expect(cancelResponse.ok()).toBeTruthy()
   await page.reload()
   await expect(page.getByTestId('checkin-list').getByText(cancelledPlayerName)).toBeVisible()
+  // The picker is search-backed now, so narrow to the player first -- the
+  // roster is paged and a large org will not have them loaded by default.
+  await page.getByTestId('register-player-search').fill(cancelledPlayerName)
   await expect(page.getByTestId('register-player-select').getByRole('option', { name: cancelledPlayerName })).toHaveCount(1)
 })
 
@@ -1042,6 +1051,8 @@ test('opens a player profile from the Players page and shows all-time and per-se
   await request.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/finish`, { data: {} })
 
   await page.goto('/pickleball/app/players')
+  // Paged roster: search rather than assume the player is on page one.
+  await page.getByTestId('players-search').fill(playerName)
   await page.getByTestId('players-list').getByText(playerName).click()
 
   await expect(page).toHaveURL(new RegExp(`/players/${playerId}$`))

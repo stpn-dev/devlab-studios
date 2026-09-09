@@ -45,7 +45,10 @@ export default function DashboardPage() {
       .then(([sessionsData, playersData]) => {
         if (!ignore) {
           setSessions(sessionsData.sessions)
-          setPlayers(playersData.players)
+          // `total`, not `players.length`: the roster endpoint returns one
+          // page, so counting the rows would report the page size once an
+          // organisation grows past it.
+          setPlayers({ count: playersData.total ?? playersData.players.length })
         }
       })
       .catch((error) => {
@@ -136,7 +139,7 @@ export default function DashboardPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <MetricCard icon={Activity} label="Live sessions" value={liveSessions.length} />
             <MetricCard icon={Clock} label="Upcoming sessions" value={upcomingSessions.length} />
-            <MetricCard icon={Users} label="Players" value={players.length} />
+            <MetricCard icon={Users} label="Players" value={players.count} />
           </div>
 
           <div>

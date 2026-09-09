@@ -12,6 +12,11 @@ export default function CheckInPage() {
   const [sessionPlayers, setSessionPlayers] = useState([])
   const [counts, setCounts] = useState(null)
   const [orgPlayers, setOrgPlayers] = useState([])
+  // Registering someone is a "find one person" task, so the picker queries
+  // the roster rather than holding all of it. Without this the control could
+  // only ever offer whatever page happened to be loaded, which silently hid
+  // players from any organisation past one page.
+  const [orgPlayerQuery, setOrgPlayerQuery] = useState('')
   const [queuedSessionPlayerIds, setQueuedSessionPlayerIds] = useState(new Set())
   const [pairs, setPairs] = useState([])
   const [status, setStatus] = useState('loading')
@@ -45,6 +50,9 @@ export default function CheckInPage() {
     // there. See isFixedPairs' own comment.
     const [sessionData, orgData, queueData, pairsData] = await Promise.all([
       pickleballApi.get(`/api/pickleball/sessions/${sessionId}/players`),
+      // Only the first page: this picker is search-backed (see
+      // orgPlayerQuery below), so it never needs the whole roster in memory.
+      // Asking for all of it was what made this page scale badly.
       pickleballApi.get('/api/pickleball/players'),
       pickleballApi.get(`/api/pickleball/sessions/${sessionId}/queue`),
       isFixedPairs ? pickleballApi.get(`/api/pickleball/sessions/${sessionId}/pairs`) : Promise.resolve({ pairs: [] }),
@@ -79,6 +87,21 @@ export default function CheckInPage() {
   const registeredPlayerIds = new Set(
     sessionPlayers.filter((p) => p.registrationStatus === 'REGISTERED').map((p) => p.playerId)
   )
+  // Server-side lookup for the register-a-player picker, debounced. Kept
+  // separate from `load()` so typing a name never re-fetches the session,
+  // queue and pairs alongside it.
+  useEffect(() => {
+    let ignore = false
+    const handle = setTimeout(() => {
+      const query = orgPlayerQuery.trim()
+      pickleballApi
+        .get(`/api/pickleball/players${query ? `?search=${encodeURIComponent(query)}` : ''}`)
+        .then((data) => { if (!ignore) setOrgPlayers(data.players) })
+        .catch(() => { /* the picker just stays as it was */ })
+    }, orgPlayerQuery ? 250 : 0)
+    return () => { ignore = true; clearTimeout(handle) }
+  }, [orgPlayerQuery])
+
   const registerableOrgPlayers = orgPlayers.filter((p) => p.active && !registeredPlayerIds.has(p.id))
 
   // Client-side filter over the already-fetched roster -- no new API call.
@@ -278,7 +301,15 @@ export default function CheckInPage() {
         <p className={message.type === 'success' ? 'text-sm text-emerald-700' : 'text-sm text-rose-600'}>{message.text}</p>
       ) : null}
 
-      <div className="flex gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row">
+        <input
+          type="search"
+          value={orgPlayerQuery}
+          data-testid="register-player-search"
+          onChange={(event) => setOrgPlayerQuery(event.target.value)}
+          placeholder="Search the roster"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm sm:w-48"
+        />
         <select
           value={selectedNewPlayerId}
           onChange={(event) => setSelectedNewPlayerId(event.target.value)}
