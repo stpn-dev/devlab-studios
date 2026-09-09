@@ -7,7 +7,7 @@ import { countActiveMembershipsByRole, getOrganization } from '../../../../../wo
 import { recordAuditEvent } from '../../../../../worker/repositories/pickleball/auditEvents.js'
 import { inviteMembershipSchema } from '../../../../../lib/schemas/pickleball/organizations'
 import { getEnv } from '../../../../../lib/env'
-import { jsonResponse, apiErrorResponse } from '../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request, params }) => {
   const env = getEnv()
@@ -21,7 +21,7 @@ export const GET: APIRoute = async ({ request, params }) => {
     // POST below requires. Without this check a SCOREKEEPER, whose role grants
     // only scoring-adjacent permissions, could enumerate the whole org.
     if (!hasPermission(session, 'MANAGE_OPERATORS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
     const memberships = await listMembershipsForOrganization(env.PICKLEBALL_DB, params.id)
     return jsonResponse({ memberships }, 200)
@@ -35,7 +35,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   try {
     const session = await requirePickleballSession(request, env)
     if (session.activeOrgId !== params.id || !hasPermission(session, 'MANAGE_OPERATORS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const body = await request.json().catch(() => null)

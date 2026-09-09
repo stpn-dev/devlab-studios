@@ -3,7 +3,7 @@ import { requirePickleballSession } from '../../../../../../worker/pickleball/au
 import { hasPermission } from '../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
 import { checkInSchema } from '../../../../../../lib/schemas/pickleball/sessionPlayers'
-import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -14,7 +14,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
 
     if (!hasPermission(session, 'CHECK_IN_PLAYERS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const result = checkInSchema.safeParse(await request.json().catch(() => null))

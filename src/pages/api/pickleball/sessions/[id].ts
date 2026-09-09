@@ -4,7 +4,7 @@ import { hasPermission } from '../../../../lib/pickleball/permissions'
 import { getSession, updateSessionName, listSessionPlayerIds, deleteSessionCascade } from '../../../../worker/repositories/pickleball/sessions.js'
 import { updateSessionNameSchema } from '../../../../lib/schemas/pickleball/sessions'
 import { getEnv } from '../../../../lib/env'
-import { jsonResponse, apiErrorResponse } from '../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request, params }) => {
   const env = getEnv()
@@ -28,7 +28,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     if (!record) return jsonResponse({ error: 'Not found.' }, 404)
 
     if (!hasPermission(session, 'MANAGE_SESSIONS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const result = updateSessionNameSchema.safeParse(body)
@@ -62,7 +62,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
     if (!record) return jsonResponse({ error: 'Not found.' }, 404)
 
     if (!hasPermission(session, 'MANAGE_SESSIONS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const affectedPlayerIds = await listSessionPlayerIds(env.PICKLEBALL_DB, params.id as string)

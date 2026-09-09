@@ -59,6 +59,8 @@ decided against that surface specifically:
 - Added a privacy notice to the public live view stating what is shown, that anyone with the link can see it, and that the session organiser can switch it off.
 
 ### Fixed
+- Made every permission-gated pickleball API route drain its request body before answering 403. Twenty of them returned the refusal before reading the body, which is the pattern already documented in this repo as crashing a local worker's loopback for every subsequent request in the run; the other thirteen happened to read first, so the whole set now uses one draining helper and a future reordering cannot reintroduce it.
+- Fixed the long-standing "known flaky" end-to-end tests. `playwright.config.js` set a 180s test budget but left each `expect` on Playwright's 5s default — a different, much tighter clock. Every operator page is a `client:only` React island, so navigating to one means download, hydrate, then fetch before anything renders, which on a cold worker routinely passes 5s. The first assertion after a `page.goto` therefore failed about one run in three while the page was perfectly healthy. Raising the assertion timeout to 15s (still far under the test budget) fixes the whole class rather than three tests individually.
 - Added rate limiting to the unauthenticated public session endpoint. A share code is ~40 bits and unguessable in one shot, but it was the only gate on a view carrying real player names and the endpoint would answer as fast as it was asked, leaving code enumeration trivially scriptable. Capped per IP, far above what the 5s degraded-path poll needs.
 
 ## [1.7.0] - 2026-09-08

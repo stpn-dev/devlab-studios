@@ -3,7 +3,7 @@ import { requirePickleballSession } from '../../../../../../../worker/pickleball
 import { hasPermission } from '../../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../../worker/repositories/pickleball/sessions.js'
 import { getGame } from '../../../../../../../worker/repositories/pickleball/games.js'
-import { jsonResponse, apiErrorResponse } from '../../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../../lib/env'
 import { recordAuditEvent } from '../../../../../../../worker/repositories/pickleball/auditEvents.js'
 
@@ -19,7 +19,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     // ADMIN/FACILITATOR only -- SCOREKEEPER never holds REOPEN_GAME, so there
     // is deliberately no session-operator-grant branch here.
-    if (!hasPermission(session, 'REOPEN_GAME')) return jsonResponse({ error: 'Forbidden.' }, 403)
+    if (!hasPermission(session, 'REOPEN_GAME')) return await forbiddenResponse(request)
 
     const gameId = params.gameId as string
     const game = await getGame(env.PICKLEBALL_DB, sessionId, gameId)

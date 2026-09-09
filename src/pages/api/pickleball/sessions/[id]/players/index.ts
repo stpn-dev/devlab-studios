@@ -6,7 +6,7 @@ import { listSessionPlayers } from '../../../../../../worker/repositories/pickle
 import { getPlayer } from '../../../../../../worker/repositories/pickleball/players.js'
 import { registerPlayerSchema } from '../../../../../../lib/schemas/pickleball/sessionPlayers'
 import { summarizeAttendance } from '../../../../../../lib/pickleball/attendance'
-import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const GET: APIRoute = async ({ request, params }) => {
@@ -32,7 +32,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
 
     if (!hasPermission(session, 'CHECK_IN_PLAYERS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const result = registerPlayerSchema.safeParse(await request.json().catch(() => null))

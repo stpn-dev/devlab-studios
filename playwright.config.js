@@ -12,6 +12,20 @@ export default defineConfig({
   // Those tests were passing on a quiet machine and timing out on a busy one,
   // which is a flaky suite pretending to be a failing one.
   timeout: 180_000,
+  // `timeout` above is the TEST budget; each individual `expect` still had
+  // Playwright's 5s default, which is a different and much tighter clock.
+  //
+  // Every operator page is a `client:only` React island: navigating to one
+  // means downloading the bundle, hydrating, THEN fetching its data before
+  // anything renders. On a cold worker that routinely passes 5s, so the first
+  // assertion after a `page.goto` failed roughly one run in three while the
+  // page itself was perfectly healthy. That is the whole of this suite's
+  // long-standing "known flaky" set -- the check-in list and players list
+  // tests -- not three unrelated bugs.
+  //
+  // 15s is still an order of magnitude under the test budget, so a page that
+  // genuinely never renders still fails fast rather than hanging.
+  expect: { timeout: 15_000 },
   use: {
     trace: 'retain-on-failure',
     ...devices['Desktop Chrome'],

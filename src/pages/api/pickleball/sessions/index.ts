@@ -8,7 +8,7 @@ import { buildSeedSessionCourtsStatements } from '../../../../worker/repositorie
 import { buildCreatePublicSessionTokenStatement } from '../../../../worker/repositories/pickleball/publicSessionTokens.js'
 import { createSessionSchema } from '../../../../lib/schemas/pickleball/sessions'
 import { getEnv } from '../../../../lib/env'
-import { jsonResponse, apiErrorResponse, nowIso } from '../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, nowIso, forbiddenResponse } from '../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
@@ -26,7 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const session = await requirePickleballSession(request, env)
     if (!hasPermission(session, 'MANAGE_SESSIONS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const result = createSessionSchema.safeParse(await request.json().catch(() => null))

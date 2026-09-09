@@ -4,7 +4,7 @@ import { hasPermission } from '../../../../lib/pickleball/permissions'
 import { listVenues, createVenue } from '../../../../worker/repositories/pickleball/venues.js'
 import { createVenueSchema } from '../../../../lib/schemas/pickleball/venues'
 import { getEnv } from '../../../../lib/env'
-import { jsonResponse, apiErrorResponse } from '../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../worker/utils/responses.js'
 
 export const GET: APIRoute = async ({ request }) => {
   const env = getEnv()
@@ -22,7 +22,7 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const session = await requirePickleballSession(request, env)
     if (!hasPermission(session, 'MANAGE_VENUES_COURTS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const result = createVenueSchema.safeParse(await request.json().catch(() => null))

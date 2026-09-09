@@ -4,7 +4,7 @@ import { hasPermission } from '../../../../lib/pickleball/permissions'
 import { listScoringRulesets, listOrganizationScoringRulesets, createScoringRuleset } from '../../../../worker/repositories/pickleball/sessions.js'
 import { createScoringRulesetSchema } from '../../../../lib/schemas/pickleball/scoringRulesets'
 import { getEnv } from '../../../../lib/env'
-import { jsonResponse, apiErrorResponse } from '../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../worker/utils/responses.js'
 
 // `?scope=organization` is the Settings page's read: this org's own
 // rulesets, active and inactive. Without it, the default stays the
@@ -29,7 +29,7 @@ export const POST: APIRoute = async ({ request }) => {
   try {
     const session = await requirePickleballSession(request, env)
     if (!hasPermission(session, 'CONFIGURE_SYSTEM_DEFAULTS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const result = createScoringRulesetSchema.safeParse(await request.json().catch(() => null))

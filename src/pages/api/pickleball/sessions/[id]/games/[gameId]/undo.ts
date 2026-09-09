@@ -4,7 +4,7 @@ import { hasPermission } from '../../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../../worker/repositories/pickleball/sessions.js'
 import { getGame } from '../../../../../../../worker/repositories/pickleball/games.js'
 import { hasSessionOperatorGrant } from '../../../../../../../worker/repositories/pickleball/sessionOperatorGrants.js'
-import { jsonResponse, apiErrorResponse } from '../../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../../lib/env'
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -17,9 +17,9 @@ export const POST: APIRoute = async ({ request, params }) => {
     const pickleballSession = await getSession(env.PICKLEBALL_DB, sessionId, session.activeOrgId)
     if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
 
-    if (!hasPermission(session, 'UNDO_SCORE_EVENT')) return jsonResponse({ error: 'Forbidden.' }, 403)
+    if (!hasPermission(session, 'UNDO_SCORE_EVENT')) return await forbiddenResponse(request)
     if (session.role === 'SCOREKEEPER' && !(await hasSessionOperatorGrant(env.PICKLEBALL_DB, sessionId, session.userId))) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const gameId = params.gameId as string

@@ -3,7 +3,7 @@ import { requirePickleballSession } from '../../../../../../worker/pickleball/au
 import { hasPermission } from '../../../../../../lib/pickleball/permissions'
 import { getMembershipById, revokeMembership } from '../../../../../../worker/repositories/pickleball/memberships.js'
 import { recordAuditEvent } from '../../../../../../worker/repositories/pickleball/auditEvents.js'
-import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const DELETE: APIRoute = async ({ request, params }) => {
@@ -12,7 +12,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
     const session = await requirePickleballSession(request, env)
     const organizationId = params.id as string
     if (session.activeOrgId !== organizationId || !hasPermission(session, 'MANAGE_OPERATORS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const membershipId = params.membershipId as string

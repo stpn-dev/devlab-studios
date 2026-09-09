@@ -4,7 +4,7 @@ import { hasPermission } from '../../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../../worker/repositories/pickleball/sessions.js'
 import { getGame } from '../../../../../../../worker/repositories/pickleball/games.js'
 import { correctGameSchema } from '../../../../../../../lib/schemas/pickleball/games'
-import { jsonResponse, apiErrorResponse } from '../../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../../lib/env'
 import { recordAuditEvent } from '../../../../../../../worker/repositories/pickleball/auditEvents.js'
 
@@ -20,7 +20,7 @@ export const POST: APIRoute = async ({ request, params }) => {
 
     // ADMIN/FACILITATOR only -- SCOREKEEPER never holds CORRECT_GAME, so there
     // is deliberately no session-operator-grant branch here.
-    if (!hasPermission(session, 'CORRECT_GAME')) return jsonResponse({ error: 'Forbidden.' }, 403)
+    if (!hasPermission(session, 'CORRECT_GAME')) return await forbiddenResponse(request)
 
     const result = correctGameSchema.safeParse(body)
     if (!result.success) return jsonResponse({ error: 'Validation failed.', issues: result.error.issues }, 400)

@@ -4,7 +4,7 @@ import { hasPermission } from '../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
 import { isSessionOpenForQueueOrCourtChanges } from '../../../../../../lib/pickleball/sessionLifecycle'
 import { leaveQueueSchema } from '../../../../../../lib/schemas/pickleball/queue'
-import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -15,7 +15,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
 
     if (!hasPermission(session, 'MANAGE_QUEUE')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     if (!isSessionOpenForQueueOrCourtChanges(pickleballSession.status)) {

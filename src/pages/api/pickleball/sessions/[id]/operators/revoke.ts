@@ -4,7 +4,7 @@ import { hasPermission } from '../../../../../../lib/pickleball/permissions'
 import { getSession } from '../../../../../../worker/repositories/pickleball/sessions.js'
 import { revokeSessionOperator } from '../../../../../../worker/repositories/pickleball/sessionOperatorGrants.js'
 import { revokeOperatorSchema } from '../../../../../../lib/schemas/pickleball/games'
-import { jsonResponse, apiErrorResponse } from '../../../../../../worker/utils/responses.js'
+import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../../lib/env'
 
 export const POST: APIRoute = async ({ request, params }) => {
@@ -18,7 +18,7 @@ export const POST: APIRoute = async ({ request, params }) => {
     if (!pickleballSession) return jsonResponse({ error: 'Not found.' }, 404)
 
     if (!hasPermission(session, 'MANAGE_SESSIONS')) {
-      return jsonResponse({ error: 'Forbidden.' }, 403)
+      return await forbiddenResponse(request)
     }
 
     const result = revokeOperatorSchema.safeParse(body)
