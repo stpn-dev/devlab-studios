@@ -48,3 +48,6 @@ dist-ssr
 
 # Superpowers brainstorming companion (ephemeral mockups/state)
 .superpowers/
+
+# Local org bootstrap seed — contains real emails/ids, never commit
+_bootstrap-org-tmp.sql

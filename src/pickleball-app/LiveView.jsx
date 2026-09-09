@@ -51,6 +51,15 @@ export default function LiveView({ code }) {
 
       <PublicBracket bracket={view.bracket} />
 
+      {/* Transparency, not decoration: this page shows named individuals to
+          anyone holding the link, so it says so plainly and points at who
+          controls it. The operator can switch the whole view off per session. */}
+      <p className="text-xs leading-relaxed text-slate-500" data-testid="live-privacy-notice">
+        This page shows player names and match results for this session only, to anyone with the link.
+        It is published by the session organiser, who can turn it off at any time. Ask them to stop
+        showing your name, or to remove this session from public view.
+      </p>
+
       {view.leaderboard && view.leaderboard.length > 0 && (
         <div className="pb-scoreboard p-4" data-testid="live-leaderboard">
           <p className="text-sm font-semibold text-white">Leaderboard</p>

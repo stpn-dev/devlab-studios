@@ -61,6 +61,25 @@ export default function SessionControlPage() {
     }
   }
 
+  // Both flags are sent together so the stored state is always coherent --
+  // "leaderboard on, public view off" is a combination nobody can observe and
+  // nobody means to set.
+  async function setVisibility(publicViewEnabled, publicLeaderboardEnabled) {
+    setMessage(null)
+    setBusyTarget('visibility')
+    try {
+      const result = await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/visibility`, {
+        publicViewEnabled,
+        publicLeaderboardEnabled: Boolean(publicLeaderboardEnabled),
+      })
+      onSessionUpdated(result.session)
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message })
+    } finally {
+      setBusyTarget(null)
+    }
+  }
+
   async function deleteSession() {
     setDeleting(true)
     setDeleteError(null)
@@ -209,7 +228,50 @@ export default function SessionControlPage() {
           )}
         </div>
       ) : null}
-      {publicUrl ? (
+      {/* Publishing is off until an operator turns it on: the public view
+          shows real player names on a link that needs no sign-in, so it is
+          an opt-in per session rather than a default. */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-slate-900">Public live view</p>
+            <p className="max-w-prose text-sm text-slate-500">
+              {session?.publicViewEnabled
+                ? 'Anyone with the link below can see courts, scores and player names for this session. No sign-in is required.'
+                : 'Off. Nothing is published, and the share link returns nothing. Turn this on only if players are happy for their names and scores to be visible to anyone with the link.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="toggle-public-view"
+            disabled={!canManageSessions || busyTarget === 'visibility'}
+            onClick={() => setVisibility(!session?.publicViewEnabled, session?.publicLeaderboardEnabled ?? true)}
+            className={`flex-shrink-0 rounded-lg px-3 py-2 text-sm font-semibold ${
+              session?.publicViewEnabled
+                ? 'bg-slate-900 text-white hover:bg-slate-800'
+                : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
+            } disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            {session?.publicViewEnabled ? 'Turn off sharing' : 'Turn on sharing'}
+          </button>
+        </div>
+
+        {session?.publicViewEnabled ? (
+          <label className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3 text-sm text-slate-600">
+            <input
+              type="checkbox"
+              data-testid="toggle-public-leaderboard"
+              disabled={!canManageSessions || busyTarget === 'visibility'}
+              checked={Boolean(session?.publicLeaderboardEnabled)}
+              onChange={(event) => setVisibility(true, event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            Also show the player leaderboard on the public view
+          </label>
+        ) : null}
+      </div>
+
+      {publicUrl && session?.publicViewEnabled ? (
         <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <PublicLinkQRCode url={publicUrl} />
           <div className="space-y-1 text-sm text-slate-500">

@@ -2,6 +2,17 @@ import { test, expect } from '@playwright/test'
 import { loginAsOperator, loginAs } from './helpers.js'
 import { ORG_B_ID, ORG_B_ADMIN_EMAIL } from '../../../scripts/pickleball/apply-e2e-fixtures.mjs'
 
+// Publishing is opt-in per session (a public link shows real player names), so
+// anything exercising the public view must turn it on first -- exactly as an
+// operator now does from the session control page.
+async function enablePublicView(request, sessionId) {
+  const response = await request.post(`/api/pickleball/sessions/${sessionId}/visibility`, {
+    data: { publicViewEnabled: true, publicLeaderboardEnabled: true },
+  })
+  expect(response.status()).toBe(200)
+}
+
+
 test('creates a player through the Players page and it appears in the list', async ({ page, request, baseURL }) => {
   // The `request` fixture uses its own APIRequestContext and does not share
   // cookies with the browser context behind `page`, so the session cookie
@@ -697,6 +708,7 @@ test('the public live view returns to "No game in progress" once a game finishes
     },
   })
   const gameId = (await startResponse.json()).game.id
+  await enablePublicView(request, sessionId)
   const code = (await (await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)).json()).code
 
   const publicContext = await context.browser().newContext()
@@ -781,6 +793,7 @@ test('the public live view shows a session\'s courts and games without authentic
   })
   const sessionId = (await sessionResponse.json()).session.id
 
+  await enablePublicView(request, sessionId)
   const codeResponse = await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)
   expect(codeResponse.ok()).toBe(true)
   const { code } = await codeResponse.json()
@@ -832,6 +845,7 @@ test('a rally recorded by an operator through the Scorekeeper page appears on th
   })
   const gameId = (await startResponse.json()).game.id
 
+  await enablePublicView(request, sessionId)
   const code = (await (await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)).json()).code
 
   // Second, fully independent browser context: no cookies, no shared state
@@ -879,6 +893,7 @@ test('the TV display shows a session\'s courts and games without authentication'
   })
   const sessionId = (await sessionResponse.json()).session.id
 
+  await enablePublicView(request, sessionId)
   const codeResponse = await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)
   const { code } = await codeResponse.json()
 
@@ -908,7 +923,16 @@ test('SessionControlPage shows a QR code and TV display link for the public view
   })
   const sessionId = (await sessionResponse.json()).session.id
 
+  // The share panel only exists once sharing is on -- a session no longer
+  // publishes by default, so the QR code and TV link are deliberately absent
+  // until an operator opts in. Assert that first, so this test also pins the
+  // privacy default rather than silently depending on it being one way.
   await page.goto(`/pickleball/app/sessions/${sessionId}`)
+  await expect(page.getByTestId('toggle-public-view')).toHaveText('Turn on sharing')
+  await expect(page.getByTestId('public-link-qr')).toHaveCount(0)
+
+  await page.getByTestId('toggle-public-view').click()
+
   await expect(page.getByTestId('public-link-qr')).toBeVisible({ timeout: 10000 })
   await expect(page.getByTestId('public-link-qr').locator('svg')).toBeVisible()
   await expect(page.getByText('TV display:')).toBeVisible()

@@ -1,5 +1,16 @@
 import { test, expect } from '@playwright/test'
 
+// Publishing is opt-in per session (a public link shows real player names), so
+// anything exercising the public view must turn it on first -- exactly as an
+// operator now does from the session control page.
+async function enablePublicView(request, sessionId) {
+  const response = await request.post(`/api/pickleball/sessions/${sessionId}/visibility`, {
+    data: { publicViewEnabled: true, publicLeaderboardEnabled: true },
+  })
+  expect(response.status()).toBe(200)
+}
+
+
 // C2: SINGLE_ELIMINATION brackets end-to-end.
 //
 // Deliberately a separate spec file rather than more cases in
@@ -542,6 +553,7 @@ test.describe('Pickleball single elimination: public bracket', () => {
     const { sessionId, sessionCourts } = await createLiveBracket(request, 4, 1)
     expect((await lockBracket(request, sessionId)).status()).toBe(200)
 
+    await enablePublicView(request, sessionId)
     const code = (await (await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)).json()).code
     expect(code).toBeTruthy()
 
@@ -572,6 +584,7 @@ test.describe('Pickleball single elimination: public bracket', () => {
     const { sessionId } = await createLiveBracket(request, 4, 1)
     expect((await lockBracket(request, sessionId)).status()).toBe(200)
 
+    await enablePublicView(request, sessionId)
     const code = (await (await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)).json()).code
     const response = await request.get(`/api/pickleball/public/${code}/state`)
     expect(response.status()).toBe(200)
@@ -610,6 +623,7 @@ test.describe('Pickleball single elimination: public bracket', () => {
     const { sessionId } = await createLiveBracket(request, 4, 1)
     // Deliberately NOT locked: fixtures do not exist until lock, so the
     // bracket must come back empty rather than half-formed.
+    await enablePublicView(request, sessionId)
     const code = (await (await request.get(`/api/pickleball/sessions/${sessionId}/public-code`)).json()).code
     const view = await (await request.get(`/api/pickleball/public/${code}/state`)).json()
     expect(view.bracket).toEqual([])

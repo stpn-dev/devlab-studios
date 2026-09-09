@@ -206,6 +206,21 @@ export async function updateSessionStatus(db, id, organizationId, fromStatus, to
   return getSession(db, id, organizationId)
 }
 
+// Publishing controls. Scoped by organization_id like every other session
+// write here, so one org can never flip another's session public.
+export async function updateSessionVisibility(db, id, organizationId, { publicViewEnabled, publicLeaderboardEnabled }) {
+  const result = await db
+    .prepare(
+      `UPDATE pickleball_sessions
+       SET public_view_enabled = ?, public_leaderboard_enabled = ?, updated_at = ?
+       WHERE id = ? AND organization_id = ?`,
+    )
+    .bind(publicViewEnabled ? 1 : 0, publicLeaderboardEnabled ? 1 : 0, nowIso(), id, organizationId)
+    .run()
+  if (!result.meta.changes) return null
+  return getSession(db, id, organizationId)
+}
+
 export async function updateSessionName(db, id, organizationId, name) {
   const result = await db
     .prepare(`UPDATE pickleball_sessions SET name = ?, updated_at = ? WHERE id = ? AND organization_id = ?`)
@@ -263,6 +278,20 @@ export async function deleteSessionCascade(db, id, organizationId, affectedPlaye
  *   scoringRulesetId: string, scheduledStart: string, scheduledEnd: string, createdByUserId: string,
  *   timestamp: string, tournamentFormat?: string | null }} params
  */
+// `public_view_enabled` is inserted as 0 -- a new session does NOT publish.
+//
+// The public view carries real player names on a URL that takes no
+// credential, so publishing is something an operator turns on deliberately
+// for a session, not something that happens to their players by default.
+// Written here rather than as a column default because changing a SQLite
+// column default requires rebuilding the table, and a table rebuild on D1
+// silently drops dependent rows (documented in docs/pickleball/architecture.md)
+// -- a migration would be the riskier way to express the same intent.
+//
+// The column default stays 1, so any session created outside this helper
+// keeps the old behaviour rather than silently going dark; and existing
+// sessions are untouched, so nothing already shared stops working.
+// `/api/pickleball/sessions/[id]/visibility` is how it gets turned on.
 export function buildCreateSessionStatement(db, {
   id, organizationId, venueId, name, sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId, timestamp,
   tournamentFormat,
@@ -274,7 +303,7 @@ export function buildCreateSessionStatement(db, {
         id, organization_id, venue_id, name, session_type, status, scoring_ruleset_id,
         scheduled_start, scheduled_end, post_game_rotation_policy, leaderboard_min_games,
         public_view_enabled, public_leaderboard_enabled, created_by_user_id, tournament_format, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, 'AUTO_REQUEUE_ALL', 3, 1, 1, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, 'AUTO_REQUEUE_ALL', 3, 0, 1, ?, ?, ?, ?)`,
     )
     .bind(
       id, organizationId, venueId, name.trim(), sessionType, scoringRulesetId, scheduledStart, scheduledEnd, createdByUserId,

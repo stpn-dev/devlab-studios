@@ -31,6 +31,16 @@ export const sessionStatusSchema = z.object({
   status: z.enum(['DRAFT', 'OPEN_FOR_CHECKIN', 'LIVE', 'PAUSED', 'COMPLETED', 'CANCELLED']),
 })
 
+// Whether a session publishes anything to its share link at all, and
+// whether that includes the leaderboard. Both are sent together so the
+// operator's toggle writes one coherent state rather than two settings that
+// can disagree -- `publicLeaderboardEnabled: true` while the whole public
+// view is off is a state nobody can observe and nobody meant.
+export const sessionVisibilitySchema = z.object({
+  publicViewEnabled: z.boolean(),
+  publicLeaderboardEnabled: z.boolean(),
+})
+
 export const updateSessionNameSchema = z.object({
   name: z.string().trim().min(1).max(160),
 })
@@ -38,3 +48,4 @@ export const updateSessionNameSchema = z.object({
 export type CreateSessionInput = z.infer<typeof createSessionSchema>
 export type SessionStatusInput = z.infer<typeof sessionStatusSchema>
 export type UpdateSessionNameInput = z.infer<typeof updateSessionNameSchema>
+export type SessionVisibilityInput = z.infer<typeof sessionVisibilitySchema>

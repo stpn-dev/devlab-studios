@@ -2,6 +2,17 @@ import { test, expect } from '@playwright/test'
 import { execSync } from 'node:child_process'
 import { loginAsOperator } from './helpers.js'
 
+// Publishing is opt-in per session (a public link shows real player names), so
+// anything exercising the public channel must turn it on first -- exactly as
+// an operator now does from the session control page.
+async function enablePublicView(request, sessionId) {
+  const response = await request.post(`/api/pickleball/sessions/${sessionId}/visibility`, {
+    data: { publicViewEnabled: true, publicLeaderboardEnabled: true },
+  })
+  expect(response.status()).toBe(200)
+}
+
+
 // Playwright's `request` and `page` fixtures do NOT share a cookie jar in
 // this project's Playwright version -- confirmed by a diagnostic run where
 // `page.request.get('/api/pickleball/auth/session')` came back 401 right
@@ -77,6 +88,7 @@ test('public channel resolves a code to a sanitized snapshot with no queue data'
   // The public code isn't exposed on the session detail response yet (no
   // route surfaces it -- that's a later sub-project's UI concern); read it
   // straight from D1 via wrangler for this test only.
+  await enablePublicView(request, sessionId)
   const output = execSync(
     `npx wrangler d1 execute devlab-pickleball --local --json --command "SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'"`,
   ).toString()
@@ -180,6 +192,7 @@ test('a rally recorded via REST broadcasts an updated snapshot to a connected op
 test('public REST polling fallback returns the same sanitized shape as the WebSocket channel', async ({ request, context }) => {
   const baseURL = test.info().project.use.baseURL
   const sessionId = await createLiveSessionForRealtimeTests(request, context, baseURL)
+  await enablePublicView(request, sessionId)
   const output = execSync(
     `npx wrangler d1 execute devlab-pickleball --local --json --command "SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'"`,
   ).toString()
@@ -367,6 +380,7 @@ test('a mutation broadcasts to a connected public client with the sanitized shap
   // The public code isn't exposed on the session detail response yet (same
   // as the public-channel test above) -- read it straight from D1 via
   // wrangler, following this file's own established pattern.
+  await enablePublicView(request, sessionId)
   const output = execSync(
     `npx wrangler d1 execute devlab-pickleball --local --json --command "SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'"`,
   ).toString()

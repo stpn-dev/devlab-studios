@@ -51,6 +51,16 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Changed
+- A pickleball session no longer publishes anything by default. The public live/TV view shows real player names on a link that needs no sign-in, so publishing is now something an operator turns on per session from the session control page rather than something that happens to their players automatically. Existing sessions are untouched and keep working; only newly created ones start private. The leaderboard remains separately switchable once sharing is on, and turning sharing off again immediately stops the link resolving — so an operator asked to stop showing someone's name can actually do it.
+
+### Added
+- Added `POST /api/pickleball/sessions/:id/visibility` and a sharing control on the session page, gated on `MANAGE_SESSIONS` — publishing personal data is a session-management decision, not a scorekeeping one. Both flags are written together so "leaderboard on, public view off" (a state nobody can observe) cannot be stored.
+- Added a privacy notice to the public live view stating what is shown, that anyone with the link can see it, and that the session organiser can switch it off.
+
+### Fixed
+- Added rate limiting to the unauthenticated public session endpoint. A share code is ~40 bits and unguessable in one shot, but it was the only gate on a view carrying real player names and the endpoint would answer as fast as it was asked, leaving code enumeration trivially scriptable. Capped per IP, far above what the 5s degraded-path poll needs.
+
 ## [1.7.0] - 2026-09-08
 
 ### Added

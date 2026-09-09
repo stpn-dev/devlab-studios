@@ -5,14 +5,53 @@ import { toPublicSessionView } from '../../../../../lib/pickleball/publicSession
 import { jsonResponse } from '../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../lib/env'
 
+// A public share code is 10 hex characters (publicSessionTokens.js), which is
+// ~40 bits -- unguessable in one shot, but this is the only gate on a view
+// that carries real player names, and it is the one endpoint here that takes
+// no credential at all. Without a limit, an attacker can grind codes as fast
+// as the Worker will answer. The window below caps a single IP at roughly one
+// request per second sustained, which is far above what the 5s degraded-path
+// poll needs and far below what enumeration requires.
+//
+// Same shape as contact.ts's limiter, and the same caveat: in-memory means
+// per-isolate, so it is a cheap first line of defence rather than a hard
+// guarantee. It costs nothing and removes the trivially-scriptable case.
+const PUBLIC_STATE_WINDOW_MS = 60_000
+const PUBLIC_STATE_MAX_REQUESTS = 60
+const publicStateAttempts = new Map<string, { count: number; resetAt: number }>()
+
+function getClientIp(request: Request): string {
+  return request.headers.get('cf-connecting-ip')
+    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || 'unknown'
+}
+
+function isPublicStateRateLimited(request: Request): boolean {
+  const key = getClientIp(request)
+  const now = Date.now()
+  const attempt = publicStateAttempts.get(key)
+
+  if (!attempt || now >= attempt.resetAt) {
+    publicStateAttempts.set(key, { count: 1, resetAt: now + PUBLIC_STATE_WINDOW_MS })
+    return false
+  }
+
+  attempt.count += 1
+  return attempt.count > PUBLIC_STATE_MAX_REQUESTS
+}
+
 // Spec §9's degraded path: if a client's socket is down, poll this every
 // 5s instead of a blank screen. Reuses the SAME buildSessionSnapshot +
 // toPublicSessionView pipeline the WebSocket public channel uses, so
 // there is exactly one "what does the public see" pipeline, not two that
 // could drift.
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ request, params }) => {
   const env = getEnv()
   try {
+    if (isPublicStateRateLimited(request)) {
+      return jsonResponse({ error: 'Too many requests. Try again shortly.' }, 429)
+    }
+
     const code = params.code as string
     const publicSession = await getSessionByPublicCode(env.PICKLEBALL_DB, code)
     if (!publicSession || !publicSession.publicViewEnabled) return jsonResponse({ error: 'Not found.' }, 404)
