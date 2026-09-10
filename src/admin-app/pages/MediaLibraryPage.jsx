@@ -8,24 +8,37 @@ import MediaAssetGrid from '../components/MediaAssetGrid'
 import MediaAssetTable from '../components/MediaAssetTable'
 import MediaDeleteConflictDialog from '../components/MediaDeleteConflictDialog'
 
+// Deliberately not adminApi.request: these send FormData, which must not get
+// a JSON Content-Type header. The content-type guard below is borrowed from
+// it though — an unhandled server error renders Astro's HTML error page, and
+// calling response.json() on that throws a SyntaxError that replaces the real
+// failure with "Unexpected token '<'".
 async function mediaRequest(method, body, query = '') {
   const response = await fetch(`/api/admin/media${query}`, { method, body, credentials: 'include' })
-  const data = await response.json()
+  const isJson = response.headers.get('content-type')?.includes('application/json')
+  const data = isJson ? await response.json() : null
+
   if (!response.ok) {
-    const error = new Error(data.error || `Media request failed (${response.status}).`)
-    error.references = data.references || []
+    const error = new Error(data?.error || `Media request failed (${response.status}).`)
+    error.references = data?.references || []
     throw error
   }
+
   return data
 }
 
 function MediaLibraryPage() {
   const [assets, setAssets] = useState([])
-  const [summary, setSummary] = useState(null)
   const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState(null)
   const [busyKey, setBusyKey] = useState('')
   const [conflictReferences, setConflictReferences] = useState(null)
+  // R2 lists one page at a time. Without this the library silently showed
+  // only the first page — and because R2 lists in key order (keys start with
+  // a random UUID), a freshly uploaded image was not even guaranteed to be
+  // on it. No indication was given that anything was missing.
+  const [cursor, setCursor] = useState(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const view = searchParams.get('view') === 'details' ? 'details' : 'grid'
 
@@ -33,8 +46,8 @@ function MediaLibraryPage() {
     setStatus('loading')
     try {
       const data = await adminApi.get('/api/admin/media')
-      setAssets((data.assets || []).filter((asset) => asset.size > 0 && asset.contentType?.startsWith('image/')))
-      setSummary(data.summary || null)
+      setAssets(data.assets || [])
+      setCursor(data.cursor || null)
       setStatus('ready')
     } catch {
       setStatus('error')
@@ -42,6 +55,26 @@ function MediaLibraryPage() {
   }, [])
 
   useEffect(() => { loadAssets() }, [loadAssets])
+
+  async function loadMore() {
+    if (!cursor || isLoadingMore) return
+    setIsLoadingMore(true)
+    try {
+      const data = await adminApi.get(`/api/admin/media?cursor=${encodeURIComponent(cursor)}`)
+      setAssets((current) => {
+        // De-duplicated by R2 key: pages are fetched at different moments, so
+        // an upload or replace in between can otherwise surface the same
+        // object twice and give two rows the same React key.
+        const seen = new Set(current.map((asset) => asset.key))
+        return [...current, ...(data.assets || []).filter((asset) => !seen.has(asset.key))]
+      })
+      setCursor(data.cursor || null)
+    } catch (error) {
+      setMessage({ tone: 'error', text: error.message || 'Could not load more media.' })
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }
 
   async function optimizedFile(rawFile) {
     const result = await validateAndConvertToWebP(rawFile)
@@ -76,7 +109,8 @@ function MediaLibraryPage() {
       body.set('oldKey', asset.key)
       body.set('file', file)
       const result = await mediaRequest('PATCH', body)
-      setMessage({ tone: 'success', text: `Media replaced safely. ${result.referencesUpdated} reference${result.referencesUpdated === 1 ? '' : 's'} updated.` })
+      const updated = result?.referencesUpdated ?? 0
+      setMessage({ tone: 'success', text: `Media replaced safely. ${updated} reference${updated === 1 ? '' : 's'} updated.` })
       await loadAssets()
     } catch (error) {
       setMessage({ tone: 'error', text: error.message })
@@ -100,11 +134,15 @@ function MediaLibraryPage() {
     } finally { setBusyKey('') }
   }
 
+  // Derived from the assets actually on screen rather than from the server's
+  // per-page summary. The two disagreed before — the summary counted every
+  // R2 object on the page while the grid rendered only the image ones — so
+  // the tiles could claim more than was visible below them. Deriving here
+  // makes that impossible, and keeps the totals correct as more pages load.
   const metrics = [
-    { label: 'R2 objects', value: summary?.objectCount || 0, icon: HardDrive },
-    { label: 'Images', value: summary?.imageCount || 0, icon: Image },
-    { label: 'Storage shown', value: formatBytes(summary?.totalBytes), icon: FolderOpen },
-    { label: 'D1 metadata', value: `${summary?.trackedCount || 0} linked`, icon: Database },
+    { label: 'Images loaded', value: `${assets.length}${cursor ? '+' : ''}`, icon: Image },
+    { label: 'Storage loaded', value: formatBytes(assets.reduce((total, asset) => total + (asset.size || 0), 0)), icon: FolderOpen },
+    { label: 'D1 metadata', value: `${assets.filter((asset) => asset.trackedInD1).length} linked`, icon: Database },
   ]
 
   return (
@@ -167,10 +205,24 @@ function MediaLibraryPage() {
       {status === 'error' ? <p className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">Could not load this environment’s R2 bucket.</p> : null}
 
       {status === 'ready' ? <>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(({ label, value, icon: Icon }) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p><p className="mt-2 text-xl font-semibold text-slate-900">{value}</p></div><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50 text-violet-600"><Icon className="h-4 w-4" aria-hidden="true" /></div></div></div>)}</div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{metrics.map(({ label, value, icon: Icon }) => <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p><p className="mt-2 text-xl font-semibold text-slate-900">{value}</p></div><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-50 text-violet-600"><Icon className="h-4 w-4" aria-hidden="true" /></div></div></div>)}</div>
         {view === 'grid'
           ? <MediaAssetGrid assets={assets} busyKey={busyKey} onReplace={replace} onRemove={remove} />
           : <MediaAssetTable assets={assets} busyKey={busyKey} onReplace={replace} onRemove={remove} />}
+
+        {cursor ? (
+          <div className="flex flex-col items-center gap-2 pt-2">
+            <p className="text-sm text-slate-600">More images are stored in this bucket than are shown above.</p>
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={isLoadingMore}
+              className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoadingMore ? 'Loading…' : 'Load more'}
+            </button>
+          </div>
+        ) : null}
       </> : null}
     </div>
   )

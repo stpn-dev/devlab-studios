@@ -29,9 +29,12 @@ In the Worker's Settings → Variables and Secrets, configure:
 - `RESEND_API_KEY` (Secret) — contact form lead-notification delivery
 - `RESEND_FROM_EMAIL` / `LEAD_NOTIFICATION_EMAIL` (Vars, optional) — sender/recipient override, defaults to `hello@devlabstudios.com`
 - `ADMIN_SESSION_SECRET` (Secret) — signs admin session cookies
-- `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` (or `ADMIN_USERS` JSON, or
-  `ADMIN_AUTH_MODE=cloudflare-access` to use Cloudflare Access instead —
-  see `src/worker/middleware/adminAuth.js`)
+- `ADMIN_EMAIL` + `ADMIN_PASSWORD_HASH` (or `ADMIN_USERS` JSON). Generate
+  the hash with `npm run cms:hash-admin-password` — only `pbkdf2_sha256`
+  hashes are accepted. Both are required: an environment missing them fails
+  closed with a 503 rather than falling back to a weaker mode.
+  (`ADMIN_AUTH_MODE=cloudflare-access` is disabled pending JWT verification
+  — see `docs/operations.md`.)
 - `R2_PUBLIC_BASE_URL` — public base URL for the `MEDIA_BUCKET` R2 bucket
 - Maintenance mode: runtime D1 toggle (`site_settings.maintenance_mode`), not an env var — see `docs/operations.md`
 

@@ -13,6 +13,13 @@ export interface OptimizeImageOptions {
   width: number
   height: number
   fit?: 'cover' | 'contain'
+  /**
+   * Defaults to [1, 2]. Pass [1] for variants whose box is already sized to
+   * the largest source the uploader can produce (see MAX_IMAGE_WIDTH in
+   * src/utils/imageUpload.js) — a 2x density there only asks Cloudflare to
+   * upscale past the source, which costs bytes and adds no detail.
+   */
+  densities?: number[]
 }
 
 /**
@@ -26,7 +33,7 @@ export interface OptimizeImageOptions {
  */
 export async function optimizeImage(
   source: ImageMetadata | string | undefined,
-  { width, height, fit = 'cover' }: OptimizeImageOptions,
+  { width, height, fit = 'cover', densities = [1, 2] }: OptimizeImageOptions,
 ): Promise<OptimizedPicture | null> {
   if (!source) return null
 
@@ -35,7 +42,7 @@ export async function optimizeImage(
     width,
     height,
     fit,
-    densities: [1, 2],
+    densities,
     inferSize: false as const,
   }
 

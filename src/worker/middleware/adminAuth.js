@@ -1,11 +1,19 @@
 import { jsonResponse } from '../utils/responses'
 import { checkRateLimit, clearRateLimit, rateLimitedResponse, clientIp } from '../rateLimit.js'
+import { isAdminSessionRevoked, revokeAdminSession } from '../repositories/adminSessions.js'
 
 const SESSION_COOKIE = 'devlab_admin_session'
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8
 const PASSWORD_HASH_PREFIX = 'pbkdf2_sha256'
-const FAST_PASSWORD_HASH_PREFIX = 'sha256'
-const HEX_PASSWORD_HASH_PREFIX = 'sha256hex'
+// Retired July 2026. `sha256`/`sha256hex` were single-round salted SHA-256,
+// added as a workaround while Workers' PBKDF2 iteration cap was being pinned
+// down and superseded once 100,000 iterations was confirmed to work on the
+// real runtime (see scripts/cms/hash-admin-password.mjs). A single SHA-256
+// round is crackable at billions of guesses/sec on a commodity GPU, so these
+// are no longer accepted — but they're still recognised, so a credential
+// left on the old format reports a precise configuration error instead of
+// failing as a plain "invalid password" nobody could diagnose.
+const RETIRED_PASSWORD_HASH_PREFIXES = new Set(['sha256', 'sha256hex'])
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const LOGIN_MAX_ATTEMPTS = 8
 // Per source address across ALL accounts, so spraying is bounded too.
@@ -45,31 +53,6 @@ function constantTimeEqual(left, right) {
   }
 
   return mismatch === 0
-}
-
-function concatBytes(...arrays) {
-  const length = arrays.reduce((total, item) => total + item.length, 0)
-  const output = new Uint8Array(length)
-  let offset = 0
-
-  arrays.forEach((item) => {
-    output.set(item, offset)
-    offset += item.length
-  })
-
-  return output
-}
-
-function hexToBytes(value) {
-  const normalized = String(value || '').trim().toLowerCase()
-  if (!/^[a-f0-9]+$/.test(normalized) || normalized.length % 2 !== 0) return null
-
-  const bytes = new Uint8Array(normalized.length / 2)
-  for (let index = 0; index < normalized.length; index += 2) {
-    bytes[index / 2] = Number.parseInt(normalized.slice(index, index + 2), 16)
-  }
-
-  return bytes
 }
 
 function parseCookies(cookieHeader) {
@@ -127,41 +110,13 @@ async function importPasswordKey(password) {
   return crypto.subtle.importKey('raw', textBytes(password), 'PBKDF2', false, ['deriveBits'])
 }
 
-async function verifySha256Password(password, saltValue, hashValue) {
-  if (!saltValue || !hashValue) return false
-
-  const expectedHash = base64UrlToBytes(hashValue)
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    concatBytes(base64UrlToBytes(saltValue), textBytes(password)),
-  )
-
-  return constantTimeEqual(new Uint8Array(digest), expectedHash)
-}
-
-async function verifySha256HexPassword(password, saltValue, hashValue) {
-  const salt = hexToBytes(saltValue)
-  const expectedHash = hexToBytes(hashValue)
-  if (!salt || !expectedHash) return false
-
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    concatBytes(salt, textBytes(password)),
-  )
-
-  return constantTimeEqual(new Uint8Array(digest), expectedHash)
+/** True for a credential stored in one of the retired weak formats. */
+function usesRetiredHashFormat(storedHash) {
+  return RETIRED_PASSWORD_HASH_PREFIXES.has(String(storedHash || '').split('$')[0])
 }
 
 async function verifyPassword(password, storedHash) {
   const [prefix, iterationsValue, saltValue, hashValue] = String(storedHash || '').split('$')
-
-  if (prefix === FAST_PASSWORD_HASH_PREFIX) {
-    return verifySha256Password(password, iterationsValue, saltValue)
-  }
-
-  if (prefix === HEX_PASSWORD_HASH_PREFIX) {
-    return verifySha256HexPassword(password, iterationsValue, saltValue)
-  }
 
   const iterations = Number(iterationsValue)
 
@@ -224,13 +179,24 @@ function getSessionSecret(env) {
   return String(env.ADMIN_SESSION_SECRET || '').trim()
 }
 
+/**
+ * Resolves the auth mode, and never resolves to something weaker than what
+ * is actually configured.
+ *
+ * This used to fall back to 'cloudflare-access' whenever no session secret or
+ * admin user was configured — which, combined with requireAdmin's old
+ * header-trust branch, meant a missing ADMIN_SESSION_SECRET silently turned
+ * into "anyone who sets a cf-access-authenticated-user-email header is an
+ * admin". Misconfiguration must fail closed, so an unconfigured environment
+ * now resolves to 'unconfigured' and is refused outright.
+ */
 function getAdminAuthMode(env) {
   const configuredMode = String(env.ADMIN_AUTH_MODE || '').trim().toLowerCase()
   if (configuredMode) return configuredMode
 
   return getSessionSecret(env) && getConfiguredAdmins(env).length > 0
     ? 'password'
-    : 'cloudflare-access'
+    : 'unconfigured'
 }
 
 function getClientIp(c) {
@@ -286,6 +252,16 @@ export async function handleAdminLogin(c) {
 
   const admin = admins.find((user) => user.email === email)
 
+  // Reported as the server-configuration fault it is, rather than as a
+  // credential failure. This is unreachable unless a stored hash was never
+  // migrated off the retired weak formats, and in that case an undiagnosable
+  // "invalid email or password" would be far worse than naming the cause.
+  if (admin && usesRetiredHashFormat(admin.passwordHash)) {
+    return jsonResponse({
+      error: 'This account\'s stored password hash uses a retired format that is no longer accepted. Re-generate it with `npm run cms:hash-admin-password` and update the ADMIN_PASSWORD_HASH / ADMIN_USERS secret.',
+    }, 503)
+  }
+
   const isValidPassword = Boolean(admin && await verifyPassword(password, admin.passwordHash))
 
   if (!isValidPassword) {
@@ -299,6 +275,9 @@ export async function handleAdminLogin(c) {
     sub: admin.email,
     email: admin.email,
     role: admin.role,
+    // Identifies this specific token so logout can revoke exactly it,
+    // without invalidating the admin's other sessions.
+    jti: crypto.randomUUID(),
     iat: now,
     exp: now + SESSION_MAX_AGE_SECONDS,
   }, sessionSecret)
@@ -310,7 +289,24 @@ export async function handleAdminLogin(c) {
   )
 }
 
-export function handleAdminLogout(c) {
+export async function handleAdminLogout(c) {
+  // Clearing the cookie is not signing out: the token is self-contained and
+  // stays valid until `exp`, so a captured copy kept working for up to 8
+  // hours after the admin clicked "Log out". Record it as revoked as well.
+  const sessionSecret = getSessionSecret(c.env)
+  if (sessionSecret) {
+    const cookies = parseCookies(c.req.header('Cookie'))
+    const session = await verifySessionToken(cookies[SESSION_COOKIE], sessionSecret)
+
+    if (session?.jti && session?.exp) {
+      await revokeAdminSession(c.env.DB, {
+        jti: session.jti,
+        adminEmail: session.email || null,
+        expiresAt: new Date(session.exp * 1000).toISOString(),
+      })
+    }
+  }
+
   return jsonResponse(
     { ok: true },
     200,
@@ -336,6 +332,12 @@ export async function requireAdmin(c, next) {
     const cookies = parseCookies(c.req.header('Cookie'))
     const session = await verifySessionToken(cookies[SESSION_COOKIE], sessionSecret)
     if (session?.email) {
+      // A signed, unexpired token is not sufficient on its own — it may have
+      // been explicitly signed out. See repositories/adminSessions.js.
+      if (await isAdminSessionRevoked(c.env.DB, session.jti)) {
+        return jsonResponse({ error: 'This admin session has been signed out.' }, 401)
+      }
+
       c.set('adminEmail', session.email)
       c.set('adminRole', session.role || 'admin')
       c.set('adminAuthMode', 'password')
@@ -345,15 +347,12 @@ export async function requireAdmin(c, next) {
     return jsonResponse({ error: 'Admin login is required.' }, 401)
   }
 
-  const request = c.req.raw
-  const accessEmail = request.headers.get('cf-access-authenticated-user-email')
-  const configuredEmail = c.env.ADMIN_EMAIL
-
-  if (accessEmail && (!configuredEmail || accessEmail.toLowerCase() === configuredEmail.toLowerCase())) {
-    c.set('adminEmail', accessEmail)
-    c.set('adminAuthMode', 'cloudflare-access')
-    return next()
-  }
-
-  return jsonResponse({ error: 'Admin access requires Cloudflare Access authentication.' }, 401)
+  // Anything else — including 'cloudflare-access' and 'unconfigured' — is
+  // refused. The old 'cloudflare-access' branch authenticated purely on the
+  // `cf-access-authenticated-user-email` request header without verifying
+  // the signed `Cf-Access-Jwt-Assertion` that accompanies it, so any caller
+  // able to set that header was an admin. ADMIN_AUTH_MODE is 'password' in
+  // both deployed environments (wrangler.jsonc), so nothing relied on it.
+  // Reinstating the mode means verifying that JWT against Access's JWKS.
+  return jsonResponse({ error: 'Admin authentication is not configured for this environment.' }, 503)
 }

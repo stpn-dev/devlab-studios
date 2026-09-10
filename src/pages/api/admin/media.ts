@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro'
 import { getEnv } from '../../../lib/env'
 import { deleteMediaAsset, findMediaReferences, findMediaReferencesForAssets, listMediaAssets, recordMediaAsset, replaceMediaReferences } from '../../../worker/repositories/mediaAssets.js'
 import { recordAuditEvent } from '../../../worker/repositories/auditLog.js'
+import { checkRateLimit, clientIp, rateLimitedResponse } from '../../../worker/rateLimit.js'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -27,6 +28,37 @@ function filenameFromKey(key: string): string {
 
 const MAX_UPLOAD_BYTES = 12 * 1024 * 1024
 const MAX_DIMENSION_PX = 6000
+
+// Every mutating media route goes through this. These are all
+// session-gated, so the point is not to stop an anonymous flood but to bound
+// what a single compromised or misbehaving admin session (or a runaway
+// client retry loop) can spend on R2 storage and D1 writes. Set generously
+// enough that a real admin adding a whole project gallery in one sitting
+// never notices it.
+const MEDIA_WRITE_BUCKET = 'admin-media-write'
+const MEDIA_WRITE_LIMIT = 60
+const MEDIA_WRITE_WINDOW_MS = 5 * 60 * 1000
+
+/**
+ * Keyed on the admin identity rather than the address: these routes are
+ * already authenticated, so the session is the meaningful unit, and it keeps
+ * two admins behind one office NAT from sharing a budget.
+ */
+async function checkMediaWriteLimit(
+  env: { RATE_LIMITER?: DurableObjectNamespace },
+  request: Request,
+  adminEmail: unknown,
+): Promise<Response | null> {
+  const identity = String(adminEmail || '').trim().toLowerCase() || clientIp(request)
+  const rate = await checkRateLimit(env, MEDIA_WRITE_BUCKET, identity, {
+    limit: MEDIA_WRITE_LIMIT,
+    windowMs: MEDIA_WRITE_WINDOW_MS,
+  })
+
+  return rate.limited
+    ? rateLimitedResponse('Too many media changes in a short time. Try again shortly.', rate.retryAfterSeconds)
+    : null
+}
 
 /** Reads real pixel dimensions from a WebP file's VP8/VP8L/VP8X chunk, independent of any client-reported metadata. */
 function readWebpDimensions(bytes: Uint8Array): { width: number; height: number } | null {
@@ -113,10 +145,19 @@ export const GET: APIRoute = async ({ url }) => {
     }
   })
 
+  // The library only ever renders optimized images, and the client used to
+  // discard everything else after the fact — which left the summary tiles
+  // counting objects that were never displayed. Filtering here instead means
+  // the counts and the grid always describe the same set, and reference
+  // lookups below are not spent on objects nobody will see.
+  const displayableAssets = baseAssets.filter(
+    (asset) => asset.size > 0 && asset.contentType.startsWith('image/'),
+  )
+
   let usedByKey = new Map<string, Array<{ type: string; id: string; label: string; isThumbnail: boolean }>>()
   if (env.DB) {
     try {
-      usedByKey = await findMediaReferencesForAssets(env.DB, baseAssets)
+      usedByKey = await findMediaReferencesForAssets(env.DB, displayableAssets)
     } catch (error) {
       console.error(
         JSON.stringify({
@@ -127,7 +168,7 @@ export const GET: APIRoute = async ({ url }) => {
       )
     }
   }
-  const assets = baseAssets.map((asset) => ({ ...asset, usedBy: usedByKey.get(asset.key) || [] }))
+  const assets = displayableAssets.map((asset) => ({ ...asset, usedBy: usedByKey.get(asset.key) || [] }))
 
   return jsonResponse({
     assets,
@@ -135,8 +176,12 @@ export const GET: APIRoute = async ({ url }) => {
       objectCount: assets.length,
       totalBytes: assets.reduce((total, asset) => total + asset.size, 0),
       trackedCount: assets.filter((asset) => asset.trackedInD1).length,
-      imageCount: assets.filter((asset) => asset.contentType.startsWith('image/')).length,
+      imageCount: assets.length,
       prefix,
+      // Per-page, not bucket-wide: R2 lists lazily, so "how many images
+      // exist in total" isn't knowable without walking every page. The
+      // client accumulates its own totals as it pages and uses `cursor` to
+      // decide whether more remain.
       isComplete: !listed.truncated,
     },
     cursor: listed.truncated ? listed.cursor : null,
@@ -149,6 +194,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!String(env.R2_PUBLIC_BASE_URL || '').trim()) {
     return jsonResponse({ error: 'R2_PUBLIC_BASE_URL is not configured.' }, 503)
   }
+  const limited = await checkMediaWriteLimit(env, request, locals.adminEmail)
+  if (limited) return limited
 
   const formData = await request.formData()
   const file = formData.get('file')
@@ -175,7 +222,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
   }
 
-  if (env.DB) await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'create', entityType: 'media', entityId: key, metadata: { summary: `Uploaded media: ${file.name}.`, filename: file.name, contentType: file.type, size: file.size } })
+  // Best-effort for the same reason recordMediaAsset above is: the object is
+  // already in R2, so the upload has succeeded. Letting an audit-log write
+  // fail the response would tell the admin it failed, and the natural retry
+  // then uploads a second copy under a fresh UUID key.
+  if (env.DB) await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'create', entityType: 'media', entityId: key, metadata: { summary: `Uploaded media: ${file.name}.`, filename: file.name, contentType: file.type, size: file.size } }).catch(() => undefined)
 
   return jsonResponse({
     key,
@@ -190,6 +241,8 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
   const env = getEnv()
   if (!env.MEDIA_BUCKET) return jsonResponse({ error: 'R2 MEDIA_BUCKET binding is not configured.' }, 503)
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+  const limited = await checkMediaWriteLimit(env, request, locals.adminEmail)
+  if (limited) return limited
   const publicBaseUrl = String(env.R2_PUBLIC_BASE_URL || '').trim()
   if (!publicBaseUrl) return jsonResponse({ error: 'R2_PUBLIC_BASE_URL is not configured.' }, 503)
 
@@ -215,8 +268,15 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
     await replaceMediaReferences(env.DB, [oldKey, oldUrl], nextUrl)
     referencesUpdated = true
     await env.MEDIA_BUCKET.delete(oldKey)
-    await deleteMediaAsset(env.DB, oldKey)
-    await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'replace', entityType: 'media', entityId: nextKey, metadata: { summary: `Replaced media ${oldKey} with ${file.name}; updated ${references.length} reference${references.length === 1 ? '' : 's'}.`, oldKey, nextKey, referenceCount: references.length } })
+
+    // Point of no return: every reference now resolves to nextUrl and the
+    // old object is gone from R2, so the replacement is committed. What
+    // follows is bookkeeping only, and must stay best-effort — if it were
+    // allowed to throw, the catch below would roll every reference back to
+    // an oldUrl that no longer exists (404ing all of them) and then delete
+    // nextKey, the sole surviving copy of the image.
+    await deleteMediaAsset(env.DB, oldKey).catch(() => undefined)
+    await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'replace', entityType: 'media', entityId: nextKey, metadata: { summary: `Replaced media ${oldKey} with ${file.name}; updated ${references.length} reference${references.length === 1 ? '' : 's'}.`, oldKey, nextKey, referenceCount: references.length } }).catch(() => undefined)
     return jsonResponse({ key: nextKey, url: nextUrl, filename: file.name, contentType: file.type, size: file.size, referencesUpdated: references.length })
   } catch (error) {
     if (referencesUpdated) {
@@ -233,10 +293,12 @@ export const PATCH: APIRoute = async ({ request, locals }) => {
   }
 }
 
-export const DELETE: APIRoute = async ({ url, locals }) => {
+export const DELETE: APIRoute = async ({ request, url, locals }) => {
   const env = getEnv()
   if (!env.MEDIA_BUCKET) return jsonResponse({ error: 'R2 MEDIA_BUCKET binding is not configured.' }, 503)
   if (!env.DB) return jsonResponse({ error: 'D1 DB binding is not configured.' }, 503)
+  const limited = await checkMediaWriteLimit(env, request, locals.adminEmail)
+  if (limited) return limited
   const key = String(url.searchParams.get('key') || '').replace(/^\/+/, '')
   if (!key) return jsonResponse({ error: 'A media key is required.' }, 400)
   const object = await env.MEDIA_BUCKET.head(key)
@@ -247,7 +309,9 @@ export const DELETE: APIRoute = async ({ url, locals }) => {
   if (references.length) return jsonResponse({ error: 'This media is still in use. Replace it or remove its references before deleting it.', references }, 409)
 
   await env.MEDIA_BUCKET.delete(key)
-  await deleteMediaAsset(env.DB, key)
-  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'delete', entityType: 'media', entityId: key, metadata: { summary: `Deleted unreferenced media: ${key}.`, key, size: object.size } })
+  // Object is gone from R2; the delete has happened and cannot be undone, so
+  // neither of these bookkeeping writes may turn it into a reported failure.
+  await deleteMediaAsset(env.DB, key).catch(() => undefined)
+  await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'delete', entityType: 'media', entityId: key, metadata: { summary: `Deleted unreferenced media: ${key}.`, key, size: object.size } }).catch(() => undefined)
   return jsonResponse({ key })
 }

@@ -22,7 +22,7 @@ function ProjectDetailModal({ project, isOpen, onClose, onImageClick, suppressEs
     const items = Array.isArray(project.galleryImages) ? project.galleryImages.filter((item) => item?.url) : []
     if (items.length > 0) return items
     if (project.image) {
-      return [{ id: `${project.id}-cover`, url: project.image, optimized: project.optimizedImage, altText: `${project.title} cover`, sortOrder: 1 }]
+      return [{ id: `${project.id}-cover`, url: project.image, optimized: project.optimizedImage, optimizedFull: project.optimizedImageFull, altText: `${project.title} cover`, sortOrder: 1 }]
     }
     return []
   }, [project])

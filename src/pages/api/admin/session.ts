@@ -5,7 +5,7 @@ export const GET: APIRoute = ({ locals }) => {
     ok: true,
     email: locals.adminEmail,
     role: locals.adminRole || 'admin',
-    mode: locals.adminAuthMode || 'cloudflare-access',
+    mode: locals.adminAuthMode || 'password',
   }), {
     headers: { 'Content-Type': 'application/json' },
   })

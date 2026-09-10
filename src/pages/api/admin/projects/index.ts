@@ -5,7 +5,7 @@ import { recordAuditEvent } from '../../../../worker/repositories/auditLog.js'
 import { projectRequestSchema } from '../../../../lib/schemas/collections'
 import { getEnv } from '../../../../lib/env'
 import { normalizeProjectMedia } from '../../../../lib/media'
-import { jsonResponse, readJsonBody } from '../../../../lib/http'
+import { adminErrorResponse, jsonResponse, readJsonBody } from '../../../../lib/http'
 import { buildCreateAuditMetadata } from '../../../../lib/audit.js'
 
 export const GET: APIRoute = async () => {
@@ -35,8 +35,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
     await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'create', entityType: 'projects', entityId: project.id || null, metadata: buildCreateAuditMetadata(project, 'Project') })
     return jsonResponse(normalizeProjectMedia(project, env), 201)
   } catch (error) {
-    const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return jsonResponse({ error: message }, status)
+    return adminErrorResponse(error)
   }
 }

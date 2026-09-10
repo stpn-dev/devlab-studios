@@ -77,10 +77,20 @@ function ImageModal({ image, alt, isOpen, onClose, caption, lockScroll = true })
         </button>
 
         <div className="rounded-2xl border border-white/20 bg-white/10 p-3 shadow-xl backdrop-blur-lg sm:p-4">
+          {/*
+            `h-auto w-auto` is load-bearing, not cosmetic. A `fit: 'contain'`
+            derivative is requested against a square box, so the width/height
+            attributes ResponsivePicture emits describe that box rather than
+            the bitmap Cloudflare actually returns. Without both dimensions
+            set to auto the UA derives the element's aspect ratio from those
+            attributes and letterboxes the real image inside a square; with
+            them, the loaded image's own intrinsic size wins and max-h/max-w
+            just clamp it.
+          */}
           <ResponsivePicture
             image={image}
             alt={alt}
-            className="max-h-[calc(100dvh-12rem)] max-w-[90vw] rounded-xl object-contain"
+            className="h-auto max-h-[calc(100dvh-12rem)] w-auto max-w-[90vw] rounded-xl object-contain"
           />
 
           {/* Caption (optional) */}

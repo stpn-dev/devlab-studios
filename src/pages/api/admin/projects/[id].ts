@@ -6,7 +6,7 @@ import { recordAuditEvent } from '../../../../worker/repositories/auditLog.js'
 import { projectRequestSchema } from '../../../../lib/schemas/collections'
 import { getEnv } from '../../../../lib/env'
 import { normalizeProjectMedia } from '../../../../lib/media'
-import { jsonResponse, readJsonBody } from '../../../../lib/http'
+import { adminErrorResponse, jsonResponse, readJsonBody } from '../../../../lib/http'
 import { buildAuditMetadata, buildDeleteAuditMetadata } from '../../../../lib/audit.js'
 
 export const GET: APIRoute = async ({ params }) => {
@@ -34,9 +34,7 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
     await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'update', entityType: 'projects', entityId: params.id as string, metadata: buildAuditMetadata({ before, after: project, label: `Project ${project.title || params.id}` }) })
     return jsonResponse(normalizeProjectMedia(project, env))
   } catch (error) {
-    const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return jsonResponse({ error: message }, status)
+    return adminErrorResponse(error)
   }
 }
 
@@ -57,9 +55,7 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
     await recordAuditEvent(env.DB, { actorEmail: locals.adminEmail || null, action: 'update', entityType: 'projects', entityId: params.id as string, metadata: buildAuditMetadata({ before: existing, after: project, label: `Project ${project.title || params.id}` }) })
     return jsonResponse(normalizeProjectMedia(project, env))
   } catch (error) {
-    const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 500
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return jsonResponse({ error: message }, status)
+    return adminErrorResponse(error)
   }
 }
 

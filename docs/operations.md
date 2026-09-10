@@ -14,7 +14,7 @@ Snapshot as of 2026-07-31, taken as Phase 0 of the Astro/CMS rebuild program (se
 
 | Variable | Purpose |
 |---|---|
-| `ADMIN_AUTH_MODE` | `password` \| `cloudflare-access` \| `disabled` — selects the admin auth strategy in `src/worker/middleware/adminAuth.js`. Currently `password`. |
+| `ADMIN_AUTH_MODE` | `password` \| `disabled` — selects the admin auth strategy in `src/worker/middleware/adminAuth.js`. Currently `password`. `cloudflare-access` is **disabled** (see below); anything unrecognised, and any environment missing `ADMIN_SESSION_SECRET`/credentials, fails closed with a 503. |
 | `R2_PUBLIC_BASE_URL` | Public base URL used to build absolute links to R2-hosted media. |
 | `TURNSTILE_SITE_KEY` | Public runtime sitekey for the environment-specific contact-form widget. Preview and production use different keys. |
 | `RESEND_FROM_EMAIL` | Sender address for the lead-notification email (defaults to `hello@devlabstudios.com`). |
@@ -96,13 +96,25 @@ Maintenance mode is a runtime check (`src/middleware.ts`), not a build-time flag
 
 ## Switching admin auth to Cloudflare Access
 
-The code path (`src/worker/middleware/adminAuth.js`'s `cloudflare-access`
-branch) has existed since Phase 1 and needs no application changes to use
-— Phase 4's admin rebuild (new shell, schema-driven forms, versioning)
-goes through the same `requireAdmin` gate in `src/middleware.ts`
-regardless of mode, so switching modes doesn't touch any admin screen.
-What's actually required is Cloudflare-side configuration this repo can't
-perform on its own:
+> **This mode is currently disabled in code and cannot be enabled by
+> configuration alone.** The old `cloudflare-access` branch authenticated on
+> the `cf-access-authenticated-user-email` request header *alone*, without
+> verifying the signed `Cf-Access-Jwt-Assertion` header that Access sends
+> alongside it. Any caller able to set that header — i.e. anyone reaching the
+> Worker on a hostname Access does not actually front — was therefore a full
+> admin. Setting `ADMIN_AUTH_MODE=cloudflare-access` now returns 503 rather
+> than trusting the header, and an unconfigured environment resolves to
+> `unconfigured` (also 503) instead of silently falling back to this mode.
+>
+> **To reinstate it**, `requireAdmin` must verify `Cf-Access-Jwt-Assertion`
+> against the team's Access JWKS (`https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`)
+> — checking signature, `aud` against the Access application's AUD tag, `iss`,
+> and expiry — and only then trust the email claim *from the verified token*.
+> The header on its own is not evidence of anything. The Cloudflare-side
+> setup below is still accurate and still necessary, but it is not
+> sufficient on its own.
+
+The Cloudflare-side configuration this repo can't perform on its own:
 
 1. In the Cloudflare dashboard, go to **Zero Trust → Access → Applications**
    and add a **Self-hosted** application covering `admin.devlabstudios.com/*`
@@ -111,10 +123,11 @@ perform on its own:
 2. Add at least one **policy** (e.g. "Allow" for a specific email or your
    Google/GitHub identity) — Access enforces this at the edge, before any
    request reaches the Worker.
-3. Set `ADMIN_AUTH_MODE=cloudflare-access` in `wrangler.jsonc`'s `vars` (or
-   leave `ADMIN_AUTH_MODE` unset with no `ADMIN_SESSION_SECRET`/admin
-   credentials configured — `getAdminAuthMode()` falls back to
-   `cloudflare-access` in that case too).
+3. Set `ADMIN_AUTH_MODE=cloudflare-access` in `wrangler.jsonc`'s `vars`.
+   (Leaving `ADMIN_AUTH_MODE` unset no longer selects this mode: an
+   environment with no `ADMIN_SESSION_SECRET`/admin credentials resolves to
+   `unconfigured` and is refused. The old fallback meant a missing secret
+   silently switched the CMS to header-trust auth.)
 4. Once Access is enforcing the policy, every request reaching the Worker
    already carries `cf-access-authenticated-user-email`, so
    `requireAdmin` passes and `GET /api/admin/session` returns immediately

@@ -71,7 +71,12 @@ test('media library inventories the bound R2 bucket and explains its purpose', a
   await page.getByRole('navigation').getByRole('link', { name: 'Media' }).click()
   await expect(page.getByRole('heading', { name: 'Media Library', level: 1 })).toBeVisible()
   await expect(page.getByText(/optimized public images in the current environment/i)).toBeVisible()
-  await expect(page.getByText('R2 objects')).toBeVisible()
+  // Labelled for what these now actually count: the images rendered below
+  // them, accumulated across however many pages have been loaded. They used
+  // to describe every object on the first R2 page, including ones the grid
+  // filtered out, so the tiles could disagree with the grid.
+  await expect(page.getByText('Images loaded')).toBeVisible()
+  await expect(page.getByText('Storage loaded')).toBeVisible()
   await expect(page.getByText('Upload Image')).toBeVisible()
 })
 

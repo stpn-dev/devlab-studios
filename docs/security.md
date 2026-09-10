@@ -73,12 +73,33 @@ fails a test instead of silently breaking the contact form.
 
 ## Authentication
 
-- **Admin** (`/admin`, `/api/admin/*`): `ADMIN_AUTH_MODE` selects between
-  `password` (PBKDF2 hash + HMAC-signed session cookie,
-  `src/worker/middleware/adminAuth.js`) and `cloudflare-access` (delegates
-  to Cloudflare Zero Trust at the edge — see `docs/operations.md`
-  for how to switch). Every `/api/admin/*` route is gated by the same
-  `requireAdmin` check in `src/middleware.ts`, regardless of mode.
+- **Admin** (`/admin`, `/api/admin/*`): `ADMIN_AUTH_MODE=password` — a
+  PBKDF2 hash (100,000 iterations, the Workers ceiling) plus an HMAC-signed
+  session cookie, in `src/worker/middleware/adminAuth.js`. Every
+  `/api/admin/*` route is gated by the same `requireAdmin` check in
+  `src/middleware.ts`.
+  - **Logout revokes the token, not just the cookie.** Sessions are
+    stateless signed tokens, so clearing the cookie alone left a captured
+    copy usable for the remainder of its 8-hour life. Each token carries a
+    `jti` that logout records in `admin_session_revocations` (migration
+    0008) and `requireAdmin` checks. That check fails *open* if the table
+    is unreachable — deliberately, since failing closed would lock every
+    admin out of the CMS over a transient D1 blip, and open is exactly the
+    posture that shipped before revocation existed.
+  - **Misconfiguration fails closed.** An environment with no
+    `ADMIN_SESSION_SECRET` or admin credentials resolves to `unconfigured`
+    and returns 503. It previously fell back to `cloudflare-access`, which
+    combined with that mode's header trust (below) meant a missing secret
+    silently granted admin to anyone.
+  - **`cloudflare-access` mode is disabled.** It authenticated on the
+    `cf-access-authenticated-user-email` header alone without verifying the
+    signed `Cf-Access-Jwt-Assertion` that accompanies it, so any caller able
+    to set that header was an admin. Reinstating it requires verifying that
+    JWT against Access's JWKS — see `docs/operations.md`.
+  - Only `pbkdf2_sha256` hashes are accepted. The retired single-round
+    `sha256`/`sha256hex` formats are still *recognised* purely so a
+    credential left on one reports a precise configuration error (503)
+    instead of an undiagnosable "invalid password".
 - **Public API**: no auth (by design — `/api/contact`, `/api/services`,
   etc. are meant to be publicly readable/submittable), protected instead
   by rate limiting and, for `/api/contact`, Turnstile + D1-backed dedup

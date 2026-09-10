@@ -17,6 +17,7 @@ export default function WorkProjectGallery({ project }) {
         id: `${project.id}-work-cover`,
         url: project.image,
         optimized: project.optimizedImage,
+        optimizedFull: project.optimizedImageFull,
         altText: `${project.title} cover image`,
       })
     }
@@ -93,7 +94,7 @@ export default function WorkProjectGallery({ project }) {
       </div>
 
       <ImageModal
-        image={activeImage.optimized}
+        image={activeImage.optimizedFull || activeImage.optimized}
         alt={activeImage.altText || `${project.title} image ${activeIndex + 1}`}
         caption={activeImage.altText || project.title}
         isOpen={isExpanded}

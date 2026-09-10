@@ -4,7 +4,7 @@ import { getReplaceAllCollection, getPerItemCollection } from '../../../../../wo
 import { recordVersion } from '../../../../../worker/repositories/contentVersions.js'
 import { recordAuditEvent } from '../../../../../worker/repositories/auditLog.js'
 import { getEnv } from '../../../../../lib/env'
-import { jsonResponse, readJsonBody } from '../../../../../lib/http'
+import { adminErrorResponse, jsonResponse, readJsonBody } from '../../../../../lib/http'
 import { buildAuditMetadata, buildCreateAuditMetadata } from '../../../../../lib/audit.js'
 
 export const GET: APIRoute = async ({ params }) => {
@@ -73,8 +73,6 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     })
     return jsonResponse(saved, isUpdate ? 200 : 201)
   } catch (error) {
-    const status = error && typeof error === 'object' && 'status' in error ? Number((error as { status: number }).status) : 500
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return jsonResponse({ error: message }, status)
+    return adminErrorResponse(error)
   }
 }

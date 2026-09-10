@@ -10,6 +10,7 @@ type ImageSource = ImageMetadata | string | undefined
 interface GalleryImage {
   url?: ImageSource
   optimized?: OptimizedPicture | null
+  optimizedFull?: OptimizedPicture | null
   [key: string]: unknown
 }
 
@@ -20,6 +21,7 @@ export interface ProjectData {
   type: string
   image?: ImageSource
   optimizedImage?: OptimizedPicture | null
+  optimizedImageFull?: OptimizedPicture | null
   imageUrl?: string
   galleryImages?: GalleryImage[]
   liveUrl?: string
@@ -75,16 +77,32 @@ const COVER_IMAGE_SIZE = { width: 640, height: 480, fit: 'cover' as const }
 // ~1920px wide at most, so a wider target just upscales past the source
 // with no visual gain.
 const GALLERY_IMAGE_SIZE = { width: 960, height: 540, fit: 'cover' as const }
+// The lightbox variant. `cover` (above) crops whatever doesn't fit 16:9, so
+// reusing the thumbnail derivative in a full-screen viewer showed project
+// screenshots with their edges sliced off — and upscaled a 960px-wide crop
+// to ~1700 CSS px, which is what made them look pixelated. `contain` scales
+// to fit the box without cropping or padding, so any aspect ratio survives
+// intact. Square box + 1920 so neither a landscape nor a portrait source is
+// constrained below the uploader's own MAX_IMAGE_WIDTH/HEIGHT cap; densities
+// [1] because that cap is already the ceiling on real detail.
+const GALLERY_IMAGE_FULL_SIZE = {
+  width: 1920,
+  height: 1920,
+  fit: 'contain' as const,
+  densities: [1],
+}
 
 async function attachOptimizedImages(projects: ProjectData[]): Promise<ProjectData[]> {
   return Promise.all(
     projects.map(async (project) => ({
       ...project,
       optimizedImage: await optimizeImage(project.image, COVER_IMAGE_SIZE),
+      optimizedImageFull: await optimizeImage(project.image, GALLERY_IMAGE_FULL_SIZE),
       galleryImages: await Promise.all(
         (project.galleryImages || []).map(async (image) => ({
           ...image,
           optimized: await optimizeImage(image.url, GALLERY_IMAGE_SIZE),
+          optimizedFull: await optimizeImage(image.url, GALLERY_IMAGE_FULL_SIZE),
         })),
       ),
     })),
