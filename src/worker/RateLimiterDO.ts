@@ -15,11 +15,12 @@ import { DurableObject } from 'cloudflare:workers'
  * carrying the same key to the SAME object instance, wherever in the world it
  * originates, so one counter sees every attempt.
  *
- * State is in-memory rather than in `ctx.storage`, deliberately. An eviction
- * resets a window, which is the same effect as the window simply expiring, and
- * an object stays alive while it is being hit -- which is exactly when the
- * counter matters. Storage would add a write to every single check for no
- * defensive gain.
+ * State lives in `ctx.storage`, NOT in memory. An in-memory Map was tried
+ * first and measurably did not hold: against production, attempts 9 and 10
+ * were correctly refused with 429 and then 11 and 12 were allowed through
+ * again, because Cloudflare had evicted the object between requests and the
+ * counter went with it. A limiter that forgets mid-attack is not a limiter.
+ * The cost is one small read and write per check, which is the right price.
  */
 interface Window {
   count: number
@@ -27,7 +28,25 @@ interface Window {
 }
 
 export class RateLimiterDO extends DurableObject {
-  private windows = new Map<string, Window>()
+  private async load(key: string): Promise<Window | undefined> {
+    return await this.ctx.storage.get<Window>(key)
+  }
+
+  private async save(key: string, window: Window, windowMs: number): Promise<void> {
+    await this.ctx.storage.put(key, window)
+    // Let the runtime discard the row once the window is irrelevant, so a
+    // long-lived object does not accumulate keys forever.
+    await this.ctx.storage.setAlarm(Date.now() + windowMs + 60_000)
+  }
+
+  /** Drops every window that has already expired. */
+  async alarm(): Promise<void> {
+    const now = Date.now()
+    const all = await this.ctx.storage.list<Window>()
+    for (const [key, window] of all) {
+      if (now >= window.resetAt) await this.ctx.storage.delete(key)
+    }
+  }
 
   /**
    * Records one attempt against `key` and reports whether the caller is now
@@ -40,21 +59,18 @@ export class RateLimiterDO extends DurableObject {
    */
   async check(key: string, limit: number, windowMs: number): Promise<{ limited: boolean; retryAfterSeconds: number }> {
     const now = Date.now()
-    const existing = this.windows.get(key)
+    const existing = await this.load(key)
 
     if (!existing || now >= existing.resetAt) {
-      this.windows.set(key, { count: 1, resetAt: now + windowMs })
-      // Opportunistic cleanup so a long-lived object holding many keys does
-      // not grow without bound. Cheap: only runs when a window rolls over.
-      if (this.windows.size > 5_000) {
-        for (const [k, w] of this.windows) if (now >= w.resetAt) this.windows.delete(k)
-      }
+      await this.save(key, { count: 1, resetAt: now + windowMs }, windowMs)
       return { limited: false, retryAfterSeconds: 0 }
     }
 
-    existing.count += 1
-    const limited = existing.count > limit
-    return { limited, retryAfterSeconds: limited ? Math.ceil((existing.resetAt - now) / 1000) : 0 }
+    const next = { count: existing.count + 1, resetAt: existing.resetAt }
+    await this.save(key, next, windowMs)
+
+    const limited = next.count > limit
+    return { limited, retryAfterSeconds: limited ? Math.ceil((next.resetAt - now) / 1000) : 0 }
   }
 
   /**
@@ -67,7 +83,7 @@ export class RateLimiterDO extends DurableObject {
    */
   async peek(key: string, limit: number): Promise<{ limited: boolean; retryAfterSeconds: number }> {
     const now = Date.now()
-    const existing = this.windows.get(key)
+    const existing = await this.load(key)
     if (!existing || now >= existing.resetAt) return { limited: false, retryAfterSeconds: 0 }
 
     const limited = existing.count >= limit
@@ -77,13 +93,13 @@ export class RateLimiterDO extends DurableObject {
   /** Counts one attempt against `key` without reporting a verdict. */
   async record(key: string, windowMs: number): Promise<void> {
     const now = Date.now()
-    const existing = this.windows.get(key)
+    const existing = await this.load(key)
 
     if (!existing || now >= existing.resetAt) {
-      this.windows.set(key, { count: 1, resetAt: now + windowMs })
+      await this.save(key, { count: 1, resetAt: now + windowMs }, windowMs)
       return
     }
-    existing.count += 1
+    await this.save(key, { count: existing.count + 1, resetAt: existing.resetAt }, windowMs)
   }
 
   /**
@@ -91,6 +107,6 @@ export class RateLimiterDO extends DurableObject {
    * count" case, so a legitimate user who mistyped twice is not left throttled.
    */
   async reset(key: string): Promise<void> {
-    this.windows.delete(key)
+    await this.ctx.storage.delete(key)
   }
 }

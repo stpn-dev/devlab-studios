@@ -47,7 +47,7 @@
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["SessionCoordinatorDO"] },
-    { "tag": "v2", "new_classes": ["RateLimiterDO"] }
+    { "tag": "v2", "new_sqlite_classes": ["RateLimiterDO"] }
   ],
   "vars": {
     "ADMIN_AUTH_MODE": "password",
