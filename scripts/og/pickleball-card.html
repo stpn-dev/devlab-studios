@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        width: 1200px; height: 630px;
+        background: #070a18;
+        font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        color: #f7f7fc;
+        overflow: hidden;
+        position: relative;
+      }
+      /* Same brand gradient the site uses, as an ambient glow rather than a slab. */
+      .glow {
+        position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.55;
+      }
+      .glow-a { width: 620px; height: 620px; right: -140px; top: -200px;
+        background: radial-gradient(circle, #9200ff 0%, rgba(146,0,255,0) 70%); }
+      .glow-b { width: 520px; height: 520px; left: -160px; bottom: -220px;
+        background: radial-gradient(circle, #1800ff 0%, rgba(24,0,255,0) 70%); }
+
+      .wrap { position: relative; display: flex; align-items: center; height: 100%; padding: 0 72px; gap: 56px; }
+      .left { flex: 1.05; }
+
+      .eyebrow {
+        font-size: 19px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase;
+        color: #a9b0d0;
+      }
+      h1 { font-size: 82px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.02; margin-top: 14px; }
+      .rule {
+        width: 78px; height: 5px; border-radius: 999px; margin-top: 20px;
+        background: linear-gradient(120deg, #c000ff 0%, #7600ff 40%, #1800ff 100%);
+      }
+      p.sub { margin-top: 24px; font-size: 27px; line-height: 1.42; color: #c3c8de; max-width: 610px; }
+
+      .badge {
+        display: inline-flex; align-items: center; gap: 10px; margin-top: 32px;
+        padding: 11px 22px; border-radius: 999px;
+        background: linear-gradient(120deg, #c000ff 0%, #7600ff 45%, #1800ff 100%);
+        font-size: 21px; font-weight: 800; letter-spacing: 0.01em;
+      }
+      .dot { width: 10px; height: 10px; border-radius: 50%; background: #fff; opacity: 0.9; }
+
+      .art {
+        flex: 0.95; display: flex; align-items: center; justify-content: center;
+        color: #cfd6f5;
+      }
+      .art svg { width: 100%; height: auto; }
+      .accent { color: #c98bff; }
+
+      .brand {
+        position: absolute; left: 72px; bottom: 44px;
+        font-size: 21px; font-weight: 600; color: #8f97bb; letter-spacing: 0.01em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="glow glow-a"></div>
+    <div class="glow glow-b"></div>
+
+    <div class="wrap">
+      <div class="left">
+        <div class="eyebrow">Session management</div>
+        <h1>Devlab<br />Pickleball</h1>
+        <div class="rule"></div>
+        <p class="sub">Check-in, fair queueing, court assignment and live scoring — run open play from one screen.</p>
+        <div class="badge"><span class="dot"></span> Now accepting beta testers</div>
+      </div>
+
+      <div class="art">
+        <!-- The same hand-authored court scene the landing page uses. -->
+        <svg viewBox="0 0 320 200" fill="none" aria-hidden="true">
+          <path d="M18 150 60 54h116l-14 96Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+          <path d="M30 118h124M46 82h104" stroke="currentColor" stroke-width="1.5" opacity="0.55" />
+          <path d="M160 150 174 54h116l42 96Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" opacity="0.45" />
+          <circle cx="64" cy="132" r="6" fill="currentColor" />
+          <circle cx="126" cy="132" r="6" fill="currentColor" />
+          <circle cx="78" cy="70" r="5" fill="currentColor" opacity="0.6" />
+          <circle cx="140" cy="70" r="5" fill="currentColor" opacity="0.6" />
+          <circle cx="196" cy="40" r="12" stroke="currentColor" stroke-width="2" class="accent" />
+          <circle cx="196" cy="33" r="1.4" fill="currentColor" />
+          <circle cx="190" cy="40" r="1.4" fill="currentColor" />
+          <circle cx="202" cy="40" r="1.4" fill="currentColor" />
+          <rect x="18" y="168" width="284" height="20" rx="10" stroke="currentColor" stroke-width="1.5" opacity="0.45" />
+          <circle cx="38" cy="178" r="5" fill="currentColor" />
+          <circle cx="56" cy="178" r="5" fill="currentColor" opacity="0.75" />
+          <circle cx="74" cy="178" r="5" fill="currentColor" opacity="0.5" />
+          <circle cx="92" cy="178" r="5" fill="currentColor" opacity="0.3" />
+        </svg>
+      </div>
+    </div>
+
+    <div class="brand">devlabstudios.com</div>
+  </body>
+</html>

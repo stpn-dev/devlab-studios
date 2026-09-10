@@ -119,11 +119,11 @@ export const seoContent = {
       ogTitle: 'Devlab Pickleball — Open Play Session Management',
       ogDescription:
         'Check-in, queueing, court assignment and live scoring for recreational pickleball open play, all from one screen.',
-      ogImage: 'https://www.devlabstudios.com/og.png',
+      ogImage: 'https://www.devlabstudios.com/og-pickleball.png',
       twitterTitle: 'Devlab Pickleball — Open Play Session Management',
       twitterDescription:
         'Run pickleball open play from one screen — fair queueing, court assignment, live scoring and a shareable scoreboard.',
-      twitterImage: 'https://www.devlabstudios.com/og.png',
+      twitterImage: 'https://www.devlabstudios.com/og-pickleball.png',
     },
     {
       id: 'seo-pickleball-how-it-works',
@@ -137,11 +137,11 @@ export const seoContent = {
       ogTitle: 'How Devlab Pickleball Works — Running an Open Play Session',
       ogDescription:
         'Every step of running an open play session, from creating it to closing it — written for the operator, not the player.',
-      ogImage: 'https://www.devlabstudios.com/og.png',
+      ogImage: 'https://www.devlabstudios.com/og-pickleball.png',
       twitterTitle: 'How Devlab Pickleball Works — Running an Open Play Session',
       twitterDescription:
         'A step-by-step guide to running a pickleball open play session with Devlab Pickleball.',
-      twitterImage: 'https://www.devlabstudios.com/og.png',
+      twitterImage: 'https://www.devlabstudios.com/og-pickleball.png',
     },
     {
       id: 'seo-pickleball-methodology',
@@ -155,11 +155,11 @@ export const seoContent = {
       ogTitle: 'How OPI Works — Devlab Pickleball',
       ogDescription:
         'The formula behind the Open Play Performance Index, its confidence tiers, and what it deliberately is not.',
-      ogImage: 'https://www.devlabstudios.com/og.png',
+      ogImage: 'https://www.devlabstudios.com/og-pickleball.png',
       twitterTitle: 'How OPI Works — Devlab Pickleball',
       twitterDescription:
         'The formula behind the Open Play Performance Index, and what it deliberately is not.',
-      twitterImage: 'https://www.devlabstudios.com/og.png',
+      twitterImage: 'https://www.devlabstudios.com/og-pickleball.png',
     },
   ],
 }

@@ -34,6 +34,29 @@ test.describe('Pickleball public pages', () => {
     await expect(page.getByRole('link', { name: 'Operator sign in' })).toHaveAttribute('href', '/pickleball/app')
   })
 
+  // On a social post the image IS the post -- it is read before any text.
+  // These pages shipped with the site-wide agency card, so someone sharing
+  // the pickleball link advertised a software consultancy instead. Pin a
+  // pickleball-specific image, and that it actually resolves.
+  for (const path of ['/pickleball', '/pickleball/how-it-works']) {
+    test(`shares a pickleball-specific social image (${path})`, async ({ page }) => {
+      const response = await page.goto(path)
+      expect(response.status()).toBe(200)
+
+      const ogImage = await page.locator('meta[property="og:image"]').getAttribute('content')
+      expect(ogImage).toContain('og-pickleball.png')
+      expect(ogImage).not.toBe('https://www.devlabstudios.com/og.png')
+
+      const twitterImage = await page.locator('meta[name="twitter:image"]').getAttribute('content')
+      expect(twitterImage).toBe(ogImage)
+
+      // A social card that 404s renders as a bare link, so prove it serves.
+      const image = await page.request.get(new URL(ogImage).pathname)
+      expect(image.status()).toBe(200)
+      expect(Number(image.headers()['content-length'] ?? 1)).toBeGreaterThan(0)
+    })
+  }
+
   // The tab icon is part of looking like one product: the marketing pages get
   // it from Layout.astro, but every standalone shell declares its own <html>
   // and silently had none until this was pinned.
