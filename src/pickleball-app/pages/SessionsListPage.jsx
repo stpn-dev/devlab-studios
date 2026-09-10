@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonLine } from '../components/SkeletonLoader'
 import EmptySessionGraphic from '../components/illustrations/EmptySessionGraphic'
@@ -87,7 +87,7 @@ export default function SessionsListPage() {
       setShowForm(false)
       setMessage({ type: 'success', text: 'Session created.' })
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 

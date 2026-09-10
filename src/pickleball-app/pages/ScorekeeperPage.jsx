@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext, useParams } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import { contextualState, hasGameBeenWon } from '../../lib/pickleball/scoring/display'
 import { hasPermission } from '../../lib/pickleball/permissions'
 import ContextualBanner from '../components/ContextualBanner'
@@ -110,7 +110,7 @@ export default function ScorekeeperPage() {
       const result = await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/rally`, { winningTeam })
       setLastOutcome({ revision: result.game.revision, outcome: result.outcome })
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -120,7 +120,7 @@ export default function ScorekeeperPage() {
       await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/undo`, {})
       setLastOutcome(null)
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -129,7 +129,7 @@ export default function ScorekeeperPage() {
     try {
       await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/finish`, {})
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -138,7 +138,7 @@ export default function ScorekeeperPage() {
     try {
       await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/reopen`, {})
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -147,7 +147,7 @@ export default function ScorekeeperPage() {
     try {
       await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/games/${gameId}/correct`, correctedState)
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 

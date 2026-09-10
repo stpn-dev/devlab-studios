@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonLine, SkeletonRows } from '../components/SkeletonLoader'
 import { Info } from '../../components/icons/icons'
@@ -57,7 +57,7 @@ export default function PlayerProfilePage() {
         }
       })
       .catch((error) => {
-        if (!ignore) setMessage({ type: 'error', text: error.message })
+        if (!ignore) setMessage({ type: 'error', text: describeApiError(error) })
       })
     return () => {
       ignore = true

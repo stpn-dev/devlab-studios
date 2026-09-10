@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 
 export default function AcceptOrgInvitePage() {
   const { token } = useParams()
@@ -17,7 +17,7 @@ export default function AcceptOrgInvitePage() {
       await pickleballApi.post(`/api/pickleball/auth/org-invites/${token}/accept`, { name, slug })
       window.location.href = '/pickleball/app'
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
       setIsSubmitting(false)
     }
   }

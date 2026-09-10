@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import { canCheckIn, canSetAvailability, canLeaveSession, canCancelRegistration } from '../../lib/pickleball/attendance'
 import PlayerStatusChip from '../components/PlayerStatusChip'
 import EmptyState from '../components/EmptyState'
@@ -185,7 +185,7 @@ export default function CheckInPage() {
       await reload()
       if (onSuccess) onSuccess(result)
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 

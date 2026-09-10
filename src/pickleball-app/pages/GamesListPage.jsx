@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import GameScoreboard from '../components/GameScoreboard'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonLine, SkeletonRows } from '../components/SkeletonLoader'
@@ -57,7 +57,7 @@ function StartGameForm({ sessionId, court, onStarted }) {
       })
       onStarted()
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 
@@ -50,7 +50,7 @@ export default function SettingsPage() {
       setForm(EMPTY_FORM)
       setMessage({ type: 'success', text: 'Scoring ruleset created.' })
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -62,7 +62,7 @@ export default function SettingsPage() {
       })
       setRulesets((current) => current.map((r) => (r.id === updated.id ? updated : r)))
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -126,6 +126,7 @@ export default function SettingsPage() {
             <input
               type="number"
               min="1"
+              max="99"
               value={form.targetScore}
               onChange={(event) => setForm({ ...form, targetScore: event.target.value })}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
@@ -136,10 +137,17 @@ export default function SettingsPage() {
             <input
               type="number"
               min="1"
+              max="10"
               value={form.winBy}
               onChange={(event) => setForm({ ...form, winBy: event.target.value })}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
+            {/* The margin is a common stumbling block: "sudden death" reads
+                like a win-by of zero, but you cannot win by nothing -- the
+                value that means "first to the target takes it" is 1. */}
+            <span className="mt-1 block text-xs text-slate-500">
+              1 = sudden death, first to the target wins. 2 = must lead by two.
+            </span>
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-700">Format</span>

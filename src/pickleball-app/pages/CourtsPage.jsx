@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import CourtCard from '../components/CourtCard'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonCourtCard } from '../components/SkeletonLoader'
@@ -79,7 +79,7 @@ export default function CourtsPage() {
       await actionPromise
       if (refreshEnabled) await loadEnabledFlags()
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 

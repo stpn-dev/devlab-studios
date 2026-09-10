@@ -1,6 +1,6 @@
 import { useOutletContext } from 'react-router-dom'
 import { useState } from 'react'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import QueuePlayerRow from '../components/QueuePlayerRow'
 import PairRow from '../components/PairRow'
 import EmptyState from '../components/EmptyState'
@@ -55,7 +55,7 @@ export default function QueuePage() {
     try {
       await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/queue/leave`, { sessionPlayerId })
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 

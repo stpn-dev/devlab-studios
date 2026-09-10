@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonLine, SkeletonMetricCard, SkeletonRows } from '../components/SkeletonLoader'
@@ -52,7 +52,7 @@ export default function DashboardPage() {
         }
       })
       .catch((error) => {
-        if (!ignore) setMessage({ type: 'error', text: error.message })
+        if (!ignore) setMessage({ type: 'error', text: describeApiError(error) })
       })
     return () => {
       ignore = true

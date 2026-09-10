@@ -26,3 +26,33 @@ export const pickleballApi = {
   patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: (path) => request(path, { method: 'DELETE' }),
 }
+
+// Turns a rejected request into something an operator can act on.
+//
+// The API already returns field-level detail for a 400 -- `{ error:
+// 'Validation failed.', issues: [...] }` -- and the client already attaches it
+// as `error.issues`. Every page then showed `error.message` alone, so a form
+// with one bad field reported a bare "Validation failed." with no indication
+// of WHICH field or why. That is indistinguishable from a broken app: the one
+// case where the server knew exactly what was wrong was the case where the
+// user was told least.
+//
+// Field names come back camelCase (`winBy`, `targetScore`), which is not what
+// the label above the input says, so they are spaced and capitalised to match.
+export function describeApiError(error) {
+  const issues = error?.issues
+  if (!Array.isArray(issues) || issues.length === 0) {
+    return error?.message || 'Something went wrong.'
+  }
+
+  return issues
+    .map((issue) => {
+      const field = (issue.path || []).filter((part) => typeof part === 'string').join(' ')
+      if (!field) return issue.message
+      const label = field
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/^./, (character) => character.toUpperCase())
+      return `${label}: ${issue.message}`
+    })
+    .join(' · ')
+}

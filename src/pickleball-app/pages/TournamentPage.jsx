@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 import { humanizeEnum } from '../lib/humanizeEnum'
@@ -88,7 +88,7 @@ export default function TournamentPage() {
       setSelectedPairId('')
       await reload()
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -98,7 +98,7 @@ export default function TournamentPage() {
       await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/tournament/entrants/${entrantId}/withdraw`, {})
       await reload()
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -117,7 +117,7 @@ export default function TournamentPage() {
       onSessionUpdated(updatedSession)
       await reload()
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 

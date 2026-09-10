@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 
@@ -46,7 +46,7 @@ export default function OperatorsPage() {
       setForm(EMPTY_FORM)
       setMessage({ type: 'success', text: 'Invitation saved.' })
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -57,7 +57,7 @@ export default function OperatorsPage() {
       setMemberships((current) => current.map((m) => (m.id === membership.id ? { ...m, status: 'REVOKED' } : m)))
       setMessage({ type: 'success', text: 'Operator access revoked.' })
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 

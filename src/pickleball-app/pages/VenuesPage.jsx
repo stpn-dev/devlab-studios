@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 import SelectItemGraphic from '../components/illustrations/SelectItemGraphic'
@@ -69,7 +69,7 @@ export default function VenuesPage() {
       setSelected(venue)
       setMessage({ type: 'success', text: 'Venue added.' })
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -81,7 +81,7 @@ export default function VenuesPage() {
       setNewCourtName('')
       setMessage({ type: 'success', text: 'Court added.' })
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 

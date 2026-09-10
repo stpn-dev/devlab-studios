@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext, useNavigate } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import { hasPermission } from '../../lib/pickleball/permissions'
 import PublicLinkQRCode from '../components/PublicLinkQRCode'
 import MetricCard from '../components/MetricCard'
@@ -55,7 +55,7 @@ export default function SessionControlPage() {
       const result = await pickleballApi.post(`/api/pickleball/sessions/${sessionId}/status`, { status: targetStatus })
       onSessionUpdated(result.session)
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     } finally {
       setBusyTarget(null)
     }
@@ -74,7 +74,7 @@ export default function SessionControlPage() {
       })
       onSessionUpdated(result.session)
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     } finally {
       setBusyTarget(null)
     }

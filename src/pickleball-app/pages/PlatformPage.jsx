@@ -1,6 +1,6 @@
 // src/pickleball-app/pages/PlatformPage.jsx
 import { useEffect, useState } from 'react'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 
 const EMPTY_FORM = { invitedEmail: '', maxAdmins: '', maxFacilitators: '', maxScorekeepers: '' }
 
@@ -39,7 +39,7 @@ export default function PlatformPage() {
       try {
         await reload()
       } catch (error) {
-        if (!cancelled) setMessage({ type: 'error', text: error.message })
+        if (!cancelled) setMessage({ type: 'error', text: describeApiError(error) })
       }
     })()
 
@@ -61,7 +61,7 @@ export default function PlatformPage() {
       setMessage({ type: 'success', text: `Invite created. Share this link: ${acceptUrl}` })
       await reload()
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -71,7 +71,7 @@ export default function PlatformPage() {
       await pickleballApi.post(`/api/pickleball/platform/org-invites/${inviteId}/revoke`, {})
       await reload()
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 
@@ -81,7 +81,7 @@ export default function PlatformPage() {
       await pickleballApi.post(`/api/pickleball/platform/organizations/${orgId}/${suspend ? 'suspend' : 'reactivate'}`, {})
       await reload()
     } catch (error) {
-      setMessage({ type: 'error', text: error.message })
+      setMessage({ type: 'error', text: describeApiError(error) })
     }
   }
 

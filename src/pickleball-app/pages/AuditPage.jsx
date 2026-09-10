@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { pickleballApi } from '../lib/pickleballApi'
+import { pickleballApi, describeApiError } from '../lib/pickleballApi'
 import EmptyState from '../components/EmptyState'
 import { SkeletonBlock, SkeletonRows } from '../components/SkeletonLoader'
 
@@ -30,7 +30,7 @@ export default function AuditPage() {
         }
       })
       .catch((error) => {
-        if (!ignore) setMessage({ type: 'error', text: error.message })
+        if (!ignore) setMessage({ type: 'error', text: describeApiError(error) })
       })
     return () => {
       ignore = true
