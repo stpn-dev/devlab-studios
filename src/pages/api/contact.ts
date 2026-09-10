@@ -3,10 +3,10 @@ import { getEnv } from '../../lib/env'
 import { createLead, findRecentDuplicateLead } from '../../worker/repositories/leads.js'
 import { attemptLeadDelivery } from '../../worker/leadDelivery.js'
 import { verifyTurnstileToken } from '../../worker/turnstile.js'
+import { checkRateLimit, clientIp, rateLimitedResponse } from '../../worker/rateLimit.js'
 
 const CONTACT_WINDOW_MS = 10 * 60 * 1000
 const CONTACT_MAX_ATTEMPTS = 5
-const contactAttempts = new Map<string, { count: number; resetAt: number }>()
 
 interface ContactPayload {
   name?: string
@@ -21,31 +21,6 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
-
-function getClientIp(request: Request): string {
-  return request.headers.get('cf-connecting-ip')
-    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || 'unknown'
-}
-
-/**
- * Fast, in-memory first line of defense — not durable across Worker
- * isolates, but cheap and catches obvious abuse before it touches D1.
- * Turnstile and the D1-backed duplicate check handle the rest.
- */
-function isContactRateLimited(request: Request): boolean {
-  const key = getClientIp(request)
-  const now = Date.now()
-  const attempt = contactAttempts.get(key)
-
-  if (!attempt || now >= attempt.resetAt) {
-    contactAttempts.set(key, { count: 1, resetAt: now + CONTACT_WINDOW_MS })
-    return false
-  }
-
-  attempt.count += 1
-  return attempt.count > CONTACT_MAX_ATTEMPTS
 }
 
 function validateContactPayload(payload: ContactPayload): string | null {
@@ -74,8 +49,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
     return jsonResponse({ error: 'Server misconfiguration: D1 DB binding missing.' }, 503)
   }
 
-  if (isContactRateLimited(request)) {
-    return jsonResponse({ error: 'Too many contact submissions. Try again later.' }, 429)
+  // Durable-Object backed like every other limiter now; the Map this replaced
+  // never counted across isolates. Turnstile remains the primary defence here
+  // -- this bounds how fast a solved-token replay or a headless solver can
+  // submit.
+  const rate = await checkRateLimit(env, 'contact', clientIp(request), {
+    limit: CONTACT_MAX_ATTEMPTS,
+    windowMs: CONTACT_WINDOW_MS,
+  })
+  if (rate.limited) {
+    return rateLimitedResponse('Too many contact submissions. Try again later.', rate.retryAfterSeconds)
   }
 
   let payload: ContactPayload
@@ -95,7 +78,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const turnstileResult = await verifyTurnstileToken(
     env.TURNSTILE_SECRET_KEY,
     payload.turnstileToken,
-    getClientIp(request),
+    clientIp(request),
     {
       expectedHostname: requestHostname,
       expectedAction: 'contact_form',
