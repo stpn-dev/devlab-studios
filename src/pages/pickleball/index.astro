@@ -108,9 +108,15 @@ const accessFormCopy = {
           >
             See how it works
           </a>
+          {/* A ghost button, not bare text. `text-slate-500` here resolved to
+              --text-muted through .public-shell, which on the dark hero made a
+              real control look like a rendering fault. `text-slate-900` maps to
+              --text-primary on the dark shell and stays dark on a light one, so
+              this reads correctly either way; the ring gives it a surface
+              without competing with the two filled buttons beside it. */}
           <a
             href="/pickleball/app"
-            class="inline-flex items-center px-2 py-3 text-sm font-semibold text-slate-500 underline-offset-4 transition hover:text-brand-ink hover:underline"
+            class="inline-flex items-center rounded-lg px-5 py-3 text-sm font-semibold text-slate-900 ring-1 ring-slate-400/40 transition hover:bg-white/10 hover:ring-slate-300/70"
           >
             Operator sign in
           </a>
