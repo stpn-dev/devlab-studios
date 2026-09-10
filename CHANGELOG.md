@@ -51,6 +51,8 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-10
+
 ### Changed
 - A pickleball session no longer publishes anything by default. The public live/TV view shows real player names on a link that needs no sign-in, so publishing is now something an operator turns on per session from the session control page rather than something that happens to their players automatically. Existing sessions are untouched and keep working; only newly created ones start private. The leaderboard remains separately switchable once sharing is on, and turning sharing off again immediately stops the link resolving — so an operator asked to stop showing someone's name can actually do it.
 
