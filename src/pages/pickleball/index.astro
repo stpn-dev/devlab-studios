@@ -92,15 +92,27 @@ const accessFormCopy = {
           Run open play from one screen — check-in, queueing, court assignment, live scoring,
           and a scoreboard your players can watch from their own phones.
         </p>
-        <div class="mt-8 flex flex-wrap gap-3">
-          <a href="/pickleball/app" class="pb-btn-primary inline-flex rounded-lg px-5 py-3 text-sm">
-            Operator sign in
+        {/* Ordered for who actually arrives here. While the product is in
+            beta almost every visitor is a prospective operator, not an
+            existing one, so requesting access is the primary action and
+            signing in is the quiet link for the handful who already have an
+            account. Swapping the emphasis back is a one-line change once
+            sign-ups outnumber sign-ins. */}
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+          <a href="#request-access" class="pb-btn-primary inline-flex rounded-lg px-5 py-3 text-sm">
+            Be a beta tester
           </a>
           <a
             href="/pickleball/how-it-works"
             class="inline-flex items-center rounded-lg bg-white/[0.92] px-5 py-3 text-sm font-semibold text-brand-ink ring-1 ring-slate-200 transition hover:ring-brand/35"
           >
             See how it works
+          </a>
+          <a
+            href="/pickleball/app"
+            class="inline-flex items-center px-2 py-3 text-sm font-semibold text-slate-500 underline-offset-4 transition hover:text-brand-ink hover:underline"
+          >
+            Operator sign in
           </a>
         </div>
       </div>

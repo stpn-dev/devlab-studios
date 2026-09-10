@@ -19,14 +19,30 @@ async function mainCopy(page) {
 }
 
 test.describe('Pickleball public pages', () => {
-  test('the landing page renders a hero with both calls to action', async ({ page }) => {
+  test('the landing page hero leads with the beta call to action', async ({ page }) => {
     const response = await page.goto('/pickleball')
     expect(response.status()).toBe(200)
 
     await expect(page.locator('main h1')).toContainText('Devlab Pickleball')
-    await expect(page.getByRole('link', { name: 'Operator sign in' })).toHaveAttribute('href', '/pickleball/app')
+
+    // During beta the primary action is requesting access, and it must point
+    // at the form actually on this page rather than off to /services.
+    await expect(page.getByRole('link', { name: 'Be a beta tester' })).toHaveAttribute('href', '#request-access')
+    await expect(page.locator('#request-access')).toHaveCount(1)
+
     await expect(page.getByRole('link', { name: 'See how it works' })).toHaveAttribute('href', '/pickleball/how-it-works')
+    await expect(page.getByRole('link', { name: 'Operator sign in' })).toHaveAttribute('href', '/pickleball/app')
   })
+
+  // The tab icon is part of looking like one product: the marketing pages get
+  // it from Layout.astro, but every standalone shell declares its own <html>
+  // and silently had none until this was pinned.
+  for (const path of ['/pickleball', '/pickleball/how-it-works', '/pickleball/app']) {
+    test(`serves a favicon (${path})`, async ({ page }) => {
+      await page.goto(path)
+      await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/devlabstudios-logo-only.png')
+    })
+  }
 
   // Both structural art guards below run once per public page that ships its
   // own illustrations (the landing page and the how-it-works guide), so a
