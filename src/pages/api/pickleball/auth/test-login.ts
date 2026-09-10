@@ -37,7 +37,7 @@ export const POST: APIRoute = async ({ request }) => {
   // callback uses, so neither path can be probed at scale should the gate env
   // var ever be left on somewhere it should not be.
   const loginKey = buildLoginRateLimitKey(request, email)
-  if (isLoginRateLimited(loginKey)) {
+  if (await isLoginRateLimited(env, loginKey)) {
     return jsonResponse({ error: 'Too many login attempts. Try again later.' }, 429)
   }
 
@@ -54,7 +54,7 @@ export const POST: APIRoute = async ({ request }) => {
     // 403 here before ever reaching org-invites/:token/accept.
     const pendingInvite = await getPendingInviteForEmail(env.PICKLEBALL_DB, email)
     if (!pendingInvite) {
-      recordFailedLogin(loginKey)
+      await recordFailedLogin(env, loginKey)
       return jsonResponse({ error: 'No active membership for that email.' }, 403)
     }
 
@@ -68,7 +68,7 @@ export const POST: APIRoute = async ({ request }) => {
       return jsonResponse({ error: 'Failed to create or update user.' }, 500)
     }
 
-    clearFailedLogins(loginKey)
+    await clearFailedLogins(env, loginKey)
 
     const now = Math.floor(Date.now() / 1000)
     const token = await signSession(
@@ -92,7 +92,7 @@ export const POST: APIRoute = async ({ request }) => {
     return jsonResponse({ error: 'Failed to create or update user.' }, 500)
   }
 
-  clearFailedLogins(loginKey)
+  await clearFailedLogins(env, loginKey)
 
   // Same linking requirement as the real callback (see google/callback.ts) —
   // without it, getMembership(organizationId, userId) never matches and

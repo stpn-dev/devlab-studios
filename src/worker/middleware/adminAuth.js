@@ -1,4 +1,5 @@
 import { jsonResponse } from '../utils/responses'
+import { checkRateLimit, clearRateLimit, rateLimitedResponse, clientIp } from '../rateLimit.js'
 
 const SESSION_COOKIE = 'devlab_admin_session'
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8
@@ -7,7 +8,8 @@ const FAST_PASSWORD_HASH_PREFIX = 'sha256'
 const HEX_PASSWORD_HASH_PREFIX = 'sha256hex'
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const LOGIN_MAX_ATTEMPTS = 8
-const loginAttempts = new Map()
+// Per source address across ALL accounts, so spraying is bounded too.
+const LOGIN_MAX_ATTEMPTS_PER_IP = 20
 
 function textBytes(value) {
   return new TextEncoder().encode(value)
@@ -237,33 +239,12 @@ function getClientIp(c) {
     || 'unknown'
 }
 
-function isLoginRateLimited(key) {
-  const now = Date.now()
-  const attempt = loginAttempts.get(key)
-
-  if (!attempt || now >= attempt.resetAt) {
-    loginAttempts.set(key, { count: 0, resetAt: now + LOGIN_WINDOW_MS })
-    return false
-  }
-
-  return attempt.count >= LOGIN_MAX_ATTEMPTS
-}
-
-function recordFailedLogin(key) {
-  const now = Date.now()
-  const attempt = loginAttempts.get(key)
-
-  if (!attempt || now >= attempt.resetAt) {
-    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS })
-    return
-  }
-
-  attempt.count += 1
-}
-
-function clearFailedLogins(key) {
-  loginAttempts.delete(key)
-}
+// Brute-force protection now goes through a Durable Object rather than a
+// module-scope Map. The Map version did not work: Workers give every isolate
+// its own memory, so 12 sequential wrong-password attempts from one IP were
+// measured against production and all 12 returned 401 with the limit set to 8.
+// See src/worker/RateLimiterDO.ts.
+const LOGIN_BUCKET = 'admin-login'
 
 export async function handleAdminLogin(c) {
   if (getAdminAuthMode(c.env) === 'disabled') {
@@ -287,8 +268,20 @@ export async function handleAdminLogin(c) {
   const password = String(payload.password || '')
   const loginKey = `${getClientIp(c)}:${email || 'unknown'}`
 
-  if (isLoginRateLimited(loginKey)) {
-    return jsonResponse({ error: 'Too many login attempts. Try again later.' }, 429)
+  // Counted on every attempt, not only on failures, so an attacker cannot
+  // avoid the limit by pipelining requests before any of them resolve.
+  // TWO limits, because they stop different attacks. The ip:email one stops
+  // guessing a password for a known account. On its own it is trivially
+  // sidestepped by password SPRAYING -- one guess each against many addresses
+  // from the same host lands on a fresh counter every time, which a first
+  // draft of the test for this accidentally demonstrated. The ip-only limit is
+  // the one that catches that, set higher so a shared office address running
+  // into it takes real effort.
+  for (const [identity, limit] of [[loginKey, LOGIN_MAX_ATTEMPTS], [clientIp(c.req.raw), LOGIN_MAX_ATTEMPTS_PER_IP]]) {
+    const rate = await checkRateLimit(c.env, LOGIN_BUCKET, identity, { limit, windowMs: LOGIN_WINDOW_MS })
+    if (rate.limited) {
+      return rateLimitedResponse('Too many login attempts. Try again later.', rate.retryAfterSeconds)
+    }
   }
 
   const admin = admins.find((user) => user.email === email)
@@ -296,11 +289,10 @@ export async function handleAdminLogin(c) {
   const isValidPassword = Boolean(admin && await verifyPassword(password, admin.passwordHash))
 
   if (!isValidPassword) {
-    recordFailedLogin(loginKey)
     return jsonResponse({ error: 'Invalid email or password.' }, 401)
   }
 
-  clearFailedLogins(loginKey)
+  await clearRateLimit(c.env, LOGIN_BUCKET, loginKey)
 
   const now = Math.floor(Date.now() / 1000)
   const token = await signSessionPayload({

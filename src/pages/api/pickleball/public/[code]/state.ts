@@ -4,41 +4,18 @@ import { buildSessionSnapshot, buildPublicSnapshotExtras } from '../../../../../
 import { toPublicSessionView } from '../../../../../lib/pickleball/publicSessionView'
 import { jsonResponse } from '../../../../../worker/utils/responses.js'
 import { getEnv } from '../../../../../lib/env'
+import { checkRateLimit, clientIp, rateLimitedResponse } from '../../../../../worker/rateLimit.js'
 
-// A public share code is 10 hex characters (publicSessionTokens.js), which is
-// ~40 bits -- unguessable in one shot, but this is the only gate on a view
-// that carries real player names, and it is the one endpoint here that takes
-// no credential at all. Without a limit, an attacker can grind codes as fast
-// as the Worker will answer. The window below caps a single IP at roughly one
-// request per second sustained, which is far above what the 5s degraded-path
-// poll needs and far below what enumeration requires.
+// A public share code is 10 hex characters (publicSessionTokens.js), ~40 bits,
+// and it is the only gate on a view carrying real player names -- this is the
+// one endpoint here that takes no credential at all.
 //
-// Same shape as contact.ts's limiter, and the same caveat: in-memory means
-// per-isolate, so it is a cheap first line of defence rather than a hard
-// guarantee. It costs nothing and removes the trivially-scriptable case.
+// The limiter is Durable-Object backed. It was an in-memory Map first, and
+// that did not work: 70 requests to this endpoint from one address returned
+// zero 429s, because Workers give every isolate its own memory. See
+// src/worker/RateLimiterDO.ts.
 const PUBLIC_STATE_WINDOW_MS = 60_000
 const PUBLIC_STATE_MAX_REQUESTS = 60
-const publicStateAttempts = new Map<string, { count: number; resetAt: number }>()
-
-function getClientIp(request: Request): string {
-  return request.headers.get('cf-connecting-ip')
-    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || 'unknown'
-}
-
-function isPublicStateRateLimited(request: Request): boolean {
-  const key = getClientIp(request)
-  const now = Date.now()
-  const attempt = publicStateAttempts.get(key)
-
-  if (!attempt || now >= attempt.resetAt) {
-    publicStateAttempts.set(key, { count: 1, resetAt: now + PUBLIC_STATE_WINDOW_MS })
-    return false
-  }
-
-  attempt.count += 1
-  return attempt.count > PUBLIC_STATE_MAX_REQUESTS
-}
 
 // Spec §9's degraded path: if a client's socket is down, poll this every
 // 5s instead of a blank screen. Reuses the SAME buildSessionSnapshot +
@@ -48,8 +25,12 @@ function isPublicStateRateLimited(request: Request): boolean {
 export const GET: APIRoute = async ({ request, params }) => {
   const env = getEnv()
   try {
-    if (isPublicStateRateLimited(request)) {
-      return jsonResponse({ error: 'Too many requests. Try again shortly.' }, 429)
+    const rate = await checkRateLimit(env, 'public-state', clientIp(request), {
+      limit: PUBLIC_STATE_MAX_REQUESTS,
+      windowMs: PUBLIC_STATE_WINDOW_MS,
+    })
+    if (rate.limited) {
+      return rateLimitedResponse('Too many requests. Try again shortly.', rate.retryAfterSeconds)
     }
 
     const code = params.code as string

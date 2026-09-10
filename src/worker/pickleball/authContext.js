@@ -2,10 +2,10 @@ import { parseCookies, verifySession, SESSION_COOKIE_NAME } from './session.js'
 import { getMembership } from '../repositories/pickleball/memberships.js'
 import { getOrganization } from '../repositories/pickleball/organizations.js'
 import { isPlatformAdmin } from '../repositories/pickleball/users.js'
+import { peekRateLimit, recordRateLimitFailure, clearRateLimit } from '../rateLimit.js'
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const LOGIN_MAX_ATTEMPTS = 8
-const loginAttempts = new Map()
 
 export function resolveActiveOrgId(memberships, requestedOrgId) {
   if (!memberships.length) return null
@@ -18,31 +18,26 @@ export function pickSessionRole(memberships, activeOrgId) {
   return membership ? membership.role : null
 }
 
-export function isLoginRateLimited(key) {
-  const now = Date.now()
-  const attempt = loginAttempts.get(key)
+// Backed by a Durable Object rather than a module-scope Map: on Workers each
+// isolate has its own memory, so the Map counted almost nothing. Measured
+// against production before this change -- 12 sequential wrong-password
+// attempts from one IP all returned 401 against a limit of 8.
+//
+// Only FAILURES are counted, deliberately: a member who signs in successfully
+// should never be moved closer to a lockout by doing so.
+const LOGIN_BUCKET = 'pickleball-login'
 
-  if (!attempt || now >= attempt.resetAt) {
-    return false
-  }
-
-  return attempt.count >= LOGIN_MAX_ATTEMPTS
+export async function isLoginRateLimited(env, key) {
+  const { limited } = await peekRateLimit(env, LOGIN_BUCKET, key, { limit: LOGIN_MAX_ATTEMPTS })
+  return limited
 }
 
-export function recordFailedLogin(key) {
-  const now = Date.now()
-  const attempt = loginAttempts.get(key)
-
-  if (!attempt || now >= attempt.resetAt) {
-    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS })
-    return
-  }
-
-  attempt.count += 1
+export async function recordFailedLogin(env, key) {
+  await recordRateLimitFailure(env, LOGIN_BUCKET, key, { windowMs: LOGIN_WINDOW_MS })
 }
 
-export function clearFailedLogins(key) {
-  loginAttempts.delete(key)
+export async function clearFailedLogins(env, key) {
+  await clearRateLimit(env, LOGIN_BUCKET, key)
 }
 
 // Mirrors the header-fallback order in src/worker/middleware/adminAuth.js's

@@ -86,7 +86,7 @@ export const GET: APIRoute = async ({ request }) => {
     // redirects (rather than returning a raw 429 body the user would see as
     // JSON) — the SPA's LoginPage renders the throttling message.
     const loginKey = buildLoginRateLimitKey(request, profile.email)
-    if (isLoginRateLimited(loginKey)) {
+    if (await isLoginRateLimited(env, loginKey)) {
       return new Response(null, {
         status: 302,
         headers: { Location: `${LOGIN_PATH}?error=too_many_attempts`, 'Set-Cookie': clearOauthCookie },
@@ -109,7 +109,7 @@ export const GET: APIRoute = async ({ request }) => {
     if (!memberships.length) {
       const pendingInvite = await getPendingInviteForEmail(env.PICKLEBALL_DB, profile.email)
       if (pendingInvite) {
-        clearFailedLogins(loginKey)
+        await clearFailedLogins(env, loginKey)
         const now = Math.floor(Date.now() / 1000)
         const token = await signSession(
           { userId: user.id, googleSub: user.googleSub, activeOrgId: null, iat: now, exp: now + SESSION_MAX_AGE_SECONDS },
@@ -124,14 +124,14 @@ export const GET: APIRoute = async ({ request }) => {
         })
       }
 
-      recordFailedLogin(loginKey)
+      await recordFailedLogin(env, loginKey)
       return new Response(null, {
         status: 302,
         headers: { Location: `${LOGIN_PATH}?error=no_access`, 'Set-Cookie': clearOauthCookie },
       })
     }
 
-    clearFailedLogins(loginKey)
+    await clearFailedLogins(env, loginKey)
 
     // Link every active membership for this email to the real user id now
     // that we have one — requirePickleballSession's getMembership() lookup

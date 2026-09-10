@@ -14,8 +14,9 @@
 // See docs/architecture/decisions/0006-pickleball-durable-objects.md.
 import { handle } from '@astrojs/cloudflare/handler'
 import { SessionCoordinatorDO } from './worker/pickleball/SessionCoordinatorDO'
+import { RateLimiterDO } from './worker/RateLimiterDO'
 
-export { SessionCoordinatorDO }
+export { SessionCoordinatorDO, RateLimiterDO }
 
 export default {
   async fetch(request, env, ctx) {

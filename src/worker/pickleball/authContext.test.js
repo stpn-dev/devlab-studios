@@ -46,25 +46,63 @@ describe('pickSessionRole', () => {
   })
 })
 
+// These previously drove a module-scope Map directly, and passed for the
+// entire time the deployed limiter was enforcing nothing -- an in-process Map
+// is exactly the one condition that never holds on Workers, where each
+// isolate gets its own memory. Real enforcement is now proved end to end in
+// tests/e2e/pickleball/pickleball-rate-limit.spec.js, against a running
+// worker; what is left here is the branching logic, driven through a stand-in
+// for the Durable Object so it stays a fast unit test.
 describe('login rate limiting', () => {
+  // Mirrors RateLimiterDO's contract closely enough to exercise the caller:
+  // peek never counts, record counts, reset clears.
+  function fakeRateLimiterEnv() {
+    const windows = new Map()
+    const stub = {
+      async peek(key, limit) {
+        const count = windows.get(key) ?? 0
+        return { limited: count >= limit, retryAfterSeconds: count >= limit ? 60 : 0 }
+      },
+      async record(key) {
+        windows.set(key, (windows.get(key) ?? 0) + 1)
+      },
+      async reset(key) {
+        windows.delete(key)
+      },
+    }
+    return { RATE_LIMITER: { idFromName: (name) => name, get: () => stub } }
+  }
+
+  let env
   beforeEach(() => {
     vi.useRealTimers()
-    clearFailedLogins('test-key')
+    env = fakeRateLimiterEnv()
   })
 
-  it('is not rate limited before any failures', () => {
-    expect(isLoginRateLimited('test-key')).toBe(false)
+  it('is not rate limited before any failures', async () => {
+    expect(await isLoginRateLimited(env, 'test-key')).toBe(false)
   })
 
-  it('rate limits after 8 recorded failures', () => {
-    for (let i = 0; i < 8; i += 1) recordFailedLogin('test-key')
-    expect(isLoginRateLimited('test-key')).toBe(true)
+  it('rate limits after 8 recorded failures', async () => {
+    for (let i = 0; i < 8; i += 1) await recordFailedLogin(env, 'test-key')
+    expect(await isLoginRateLimited(env, 'test-key')).toBe(true)
   })
 
-  it('clearing failed logins resets the limiter', () => {
-    for (let i = 0; i < 8; i += 1) recordFailedLogin('test-key')
-    clearFailedLogins('test-key')
-    expect(isLoginRateLimited('test-key')).toBe(false)
+  it('clearing failed logins resets the limiter', async () => {
+    for (let i = 0; i < 8; i += 1) await recordFailedLogin(env, 'test-key')
+    await clearFailedLogins(env, 'test-key')
+    expect(await isLoginRateLimited(env, 'test-key')).toBe(false)
+  })
+
+  it('fails OPEN when the limiter is unreachable, rather than locking everyone out', async () => {
+    // A limiter that takes the login page down with it is worse than one that
+    // briefly stops counting; this pins that deliberate trade-off.
+    const broken = { RATE_LIMITER: { idFromName: () => 'x', get: () => { throw new Error('DO unavailable') } } }
+    expect(await isLoginRateLimited(broken, 'test-key')).toBe(false)
+  })
+
+  it('treats a missing binding as unlimited rather than throwing', async () => {
+    expect(await isLoginRateLimited({}, 'test-key')).toBe(false)
   })
 })
 
