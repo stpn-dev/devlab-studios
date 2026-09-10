@@ -105,6 +105,79 @@ export async function createPlayer(db, { organizationId, displayName }) {
   return getPlayer(db, id, organizationId)
 }
 
+// Everything that references a player does so ON DELETE CASCADE
+// (session_players, player_game_stats, matchmaking_history,
+// player_performance_snapshots). An unguarded DELETE therefore does not
+// fail -- it succeeds and silently takes the player's session attendance,
+// per-game statistics and pairing history with it, rewriting finished games
+// and other players' matchmaking record on the way out. So a player with any
+// history is not deletable at all; `active = 0` is the way to retire one.
+//
+// Kept as a single reusable fragment so the reason shown to the operator and
+// the condition actually enforced can never drift apart.
+const PLAYER_IN_USE_CLAUSE = `
+  EXISTS (SELECT 1 FROM session_players WHERE player_id = players.id)
+  OR EXISTS (SELECT 1 FROM player_game_stats WHERE player_id = players.id)
+  OR EXISTS (SELECT 1 FROM matchmaking_history WHERE player_id = players.id OR other_player_id = players.id)`
+
+/**
+ * Counts of what a player is currently tied to, for explaining a refusal.
+ * `liveSessions` counts only sessions still under way, which is the case an
+ * operator is most likely to be surprised by.
+ *
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {string} id
+ * @param {string} organizationId
+ */
+export async function findPlayerUsage(db, id, organizationId) {
+  const row = await db
+    .prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM session_players sp
+            JOIN pickleball_sessions s ON s.id = sp.session_id
+           WHERE sp.player_id = ?1 AND s.organization_id = ?2) AS sessions,
+         (SELECT COUNT(*) FROM session_players sp
+            JOIN pickleball_sessions s ON s.id = sp.session_id
+           WHERE sp.player_id = ?1 AND s.organization_id = ?2
+             AND s.status NOT IN ('COMPLETED', 'CANCELLED')) AS live_sessions,
+         (SELECT COUNT(*) FROM player_game_stats WHERE player_id = ?1) AS games`,
+    )
+    .bind(id, organizationId)
+    .first()
+
+  return {
+    sessions: Number(row?.sessions ?? 0),
+    liveSessions: Number(row?.live_sessions ?? 0),
+    games: Number(row?.games ?? 0),
+  }
+}
+
+/**
+ * Deletes a player only while nothing references them.
+ *
+ * The precondition lives inside the DELETE rather than in a preceding SELECT,
+ * so there is no window in which a player passes the check and is then added
+ * to a session before the delete lands. `changes === 0` therefore means
+ * "refused or already gone", never "deleted something it shouldn't have".
+ *
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {string} id
+ * @param {string} organizationId
+ * @returns {Promise<boolean>} whether a row was actually removed
+ */
+export async function deletePlayer(db, id, organizationId) {
+  const result = await db
+    .prepare(
+      `DELETE FROM players
+       WHERE id = ? AND organization_id = ?
+         AND NOT (${PLAYER_IN_USE_CLAUSE})`,
+    )
+    .bind(id, organizationId)
+    .run()
+
+  return Number(result?.meta?.changes ?? 0) > 0
+}
+
 /**
  * @param {import('@cloudflare/workers-types').D1Database} db
  * @param {string} id

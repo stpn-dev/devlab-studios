@@ -1163,3 +1163,110 @@ test('invites and revokes an operator from the Operators page', async ({ page, r
   await row.getByRole('button', { name: 'Revoke' }).click()
   await expect(row.getByText('Revoked')).toBeVisible()
 })
+
+// Browser-driven on purpose. The API-level guard tests in
+// pickleball-crud.spec.js pass an explicit Origin header because Playwright's
+// request context sends none; these prove the thing that actually ships —
+// that a real browser's fetch satisfies Astro's CSRF origin check on a
+// bodyless DELETE, and that the UI is wired to it.
+test('deletes an unused player from the Players page', async ({ page, request, baseURL }) => {
+  await loginAsOperator(request, page.context(), baseURL)
+  await page.goto('/pickleball/app/players')
+
+  const name = `UI Delete Player ${Date.now()}`
+  await page.getByRole('button', { name: 'Add Player' }).click()
+  await page.getByLabel('Display name').fill(name)
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByText('Saved.')).toBeVisible()
+
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByTestId('player-delete').click()
+
+  await expect(page.getByTestId('players-message')).toContainText('was deleted')
+
+  // Gone from the server, not just from local state.
+  await page.reload()
+  await page.getByTestId('players-search').fill(name)
+  await expect(page.getByTestId('players-no-match')).toBeVisible()
+})
+
+test('refuses to delete a player who is in a session, and offers deactivation instead', async ({ page, request, baseURL }) => {
+  await loginAsOperator(request, page.context(), baseURL)
+
+  // Built through the API so the test is about the refusal, not about
+  // re-driving session setup through the UI.
+  const { venue } = await (await request.post('/api/pickleball/venues', {
+    data: { name: `UI Guard Venue ${Date.now()}` },
+  })).json()
+  const { session } = await (await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId: venue.id,
+      name: 'UI guard session',
+      sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-08-30T18:00:00.000Z',
+      scheduledEnd: '2026-08-30T22:00:00.000Z',
+    },
+  })).json()
+  const name = `UI Guarded Player ${Date.now()}`
+  const { player } = await (await request.post('/api/pickleball/players', { data: { displayName: name } })).json()
+  await request.post(`/api/pickleball/sessions/${session.id}/players`, { data: { playerId: player.id } })
+
+  await page.goto('/pickleball/app/players')
+  await page.getByTestId('players-search').fill(name)
+  // The search input is debounced, so wait for the list to actually narrow —
+  // clicking Edit against the unfiltered roster hits whichever row is first.
+  await expect(page.getByTestId('players-list').getByText(name)).toBeVisible()
+  await page.getByTestId('players-list').getByRole('button', { name: 'Edit' }).click()
+
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByTestId('player-delete').click()
+
+  await expect(page.getByTestId('players-message')).toContainText('still under way')
+  // Still there — the refusal must not have half-applied.
+  await page.reload()
+  await page.getByTestId('players-search').fill(name)
+  await expect(page.getByTestId('players-list').getByText(name)).toBeVisible()
+
+  // The offered alternative has to actually work from here.
+  await page.getByTestId('players-list').getByRole('button', { name: 'Edit' }).click()
+  await page.getByTestId('player-toggle-active').click()
+  await expect(page.getByTestId('players-message')).toContainText('deactivated')
+})
+
+test('deletes an unused venue, and refuses one that has a session', async ({ page, request, baseURL }) => {
+  await loginAsOperator(request, page.context(), baseURL)
+  await page.goto('/pickleball/app/venues')
+
+  const disposable = `UI Disposable Venue ${Date.now()}`
+  await page.getByPlaceholder('New venue name').fill(disposable)
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByRole('heading', { name: `${disposable} — Courts` })).toBeVisible()
+
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByTestId('venue-delete').click()
+  await expect(page.getByTestId('venues-message')).toContainText('was deleted')
+  await expect(page.getByTestId('venues-list').getByText(disposable)).toBeHidden()
+
+  // Now one that has been played at.
+  const used = `UI Used Venue ${Date.now()}`
+  const { venue } = await (await request.post('/api/pickleball/venues', { data: { name: used } })).json()
+  await request.post('/api/pickleball/sessions', {
+    data: {
+      venueId: venue.id,
+      name: 'UI venue guard session',
+      sessionType: 'OPEN_PLAY',
+      scoringRulesetId: 'usap-2026-sideout-11-doubles',
+      scheduledStart: '2026-08-30T18:00:00.000Z',
+      scheduledEnd: '2026-08-30T22:00:00.000Z',
+    },
+  })
+
+  await page.reload()
+  await page.getByTestId('venues-list').getByText(used).click()
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByTestId('venue-delete').click()
+
+  await expect(page.getByTestId('venues-message')).toContainText('still under way')
+  await expect(page.getByTestId('venues-list').getByText(used)).toBeVisible()
+})

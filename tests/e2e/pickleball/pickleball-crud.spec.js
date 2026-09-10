@@ -406,4 +406,119 @@ test.describe('Pickleball players pagination', () => {
     expect(missing.total).toBe(0)
     expect(missing.players).toEqual([])
   })
+
+  // Deletion of players and venues is guarded because every table that
+  // references them cascades. These run against real D1 rather than a mock
+  // precisely because the guard IS a SQL precondition inside the DELETE —
+  // a mocked database would assert the JavaScript around it and prove nothing
+  // about the thing that actually protects the data.
+  test.describe('deleting players and venues', () => {
+    // The enclosing describe logs in per-test rather than in a hook, so this
+    // block needs its own.
+    test.beforeEach(async ({ request }) => {
+      await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
+    })
+
+    async function createSessionAt(request, venueId, name) {
+      const response = await request.post('/api/pickleball/sessions', {
+        data: {
+          venueId,
+          name,
+          sessionType: 'OPEN_PLAY',
+          scoringRulesetId: 'usap-2026-sideout-11-doubles',
+          scheduledStart: '2026-08-30T18:00:00.000Z',
+          scheduledEnd: '2026-08-30T22:00:00.000Z',
+        },
+      })
+      expect(response.ok()).toBe(true)
+      return (await response.json()).session
+    }
+
+    test('deletes a venue that has never held a session, and its courts with it', async ({ request, baseURL }) => {
+      const { venue } = await (await request.post('/api/pickleball/venues', {
+        data: { name: `Unused Venue ${Date.now()}` },
+      })).json()
+      const { court } = await (await request.post('/api/pickleball/courts', {
+        data: { venueId: venue.id, name: 'Court 1', sortOrder: 1 },
+      })).json()
+      expect(court.venueId).toBe(venue.id)
+
+      expect((await request.delete(`/api/pickleball/venues/${venue.id}`, { headers: { Origin: baseURL } })).status()).toBe(200)
+
+      expect((await request.get(`/api/pickleball/venues/${venue.id}`)).status()).toBe(404)
+      // The courts were the venue's own configuration and are expected to go
+      // with it — asserted rather than assumed, since it relies on the FK's
+      // ON DELETE CASCADE still being in place.
+      const courts = await (await request.get(`/api/pickleball/courts?venueId=${venue.id}`)).json()
+      expect(courts.courts).toEqual([])
+    })
+
+    test('refuses to delete a venue with a session, and says why', async ({ request, baseURL }) => {
+      const { venue } = await (await request.post('/api/pickleball/venues', {
+        data: { name: `Played Venue ${Date.now()}` },
+      })).json()
+      await createSessionAt(request, venue.id, 'Session that must survive')
+
+      const response = await request.delete(`/api/pickleball/venues/${venue.id}`, { headers: { Origin: baseURL } })
+      expect(response.status()).toBe(409)
+      const body = await response.json()
+      expect(body.usage.sessions).toBe(1)
+      expect(body.error).toMatch(/still under way|only be deleted before its first session/i)
+
+      // The refusal has to be total: the venue is still there afterwards.
+      expect((await request.get(`/api/pickleball/venues/${venue.id}`)).status()).toBe(200)
+    })
+
+    test('deletes a player who has never been in a session', async ({ request, baseURL }) => {
+      const { player } = await (await request.post('/api/pickleball/players', {
+        data: { displayName: `Delete Me ${Date.now()}` },
+      })).json()
+
+      expect((await request.delete(`/api/pickleball/players/${player.id}`, { headers: { Origin: baseURL } })).status()).toBe(200)
+      expect((await request.get(`/api/pickleball/players/${player.id}`)).status()).toBe(404)
+    })
+
+    test('refuses to delete a player registered to a session, and keeps them', async ({ request, baseURL }) => {
+      const { venue } = await (await request.post('/api/pickleball/venues', {
+        data: { name: `Roster Venue ${Date.now()}` },
+      })).json()
+      const session = await createSessionAt(request, venue.id, 'Session with a roster')
+      const { player } = await (await request.post('/api/pickleball/players', {
+        data: { displayName: `Registered ${Date.now()}` },
+      })).json()
+      expect((await request.post(`/api/pickleball/sessions/${session.id}/players`, {
+        data: { playerId: player.id },
+      })).ok()).toBe(true)
+
+      const response = await request.delete(`/api/pickleball/players/${player.id}`, { headers: { Origin: baseURL } })
+      expect(response.status()).toBe(409)
+      const body = await response.json()
+      expect(body.usage.sessions).toBe(1)
+      expect(body.usage.liveSessions).toBe(1)
+
+      expect((await request.get(`/api/pickleball/players/${player.id}`)).status()).toBe(200)
+    })
+
+    test('offers deactivation as the way to retire a player who cannot be deleted', async ({ request, baseURL }) => {
+      const { venue } = await (await request.post('/api/pickleball/venues', {
+        data: { name: `Retire Venue ${Date.now()}` },
+      })).json()
+      const session = await createSessionAt(request, venue.id, 'Session for retirement')
+      const displayName = `Retiring ${Date.now()}`
+      const { player } = await (await request.post('/api/pickleball/players', { data: { displayName } })).json()
+      await request.post(`/api/pickleball/sessions/${session.id}/players`, { data: { playerId: player.id } })
+
+      expect((await request.delete(`/api/pickleball/players/${player.id}`, { headers: { Origin: baseURL } })).status()).toBe(409)
+
+      const deactivated = await request.put(`/api/pickleball/players/${player.id}`, { data: { active: false } })
+      expect(deactivated.ok()).toBe(true)
+      expect((await deactivated.json()).player.active).toBe(false)
+
+      // Off the default roster listing, but still on record — which is the
+      // whole point of preferring this to a delete.
+      const roster = await (await request.get(`/api/pickleball/players?search=${encodeURIComponent(displayName)}`)).json()
+      expect(roster.players).toEqual([])
+      expect((await request.get(`/api/pickleball/players/${player.id}`)).status()).toBe(200)
+    })
+  })
 })

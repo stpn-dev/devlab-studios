@@ -77,6 +77,8 @@ test.describe('Pickleball public pages', () => {
   const artPages = [
     { path: '/pickleball', htmlMarker: 'Operator sign in', viewBox: '0 0 320 200' },
     { path: '/pickleball/how-it-works', htmlMarker: 'How Devlab Pickleball works', viewBox: '0 0 120 90' },
+    // RankOrderArt's viewBox, unique to the methodology page.
+    { path: '/pickleball/methodology', htmlMarker: 'How OPI works', viewBox: '0 0 320 160' },
   ]
 
   for (const { path, htmlMarker, viewBox } of artPages) {
@@ -296,7 +298,7 @@ test.describe('Pickleball public pages', () => {
   // Spec §1.8: heading hierarchy has no skipped level. Fails if either page
   // ever opens with something other than an <h1>, or jumps a level (an <h2>
   // followed by an <h4>, say) — the shape a screen-reader user navigates by.
-  for (const path of ['/pickleball', '/pickleball/how-it-works']) {
+  for (const path of ['/pickleball', '/pickleball/how-it-works', '/pickleball/methodology']) {
     test(`skips no heading level (${path})`, async ({ page }) => {
       await page.goto(path)
 
