@@ -5,6 +5,8 @@ import { canAddOperator } from '../../../../../lib/pickleball/quota'
 import { createMembership, getMembershipByEmail, listMembershipsForOrganization } from '../../../../../worker/repositories/pickleball/memberships.js'
 import { countActiveMembershipsByRole, getOrganization } from '../../../../../worker/repositories/pickleball/organizations.js'
 import { recordAuditEvent } from '../../../../../worker/repositories/pickleball/auditEvents.js'
+import { getUserByGoogleSub } from '../../../../../worker/repositories/pickleball/users.js'
+import { sendInviteEmail } from '../../../../../worker/pickleball/inviteEmail.js'
 import { inviteMembershipSchema } from '../../../../../lib/schemas/pickleball/organizations'
 import { getEnv } from '../../../../../lib/env'
 import { jsonResponse, apiErrorResponse, forbiddenResponse } from '../../../../../worker/utils/responses.js'
@@ -59,14 +61,15 @@ export const POST: APIRoute = async ({ request, params }) => {
     // role — an existing ACTIVE member being re-invited to the SAME role is
     // a no-op re-send, not a new seat, so it must not be blocked by a cap
     // that's already at capacity because of that very member.
+    // Fetched once and used twice — for the quota check below, and for the
+    // organization's name in the invite email.
+    const organization = await getOrganization(env.PICKLEBALL_DB, organizationId)
+
     const isNewActiveSeatForRole = !existing || existing.status !== 'ACTIVE' || existing.role !== result.data.role
-    if (isNewActiveSeatForRole) {
-      const organization = await getOrganization(env.PICKLEBALL_DB, organizationId)
-      if (organization) {
-        const currentCount = await countActiveMembershipsByRole(env.PICKLEBALL_DB, organizationId, result.data.role)
-        if (!canAddOperator(organization, result.data.role, currentCount)) {
-          return jsonResponse({ error: `Role quota reached for this organization (${result.data.role}).` }, 409)
-        }
+    if (isNewActiveSeatForRole && organization) {
+      const currentCount = await countActiveMembershipsByRole(env.PICKLEBALL_DB, organizationId, result.data.role)
+      if (!canAddOperator(organization, result.data.role, currentCount)) {
+        return jsonResponse({ error: `Role quota reached for this organization (${result.data.role}).` }, 409)
       }
     }
 
@@ -85,7 +88,21 @@ export const POST: APIRoute = async ({ request, params }) => {
       metadata: {},
     })
 
-    return jsonResponse({ membership }, 201)
+    // Awaited rather than fired into waitUntil, so the response can tell the
+    // truth about whether the mail went out. The membership is already
+    // committed at this point, so a failed send is reported, never fatal --
+    // the operator keeps their access either way and the inviter finds out
+    // they need to pass the link on by hand.
+    const inviter = await getUserByGoogleSub(env.PICKLEBALL_DB, session.googleSub)
+    const delivery = await sendInviteEmail(env, {
+      toEmail: membership.invitedEmail,
+      organizationName: organization?.name || '',
+      role: membership.role,
+      invitedByName: inviter?.name || null,
+      isRoleChange: Boolean(existing),
+    })
+
+    return jsonResponse({ membership, emailSent: delivery.ok }, 201)
   } catch (error) {
     return apiErrorResponse(error)
   }

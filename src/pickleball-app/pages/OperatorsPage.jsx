@@ -41,10 +41,19 @@ export default function OperatorsPage() {
   async function handleInvite() {
     setMessage(null)
     try {
-      const { membership } = await pickleballApi.post(`/api/pickleball/organizations/${activeOrgId}/memberships`, form)
+      const { membership, emailSent } = await pickleballApi.post(`/api/pickleball/organizations/${activeOrgId}/memberships`, form)
       setMemberships((current) => [...current.filter((m) => m.id !== membership.id), membership])
       setForm(EMPTY_FORM)
-      setMessage({ type: 'success', text: 'Invitation saved.' })
+      // Says what actually happened. "Invitation saved" was true and useless:
+      // it was shown whether or not the person ever received anything.
+      setMessage(
+        emailSent
+          ? { type: 'success', text: `Invite emailed to ${membership.invitedEmail}. They sign in with Google using that address.` }
+          : {
+              type: 'warning',
+              text: `${membership.invitedEmail} now has access, but the invite email could not be sent. Ask them to sign in with Google at ${window.location.origin}/pickleball/app using that address.`,
+            },
+      )
     } catch (error) {
       setMessage({ type: 'error', text: describeApiError(error) })
     }
@@ -69,7 +78,12 @@ export default function OperatorsPage() {
       </div>
 
       {status === 'error' ? <p className="text-sm text-rose-600">Could not load operators.</p> : null}
-      {message ? <p className={message.type === 'success' ? 'text-sm text-emerald-700' : 'text-sm text-rose-600'}>{message.text}</p> : null}
+      {/* 'warning' is the invite that was granted but not delivered -- a real
+          outcome that is neither a success nor a failure, and reads wrong in
+          either of those two colours. */}
+      {message ? (
+        <p className={`text-sm ${message.type === 'success' ? 'text-emerald-700' : message.type === 'warning' ? 'text-amber-700' : 'text-rose-600'}`}>{message.text}</p>
+      ) : null}
 
       <div className="space-y-2" data-testid="operators-list">
         {status === 'loading' ? (

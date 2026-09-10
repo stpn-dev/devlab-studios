@@ -44,6 +44,26 @@ test.describe('Pickleball CRUD (authenticated)', () => {
     expect(session.venueId).toBe(venue.id)
   })
 
+  // RESEND_API_KEY is present in .dev.vars, and this suite invites a dozen
+  // throwaway addresses per run. sendInviteEmail refuses to send whenever
+  // PICKLEBALL_TEST_AUTH_ENABLED is set, so a test run cannot mail anyone --
+  // this pins that, because losing the guard would be invisible locally while
+  // quietly bouncing mail off the domain the real invites are sent from.
+  test('reports that no invite email was sent from a test environment', async ({ request }) => {
+    const sessionResponse = await request.get('/api/pickleball/auth/session')
+    const { activeOrgId } = await sessionResponse.json()
+
+    const inviteResponse = await request.post(`/api/pickleball/organizations/${activeOrgId}/memberships`, {
+      data: { invitedEmail: 'invite-suppression@example.com', role: 'SCOREKEEPER' },
+    })
+    expect(inviteResponse.ok()).toBe(true)
+
+    const body = await inviteResponse.json()
+    // The membership is still created -- suppression affects delivery only.
+    expect(body.membership.invitedEmail).toBe('invite-suppression@example.com')
+    expect(body.emailSent).toBe(false)
+  })
+
   test('rejects player creation for a SCOREKEEPER (no MANAGE_PLAYERS permission)', async ({ request }) => {
     // operator@example.com is ADMIN (seeded via the bootstrap script), so it can
     // invite a SCOREKEEPER into the same org purely through the API under test.
