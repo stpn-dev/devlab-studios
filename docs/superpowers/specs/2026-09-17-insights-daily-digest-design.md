@@ -48,30 +48,41 @@ existing article query needs a new filter, and — the part that actually matter
 retention job with a date predicate would be one bad `WHERE` clause away from deleting
 real editorial content. Separate tables make that impossible by construction.
 
-## Platform constraints (Workers **Free**)
+## Platform constraints (Workers **Paid**, $5/month)
 
-| Limit | Value | Consequence |
-|---|---|---|
-| CPU per cron invocation | 10 ms | No DOM/XML parser. Extraction must be bounded regex. |
-| Subrequests per invocation | 50 | ~14 needed (4 feeds + ≤10 AI calls). Fine. |
-| Cron triggers per account | 5 | Currently 0 used. Room to split stages if needed. |
-| Wall clock per cron | 15 min | Ample; AI calls are I/O, not CPU. |
-| Workers AI | 10,000 neurons/day, resets 00:00 UTC | ≤10 small-model summaries/day is far below it. |
+The account moves to Workers Paid for this feature, with a hard budget of $5/month.
+
+| Limit | Included in $5 | This feature uses | Overage |
+|---|---|---|---|
+| Worker requests | 10,000,000 / month | ~30 (one cron/day) | $0.30 / million |
+| CPU time | 30,000,000 ms / month | ~15,000 ms / month | $0.02 / million ms |
+| CPU per cron invocation | 30 s | well under | — |
+| Subrequests per invocation | 10,000 | ~14 (4 feeds + ≤10 AI calls) | — |
+| Wall clock per cron | 15 min | seconds | — |
+| Workers AI | 10,000 neurons / **day** | ≤10 short summaries / day | $0.011 / 1,000 |
+| Durable Objects | 1M req, 400,000 GB-s / month | unchanged by this feature | — |
+
+The digest cannot plausibly breach the budget: it is ~30 requests and a few CPU-seconds
+per month against allowances measured in millions, and its AI usage sits inside the
+free *daily* neuron allocation that applies on Paid as well as Free.
+
+Two things unrelated to this feature could: traffic beyond 10M requests/month, and
+**Cloudflare Images**, which is billed separately from Workers (first 5,000
+transformations/month free, then $0.50/1,000). Because media lives in R2 rather than
+Images storage, only transformation charges apply — no storage or delivery fees.
+Setting `limits.cpu_ms` in `wrangler.jsonc` is a cheap guard against a runaway
+invocation, since Cloudflare exposes no hard monthly spend cap.
 
 Network I/O does not consume CPU time, so feed fetches and AI calls are effectively
-free against the binding constraint. **CPU is spent only on extraction and
-serialization**, which is what the design below minimizes.
+free against the CPU allowance.
 
-Workers AI *hard-fails* when the daily allocation is exhausted; on the Free plan there
-is no overage. "AI unavailable" is therefore a normal branch, not an exception.
+Workers AI *hard-fails* when the daily allocation is exhausted rather than degrading,
+so "AI unavailable" is a normal branch, not an exception.
 
 ## Data model
 
 Migration `0011_insights_digest.sql`:
 
-- **`digest_inbox`** — raw candidates. `id`, `source_name`, `source_url` (UNIQUE),
-  `title`, `excerpt`, `published_at`, `fetched_at`. Staging between stages, and
-  resilience: a feed that fails today leaves yesterday's candidates queued.
 - **`digests`** — one row per day. `id`, `digest_date` (UNIQUE), `status`,
   `item_count`, `generated_at`, `model`, `created_at`, `updated_at`.
 - **`digest_items`** — `id`, `digest_id` (FK `ON DELETE CASCADE`), `source_name`,
@@ -90,15 +101,15 @@ contents. Start with ~4 AI/automation feeds.
 `src/worker/digest/fetchFeed.js`:
 
 - Bounded `fetch` — 8 s timeout, response truncated at ~256 KB. RSS lists newest
-  items first, so truncation only discards items we would not have used.
-- **Targeted extraction, not parsing.** Regex over `<item>`/`<entry>` blocks pulling
-  title, link and date. This is the CPU concession to the Free plan; because the feed
-  list is controlled, each feed is validated once when added rather than defended
-  against generically.
+  items first, so truncation only discards items we would not have used. The cap is
+  defensive against a malformed or hostile response, not a CPU concession.
+- Parse with `fast-xml-parser` (pure JS, no DOM). The 30 s CPU allowance on Paid makes
+  a real parser affordable, and it handles CDATA, namespaces and HTML entities that
+  hand-rolled extraction gets wrong.
 - Each feed's failure is isolated. One bad source must not end the run.
 
-Dedupe by `source_url` against `digest_inbox` and against the last 7 days of
-`digest_items`, so an item that ran yesterday does not reappear.
+Dedupe by `source_url` against the last 7 days of `digest_items`, so an item that ran
+yesterday does not reappear.
 
 ## Summarization
 
@@ -129,14 +140,13 @@ exports. This is newly possible: ADR 0003 rejected queue-based work because the
 *generated* Astro entrypoint could not export extra handlers, but `src/worker.ts` has
 been a custom entrypoint since the DO work.
 
-The run is two named stages behind one entry point — `ingest` then `assemble`. Today
-both execute in a single daily invocation. If measurement shows the 10 ms CPU budget
-is exceeded, they split across two staggered crons with no redesign, because the
-staging table already separates them.
+The run is a single pass in one daily invocation: fetch → dedupe → summarize →
+publish → sweep retention. An earlier draft staged candidates through an inbox table
+so the work could be split across staggered crons under a 10 ms CPU budget; the Paid
+allowance removes that need, and with it a table, a sweep and a cross-stage handoff.
 
-`assemble` also performs retention in the same invocation:
-`DELETE FROM digests WHERE digest_date < date('now','-7 days')` — items cascade — plus
-an `digest_inbox` sweep.
+Retention runs in the same invocation:
+`DELETE FROM digests WHERE digest_date < date('now','-7 days')` — items cascade.
 
 **Zero items after fetch and dedupe publishes nothing.** An empty daily post is worse
 than no post.
@@ -166,7 +176,7 @@ Unit:
 
 - Extraction against saved RSS and Atom fixtures, including a truncated response and
   a malformed feed.
-- Dedupe across `digest_inbox` and the trailing 7 days.
+- Dedupe across the trailing 7 days of published items.
 - Item cap at 10; per-feed cap.
 - Retention boundary — exactly 7 days old is kept, 8 is deleted.
 - AI-failure path still produces a publishable digest with empty summaries.
@@ -183,11 +193,11 @@ E2E:
 ## Rollout
 
 1. Apply `0011` to preview, then production. Additive; ships empty.
-2. Deploy with the cron defined but the feed registry short (1–2 feeds) and measure
-   actual CPU per run against the 10 ms budget.
-3. Expand to the full feed list if headroom allows; otherwise split `ingest` and
-   `assemble` across two staggered crons.
-4. Watch the first week, then decide whether 7 days is the right retention.
+2. Upgrade the account to Workers Paid before enabling the cron.
+3. Deploy with the cron defined and the feed registry short (1–2 feeds); confirm a run
+   completes and check observed CPU and neuron usage against the budget table above.
+4. Expand to the full feed list.
+5. Watch the first week, then decide whether 7 days is the right retention.
 
 ## Deliberately not in scope
 
