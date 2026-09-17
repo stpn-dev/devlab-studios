@@ -149,6 +149,39 @@ secret so browser tests can run without production credentials.
 
 Maintenance mode is a runtime check (`src/middleware.ts`), not a build-time flag: it reads the `maintenance_mode` key from the `site_settings` D1 table on every request to `/`, `/about`, `/experiences`, `/services`, `/portfolio`, `/profile`, and `/resources*`, rewriting to `/maintenance` when set. Toggle it with `wrangler d1 execute` against `site_settings` (or the future admin Site Settings screen) — no redeploy required.
 
+## Keeping preview aligned with production
+
+`npm run cms:mirror-preview` copies production CONTENT into the preview
+database so preview can be used to visually check a change against real content
+before it reaches production. Add `--dry-run` to produce the import SQL without
+applying it.
+
+It copies 19 content tables (pages, sections, projects and their gallery,
+articles, services, SEO, navigation, footer settings, profile data, redirects).
+
+It deliberately never copies: `leads`, `delivery_attempts`, `lead_attribution`,
+`lead_consents`, `lead_activities` (real customer names, emails and messages --
+copying PII into a second environment multiplies where it can leak from and you
+cannot visually check a lead anyway), `admin_session_revocations`, `audit_log`,
+`content_versions`, `media_assets` (an index of the PRODUCTION R2 bucket --
+preview has its own), and `d1_migrations` (owned by wrangler).
+
+The script re-checks the generated dump against an independent denylist and
+aborts if an excluded table or a credential pattern appears, so the allowlist
+and the denylist have to agree before anything is written.
+
+Images still render on preview because content stores absolute, public
+production R2 URLs.
+
+**Caution when writing content UPDATE scripts:** match page sections by
+`(page slug, section_type)`, not by id. `replacePage()` deletes and reinserts
+every section with a fresh `crypto.randomUUID()` on each admin save, so the
+bootstrap ids (`work-hero`, `services-hero`, ...) survive only until the first
+CMS edit of that page. An `UPDATE ... WHERE id = 'work-hero'` silently matches
+zero rows and still reports success -- this is exactly how the Work page was
+left on its pre-rebuild copy while every other page moved
+(`2026-09-17-work-page-copy-fix.sql`).
+
 ## Local test/dev fixtures
 
 - `.dev.vars` (gitignored): local-only `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`/`ADMIN_SESSION_SECRET`/`RESEND_API_KEY` values used by `wrangler dev --local` and the Playwright `admin.spec.js` suite. `RESEND_API_KEY` is set to a deliberately-invalid placeholder so local/test runs never send a real email. Not real credentials — safe to regenerate at will via `npm run cms:hash-admin-password`.

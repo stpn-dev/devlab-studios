@@ -157,6 +157,12 @@ UPDATE page_sections SET content_json = '{"heading":"FAQ","subheading":"Common q
 
 -- ---------------------------------------------------------------------------
 -- 6. Work page copy. The showcase ITEMS are editor-owned and left untouched.
+--
+-- Matched by (page, section_type) rather than by id. `replacePage()` reinserts
+-- every section with a fresh crypto.randomUUID() whenever a page is saved in
+-- the admin, so the bootstrap ids ('work-hero' and friends) survive only until
+-- the first CMS edit. Matching on id here silently updated zero rows in
+-- production -- see 2026-09-17-work-page-copy-fix.sql.
 -- ---------------------------------------------------------------------------
 UPDATE page_sections SET content_json = json_set(
     content_json,
@@ -167,21 +173,21 @@ UPDATE page_sections SET content_json = json_set(
     '$.secondaryCta.label', 'Discuss Your System',
     '$.secondaryCta.href', '/contact?type=business_system'
   ), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE id = 'work-hero';
+WHERE section_type = 'hero' AND page_id = (SELECT id FROM pages WHERE slug = 'work');
 
 UPDATE page_sections SET content_json = json_set(
     content_json,
     '$.heading', 'Selected systems',
     '$.subheading', 'A closer look at how each one moves from trigger to verified operational handoff.'
   ), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE id = 'work-showcase';
+WHERE section_type = 'workProjectShowcase' AND page_id = (SELECT id FROM pages WHERE slug = 'work');
 
 UPDATE page_sections SET content_json = json_set(
     content_json,
     '$.primaryCta.label', 'Discuss Your System',
     '$.primaryCta.href', '/contact?type=business_system'
   ), updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE id = 'work-cta';
+WHERE section_type = 'cta' AND page_id = (SELECT id FROM pages WHERE slug = 'work');
 
 -- ---------------------------------------------------------------------------
 -- 7. Insights and Contact CTA copy.
