@@ -78,6 +78,12 @@ decided against that surface specifically:
 - A media upload or delete that succeeds is no longer reported as failed when only its audit-log write fails. On upload the natural retry after such a false failure stored a second copy of the same image under a fresh key.
 - Media API errors now surface their actual cause in the admin UI. The media page's fetch wrapper called `response.json()` unconditionally, so any non-JSON error response (an unhandled 500 renders Astro's HTML error page) surfaced as `Unexpected token '<'` instead of the real message.
 
+### Removed
+- Deleted 13 unused files that no longer had a reference anywhere in the tracked source: the pre-Astro Vite template leftovers `src/App.css` and `public/vite.svg` (distinct from the live `src/assets/tool-logos/vite.svg`); `public/404.html`, which the SSR build never served because `src/pages/404.astro` is the real 404 and the static copy was only reachable at the literal `/404.html` path; the never-imported `src/components/ui/ListItemWithIcon.jsx`; `src/hooks/useServicesContent.js`, superseded by `src/lib/content/services.ts`; `LandingSampleVibeCode.jsx`, the one legacy-app sample never wired into `App.jsx`'s router; and the unreferenced assets `src/assets/project-{1,2,3}.svg`, `src/assets/projects/project-placeholder-vibe.png` and `screenshots/`. No public route, API shape or D1 schema is affected.
+
+### Changed
+- ESLint now ignores `.kilo/**`. Lint was reporting six `no-undef` errors that came entirely from the gitignored agent worktree at `.kilo/worktrees/`: the config's node-globals override matches `playwright.config.js` and `tests/e2e/**/*.js` relative to the repository root, so the worktree's copies of those same files fell through to browser globals and failed on `process`. The errors were pre-existing and unrelated to any source change, but they were burying real lint output.
+
 ## [1.8.0] - 2026-09-10
 
 ### Changed
