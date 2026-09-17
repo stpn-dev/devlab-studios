@@ -218,17 +218,20 @@ the scheduled handler is also reachable at
 triggered automatically in local development, and wrangler prints this URL on
 start.
 
-**Workers AI is always remote, including in local dev** -- wrangler warns about
-this on every start. A local "Generate now" spends real neurons against the
-account. Ten summaries a day is far inside the included daily allocation, but
-do not loop it.
+**Workers AI does not run in local dev.** Wrangler warns that AI bindings access
+remote resources, but a local call actually fails with `Binding AI needs to be
+run remotely` -- so a local run publishes titles and links with no summaries,
+which is the same degraded path as an exhausted allocation. That is useful for
+checking everything *except* the summaries. To exercise the real model locally,
+add `"remote": true` to the `ai` binding temporarily; it spends real neurons
+against the account, so do not leave it on and do not loop it.
 
 **When something looks wrong.** Every stage logs one JSON line, greppable in
 `wrangler tail`:
 
 | `event` | What it tells you |
 |---|---|
-| `digest_feed` | per feed: `ok` with an item count, `http_error`, or `fetch_failed` |
+| `digest_feed` | per feed: `ok` (with item count and body size), `no_items`, `too_large`, `http_error`, or `fetch_failed` |
 | `digest_summary` | only on failure -- the AI call that did not return |
 | `digest_run` | the run: `published`, `empty` (nothing new; yesterday's edition stays up), `skipped`, or `crashed` |
 
@@ -239,6 +242,15 @@ published as titles and links. That is the intended degraded path, not a fault.
 site, keeps the row) or delete it outright (items cascade). Retention removes
 anything older than seven days on every run, including runs that publish
 nothing.
+
+`no_items` with a healthy `bytes` count means the feed parsed but had nothing
+we could use; `no_items` with a tiny `bytes` count means we did not get a feed
+at all. That distinction is why the byte count is logged.
+
+**Feed size.** A feed body over 2MB is skipped and logged as `too_large` rather
+than truncated: a partial XML document parses as nothing, which is
+indistinguishable from a quiet feed. Cloudflare's own feed is ~350KB because it
+inlines full post content, so the bound is set well above real-world sizes.
 
 **Adding a feed.** `src/worker/digest/feeds.js`, in code, reviewed like code.
 The run only ever fetches URLs from that list -- never one from a request, a CMS

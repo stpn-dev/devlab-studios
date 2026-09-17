@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { parseFeed } from './fetchFeed.js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fetchFeedItems, parseFeed } from './fetchFeed.js'
 import { MAX_ITEMS_PER_FEED } from './feeds.js'
 
 const FEED = { name: 'Test Feed', url: 'https://example.com/rss' }
@@ -104,5 +104,53 @@ describe('parseFeed', () => {
   it('handles a single-item feed, which parses as an object rather than an array', () => {
     const xml = '<rss><channel><item><title>Only one</title><link>https://example.com/one</link></item></channel></rss>'
     expect(parseFeed(xml, FEED)).toHaveLength(1)
+  })
+})
+
+describe('fetchFeedItems', () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  function respondWith(body, init = {}) {
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(body, { status: 200, ...init }))
+  }
+
+  it('parses a feed larger than the old 256KB cap', async () => {
+    // Cloudflare's feed is ~350KB because it inlines full post content. The
+    // previous cap truncated it, and a truncated XML document parses as
+    // nothing — so that feed contributed zero items to every digest while
+    // reporting success. This is the regression guard for that.
+    const filler = 'x'.repeat(400 * 1024)
+    const xml = `<rss><channel>
+      <item><title>Real item</title><link>https://example.com/real</link><description>${filler}</description></item>
+    </channel></rss>`
+    expect(xml.length).toBeGreaterThan(256 * 1024)
+    respondWith(xml)
+
+    const items = await fetchFeedItems(FEED)
+
+    expect(items).toHaveLength(1)
+    expect(items[0].title).toBe('Real item')
+  })
+
+  it('skips a body past the hard cap rather than parsing a partial document', async () => {
+    respondWith(`<rss><channel>${'<!-- padding -->'.repeat(200_000)}</channel></rss>`)
+
+    expect(await fetchFeedItems(FEED)).toEqual([])
+  })
+
+  it('returns nothing on an HTTP error instead of throwing', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response('nope', { status: 503 }))
+
+    expect(await fetchFeedItems(FEED)).toEqual([])
+  })
+
+  it('returns nothing when the request fails outright', async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('network down'))
+
+    expect(await fetchFeedItems(FEED)).toEqual([])
   })
 })

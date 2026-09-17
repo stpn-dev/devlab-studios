@@ -74,17 +74,23 @@ export async function listDigests(db, { limit = 7, includeDrafts = false } = {})
  * Source URLs already published in the trailing window, so a story that ran
  * yesterday does not reappear today.
  *
+ * `excludeDate` leaves one day out, and the run always passes the day it is
+ * generating. Without it a re-run would treat its OWN earlier output as
+ * "already published" and replace a full edition with the leftovers — which is
+ * precisely what "Generate now" does when pressed twice.
+ *
  * @param {import('@cloudflare/workers-types').D1Database} db
  */
-export async function listRecentSourceUrls(db, days = 7) {
+export async function listRecentSourceUrls(db, days = 7, { excludeDate = null } = {}) {
   const result = await db
     .prepare(
       `SELECT DISTINCT i.source_url
        FROM digest_items i
        JOIN digests d ON d.id = i.digest_id
-       WHERE d.digest_date >= date('now', ?)`,
+       WHERE d.digest_date >= date('now', ?)
+         AND (? IS NULL OR d.digest_date <> ?)`,
     )
-    .bind(`-${days} days`)
+    .bind(`-${days} days`, excludeDate, excludeDate)
     .all()
 
   return new Set((result.results || []).map((row) => row.source_url))

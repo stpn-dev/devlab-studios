@@ -11,11 +11,19 @@ import { MAX_ITEMS_PER_FEED } from './feeds.js'
 
 const FEED_TIMEOUT_MS = 8000
 /**
- * Feeds list newest first, so truncating only discards items we were never
- * going to use. The cap exists so a malformed or hostile response cannot make
- * the parser chew through megabytes.
+ * Upper bound on a feed body, so a malformed or hostile response cannot make
+ * the parser chew through an unbounded amount of text.
+ *
+ * Sized against reality, not guessed: Cloudflare's own feed is ~350KB because
+ * it inlines full post content in `content:encoded`. An earlier 256KB cap
+ * TRUNCATED it, and a truncated XML document does not parse — so that feed
+ * silently contributed nothing to every digest while reporting success.
+ *
+ * An oversized body is now skipped and logged rather than truncated. A partial
+ * document can only ever parse into garbage or nothing, and "nothing" is
+ * indistinguishable from a quiet feed unless it is said out loud.
  */
-const MAX_FEED_BYTES = 256 * 1024
+const MAX_FEED_BYTES = 2 * 1024 * 1024
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -127,9 +135,25 @@ export async function fetchFeedItems(feed) {
       return []
     }
 
-    const xml = (await response.text()).slice(0, MAX_FEED_BYTES)
+    const xml = await response.text()
+    if (xml.length > MAX_FEED_BYTES) {
+      console.log(JSON.stringify({ event: 'digest_feed', outcome: 'too_large', feed: feed.name, bytes: xml.length }))
+      return []
+    }
+
     const items = parseFeed(xml, feed)
-    console.log(JSON.stringify({ event: 'digest_feed', outcome: 'ok', feed: feed.name, items: items.length }))
+    // Byte count included deliberately: "ok with 0 items" is ambiguous on its
+    // own -- a genuinely quiet feed and a response we could not read look
+    // identical without it.
+    console.log(
+      JSON.stringify({
+        event: 'digest_feed',
+        outcome: items.length > 0 ? 'ok' : 'no_items',
+        feed: feed.name,
+        items: items.length,
+        bytes: xml.length,
+      }),
+    )
     return items
   } catch (error) {
     console.log(

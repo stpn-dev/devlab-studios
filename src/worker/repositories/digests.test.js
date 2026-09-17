@@ -78,6 +78,19 @@ describe('digest repository', () => {
     expect(urls.has('https://example.com/ancient-0')).toBe(false)
   })
 
+  it('can leave one day out of the recent-URL window, so a re-run does not exclude its own output', async () => {
+    const today = dateOffset(0)
+    await saveDigest(db, { digestDate: today, items: items(1, 'today'), model: null })
+    await saveDigest(db, { digestDate: dateOffset(-1), items: items(1, 'yesterday'), model: null })
+
+    const all = await listRecentSourceUrls(db, 7)
+    expect(all.has('https://example.com/today-0')).toBe(true)
+
+    const excludingToday = await listRecentSourceUrls(db, 7, { excludeDate: today })
+    expect(excludingToday.has('https://example.com/today-0')).toBe(false)
+    expect(excludingToday.has('https://example.com/yesterday-0')).toBe(true)
+  })
+
   it('prunes days past the retention window and keeps the one on the boundary', async () => {
     await saveDigest(db, { digestDate: dateOffset(-7), items: items(1, 'edge'), model: null })
     await saveDigest(db, { digestDate: dateOffset(-8), items: items(1, 'stale'), model: null })

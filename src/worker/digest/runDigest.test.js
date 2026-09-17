@@ -99,6 +99,26 @@ describe('runDailyDigest', () => {
     expect(latest.items[0].title).toBe('Today')
   })
 
+  it('republishes the same full edition when the run repeats on the same day', async () => {
+    // "Generate now" pressed twice must not replace a full edition with the
+    // leftovers, which is what happens if the day being generated counts
+    // towards its own dedupe window.
+    fetchFeedItems.mockResolvedValue([
+      feedItem({ sourceUrl: 'https://example.com/a', title: 'Story A' }),
+      feedItem({ sourceUrl: 'https://example.com/b', title: 'Story B' }),
+    ])
+
+    const first = await runDailyDigest({ DB: db }, { now: NOW })
+    const second = await runDailyDigest({ DB: db }, { now: NOW })
+
+    expect(first.itemCount).toBe(2)
+    expect(second.itemCount).toBe(2)
+
+    const digests = await listDigests(db)
+    expect(digests).toHaveLength(1)
+    expect(digests[0].items.map((item) => item.title)).toEqual(['Story A', 'Story B'])
+  })
+
   it('leaves the previous edition in place when every feed fails', async () => {
     await saveDigest(db, {
       digestDate: dateOffset(-1),

@@ -74,11 +74,25 @@ a week of failed runs still leaves the table bounded.
 - The cron is invisible in local `astro dev`; `wrangler dev` exposes it at
   `/cdn-cgi/handler/scheduled`, and the admin's "Generate now" runs the same
   function on demand.
-- **Workers AI is always remote, including in local dev.** A "Generate now" from
-  a local worker spends real neurons against the account. Tests never call it:
-  the unit suite stubs the feed fetch and passes a fake `AI`, and the e2e suite
-  deliberately does not exercise the button, because asserting on its output
-  would be asserting on four third parties' uptime.
+- **Workers AI does not run in local dev** — a local call fails with `Binding AI
+  needs to be run remotely` unless the binding is marked `remote: true`, which
+  spends real neurons. So a local run exercises everything except the summaries,
+  and lands on the same degraded path as an exhausted allocation. Verified by
+  running the scheduled handler locally: three feeds parsed, nine items
+  published, `model: null`. Tests never call the model for real: the unit suite
+  stubs the feed fetch and passes a fake `AI`, and the e2e suite deliberately
+  does not exercise "Generate now", because asserting on its output would be
+  asserting on four third parties' uptime.
+- That same local run found two defects the unit tests could not. A 256KB
+  response cap was truncating Cloudflare's ~350KB feed, and a truncated XML
+  document parses as nothing — so that feed reported success and contributed
+  zero items (Hugging Face's, at ~254KB, was one commit away from the same
+  fate). An oversized body is now skipped and logged rather than truncated, and
+  the bound is 2MB. And the dedupe window included the day being generated, so
+  a second run on the same day replaced a full edition with whatever was left
+  over — "Generate now" pressed twice. The run now excludes its own date.
+  Both have regression tests; both were confirmed fixed by re-running against
+  the live feeds (16 candidates, all four sources, 10 items, twice in a row).
 - Preview runs its own cron half an hour later and keeps its own editions. The
   content mirror does not copy digests: production's editions would arrive in
   preview already close to the age its own sweep deletes at.

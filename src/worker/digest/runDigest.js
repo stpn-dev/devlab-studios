@@ -41,7 +41,11 @@ export async function runDailyDigest(env, { now = new Date(), trigger = 'cron' }
   // throws, which is why this is `Promise.all` and not `allSettled`.
   const fetched = (await Promise.all(DIGEST_FEEDS.map((feed) => fetchFeedItems(feed)))).flat()
 
-  const alreadyPublished = await listRecentSourceUrls(env.DB, RETENTION_DAYS).catch(() => new Set())
+  // The day being generated is excluded from its own dedupe window, so a
+  // re-run reconsiders the same candidates instead of publishing the leftovers.
+  const alreadyPublished = await listRecentSourceUrls(env.DB, RETENTION_DAYS, { excludeDate: digestDate }).catch(
+    () => new Set(),
+  )
   const candidates = selectItems(fetched, { alreadyPublished, now })
 
   if (candidates.length === 0) {

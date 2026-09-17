@@ -126,9 +126,13 @@ See [ADR 0008](architecture/decisions/0008-insights-daily-digest.md).
 
 - `npm run typecheck` — 0 errors
 - `npm run build` — passes
-- `npm run test:unit` — 546 passing across 46 files
+- `npm run test:unit` — 552 passing across 46 files
 - `npx eslint .` — 0 errors (1 pre-existing warning in `WorkPageManager.jsx`)
-- Playwright `static` + `worker` — 258 passing, 1 skipped
+- Playwright `static` + `worker` — 258 passing, 1 skipped (run as site+admin and
+  pickleball separately; see the wrangler note under Known limitations)
+- The daily digest was run end to end against the live feeds from a local
+  worker: all four feeds parsed, 16 candidates, 10 published, and a second run
+  on the same day produced the same 10 rather than the leftovers
 - Migration `0009` validated against a real SQLite database: pre-existing lead
   and delivery-attempt rows survive it untouched and backfill correctly
 - Migration `0011` and the digest repository are covered by tests that run the
@@ -165,6 +169,11 @@ See [ADR 0008](architecture/decisions/0008-insights-daily-digest.md).
 - The `site settings save round-trip` admin e2e test races with the versioning
   test under parallel workers — both write the same global `site_settings` row.
   Pre-existing; reproduced on the unmodified spec. Passes serially.
+- `wrangler dev --local` (wrangler 4.116.0) intermittently dies mid-suite with
+  an internal `ProxyController` error, which cascades into ECONNREFUSED across
+  every remaining `worker`-project test. Not caused by any application code —
+  the same specs pass when the suite is split. Worth revisiting after a wrangler
+  upgrade.
 - Delivery retry is bounded per invocation plus manual admin retry; there is no
   scheduled retry worker (see ADR 0003 for why there is no Queue).
 - Case studies and testimonials collections remain backward-compatible but
