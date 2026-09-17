@@ -1,6 +1,11 @@
 import { jsonResponse } from '../utils/responses'
 import { checkRateLimit, clearRateLimit, rateLimitedResponse, clientIp } from '../rateLimit.js'
 import { isAdminSessionRevoked, revokeAdminSession } from '../repositories/adminSessions.js'
+import {
+  getAdminCredential,
+  getPasswordChangedAtSeconds,
+  upsertAdminCredential,
+} from '../repositories/adminCredentials.js'
 
 const SESSION_COOKIE = 'devlab_admin_session'
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8
@@ -106,8 +111,57 @@ function getConfiguredAdmins(env) {
   return [{ email, passwordHash, role: 'owner' }]
 }
 
+/** The only accepted work factor. Workers caps PBKDF2 deriveBits at 100,000. */
+const PASSWORD_HASH_ITERATIONS = 100000
+const PASSWORD_HASH_BYTES = 32
+
+/**
+ * The credential actually in force for an email: the CMS-managed one if it
+ * exists, otherwise the environment credential.
+ *
+ * Resolution order is the safety property. A missing row, an unmigrated
+ * database or an unreachable D1 all fall through to the env credential, so the
+ * only way to be locked out is to remove BOTH — which is why the env secret is
+ * documented as a permanent bootstrap rather than a migration step.
+ */
+async function resolveAdmin(env, email) {
+  const normalized = String(email || '').trim().toLowerCase()
+  if (!normalized) return null
+
+  const stored = await getAdminCredential(env.DB, normalized)
+  if (stored) return stored
+
+  return getConfiguredAdmins(env).find((user) => user.email === normalized) || null
+}
+
 async function importPasswordKey(password) {
   return crypto.subtle.importKey('raw', textBytes(password), 'PBKDF2', false, ['deriveBits'])
+}
+
+/**
+ * Produces a credential in exactly the format verifyPassword accepts.
+ *
+ * This lives beside verifyPassword on purpose. scripts/cms/hash-admin-password.mjs
+ * builds the same format with node's pbkdf2Sync and its own base64url encoder,
+ * and nothing structurally held the two implementations together — which is the
+ * class of mismatch that locked the owner out of production in September 2026.
+ * The in-app path must not become a third implementation, so it shares this one.
+ */
+export async function hashPassword(password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const key = await importPasswordKey(password)
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: PASSWORD_HASH_ITERATIONS },
+    key,
+    PASSWORD_HASH_BYTES * 8,
+  )
+
+  return [
+    PASSWORD_HASH_PREFIX,
+    PASSWORD_HASH_ITERATIONS,
+    bytesToBase64Url(salt),
+    bytesToBase64Url(new Uint8Array(bits)),
+  ].join('$')
 }
 
 /** True for a credential stored in one of the retired weak formats. */
@@ -250,7 +304,7 @@ export async function handleAdminLogin(c) {
     }
   }
 
-  const admin = admins.find((user) => user.email === email)
+  const admin = await resolveAdmin(c.env, email)
 
   // Reported as the server-configuration fault it is, rather than as a
   // credential failure. This is unreachable unless a stored hash was never
@@ -284,6 +338,124 @@ export async function handleAdminLogin(c) {
 
   return jsonResponse(
     { ok: true, email: admin.email, role: admin.role, mode: 'password' },
+    200,
+    { 'Set-Cookie': `${SESSION_COOKIE}=${token}; ${getCookieOptions(c)}` },
+  )
+}
+
+/**
+ * Bounds how fast the current password can be guessed through this endpoint.
+ * The route already requires a valid session, so this is not authentication —
+ * it stops a stolen session being used to brute-force the existing password in
+ * order to change it.
+ */
+const PASSWORD_CHANGE_BUCKET = 'admin-password-change'
+const PASSWORD_CHANGE_WINDOW_MS = 15 * 60 * 1000
+const PASSWORD_CHANGE_MAX_ATTEMPTS = 10
+/** Matches the floor in scripts/cms/hash-admin-password.mjs. */
+export const MIN_ADMIN_PASSWORD_LENGTH = 12
+
+/**
+ * Changes the signed-in admin's own password.
+ *
+ * Runs behind requireAdmin, so `adminEmail` is already an authenticated
+ * identity — the current password is required on top of that, so possession of
+ * a session is not by itself enough to replace the credential.
+ */
+export async function handleAdminPasswordChange(c) {
+  if (getAdminAuthMode(c.env) !== 'password') {
+    return jsonResponse({ error: 'Password changes are not available in this environment.' }, 400)
+  }
+
+  const sessionSecret = getSessionSecret(c.env)
+  if (!sessionSecret) {
+    return jsonResponse({ error: 'Admin session secret is not configured.' }, 503)
+  }
+
+  if (!c.env.DB) {
+    return jsonResponse({ error: 'The database is unavailable, so the password cannot be changed right now.' }, 503)
+  }
+
+  const email = String(c.get('adminEmail') || '').trim().toLowerCase()
+  if (!email) {
+    return jsonResponse({ error: 'Admin login is required.' }, 401)
+  }
+
+  let payload
+  try {
+    payload = await c.req.json()
+  } catch {
+    return jsonResponse({ error: 'Invalid request payload.' }, 400)
+  }
+
+  const rate = await checkRateLimit(c.env, PASSWORD_CHANGE_BUCKET, email, {
+    limit: PASSWORD_CHANGE_MAX_ATTEMPTS,
+    windowMs: PASSWORD_CHANGE_WINDOW_MS,
+  })
+  if (rate.limited) {
+    return rateLimitedResponse('Too many password change attempts. Try again later.', rate.retryAfterSeconds)
+  }
+
+  const currentPassword = String(payload.currentPassword || '')
+  const newPassword = String(payload.newPassword || '')
+  const confirmPassword = String(payload.confirmPassword || '')
+
+  const admin = await resolveAdmin(c.env, email)
+  if (!admin) {
+    return jsonResponse({ error: 'No credential is configured for this account.' }, 503)
+  }
+
+  // A retired hash cannot be verified, so the current password can never be
+  // confirmed and the change would fail as "wrong password" with no way to
+  // diagnose it. Name the real cause, exactly as login does.
+  if (usesRetiredHashFormat(admin.passwordHash)) {
+    return jsonResponse({
+      error: 'The stored password hash for this account uses a retired format. Re-generate it with `npm run cms:hash-admin-password` and update the ADMIN_PASSWORD_HASH secret before changing it here.',
+    }, 503)
+  }
+
+  if (!(await verifyPassword(currentPassword, admin.passwordHash))) {
+    return jsonResponse({ error: 'Your current password is incorrect.', field: 'currentPassword' }, 400)
+  }
+
+  if (newPassword.length < MIN_ADMIN_PASSWORD_LENGTH) {
+    return jsonResponse({
+      error: `Use a new password of at least ${MIN_ADMIN_PASSWORD_LENGTH} characters.`,
+      field: 'newPassword',
+    }, 400)
+  }
+
+  if (newPassword !== confirmPassword) {
+    return jsonResponse({ error: 'The new passwords do not match.', field: 'confirmPassword' }, 400)
+  }
+
+  if (newPassword === currentPassword) {
+    return jsonResponse({ error: 'The new password must be different from the current one.', field: 'newPassword' }, 400)
+  }
+
+  const passwordHash = await hashPassword(newPassword)
+
+  // Not wrapped in a catch: if this write fails the operator must be told, or
+  // they will believe their password changed when it did not.
+  await upsertAdminCredential(c.env.DB, { email, passwordHash, role: admin.role || 'owner' })
+
+  // Every existing token for this account is now older than password_changed_at
+  // and will be refused, INCLUDING this browser's. Issue a fresh one so the
+  // operator is not signed out by succeeding.
+  const now = Math.floor(Date.now() / 1000)
+  const token = await signSessionPayload({
+    sub: email,
+    email,
+    role: admin.role || 'owner',
+    jti: crypto.randomUUID(),
+    iat: now,
+    exp: now + SESSION_MAX_AGE_SECONDS,
+  }, sessionSecret)
+
+  await clearRateLimit(c.env, PASSWORD_CHANGE_BUCKET, email)
+
+  return jsonResponse(
+    { ok: true, email, signedOutOtherSessions: true },
     200,
     { 'Set-Cookie': `${SESSION_COOKIE}=${token}; ${getCookieOptions(c)}` },
   )
@@ -336,6 +508,16 @@ export async function requireAdmin(c, next) {
       // been explicitly signed out. See repositories/adminSessions.js.
       if (await isAdminSessionRevoked(c.env.DB, session.jti)) {
         return jsonResponse({ error: 'This admin session has been signed out.' }, 401)
+      }
+
+      // Changing the password signs out everywhere. A token minted before the
+      // change is refused, so if the password was rotated BECAUSE it leaked,
+      // the session an attacker already holds dies at that moment rather than
+      // surviving for the rest of its 8-hour life. Comparing one timestamp
+      // costs nothing per token, unlike tracking every issued jti.
+      const passwordChangedAt = await getPasswordChangedAtSeconds(c.env.DB, session.email)
+      if (passwordChangedAt > 0 && Number(session.iat || 0) < passwordChangedAt) {
+        return jsonResponse({ error: 'Your password changed. Please sign in again.' }, 401)
       }
 
       c.set('adminEmail', session.email)

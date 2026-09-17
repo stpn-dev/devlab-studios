@@ -11,6 +11,7 @@ import {
   Home,
   Image,
   Link2,
+  Lock,
   Mail,
   Menu,
   Search,
@@ -50,7 +51,10 @@ const NAV_GROUPS = [
   },
   {
     heading: 'Operations',
-    items: [{ label: 'Inquiries', to: '/admin/leads', icon: Mail }],
+    items: [
+      { label: 'Inquiries', to: '/admin/leads', icon: Mail },
+      { label: 'Security', to: '/admin/security', icon: Lock },
+    ],
   },
 ]
 

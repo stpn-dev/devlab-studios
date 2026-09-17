@@ -1044,3 +1044,44 @@ test('the inquiry endpoint starts refusing once one address submits too often', 
 
   expect(sawTooMany, 'expected a 429 within 12 submissions from one address').toBe(true)
 })
+
+test('the password change endpoint rejects an unauthenticated caller', async ({ request, baseURL }) => {
+  const response = await request.post(`${baseURL}/api/admin/password`, {
+    data: { currentPassword: 'x', newPassword: 'y'.repeat(12), confirmPassword: 'y'.repeat(12) },
+  })
+  expect(response.status()).toBe(401)
+})
+
+test('the Security screen refuses a wrong current password', async ({ page }) => {
+  await login(page)
+  await page.getByRole('navigation').getByRole('link', { name: 'Security' }).click()
+  await expect(page.getByRole('heading', { name: 'Security', level: 1 })).toBeVisible()
+
+  const replacement = `e2e-does-not-apply-${Date.now()}`
+  await page.getByLabel('Current password', { exact: true }).fill('definitely-not-the-password')
+  await page.getByLabel('New password', { exact: true }).fill(replacement)
+  await page.getByLabel('Confirm new password', { exact: true }).fill(replacement)
+  await page.getByRole('button', { name: 'Change password' }).click()
+
+  // Deliberately only the failure path: a test that actually rotated the
+  // credential would change the shared fixture password for every later test
+  // in the run. The success path is covered by the unit tests, which own their
+  // own in-memory credential.
+  await expect(page.getByRole('status')).toContainText(/current password is incorrect/i)
+  await expect(page.getByLabel('Current password', { exact: true })).toHaveAttribute('aria-invalid', 'true')
+})
+
+test('each Security field reveals independently', async ({ page }) => {
+  await login(page)
+  await page.goto('/admin/security')
+
+  const current = page.getByLabel('Current password', { exact: true })
+  const next = page.getByLabel('New password', { exact: true })
+  await current.fill('one')
+  await next.fill('two')
+
+  await page.getByRole('button', { name: 'Show current password' }).click()
+  await expect(current).toHaveAttribute('type', 'text')
+  // Revealing the password being replaced must not reveal the new one.
+  await expect(next).toHaveAttribute('type', 'password')
+})

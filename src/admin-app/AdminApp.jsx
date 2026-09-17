@@ -9,6 +9,7 @@ import PageBuilderPage from './pages/PageBuilderPage'
 import MediaLibraryPage from './pages/MediaLibraryPage'
 import AuditLogPage from './pages/AuditLogPage'
 import LeadsPage from './pages/LeadsPage'
+import SecurityPage from './pages/SecurityPage'
 import WorkPageManager from './pages/WorkPageManager'
 
 function buildRouter(session, onLogout) {
@@ -25,6 +26,7 @@ function buildRouter(session, onLogout) {
         { path: 'media', element: <MediaLibraryPage /> },
         { path: 'audit-log', element: <AuditLogPage /> },
         { path: 'leads', element: <LeadsPage /> },
+        { path: 'security', element: <SecurityPage /> },
       ],
     },
   ])

@@ -13,6 +13,9 @@ async function request(path, options = {}) {
     const error = new Error(message)
     error.status = response.status
     error.issues = data?.issues
+    // Lets a form attach the message to the input the server rejected,
+    // instead of only showing a page-level banner.
+    error.field = data?.field
     throw error
   }
 
