@@ -1,14 +1,21 @@
 export const siteSettingsContent = {
+  /**
+   * Business-first order. The `/services` ROUTE is kept and only its label
+   * changes to "Solutions": renaming the path would need a redirect, would
+   * reset the page's accumulated search signals, and buys nothing a label
+   * change does not already achieve.
+   */
   navigation: [
-    { id: 'nav-about', label: 'About', href: '/about', sortOrder: 10, status: 'published' },
-    { id: 'nav-services', label: 'Services', href: '/services', sortOrder: 20, status: 'published' },
+    { id: 'nav-home', label: 'Home', href: '/', sortOrder: 10, status: 'published' },
+    { id: 'nav-services', label: 'Solutions', href: '/services', sortOrder: 20, status: 'published' },
     { id: 'nav-work', label: 'Work', href: '/work', sortOrder: 30, status: 'published' },
     { id: 'nav-resources', label: 'Insights', href: '/insights', sortOrder: 40, status: 'published' },
-    { id: 'nav-profile', label: 'Profile', href: '/profile', sortOrder: 50, status: 'published' },
+    { id: 'nav-about', label: 'About', href: '/about', sortOrder: 50, status: 'published' },
+    { id: 'nav-profile', label: 'Profile', href: '/profile', sortOrder: 60, status: 'published' },
   ],
   ctas: {
-    navbarContactLabel: 'Start a Project',
-    mobileContactLabel: 'Start a Project',
+    navbarContactLabel: 'Discuss Your System',
+    mobileContactLabel: 'Discuss Your System',
   },
   footer: {
     companyName: 'DevLab Studios',
@@ -17,10 +24,11 @@ export const siteSettingsContent = {
     location: 'Lapu-Lapu City, Cebu, PH',
     quickLinks: [
       { label: 'Home', href: '/' },
+      { label: 'Solutions', href: '/services' },
+      { label: 'Work', href: '/work' },
+      { label: 'Insights', href: '/insights' },
       { label: 'About', href: '/about' },
-      { label: 'Services', href: '/services' },
-      { label: 'Resources', href: '/insights' },
-      { label: 'Profile', href: '/profile' },
+      { label: 'Founder Profile', href: '/profile' },
       { label: 'Contact', href: '/contact' },
     ],
     socialLinks: [

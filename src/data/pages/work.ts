@@ -9,20 +9,20 @@ export const workPage: PageData = {
       type: 'hero',
       props: {
         eyebrow: 'Selected Work',
-        heading: 'Automation systems with the decisions, data flow, and handoff explained.',
-        subheading: 'Real project write-ups covering the operational problem, system architecture, safeguards, and practical value—not just a gallery of workflow screenshots.',
+        heading: 'Business systems, with the decisions, data flow, and handoff explained.',
+        subheading: 'Each write-up states the business problem, the system designed for it, and what that system verifiably does. Where a client result is not something we can evidence, it is not claimed.',
         variant: 'editorial',
         iconMotif: 'automation',
         signals: [],
-        primaryCta: { label: 'Explore Selected Projects', href: '#automation-projects' },
-        secondaryCta: { label: 'Start a Project Conversation', href: '/contact' },
+        primaryCta: { label: 'Explore Selected Systems', href: '#selected-systems' },
+        secondaryCta: { label: 'Discuss Your System', href: '/contact?type=business_system' },
       },
     },
     {
       type: 'workProjectShowcase',
       props: {
-        heading: 'Selected automation projects',
-        subheading: 'A closer look at how each system moves from trigger to verified operational handoff.',
+        heading: 'Selected systems',
+        subheading: 'A closer look at how each one moves from trigger to verified operational handoff.',
         items: [
           {
             projectId: 'p10-automated-lead-qualification',
@@ -64,7 +64,7 @@ export const workPage: PageData = {
       props: {
         heading: 'Have a workflow that should operate like a system?',
         body: 'The first step maps the trigger, rules, data, integrations, failure paths, and human handoff before deciding what should be automated.',
-        primaryCta: { label: 'Start a Project', href: '/contact' },
+        primaryCta: { label: 'Discuss Your System', href: '/contact?type=business_system' },
       },
     },
   ],

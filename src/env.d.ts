@@ -9,6 +9,13 @@ interface Env {
   RESEND_API_KEY?: string
   RESEND_FROM_EMAIL?: string
   LEAD_NOTIFICATION_EMAIL?: string
+  /**
+   * Optional outbound destination for inquiries (CRM, sheet, n8n/Make, task
+   * system). Entirely inert unless set — see src/worker/delivery/providers.js.
+   */
+  LEAD_WEBHOOK_URL?: string
+  /** Optional shared secret sent as `X-DevLab-Signature` with each webhook post. */
+  LEAD_WEBHOOK_SECRET?: string
   ADMIN_EMAIL?: string
   ADMIN_PASSWORD_HASH?: string
   ADMIN_SESSION_SECRET?: string

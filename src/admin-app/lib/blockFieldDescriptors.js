@@ -17,6 +17,8 @@ export const BLOCK_LABELS = {
   featuredCaseStudies: 'Featured Case Studies',
   testimonials: 'Testimonials',
   faq: 'FAQ',
+  problemList: 'Problem List',
+  leadMagnet: 'Lead Magnet',
   resourceCards: 'Resource Cards',
   imageGallery: 'Image Gallery',
   cta: 'Call to Action',
@@ -82,6 +84,19 @@ export const BLOCK_FIELDS = {
     { name: 'context', label: 'Context', type: 'text', help: 'Matches an FAQ context tag, e.g. "general".' },
     { name: 'items', label: 'Questions', type: 'objectList', fields: [{ name: 'question', label: 'Question', type: 'text' }, { name: 'answer', label: 'Answer', type: 'textarea' }] },
   ],
+  problemList: [
+    { name: 'eyebrow', label: 'Eyebrow', type: 'text' },
+    { name: 'heading', label: 'Heading', type: 'text' },
+    { name: 'subheading', label: 'Subheading', type: 'textarea' },
+    { name: 'items', label: 'Problems', type: 'objectList', fields: [{ name: 'title', label: 'Problem', type: 'text' }, { name: 'description', label: 'What it costs', type: 'textarea' }, { name: 'icon', label: 'Approved icon key', type: 'text' }] },
+  ],
+  leadMagnet: [
+    { name: 'eyebrow', label: 'Eyebrow', type: 'text' },
+    { name: 'heading', label: 'Heading', type: 'text', required: true },
+    { name: 'body', label: 'Body', type: 'textarea' },
+    { name: 'offerId', label: 'Offer ID', type: 'text', required: true, help: 'Must match a registered offer in src/config/offers.js — the destination URL is resolved server-side, never from this page.' },
+    { name: 'bullets', label: 'What it covers', type: 'stringList' },
+  ],
   resourceCards: [
     { name: 'heading', label: 'Heading', type: 'text' },
     { name: 'limit', label: 'Limit', type: 'number' },
@@ -96,6 +111,17 @@ export const BLOCK_FIELDS = {
     { name: 'body', label: 'Body', type: 'textarea' },
     { name: 'primaryCta', label: 'Primary CTA', type: 'cta', required: true },
     { name: 'secondaryCta', label: 'Secondary CTA', type: 'cta' },
+    { name: 'inquiryType', label: 'Preselected inquiry type', type: 'select', options: [
+      { value: '', label: 'Do not preselect' },
+      { value: 'business_system', label: 'Business system or automation' },
+      { value: 'software_project', label: 'Website or software project' },
+      { value: 'workflow_audit', label: 'Workflow systems audit' },
+      { value: 'partnership', label: 'Partnership' },
+      { value: 'general', label: 'General inquiry' },
+    ], help: 'Carried into the contact form so the visitor does not have to classify themselves.' },
+    { name: 'formId', label: 'Attribution form ID', type: 'text' },
+    { name: 'offerId', label: 'Attribution offer ID', type: 'text' },
+    { name: 'solutionId', label: 'Attribution solution ID', type: 'text' },
   ],
 }
 

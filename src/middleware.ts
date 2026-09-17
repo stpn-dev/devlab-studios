@@ -5,6 +5,7 @@ import { getEnv } from './lib/env'
 import { getSiteSetting } from './worker/repositories/content.js'
 import { findRedirect } from './worker/repositories/redirects.js'
 import { applySecurityHeaders } from './lib/securityHeaders'
+import { drainRequestBody } from './lib/http'
 import { requirePickleballSession } from './worker/pickleball/authContext.js'
 
 const ADMIN_API_PREFIX = '/api/admin/'
@@ -77,6 +78,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
     })
 
     if (!didContinue) {
+      // The rejection never read the body — drain it before responding.
+      await drainRequestBody(context.request)
       return applySecurityHeaders(result, url.pathname, url.hostname)
     }
   }

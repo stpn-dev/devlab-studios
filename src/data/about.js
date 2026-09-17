@@ -3,7 +3,7 @@
 
 const aboutData = {
   name: "Stephen Rey G. Agustinez",
-  role: "Full-Stack Developer & AI Automation Specialist",
+  role: "Founder, Full-Stack Developer & AI Automation Architect",
   location: "Pusok, Lapu-Lapu City, Cebu, 6015",
   email: "stpnrey.agustinez@gmail.com",
   phone: "+63 926 237 2965",

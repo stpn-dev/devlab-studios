@@ -13,7 +13,7 @@ interface Props {
 
 const { siteSettings, currentPath } = Astro.props
 const navLinks = (siteSettings.navigation || []).map((item) => ({ label: item.label, href: item.href }))
-const desktopContactLabel = siteSettings.ctas?.navbarContactLabel || 'Start a Project'
+const desktopContactLabel = siteSettings.ctas?.navbarContactLabel || 'Discuss Your System'
 const mobileContactLabel = siteSettings.ctas?.mobileContactLabel || desktopContactLabel
 const linkBase = 'site-navbar__link rounded-full px-3 py-2 text-sm font-semibold transition focus-visible:outline-none'
 ---
@@ -49,7 +49,13 @@ const linkBase = 'site-navbar__link rounded-full px-3 py-2 text-sm font-semibold
 
       <div class="hidden md:block">
         <div class="group">
-          <PrimaryButton to="/contact" className="flex items-center gap-2 px-4 py-2">
+          <PrimaryButton
+            to="/contact?type=business_system"
+            className="flex items-center gap-2 px-4 py-2"
+            data-cta-id="navbar-contact"
+            data-cta-variant="primary"
+            data-inquiry-type="business_system"
+          >
             <AnimatedIcon icon={Mail} size={18} animationType="hover-scale" />
             {desktopContactLabel}
           </PrimaryButton>
@@ -80,7 +86,13 @@ const linkBase = 'site-navbar__link rounded-full px-3 py-2 text-sm font-semibold
             {item.label}
           </a>
         ))}
-        <PrimaryButton to="/contact" className="flex items-center justify-center w-full gap-2">
+        <PrimaryButton
+          to="/contact?type=business_system"
+          className="flex items-center justify-center w-full gap-2"
+          data-cta-id="navbar-contact-mobile"
+          data-cta-variant="primary"
+          data-inquiry-type="business_system"
+        >
           <AnimatedIcon icon={Mail} size={16} animationType="none" />
           {mobileContactLabel}
         </PrimaryButton>
@@ -108,11 +120,23 @@ const linkBase = 'site-navbar__link rounded-full px-3 py-2 text-sm font-semibold
   syncHeaderSurface()
   window.addEventListener('scroll', syncHeaderSurface, { passive: true })
 
-  toggle?.addEventListener('click', () => {
-    const isOpen = panel?.classList.toggle('hidden') === false
-    toggle.setAttribute('aria-expanded', String(isOpen))
-    toggle.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation')
+  const setOpen = (isOpen: boolean) => {
+    panel?.classList.toggle('hidden', !isOpen)
+    toggle?.setAttribute('aria-expanded', String(isOpen))
+    toggle?.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation')
     iconOpen?.classList.toggle('hidden', isOpen)
     iconClose?.classList.toggle('hidden', !isOpen)
+  }
+
+  toggle?.addEventListener('click', () => {
+    setOpen(panel?.classList.contains('hidden') === true)
+  })
+
+  // Escape closes the panel and returns focus to the control that opened it —
+  // without this a keyboard user who opens the menu has no way back out.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || panel?.classList.contains('hidden') !== false) return
+    setOpen(false)
+    toggle?.focus()
   })
 </script>

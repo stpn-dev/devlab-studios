@@ -1,109 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import PrimaryButton from '../PrimaryButton'
 import AnimatedIcon from '../icons/AnimatedIcon'
 import { ERROR_MESSAGES } from '../../config/errorMessages'
+import { useTurnstile, VERIFICATION_MESSAGES as verificationMessages } from './useTurnstile'
 import { User, Mail, MessageSquare, Send, Check, AlertCircle, Loader2, ShieldCheck } from '../icons/icons'
 
 const initialForm = { name: '', email: '', subject: '', message: '' }
-const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
-const TURNSTILE_ACTION = 'contact_form'
-
-function useTurnstile(siteKey) {
-  const containerRef = useRef(null)
-  const widgetIdRef = useRef(null)
-  const [token, setToken] = useState('')
-  const [state, setState] = useState(siteKey ? 'loading' : 'configuration-error')
-
-  useEffect(() => {
-    if (!siteKey) return undefined
-    let cancelled = false
-    let script = document.querySelector(`script[src="${TURNSTILE_SCRIPT_SRC}"]`)
-
-    function renderWidget() {
-      if (cancelled || !containerRef.current || !window.turnstile || widgetIdRef.current !== null) return
-      try {
-        widgetIdRef.current = window.turnstile.render(containerRef.current, {
-          sitekey: siteKey,
-          action: TURNSTILE_ACTION,
-          theme: 'light',
-          size: 'flexible',
-          appearance: 'always',
-          retry: 'auto',
-          'refresh-expired': 'auto',
-          callback: (nextToken) => {
-            setToken(nextToken)
-            setState('verified')
-          },
-          'expired-callback': () => {
-            setToken('')
-            setState('expired')
-          },
-          'timeout-callback': () => {
-            setToken('')
-            setState('timeout')
-          },
-          'unsupported-callback': () => {
-            setToken('')
-            setState('unsupported')
-          },
-          'error-callback': () => {
-            setToken('')
-            setState('error')
-          },
-        })
-      } catch {
-        setState('error')
-      }
-    }
-
-    function handleScriptError() {
-      if (!cancelled) setState('error')
-    }
-
-    if (window.turnstile) {
-      renderWidget()
-    } else if (!script) {
-      script = document.createElement('script')
-      script.src = TURNSTILE_SCRIPT_SRC
-      script.async = true
-      script.defer = true
-      script.addEventListener('load', renderWidget, { once: true })
-      script.addEventListener('error', handleScriptError, { once: true })
-      document.head.appendChild(script)
-    } else {
-      script.addEventListener('load', renderWidget, { once: true })
-      script.addEventListener('error', handleScriptError, { once: true })
-    }
-
-    return () => {
-      cancelled = true
-      script?.removeEventListener('load', renderWidget)
-      script?.removeEventListener('error', handleScriptError)
-      if (window.turnstile && widgetIdRef.current !== null) {
-        window.turnstile.remove(widgetIdRef.current)
-        widgetIdRef.current = null
-      }
-    }
-  }, [siteKey])
-
-  function reset() {
-    setToken('')
-    setState('loading')
-    if (window.turnstile && widgetIdRef.current !== null) window.turnstile.reset(widgetIdRef.current)
-  }
-
-  return { containerRef, token, state, reset }
-}
-
-const verificationMessages = {
-  loading: 'Completing secure verification…',
-  verified: 'Secure verification complete.',
-  expired: 'Verification expired. Please try again.',
-  timeout: 'Verification timed out. Please retry.',
-  unsupported: 'This browser cannot complete verification. Try another browser.',
-  error: 'Verification could not load. Please retry.',
-  'configuration-error': 'Verification is temporarily unavailable. Please try again later.',
-}
 
 function ContactForm({ siteKey = '', copy = {} }) {
   const [isHydrated, setIsHydrated] = useState(false)

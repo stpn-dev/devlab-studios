@@ -4,6 +4,9 @@ import PrimaryButton from '../../components/PrimaryButton.jsx'
 import * as Icons from '../../components/icons/icons.js'
 import { ArrowLeft, Calendar, CheckCircle2, Clock } from '../../components/icons/icons.js'
 import { loadArticlesContent, parseArticleBody, formatArticleDate } from '../../lib/content/articles'
+import { getArticleSchema, getBreadcrumbSchema } from '../../config/schema.js'
+import { getLeadMagnet } from '../../config/offers.js'
+import { solutionCategories } from '../../data/solutionsContent.js'
 import type { SeoData } from '../../lib/content/seo'
 
 function resolveIcon(name: string) {
@@ -25,7 +28,7 @@ const relatedPosts = activePost
 
 const seo: SeoData | null = activePost
   ? {
-      metaTitle: `${activePost.title} | DevLab Studios Resources`,
+      metaTitle: `${activePost.title} | DevLab Studios Insights`,
       metaDescription: activePost.summary,
       canonicalUrl: `https://www.devlabstudios.com/insights/${activePost.slug}`,
       ogTitle: activePost.title,
@@ -39,33 +42,79 @@ const seo: SeoData | null = activePost
 
 const bodyBlocks = activePost ? parseArticleBody(activePost.body) : []
 const ActiveIcon = activePost ? resolveIcon(activePost.icon) : null
+
+/**
+ * Contextual links, derived rather than hand-maintained per article.
+ *
+ * An article's own tags/category/slug decide which solution it belongs to, so
+ * a new article picks up the right CTA without anyone remembering to wire it.
+ * When nothing matches, the generic business CTA is used rather than a wrong
+ * specific one.
+ */
+const SOLUTION_KEYWORDS: Array<{ id: string; keywords: string[] }> = [
+  { id: 'lead-intake-followup', keywords: ['lead', 'intake', 'follow-up', 'crm', 'qualification'] },
+  { id: 'workflow-ai-automation', keywords: ['automation', 'workflow', 'ai', 'agent', 'n8n', 'zapier', 'make'] },
+  { id: 'custom-software-operations', keywords: ['website', 'speed', 'data', 'api', 'software', 'dashboard'] },
+]
+
+function matchSolution(post: typeof activePost) {
+  if (!post) return null
+  const haystack = [post.slug, post.title, post.category, post.contentType, ...(post.tags || [])]
+    .join(' ')
+    .toLowerCase()
+  const match = SOLUTION_KEYWORDS.find((entry) => entry.keywords.some((keyword) => haystack.includes(keyword)))
+  return match ? solutionCategories.find((category) => category.id === match.id) || null : null
+}
+
+const relatedSolution = matchSolution(activePost)
+const leadMagnet = getLeadMagnet('lead-intake-checklist')
+const jsonLd = activePost
+  ? [
+      getArticleSchema(activePost),
+      getBreadcrumbSchema([
+        { name: 'Home', path: '/' },
+        { name: 'Insights', path: '/insights' },
+        { name: activePost.title, path: `/insights/${activePost.slug}` },
+      ]),
+    ]
+  : []
 ---
 
-<Layout title={activePost ? activePost.title : 'Article not found'} seo={seo}>
+<Layout title={activePost ? activePost.title : 'Article not found'} seo={seo} jsonLd={jsonLd}>
   {!activePost ? (
     <div class="rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
-      <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Resources</p>
+      <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Insights</p>
       <h1 class="mt-3 text-3xl font-semibold text-brand-ink">Article not found</h1>
-      <p class="mt-3 text-slate-600">The resource you tried to open is missing or no longer published.</p>
+      <p class="mt-3 text-slate-600">The article you tried to open is missing or no longer published.</p>
       <div class="mt-6 flex justify-center">
         <PrimaryButton to="/insights">
-          <ArrowLeft size={16} />
-          Back to Resources
+          <ArrowLeft size={16} aria-hidden="true" />
+          Back to Insights
         </PrimaryButton>
       </div>
     </div>
   ) : (
     <div class="space-y-8">
-      <nav class="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-        <a href="/insights" class="inline-flex items-center gap-2 font-semibold text-brand-teal transition hover:text-brand-tealDark">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to Resources
-        </a>
-        <span>/</span>
-        <span>{activePost.title}</span>
+      <nav aria-label="Breadcrumb" class="text-sm text-slate-500">
+        <ol class="flex flex-wrap items-center gap-2">
+          <li><a href="/" class="transition hover:underline">Home</a></li>
+          <li aria-hidden="true">/</li>
+          <li>
+            <a href="/insights" class="inline-flex items-center gap-2 font-semibold text-brand-teal transition hover:underline">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Insights
+            </a>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li aria-current="page">{activePost.title}</li>
+        </ol>
       </nav>
 
-      <section class="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10">
+      <section
+        class="rounded-[28px] bg-gradient-to-br from-brand-mint/55 via-white to-[#f3efff] p-6 shadow-[0_20px_44px_rgba(46,34,98,0.12)] sm:p-8 lg:p-10"
+        data-view-event="insight_view"
+        data-insight-id={activePost.slug}
+      >
         <div class="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
           <div class="space-y-5">
             <div class="flex flex-wrap items-center gap-2">
@@ -146,6 +195,62 @@ const ActiveIcon = activePost ? resolveIcon(activePost.icon) : null
         </article>
 
         <aside class="space-y-6">
+          {relatedSolution ? (
+            <section class="rounded-[24px] bg-white p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Related solution</p>
+              <p class="mt-3 text-sm font-semibold text-brand-ink">{relatedSolution.title}</p>
+              <p class="mt-2 text-sm leading-relaxed text-slate-600">{relatedSolution.outcome}</p>
+              <a
+                href={`/services#${relatedSolution.id}`}
+                class="mt-3 inline-block text-sm font-semibold text-brand-teal underline-offset-2 hover:underline"
+                data-cta-id="insight-related-solution"
+                data-cta-variant="secondary"
+                data-solution-id={relatedSolution.id}
+                data-insight-id={activePost.slug}
+              >
+                What this includes
+              </a>
+            </section>
+          ) : null}
+
+          {leadMagnet ? (
+            <section class="rounded-[24px] bg-gradient-to-br from-[#fff9ff] via-[#fbf9ff] to-[#f2efff] p-6 shadow-[0_18px_38px_rgba(48,28,114,0.12)]">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Free resource</p>
+              <p class="mt-3 text-sm font-semibold text-brand-ink">{leadMagnet.title}</p>
+              <p class="mt-2 text-sm leading-relaxed text-slate-600">{leadMagnet.summary}</p>
+              <a
+                href={`/offers/${leadMagnet.id}`}
+                class="mt-3 inline-block text-sm font-semibold text-brand-teal underline-offset-2 hover:underline"
+                data-cta-id="insight-lead-magnet"
+                data-cta-variant="secondary"
+                data-offer-id={leadMagnet.id}
+                data-insight-id={activePost.slug}
+              >
+                Get the checklist
+              </a>
+            </section>
+          ) : null}
+
+          <section class="rounded-[24px] bg-brand-ink p-6 text-white shadow-[0_18px_45px_rgba(20,13,64,0.22)]">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-white/70">Next step</p>
+            <p class="mt-3 text-base font-semibold">Want this applied to your own workflow?</p>
+            <p class="mt-2 text-sm leading-relaxed text-white/75">
+              Describe where it slows down and get a straight answer about the right first move.
+            </p>
+            <div class="mt-4">
+              <PrimaryButton
+                to={`/contact?type=business_system&insight=${activePost.slug}`}
+                data-cta-id="insight-inquiry"
+                data-cta-variant="primary"
+                data-insight-id={activePost.slug}
+                data-inquiry-type="business_system"
+                showIcon
+              >
+                Discuss Your System
+              </PrimaryButton>
+            </div>
+          </section>
+
           {(activePost.points || []).length > 0 ? (
             <section class="rounded-[24px] bg-white p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
               <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Key Takeaways</p>
@@ -162,7 +267,7 @@ const ActiveIcon = activePost ? resolveIcon(activePost.icon) : null
 
           {relatedPosts.length > 0 ? (
             <section class="rounded-[24px] bg-white p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
-              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">More From Resources</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">More insights</p>
               <div class="mt-4 grid gap-4">
                 {relatedPosts.map((item) => (
                   <a href={`/insights/${item.slug}`} class="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-brand-teal/30 hover:bg-white">

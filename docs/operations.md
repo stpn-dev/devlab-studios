@@ -37,7 +37,72 @@ Snapshot as of 2026-07-31, taken as Phase 0 of the Astro/CMS rebuild program (se
 |---|---|
 | `VITE_CONTACT_API_URL` | Overrides the contact form's submit target; defaults to `/api/contact`. |
 
-## Leads backend (Phase 5)
+## Inquiry pipeline
+
+`POST /api/inquiries` is the single public entry point for every structured
+inquiry; `POST /api/lead-magnet` and the legacy `POST /api/contact` normalize
+into the same shape and run through the same service
+(`src/worker/inquiryService.js`). The order is fixed:
+
+```
+rate limit -> Turnstile -> normalize -> idempotency -> PERSIST
+-> consent + attribution -> qualify -> background delivery
+```
+
+The visitor's success response is decided by the DATABASE WRITE, never by the
+email. Delivery runs afterwards in `waitUntil()` against every configured
+provider (internal notification, visitor confirmation, and the optional
+outbound webhook), and each attempt is recorded in `delivery_attempts` with a
+failure category. See
+[ADR 0007](architecture/decisions/0007-business-inquiry-pipeline.md).
+
+Optional outbound delivery is configured with `LEAD_WEBHOOK_URL` (and
+optionally `LEAD_WEBHOOK_SECRET`, sent as `X-DevLab-Signature`). Both unset is
+the default and the webhook provider is then completely inert — no third-party
+CRM dependency is required.
+
+Idempotency is server-computed from (inquiry type, email, message, 10-minute
+bucket) and stored under a UNIQUE index, so a double-click or a replayed
+request collapses into the original inquiry instead of sending a second
+notification.
+
+### Applying the business-first content migration
+
+Two steps, Preview first, then Production.
+
+Pass the BINDING (`DB`), not the database name, and select the environment
+with `--env preview`. The preview database lives under `env.preview` and
+nothing at the top level is inherited by an environment, so without
+`--env preview` wrangler reports "Couldn't find a D1 DB with the name or
+binding". Each command is a single line -- `\` is a POSIX shell continuation
+and is a syntax error in PowerShell.
+
+Preview first:
+
+```powershell
+# 1. Schema (additive; every existing lead row survives untouched)
+npx wrangler d1 migrations apply DB --env preview --remote
+
+# 2. Content. Run AFTER the migration -- it writes a recovery snapshot into
+#    `content_versions`.
+npx wrangler d1 execute DB --env preview --remote --file scripts/cms/updates/2026-09-17-business-first-content.sql
+```
+
+Then, once verified on the preview URL, production (no `--env`, since
+production is the top-level config):
+
+```powershell
+npx wrangler d1 migrations apply DB --remote
+npx wrangler d1 execute DB --remote --file scripts/cms/updates/2026-09-17-business-first-content.sql
+```
+
+The content script rebuilds the Home page's blocks (its composition genuinely
+changed), and patches named rows for navigation, CTAs, SEO, and the
+Solutions/Work/Insights/Contact copy. It never touches Projects, Work items,
+Articles, Certifications, Media, or any lead data. Do **not** run the full
+seed against a database that already has content.
+
+## Leads backend (original Phase 5 notes)
 
 `POST /api/contact` persists every submission to the `leads` table
 *before* attempting delivery — this is the core reliability guarantee:

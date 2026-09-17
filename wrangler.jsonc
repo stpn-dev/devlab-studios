@@ -75,12 +75,24 @@
   "env": {
     "preview": {
       "name": "devlab-studios-preview",
+      // Nothing at the top level is inherited by an environment — every var and
+      // binding preview needs must be repeated here. `wrangler` warns about the
+      // omissions, and those warnings were accurate: RESEND_FROM_EMAIL and
+      // LEAD_NOTIFICATION_EMAIL were missing, so preview silently fell back to
+      // leadDelivery.js's hardcoded defaults instead of the configured values.
       "vars": {
         "ADMIN_AUTH_MODE": "password",
         "R2_PUBLIC_BASE_URL": "https://pub-2450236b7cbf4d68aa4bc07f9b606e29.r2.dev",
         "TURNSTILE_SITE_KEY": "0x4AAAAAAEO0gy1ZeS8AbYUC",
+        "RESEND_FROM_EMAIL": "hello@devlabstudios.com",
+        "LEAD_NOTIFICATION_EMAIL": "hello@devlabstudios.com",
         "PICKLEBALL_OAUTH_REDIRECT_BASE_URL": "https://devlab-studios-preview.stpnrey-agustinez.workers.dev",
         "GOOGLE_OAUTH_CLIENT_ID": "623988421575-p6kvgpj2rhq7l59ovpg6ftbl1ha3bnib.apps.googleusercontent.com"
+      },
+      // Also not inherited. Without it, optimizeImage() has no Images binding
+      // on preview and responsive variants silently degrade there.
+      "images": {
+        "binding": "IMAGES"
       },
       "d1_databases": [
         {
@@ -105,13 +117,23 @@
       // Unlike D1/R2, a Durable Object needs no separate physical resource per
       // environment: the same class_name is correct here, and Cloudflare keeps
       // preview and production DO storage apart by Worker name.
+      //
+      // RATE_LIMITER was added at the top level (tag v2) but never mirrored
+      // here, and `checkRateLimit()` FAILS OPEN when the binding is absent —
+      // so every limiter on preview (admin login, contact, inquiry submission,
+      // lead-delivery retry) was silently enforcing nothing. That is exactly
+      // the "configured but not actually enforcing" failure the shared
+      // limiter module was written to make impossible, so preview gets the
+      // binding and the matching migration tag.
       "durable_objects": {
         "bindings": [
-          { "name": "SESSION_COORDINATOR", "class_name": "SessionCoordinatorDO" }
+          { "name": "SESSION_COORDINATOR", "class_name": "SessionCoordinatorDO" },
+          { "name": "RATE_LIMITER", "class_name": "RateLimiterDO" }
         ]
       },
       "migrations": [
-        { "tag": "v1", "new_sqlite_classes": ["SessionCoordinatorDO"] }
+        { "tag": "v1", "new_sqlite_classes": ["SessionCoordinatorDO"] },
+        { "tag": "v2", "new_sqlite_classes": ["RateLimiterDO"] }
       ]
     }
   }

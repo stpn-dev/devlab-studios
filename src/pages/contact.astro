@@ -1,41 +1,144 @@
 ---
 import Layout from '../layouts/Layout.astro'
-import ContactForm from '../components/islands/ContactForm.jsx'
+import InquiryForm from '../components/islands/InquiryForm.jsx'
 import VectorField from '../components/VectorField.astro'
+import { CheckCircle2, ShieldCheck, User } from '../components/icons/icons.js'
+import { getBreadcrumbSchema } from '../config/schema.js'
 import { loadPageSeo } from '../lib/content/seo'
 import { resolveTurnstileSiteKey } from '../lib/turnstileSiteKey'
 import { loadPage } from '../lib/content/pages'
+import { INQUIRY_TYPES, isEmploymentInquiry } from '../lib/schemas/inquiry'
 
 const seo = await loadPageSeo('contact')
 const contactPage = await loadPage('contact')
 const pageHero = contactPage?.blocks.find((block) => block.type === 'hero')?.props || {}
-const formBlock = contactPage?.blocks.find((block) => block.type === 'stats')?.props || {}
-const pageCta = contactPage?.blocks.find((block) => block.type === 'cta')?.props || {}
-const contactSubmitCta = (pageCta.primaryCta as { label?: string } | undefined) || {}
-const formItems = Array.isArray(formBlock.items) ? formBlock.items : []
-const formCopy = {
-  nameLabel: String(formItems[0]?.label || 'Full Name'), namePlaceholder: String(formItems[0]?.value || 'Your name'),
-  emailLabel: String(formItems[1]?.label || 'Email'), emailPlaceholder: String(formItems[1]?.value || 'name@email.com'),
-  subjectLabel: String(formItems[2]?.label || 'Subject'), subjectPlaceholder: String(formItems[2]?.value || 'Project inquiry, support, collaboration'),
-  messageLabel: String(formItems[3]?.label || 'Message'), messagePlaceholder: String(formItems[3]?.value || 'Share context, goals, timelines, and success criteria.'),
-  submitLabel: String(contactSubmitCta.label || 'Send Message'), helperText: String(pageCta.body || 'Responses are delivered securely by email.'),
-}
 const turnstileSiteKey = resolveTurnstileSiteKey(Astro.request.url)
+
+/**
+ * CTA context arrives as query parameters so a visitor never has to classify
+ * themselves twice: the page they came from already said what they wanted.
+ * The value is validated against the known enum — an unrecognized `type`
+ * falls back to the default rather than reaching the form.
+ */
+const requestedType = Astro.url.searchParams.get('type') || ''
+const inquiryType = (INQUIRY_TYPES as readonly string[]).includes(requestedType) ? requestedType : 'business_system'
+const solutionId = (Astro.url.searchParams.get('solution') || '').slice(0, 80)
+const caseStudyId = (Astro.url.searchParams.get('case') || '').slice(0, 80)
+const insightId = (Astro.url.searchParams.get('insight') || '').slice(0, 80)
+const isEmployment = isEmploymentInquiry(inquiryType as Parameters<typeof isEmploymentInquiry>[0])
+
+const heroHeading = isEmployment
+  ? 'Talk to Stephen about a role.'
+  : String(pageHero.heading || 'Tell us where the workflow slows down.')
+
+const heroSubheading = isEmployment
+  ? 'This goes directly to Stephen — not through the business qualification process. Share the role and what you are looking for.'
+  : String(
+      pageHero.subheading ||
+        'Describe the interface, integration, data, or automation problem. You will get a reply with the clearest next step for the whole system.',
+    )
+
+const assurances = isEmployment
+  ? [
+      'Reviewed personally by Stephen, not screened by a form.',
+      'Your details are stored securely and used only to reply.',
+      'No recruiter mailing list, no automated sequence.',
+    ]
+  : [
+      'Your inquiry is saved before anything else happens — an email outage cannot lose it.',
+      'A person reads it. Nothing is auto-replied and closed.',
+      'Your details are used only to respond to this inquiry.',
+    ]
+
+const jsonLd = [
+  getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Contact', path: '/contact' },
+  ]),
+]
 ---
 
-<Layout title="Contact — DevLab Studios" seo={seo}>
+<Layout title={isEmployment ? 'Contact Stephen — DevLab Studios' : 'Contact — DevLab Studios'} seo={seo} jsonLd={jsonLd}>
   <div class="contact-stack">
     <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
       <VectorField motif="automation" />
-      <div class="relative z-10 max-w-3xl space-y-4">
-        <p class="tech-kicker">{String(pageHero.eyebrow || 'Start a Project')}</p>
-        <h1 class="text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">{String(pageHero.heading || 'Share where the workflow slows down.')}</h1>
-        <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-          {String(pageHero.subheading || 'Share the interface, integration, data, or automation problem. DevLab Studios will respond with the clearest next step for the full system.')}
-        </p>
+      <div class="relative z-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div class="max-w-3xl space-y-4">
+          <p class="tech-kicker">{isEmployment ? 'Employment & collaboration' : String(pageHero.eyebrow || 'Start a conversation')}</p>
+          <h1 class="text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">{heroHeading}</h1>
+          <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">{heroSubheading}</p>
+        </div>
+
+        <ul class="grid gap-3">
+          {assurances.map((assurance) => (
+            <li class="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.07] p-4 text-sm text-slate-200 backdrop-blur-md">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-violet-300" aria-hidden="true" />
+              <span>{assurance}</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
 
-    <ContactForm client:load siteKey={turnstileSiteKey} copy={formCopy} />
+    <InquiryForm
+      client:load
+      siteKey={turnstileSiteKey}
+      formId={isEmployment ? 'employment-inquiry-form' : 'business-inquiry-form'}
+      defaultInquiryType={inquiryType}
+      context={{ solutionId, caseStudyId, insightId }}
+      heading={isEmployment ? 'About the role' : 'Tell us about the system you need'}
+      description={
+        isEmployment
+          ? 'The more specific the role and the stack, the more useful the reply.'
+          : 'Two short steps. The second one is what shapes the recommendation.'
+      }
+    />
+
+    {!isEmployment ? (
+      <section class="light-artifact flex flex-col gap-3 rounded-2xl bg-white/[0.94] p-6 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-start gap-3">
+          <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-mint text-brand-teal">
+            <User className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p class="font-semibold text-brand-ink">Hiring, not buying?</p>
+            <p class="mt-1 text-sm text-slate-600">
+              Recruiters and hiring managers can reach Stephen directly, without going through the business inquiry
+              questions.
+            </p>
+          </div>
+        </div>
+        <a
+          href="/contact?type=employment_opportunity"
+          class="inline-flex min-h-11 flex-shrink-0 items-center justify-center rounded-full border border-[#cdd2ea] bg-white px-5 py-2.5 text-sm font-semibold text-brand-ink transition hover:border-brand-teal/40 hover:text-brand-teal"
+          data-cta-id="contact-employment-switch"
+          data-cta-variant="secondary"
+          data-inquiry-type="employment_opportunity"
+        >
+          Contact Stephen about a role
+        </a>
+      </section>
+    ) : (
+      <section class="light-artifact flex flex-col gap-3 rounded-2xl bg-white/[0.94] p-6 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-start gap-3">
+          <span class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-mint text-brand-teal">
+            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p class="font-semibold text-brand-ink">Looking for project work instead?</p>
+            <p class="mt-1 text-sm text-slate-600">If you need a system built rather than a person hired, start here.</p>
+          </div>
+        </div>
+        <a
+          href="/contact?type=business_system"
+          class="inline-flex min-h-11 flex-shrink-0 items-center justify-center rounded-full border border-[#cdd2ea] bg-white px-5 py-2.5 text-sm font-semibold text-brand-ink transition hover:border-brand-teal/40 hover:text-brand-teal"
+          data-cta-id="contact-business-switch"
+          data-cta-variant="secondary"
+          data-inquiry-type="business_system"
+        >
+          Discuss a business system
+        </a>
+      </section>
+    )}
   </div>
 </Layout>

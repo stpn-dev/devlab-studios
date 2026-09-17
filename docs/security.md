@@ -126,6 +126,46 @@ currently rate-limits; none of them (services/resources/profile/site-settings
 reads, project reads) do anything expensive enough server-side to be worth
 it yet.
 
+## Inquiry data handling
+
+- **Validated at the boundary.** Every public submission is parsed with
+  `src/lib/schemas/inquiry.ts` server-side. The React form imports the same
+  schema, but client validation is never authoritative.
+- **Bounded requests.** Bodies are capped at 32 KB and refused with a 413
+  before parsing, so an unbounded POST never reaches Zod or D1.
+- **Attribution is an allow-list.** Only the fields named in
+  `attributionSchema` are stored, each length-capped. An unexpected key in the
+  request body is dropped rather than silently widening what gets persisted.
+- **No PII in logs.** Delivery logging records the lead id, target, attempt
+  number, status code, and failure category — never the name, email, or
+  message. Activity metadata records that a note was written and its length,
+  never its text.
+- **No PII in analytics.** `src/lib/analytics.ts` has no parameter for a name,
+  email, phone, company, or message. The only identifier sent is a random
+  first-party `anonymousId` that is not derived from anything about the
+  visitor.
+- **Consent is versioned.** `lead_consents` records the consent-text and
+  privacy-policy VERSION a visitor agreed to, append-only, so changing the
+  wording never rewrites history.
+- **Bounded outbound calls.** Every provider request has an 8s timeout and a
+  bounded in-invocation retry; the outbound webhook payload is an explicit
+  allow-list, so a column added later is never accidentally shipped to a third
+  party. Provider responses are not stored beyond a truncated error summary.
+- **Safe CSV export.** Every cell is run through
+  `src/lib/leads/csv.ts`: a value starting with `= + - @` or a control
+  character is prefixed with an apostrophe so a spreadsheet displays it instead
+  of executing it. The free-text message is deliberately excluded from the
+  export — it stays in the access-controlled admin detail panel.
+- **Authorized retry.** Retry sits behind the admin gate *and* a per-identity
+  rate limit, so an authenticated operator (or a stolen session) cannot turn
+  the button into an outbound email amplifier.
+- **No public exposure.** Lead data is never served from a public content read
+  path; every `/api/admin/*` route goes through `requireAdmin` in
+  `src/middleware.ts`, not through hidden navigation.
+- **Admin writes cannot rewrite visitor input.** `leadUpdateSchema` contains
+  only `pipelineStatus`, `assignedOwner`, and `internalNotes`; there is no
+  field through which a submitted value could be edited.
+
 ## Known gaps (tracked, not silently ignored)
 
 - CSP `'unsafe-inline'` (see above) — would need a nonce pipeline.

@@ -561,11 +561,12 @@ INSERT INTO workflow_items (
 INSERT INTO navigation_items (
   id, label, href, sort_order, status, created_at, updated_at
 ) VALUES
-  ('nav-about', 'About', '/about', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('nav-services', 'Services', '/services', 20, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('nav-home', 'Home', '/', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('nav-services', 'Solutions', '/services', 20, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('nav-work', 'Work', '/work', 30, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('nav-resources', 'Insights', '/insights', 40, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('nav-profile', 'Profile', '/profile', 50, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+  ('nav-about', 'About', '/about', 50, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('nav-profile', 'Profile', '/profile', 60, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT INTO seo_metadata (
   id, page_slug, meta_title, meta_description, meta_keywords, canonical_url, og_title, og_description, og_image, twitter_title, twitter_description, twitter_image, created_at, updated_at
@@ -573,15 +574,15 @@ INSERT INTO seo_metadata (
   (
     'seo-home',
     'home',
-    'DevLab Studios - Full-Stack Developer & AI Automation Specialist',
-    'DevLab Studios by Stephen Rey Agustinez - full-stack development, conversion-focused web experiences, APIs, data systems, and AI automation for modern businesses worldwide.',
-    'Stephen Agustinez, Stephen Rey Agustinez, Devlab Studios, software engineer, AI automation specialist, backend developer, workflow automation, Spring Boot, Laravel, React developer, Next.js developer, API integrations, business automation',
+    'DevLab Studios - Software & Automation Systems for Businesses',
+    'DevLab Studios builds reliable software and automation systems for businesses: conversion websites, lead intake and follow-up, CRM workflows, backend services, APIs, and AI automation.',
+    'business automation systems, lead intake automation, workflow automation, CRM integration, custom business software, AI automation for business, backend integration, internal tools, DevLab Studios',
     'https://www.devlabstudios.com/',
-    'DevLab Studios - Full-Stack Development & AI Automation',
-    'DevLab Studios connects web interfaces, backend services, structured data, and AI automation into complete business systems.',
+    'DevLab Studios - Software & Automation Systems for Businesses',
+    'Conversion websites, backend services, structured data, CRM workflows, and AI automation connected into maintainable business systems.',
     'https://www.devlabstudios.com/og.png',
-    'DevLab Studios - Full-Stack Development & AI Automation',
-    'Devlab Studios - software engineering, websites, backend integrations, and workflow automation for modern businesses.',
+    'DevLab Studios - Software & Automation Systems for Businesses',
+    'Lead intake and follow-up, workflow and AI automation, and custom operations software built to stay maintainable.',
     'https://www.devlabstudios.com/og.png',
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -685,7 +686,7 @@ INSERT INTO site_settings (key, value_json, updated_at) VALUES
   ),
   (
     'site_ctas',
-    '{"navbarContactLabel":"Start a Project","mobileContactLabel":"Start a Project"}',
+    '{"navbarContactLabel":"Discuss Your System","mobileContactLabel":"Discuss Your System"}',
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   ),
   (

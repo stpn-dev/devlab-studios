@@ -1,16 +1,17 @@
 import { test, expect } from '@playwright/test'
 
 const pages = [
-  { path: '/', heading: 'Your Vision, Digitally Crafted' },
+  { path: '/', heading: 'Build the systems your business needs' },
   { path: '/about', heading: 'Systems for clearer offers' },
-  { path: '/services', heading: 'Full-stack products and AI automation' },
-  { path: '/profile', heading: 'Full-stack development with an automation mindset' },
+  { path: '/services', heading: 'Four ways a business system gets built here' },
+  { path: '/profile', heading: 'Stephen Rey Agustinez' },
   { path: '/insights', heading: 'Guides, AI updates, and operational notes' },
   { path: '/process', heading: 'A four-phase delivery model' },
   { path: '/privacy', heading: 'Privacy Policy' },
   { path: '/terms', heading: 'Terms of Service' },
-  { path: '/work', heading: 'Automation systems with the decisions' },
+  { path: '/work', heading: 'Business systems, with the decisions' },
   { path: '/contact', heading: 'Tell us where the workflow slows down' },
+  { path: '/offers/lead-intake-checklist', heading: 'Lead Intake and Follow-up Systems Checklist' },
   { path: '/landing-sample-react', heading: 'A Different Look' },
   { path: '/landing-sample-html', heading: 'Editorial Minimal Landing Page' },
   { path: '/landing-sample-fullstack', heading: 'Operations Dashboard Website' },
@@ -66,29 +67,170 @@ test('footer has real links to Privacy and Terms', async ({ page }) => {
   await expect(footer).not.toContainText(/(?:version history|smoke test) tagline/i)
 })
 
-test('primary navigation keeps About and Work visible without promoting Process', async ({ page }) => {
+test('primary navigation is business-first and does not promote Process', async ({ page }) => {
   await page.goto('/')
   const navigation = page.getByRole('banner').getByRole('navigation')
-  await expect(navigation.getByRole('link')).toHaveText(['About', 'Services', 'Work', 'Insights', 'Profile'])
+  await expect(navigation.getByRole('link')).toHaveText(['Home', 'Solutions', 'Work', 'Insights', 'About', 'Profile'])
   await expect(navigation.getByRole('link', { name: 'Process' })).toHaveCount(0)
 })
 
-test('homepage preserves the canonical brand hierarchy and routes visitors to Work', async ({ page }) => {
+test('the Profile nav item is labelled Profile, never "Hire Me"', async ({ page }) => {
+  await page.goto('/')
+  const navigation = page.getByRole('banner').getByRole('navigation')
+  await expect(navigation.getByRole('link', { name: 'Profile' })).toHaveAttribute('href', '/profile')
+  await expect(navigation.getByRole('link', { name: /hire/i })).toHaveCount(0)
+})
+
+test('the header CTA is a single business call to action', async ({ page }) => {
+  await page.goto('/')
+  const headerCta = page.getByRole('banner').getByRole('link', { name: 'Discuss Your System' }).first()
+  await expect(headerCta).toHaveAttribute('href', '/contact?type=business_system')
+})
+
+test('the homepage does not ask visitors to classify themselves', async ({ page }) => {
+  await page.goto('/')
+  const main = page.getByRole('main')
+  // No audience-selection screen, modal, or section.
+  await expect(main.getByText(/I'?m looking to/i)).toHaveCount(0)
+  await expect(main.getByText(/I need a business system/i)).toHaveCount(0)
+  await expect(main.getByText(/I'?m hiring technical talent/i)).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+test('the homepage hero leads with business outcomes, not an employment pitch', async ({ page }) => {
+  await page.goto('/')
+  const hero = page.locator('.home-landing')
+  await expect(hero.getByRole('link', { name: 'Discuss Your System' })).toBeVisible()
+  await expect(hero.getByRole('link', { name: 'View Our Work' })).toBeVisible()
+  await expect(hero).not.toContainText(/available for (?:full-time|part-time) employment/i)
+  await expect(hero.getByRole('link', { name: /resume|résumé/i })).toHaveCount(0)
+})
+
+test('the homepage follows the business conversion order', async ({ page }) => {
+  await page.goto('/')
+  const positions = await page.evaluate(() => {
+    const idsInOrder = ['home-problems', 'home-solutions', 'home-approach', 'home-principles', 'home-faq', 'home-cta']
+    return idsInOrder.map((id) => {
+      const element = document.getElementById(id)
+      return element ? element.getBoundingClientRect().top + window.scrollY : -1
+    })
+  })
+  expect(positions.every((value) => value > 0)).toBe(true)
+  const sorted = [...positions].sort((left, right) => left - right)
+  expect(positions).toEqual(sorted)
+})
+
+test('the Profile page is a first-class technical page with its own CTAs', async ({ page }) => {
+  await page.goto('/profile')
+  await expect(page.getByRole('heading', { level: 1, name: 'Stephen Rey Agustinez' })).toBeVisible()
+  await expect(page.getByText('Founder, Full-Stack Developer, and AI Automation Architect')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View Selected Work' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Download Résumé/ })).toHaveAttribute('href', '/resume.pdf')
+  await expect(page.getByRole('link', { name: 'Contact Stephen', exact: true })).toHaveAttribute(
+    'href',
+    '/contact?type=employment_opportunity',
+  )
+  await expect(page.locator('#experience')).toBeVisible()
+  await expect(page.locator('#certifications')).toBeVisible()
+  await expect(page.locator('#portfolio')).toBeVisible()
+  await expect(page.locator('#availability')).toBeVisible()
+})
+
+test('employers reach an employment form, not the business qualification form', async ({ page }) => {
+  await page.goto('/contact?type=employment_opportunity')
+  await expect(page.getByRole('heading', { level: 1, name: /Talk to Stephen about a role/i })).toBeVisible()
+  // Business qualification questions must not appear on this path.
+  await expect(page.getByLabel(/budget range/i)).toHaveCount(0)
+  await expect(page.getByLabel(/what result are you aiming for/i)).toHaveCount(0)
+})
+
+test('every internal link on the primary pages resolves', async ({ page, request }) => {
+  // Link rot on these pages is a real failure mode: several CTAs were rewritten
+  // to carry `?type=` context, and the lead magnet points at an Insights
+  // article that must actually be published for the offer to make sense.
+  const seen = new Set()
+
+  for (const path of ['/', '/services', '/work', '/insights', '/about', '/profile', '/contact', '/offers/lead-intake-checklist']) {
+    await page.goto(path)
+    const hrefs = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('a[href]'))
+        .map((anchor) => anchor.getAttribute('href'))
+        .filter((href) => href && href.startsWith('/')),
+    )
+    for (const href of hrefs) seen.add(href.split('#')[0])
+  }
+
+  for (const href of seen) {
+    if (!href) continue
+    const response = await request.get(href)
+    expect(response.status(), `${href} should resolve`).toBeLessThan(400)
+  }
+})
+
+test('the lead magnet points at a published, readable article', async ({ page }) => {
+  await page.goto('/offers/lead-intake-checklist')
+  const readLink = page.getByRole('link', { name: 'published on the site' })
+  const href = await readLink.getAttribute('href')
+  expect(href).toBeTruthy()
+
+  const response = await page.goto(href)
+  expect(response.status()).toBe(200)
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+})
+
+test('the sitemap lists canonical routes and no redirect sources', async ({ request }) => {
+  const response = await request.get('/sitemap.xml')
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-type']).toContain('xml')
+
+  const body = await response.text()
+  for (const path of ['/', '/services', '/work', '/insights', '/about', '/profile', '/contact']) {
+    expect(body, path).toContain(`<loc>https://www.devlabstudios.com${path}</loc>`)
+  }
+  // /resources/* is a permanent redirect into /insights — listing it would
+  // spend crawl budget re-confirming 301s.
+  expect(body).not.toContain('devlabstudios.com/resources')
+  expect(body).not.toContain('/admin')
+  expect(body).not.toContain('landing-sample')
+})
+
+test('homepage presents DevLab Studios as a business and routes visitors to Work', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Your Vision, Digitally Crafted — one solution at a time, always evolving.' })).toBeVisible()
-  await expect(page.getByText('Full-stack Development + AI Automation', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Full-stack Development + AI Automation, connected from interface to handoff.' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'View Work' })).toHaveAttribute('href', '/work')
-  await expect(page.getByText('Systems Integration', { exact: true })).toBeVisible()
-  await expect(page.locator('.process-timeline')).toHaveClass(/via-brand-teal\/90/)
-  await expect(page.locator('.process-timeline__connector').first()).toHaveClass(/from-violet-300\/80/)
-  await expect(page.locator('.process-timeline__connector').first()).toHaveCSS('z-index', '0')
-  await expect(page.locator('.process-timeline__node').first()).toHaveCSS('z-index', '10')
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: 'Build the systems your business needs to capture opportunities and operate reliably.',
+    }),
+  ).toBeVisible()
+  await expect(page.getByText('Software and automation studio', { exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View Our Work' })).toHaveAttribute('href', '/work')
   const heroBox = await page.locator('.home-landing').boundingBox()
-  expect(heroBox.height).toBeGreaterThanOrEqual(760)
   expect(Math.abs(heroBox.x)).toBeLessThanOrEqual(1)
   expect(Math.abs(heroBox.width - 1440)).toBeLessThanOrEqual(1)
+})
+
+test('homepage names the operational problems it solves', async ({ page }) => {
+  await page.goto('/')
+  const problems = page.locator('#home-problems')
+  await expect(problems).toBeAttached()
+  await expect(page.getByRole('heading', { name: 'Leads wait too long for a reply' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Follow-up depends on someone remembering' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Automations fail without telling anyone' })).toBeVisible()
+})
+
+test('homepage presents the four solution categories with links into Solutions', async ({ page }) => {
+  await page.goto('/')
+  for (const [title, id] of [
+    ['Lead Intake and Follow-up Systems', 'lead-intake-followup'],
+    ['Workflow and AI Automation', 'workflow-ai-automation'],
+    ['Custom Software and Operations Systems', 'custom-software-operations'],
+    ['Workflow Systems Audit', 'workflow-systems-audit'],
+  ]) {
+    const card = page.locator(`[data-solution-id="${id}"]`).first()
+    await expect(card).toContainText(title)
+    await expect(card.getByRole('link', { name: 'What this includes' })).toHaveAttribute('href', `/services#${id}`)
+  }
 })
 
 test('public pages use one document backdrop and an integrated sticky navbar', async ({ page }) => {
@@ -130,14 +272,25 @@ test('core public compositions avoid horizontal overflow at target breakpoints',
   }
 })
 
-test('Work publishes selected automation project write-ups', async ({ page }) => {
+test('Work publishes selected systems as business proof', async ({ page }) => {
   await page.goto('/work')
-  await expect(page.getByRole('heading', { name: 'Selected automation projects' })).toBeVisible()
-  await expect(page.getByText('Challenge', { exact: true })).toHaveCount(3)
-  await expect(page.getByText('System architecture', { exact: true })).toHaveCount(3)
-  await expect(page.getByText('Delivery value', { exact: true })).toHaveCount(3)
+  await expect(page.getByRole('heading', { name: 'Selected systems' })).toBeVisible()
+  await expect(page.getByText('The business problem', { exact: true })).toHaveCount(3)
+  await expect(page.getByText('The system designed', { exact: true })).toHaveCount(3)
+  await expect(page.getByText('What it does in operation', { exact: true })).toHaveCount(3)
   await expect(page.getByRole('button', { name: /^Enlarge .* image 1$/ })).toHaveCount(3)
   await expect(page.getByText('View full image', { exact: true })).toHaveCount(3)
+})
+
+test('Work states its evidence standard instead of showing invented metrics', async ({ page }) => {
+  await page.goto('/work')
+  await expect(page.getByText(/Client names, revenue figures, and percentage improvements/i)).toBeVisible()
+})
+
+test('each Work entry offers a business next step carrying its own context', async ({ page }) => {
+  await page.goto('/work')
+  const cta = page.getByRole('link', { name: 'Discuss something like this' }).first()
+  await expect(cta).toHaveAttribute('href', /\/contact\?type=business_system&case=/)
 })
 
 test('resume is available from Profile only and opens inline', async ({ page, request }) => {
@@ -226,7 +379,20 @@ test('the contact form CSP allows Turnstile to actually load', async ({ page }) 
     }
   })
 
+  // Turnstile now mounts on step 2 of the inquiry form, beside the submit
+  // button, so the widget's script only loads once the visitor gets there.
   await page.goto('/contact')
-  await page.waitForFunction(() => Boolean(window.turnstile), { timeout: 10_000 })
+  await expect(page.getByLabel(/full name/i)).toBeEnabled({ timeout: 20_000 })
+  await page.getByLabel(/full name/i).fill('CSP Check')
+  await page.getByLabel(/work email/i).fill('csp@example.com')
+  await page.getByLabel(/company or organization/i).fill('CSP Co')
+  await page.getByLabel(/what needs improvement/i).fill('Checking that the verification widget is allowed to load.')
+
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Continue' }).click()
+    await expect(page.getByRole('heading', { name: 'A little more context' })).toBeVisible({ timeout: 1_500 })
+  }).toPass({ timeout: 20_000 })
+
+  await page.waitForFunction(() => Boolean(window.turnstile), { timeout: 15_000 })
   expect(cspViolations).toEqual([])
 })

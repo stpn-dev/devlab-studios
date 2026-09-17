@@ -50,7 +50,7 @@ const NAV_GROUPS = [
   },
   {
     heading: 'Operations',
-    items: [{ label: 'Leads', to: '/admin/leads', icon: Mail }],
+    items: [{ label: 'Inquiries', to: '/admin/leads', icon: Mail }],
   },
 ]
 

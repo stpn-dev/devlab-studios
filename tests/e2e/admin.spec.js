@@ -3,12 +3,35 @@ import { test, expect } from '@playwright/test'
 const ADMIN_EMAIL = 'smoke-test@devlabstudios.com'
 const ADMIN_PASSWORD = 'smoke-test-password-123'
 
+const SESSION_COOKIE = 'devlab_admin_session'
+
+/**
+ * One real sign-in per Playwright worker, reused by every test in it.
+ *
+ * `/api/admin/login` is rate limited per IP (20 attempts / 15 min) — a
+ * deliberate control that should NOT be weakened for tests. Signing in once
+ * per worker keeps the suite well under it; re-authenticating per test used
+ * to trip the limiter part-way through a full run and fail every subsequent
+ * test with a misleading "element not found".
+ */
+let cachedSessionCookie = null
+
 async function login(page) {
+  if (cachedSessionCookie) {
+    await page.context().addCookies([cachedSessionCookie])
+    await page.goto('/admin')
+    await expect(page.getByRole('button', { name: /log ?out/i })).toBeVisible({ timeout: 10_000 })
+    return
+  }
+
   await page.goto('/admin')
   await page.getByLabel('Email').fill(ADMIN_EMAIL)
-  await page.getByLabel('Password').fill(ADMIN_PASSWORD)
+  await page.getByLabel('Password', { exact: true }).fill(ADMIN_PASSWORD)
   await page.getByRole('button', { name: /sign in/i }).click()
   await expect(page.getByRole('button', { name: /log ?out/i })).toBeVisible({ timeout: 10_000 })
+
+  const cookies = await page.context().cookies()
+  cachedSessionCookie = cookies.find((cookie) => cookie.name === SESSION_COOKIE) || null
 }
 
 // Creates a project directly via the API (bypassing the bespoke editor UI)
@@ -41,15 +64,40 @@ test('health endpoint reports DB and media bucket bindings', async ({ request, b
 test('rejects an invalid login', async ({ page }) => {
   await page.goto('/admin')
   await page.getByLabel('Email').fill(ADMIN_EMAIL)
-  await page.getByLabel('Password').fill('wrong-password')
+  await page.getByLabel('Password', { exact: true }).fill('wrong-password')
   await page.getByRole('button', { name: /sign in/i }).click()
   await expect(page.getByText(/invalid email or password/i)).toBeVisible()
+})
+
+test('the sign-in password can be revealed and re-hidden', async ({ page }) => {
+  await page.goto('/admin')
+  const field = page.getByLabel('Password', { exact: true })
+  await field.fill('a-password-to-check')
+
+  // Masked by default.
+  await expect(field).toHaveAttribute('type', 'password')
+
+  const toggle = page.getByRole('button', { name: 'Show password' })
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await toggle.click()
+
+  // Same input, now revealed — so the typed value survives the toggle.
+  await expect(field).toHaveAttribute('type', 'text')
+  await expect(field).toHaveValue('a-password-to-check')
+
+  const hideToggle = page.getByRole('button', { name: 'Hide password' })
+  await expect(hideToggle).toHaveAttribute('aria-pressed', 'true')
+  await hideToggle.click()
+  await expect(field).toHaveAttribute('type', 'password')
+  await expect(field).toHaveValue('a-password-to-check')
 })
 
 test('admin navigation mirrors public pages and hides unused collections', async ({ page }) => {
   await login(page)
   const navigation = page.getByRole('navigation')
-  for (const label of ['Home', 'About', 'Services', 'Work', 'Insights', 'Profile']) {
+  // Labels mirror src/config/publicSurfaces.js, which is also what the public
+  // navigation reads — "Solutions" is the label for the unchanged /services route.
+  for (const label of ['Home', 'About', 'Solutions', 'Work', 'Insights', 'Founder Profile']) {
     await expect(navigation.getByRole('link', { name: label, exact: true })).toBeVisible()
   }
   await expect(navigation.getByRole('link', { name: 'Testimonials' })).toHaveCount(0)
@@ -334,10 +382,14 @@ test('a lead persists in D1 and shows a failed delivery attempt when Resend is u
   // here would be (correctly) treated as a resubmission of the same inquiry
   // and skip a fresh delivery attempt entirely.
   const marker = `Smoke test lead ${Date.now()}`
+  const senderEmail = `smoke-test-lead-${Date.now()}@example.com`
   const response = await page.request.post(`${baseURL}/api/contact`, {
-    data: { name: 'Smoke Test', email: 'smoke-test-lead@example.com', subject: marker, message: `Verifying lead persistence. ${marker}` },
+    // Its own client address: /api/contact shares the per-IP submission limit
+    // with every other test that posts here. See submitInquiry's note.
+    headers: { 'cf-connecting-ip': '203.0.113.251' },
+    data: { name: 'Smoke Test', email: senderEmail, subject: marker, message: `Verifying lead persistence. ${marker}` },
   })
-  expect(response.ok()).toBeTruthy()
+  expect(response.ok(), await response.text()).toBeTruthy()
 
   await login(page)
 
@@ -351,10 +403,19 @@ test('a lead persists in D1 and shows a failed delivery attempt when Resend is u
     expect(lead.status).toBe('failed')
   }).toPass({ timeout: 10_000 })
 
-  await page.getByRole('navigation').getByRole('link', { name: 'Leads' }).click()
-  await page.getByText(marker).click()
-  await expect(page.getByText(/attempt 1/i)).toBeVisible()
+  // The Inquiries table lists sender/type/status rather than the subject line,
+  // so the lead is found by searching for its sender and opened from its row.
+  await page.getByRole('navigation').getByRole('link', { name: 'Inquiries' }).click()
+  await page.getByLabel('Search inquiries').fill(senderEmail)
+  await expect(page.getByText(senderEmail)).toBeVisible()
+  await page.getByRole('row').filter({ hasText: senderEmail }).getByRole('button').first().click()
+
+  // Two targets are attempted per inquiry (internal notification and visitor
+  // confirmation), so each attempt number legitimately appears more than once.
+  await expect(page.getByText(/attempt 1 — resend$/i)).toBeVisible()
   await expect(page.getByText('failure').first()).toBeVisible()
+  // The failure must be classified, or the Retry button is a coin flip.
+  await expect(page.getByText(/Category:/i).first()).toBeVisible()
 })
 
 test('the leads list returns more than one lead when the admin UI omits limit', async ({ page, baseURL }) => {
@@ -586,4 +647,400 @@ test('Media Library toggles between Medium icons and Details views', async ({ pa
   await expect(page.locator('table')).toHaveCount(0)
 
   await page.request.delete(`${baseURL}/api/admin/media?key=${encodeURIComponent(uploadedKey)}`, { headers: { Origin: baseURL } })
+})
+
+/**
+ * Structured inquiry pipeline coverage.
+ *
+ * `.dev.vars` points RESEND_API_KEY at a deliberately-invalid key, so Resend
+ * answers 401 and delivery is guaranteed to fail — which is precisely what
+ * makes these tests prove the guarantee that matters: the inquiry survives a
+ * downstream outage and stays visible and retryable to an administrator.
+ */
+/**
+ * Each submission comes from its own client address.
+ *
+ * `/api/inquiries` is rate limited to 5 submissions per 10 minutes per IP —
+ * a real control that must NOT be relaxed for tests. Without a distinct
+ * address per test the sixth test in a run gets a 429 and fails for a reason
+ * that has nothing to do with what it asserts. The limiter itself is covered
+ * deliberately by its own test below.
+ *
+ * `cf-connecting-ip` is safe to set here: Cloudflare overwrites it at the
+ * edge in production, so a client can never spoof it there; locally it is
+ * simply absent unless a test provides one.
+ */
+let clientIpCounter = 0
+
+async function submitInquiry(page, baseURL, overrides = {}) {
+  clientIpCounter += 1
+  // The worker index is part of the address because this counter is
+  // module-scope: Playwright runs each worker in its own process, so without
+  // it every worker would start at .1 and collide on the same counter.
+  const worker = test.info().workerIndex
+  const clientIp = `10.${worker % 250}.${(clientIpCounter >> 8) % 250}.${clientIpCounter % 250}`
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const payload = {
+    inquiryType: 'business_system',
+    fullName: 'Inquiry Smoke Test',
+    email: `inquiry-${stamp}@example.com`,
+    company: 'Smoke Test Co',
+    website: 'smoketest.co',
+    message: `Our inquiries sit in a shared inbox and nobody owns the follow-up. Marker ${stamp}`,
+    desiredOutcome: 'Every inquiry gets an owner and a same-day reply.',
+    currentWorkflow: 'A shared inbox and a spreadsheet.',
+    currentTools: 'Gmail, Google Sheets',
+    teamSize: '2_10',
+    timeline: 'within_month',
+    budgetRange: '2k_5k',
+    preferredContact: 'email',
+    attribution: {
+      entryPage: '/',
+      sourcePage: '/contact',
+      formId: 'business-inquiry-form',
+      utmSource: 'e2e',
+      utmMedium: 'test',
+      utmCampaign: `campaign-${stamp}`,
+      solutionId: 'lead-intake-followup',
+      anonymousId: `anon-${stamp}`,
+    },
+    consent: { granted: true, consentTextVersion: '2026-09-17', privacyPolicyVersion: '2026-09-17' },
+    ...overrides,
+  }
+
+  const response = await page.request.post(`${baseURL}/api/inquiries`, {
+    data: payload,
+    headers: { 'cf-connecting-ip': clientIp },
+  })
+  return { response, payload, stamp }
+}
+
+test('a structured business inquiry is persisted with qualification, attribution, and consent', async ({ page, baseURL }) => {
+  const { response, payload } = await submitInquiry(page, baseURL)
+  expect(response.ok()).toBeTruthy()
+
+  const body = await response.json()
+  expect(body.persisted).toBe(true)
+  expect(body.id).toBeTruthy()
+
+  await login(page)
+
+  const detailResponse = await page.request.get(`${baseURL}/api/admin/leads/${body.id}`)
+  expect(detailResponse.ok()).toBeTruthy()
+  const detail = await detailResponse.json()
+
+  expect(detail.inquiryType).toBe('business_system')
+  expect(detail.email).toBe(payload.email.toLowerCase())
+  expect(detail.company).toBe('Smoke Test Co')
+  // The bare domain is normalized server-side.
+  expect(detail.website).toBe('https://smoketest.co')
+  expect(detail.pipelineStatus).toBe('new')
+  expect(['priority', 'standard', 'nurture', 'review']).toContain(detail.qualification)
+  expect(detail.qualificationReasons.length).toBeGreaterThan(0)
+
+  expect(detail.attribution).toBeTruthy()
+  expect(detail.attribution.utmSource).toBe('e2e')
+  expect(detail.attribution.formId).toBe('business-inquiry-form')
+  expect(detail.attribution.solutionId).toBe('lead-intake-followup')
+
+  expect(detail.consents.length).toBeGreaterThan(0)
+  expect(detail.consents[0].granted).toBe(true)
+  expect(detail.consents[0].privacyPolicyVersion).toBe('2026-09-17')
+
+  expect(detail.activities.some((activity) => activity.activityType === 'received')).toBe(true)
+  expect(detail.activities.some((activity) => activity.activityType === 'qualified')).toBe(true)
+})
+
+test('an inquiry survives a failed delivery and stays retryable', async ({ page, baseURL }) => {
+  const { response } = await submitInquiry(page, baseURL)
+  expect(response.ok(), await response.text()).toBeTruthy()
+  const { id } = await response.json()
+
+  await login(page)
+
+  await expect(async () => {
+    const detailResponse = await page.request.get(`${baseURL}/api/admin/leads/${id}`)
+    const detail = await detailResponse.json()
+    expect(detail.status).toBe('failed')
+    expect(detail.attempts.length).toBeGreaterThan(0)
+    // An invalid API key is a configuration problem, not a transient one.
+    expect(detail.attempts[0].errorCategory).toBe('configuration')
+  }).toPass({ timeout: 15_000 })
+
+  const retryResponse = await page.request.post(`${baseURL}/api/admin/leads/${id}/retry`, { data: {} })
+  expect(retryResponse.ok()).toBeTruthy()
+  const retried = await retryResponse.json()
+  expect(retried.attempts.length).toBeGreaterThan(1)
+  expect(retried.activities.some((activity) => activity.activityType === 'delivery_retry')).toBe(true)
+})
+
+test('an employment inquiry is stored separately and is never business-qualified', async ({ page, baseURL }) => {
+  const { response } = await submitInquiry(page, baseURL, {
+    inquiryType: 'employment_opportunity',
+    roleTitle: 'Backend Engineer',
+    employmentType: 'full_time',
+    workArrangement: 'remote',
+    timeline: '',
+    budgetRange: '',
+    desiredOutcome: '',
+    attribution: { formId: 'employment-inquiry-form' },
+  })
+  expect(response.ok()).toBeTruthy()
+  const { id } = await response.json()
+
+  await login(page)
+
+  const detail = await (await page.request.get(`${baseURL}/api/admin/leads/${id}`)).json()
+  expect(detail.inquiryType).toBe('employment_opportunity')
+  expect(detail.roleTitle).toBe('Backend Engineer')
+  expect(detail.employmentType).toBe('full_time')
+  expect(detail.qualification).toBe('unscored')
+  expect(detail.qualificationScore).toBe(0)
+})
+
+test('an identical resubmission is collapsed instead of creating a second inquiry', async ({ page, baseURL }) => {
+  const { response, payload } = await submitInquiry(page, baseURL)
+  expect(response.ok(), await response.text()).toBeTruthy()
+  const first = await response.json()
+
+  const repeat = await page.request.post(`${baseURL}/api/inquiries`, {
+    data: payload,
+    headers: { 'cf-connecting-ip': '203.0.113.240' },
+  })
+  expect(repeat.ok()).toBeTruthy()
+  const second = await repeat.json()
+
+  expect(second.id).toBe(first.id)
+  expect(second.duplicate).toBe(true)
+  expect(second.persisted).toBe(true)
+})
+
+test('the inquiry endpoint rejects an invalid payload with field-level errors', async ({ page, baseURL }) => {
+  const response = await page.request.post(`${baseURL}/api/inquiries`, {
+    data: {
+      inquiryType: 'business_system',
+      fullName: '',
+      email: 'not-an-email',
+      message: '',
+      consent: { granted: false },
+    },
+  })
+
+  expect(response.status()).toBe(400)
+  const body = await response.json()
+  expect(body.code).toBe('validation_failed')
+  expect(Object.keys(body.fields).length).toBeGreaterThan(0)
+  expect(body.fields.email).toBeTruthy()
+})
+
+test('the inquiry endpoint refuses an oversized payload before parsing it', async ({ page, baseURL }) => {
+  const response = await page.request.post(`${baseURL}/api/inquiries`, {
+    data: {
+      inquiryType: 'general',
+      fullName: 'Too Big',
+      email: 'toobig@example.com',
+      message: 'x'.repeat(200_000),
+      consent: { granted: true },
+    },
+  })
+  expect(response.status()).toBe(413)
+})
+
+test('the lead-magnet endpoint rejects an unknown offer', async ({ page, baseURL }) => {
+  const response = await page.request.post(`${baseURL}/api/lead-magnet`, {
+    data: {
+      fullName: 'Jo Lim',
+      email: `magnet-${Date.now()}@example.com`,
+      offerId: 'not-a-real-offer',
+      consent: { granted: true, consentTextVersion: '2026-09-17', privacyPolicyVersion: '2026-09-17' },
+    },
+  })
+  expect(response.status()).toBe(404)
+})
+
+test('a lead-magnet signup is persisted against the requested offer', async ({ page, baseURL }) => {
+  const email = `magnet-${Date.now()}@example.com`
+  const response = await page.request.post(`${baseURL}/api/lead-magnet`, {
+    data: {
+      fullName: 'Jo Lim',
+      email,
+      offerId: 'lead-intake-checklist',
+      attribution: { formId: 'lead-magnet-form', entryPage: '/insights' },
+      consent: { granted: true, consentTextVersion: '2026-09-17', privacyPolicyVersion: '2026-09-17' },
+    },
+  })
+  expect(response.ok()).toBeTruthy()
+  const { id } = await response.json()
+
+  await login(page)
+  const detail = await (await page.request.get(`${baseURL}/api/admin/leads/${id}`)).json()
+  expect(detail.source).toBe('lead-magnet')
+  expect(detail.solutionInterest).toBe('lead-intake-checklist')
+  expect(detail.attribution.offerId).toBe('lead-intake-checklist')
+})
+
+test('admin lead routes reject an unauthenticated caller', async ({ request, baseURL }) => {
+  for (const path of ['/api/admin/leads', '/api/admin/leads/export']) {
+    const response = await request.get(`${baseURL}${path}`)
+    expect(response.status(), path).toBe(401)
+  }
+
+  const patch = await request.fetch(`${baseURL}/api/admin/leads/anything`, {
+    method: 'PATCH',
+    data: { pipelineStatus: 'won' },
+  })
+  expect(patch.status()).toBe(401)
+})
+
+test('an admin can filter inquiries by type and qualification', async ({ page, baseURL }) => {
+  const { response } = await submitInquiry(page, baseURL)
+  expect(response.ok(), await response.text()).toBeTruthy()
+  const { id } = await response.json()
+
+  await login(page)
+  const detail = await (await page.request.get(`${baseURL}/api/admin/leads/${id}`)).json()
+
+  const byType = await (await page.request.get(`${baseURL}/api/admin/leads?inquiryType=business_system`)).json()
+  expect(byType.some((lead) => lead.id === id)).toBe(true)
+
+  const byQualification = await (
+    await page.request.get(`${baseURL}/api/admin/leads?qualification=${detail.qualification}`)
+  ).json()
+  expect(byQualification.some((lead) => lead.id === id)).toBe(true)
+
+  const wrongType = await (await page.request.get(`${baseURL}/api/admin/leads?inquiryType=partnership`)).json()
+  expect(wrongType.some((lead) => lead.id === id)).toBe(false)
+})
+
+test('an admin can change pipeline status, assign an owner, and archive', async ({ page, baseURL }) => {
+  const { response } = await submitInquiry(page, baseURL)
+  expect(response.ok(), await response.text()).toBeTruthy()
+  const { id } = await response.json()
+
+  await login(page)
+
+  const updated = await (
+    await page.request.fetch(`${baseURL}/api/admin/leads/${id}`, {
+      method: 'PATCH',
+      data: { pipelineStatus: 'in_review', assignedOwner: 'owner@devlabstudios.com', internalNotes: 'Called back.' },
+    })
+  ).json()
+
+  expect(updated.pipelineStatus).toBe('in_review')
+  expect(updated.assignedOwner).toBe('owner@devlabstudios.com')
+  expect(updated.internalNotes).toBe('Called back.')
+  expect(updated.activities.some((activity) => activity.activityType === 'status_change')).toBe(true)
+  // The note's text must never be copied into the activity metadata.
+  const noteActivity = updated.activities.find((activity) => activity.activityType === 'note')
+  expect(JSON.stringify(noteActivity?.metadata || {})).not.toContain('Called back')
+
+  const archived = await (
+    await page.request.fetch(`${baseURL}/api/admin/leads/${id}`, {
+      method: 'PATCH',
+      data: { pipelineStatus: 'archived' },
+    })
+  ).json()
+  expect(archived.archivedAt).toBeTruthy()
+
+  // Archived inquiries leave the working inbox unless explicitly requested.
+  const defaultList = await (await page.request.get(`${baseURL}/api/admin/leads`)).json()
+  expect(defaultList.some((lead) => lead.id === id)).toBe(false)
+
+  const withArchived = await (await page.request.get(`${baseURL}/api/admin/leads?includeArchived=true`)).json()
+  expect(withArchived.some((lead) => lead.id === id)).toBe(true)
+})
+
+test('an admin PATCH cannot rewrite what the visitor actually submitted', async ({ page, baseURL }) => {
+  const { response, payload } = await submitInquiry(page, baseURL)
+  expect(response.ok(), await response.text()).toBeTruthy()
+  const { id } = await response.json()
+
+  await login(page)
+  await page.request.fetch(`${baseURL}/api/admin/leads/${id}`, {
+    method: 'PATCH',
+    data: { pipelineStatus: 'qualified', email: 'attacker@example.com', message: 'rewritten', qualification: 'priority' },
+  })
+
+  const detail = await (await page.request.get(`${baseURL}/api/admin/leads/${id}`)).json()
+  expect(detail.email).toBe(payload.email.toLowerCase())
+  expect(detail.message).toBe(payload.message)
+  expect(detail.pipelineStatus).toBe('qualified')
+})
+
+test('the CSV export is authorized, complete, and safe to open in a spreadsheet', async ({ page, baseURL }) => {
+  const stamp = Date.now()
+  const { response } = await submitInquiry(page, baseURL, {
+    // A company name that a spreadsheet would otherwise evaluate as a formula.
+    company: `=HYPERLINK("http://evil.example","click") ${stamp}`,
+  })
+  expect(response.ok()).toBeTruthy()
+
+  await login(page)
+
+  const exportResponse = await page.request.get(`${baseURL}/api/admin/leads/export`)
+  expect(exportResponse.ok()).toBeTruthy()
+  expect(exportResponse.headers()['content-type']).toContain('text/csv')
+  expect(exportResponse.headers()['content-disposition']).toContain('attachment')
+
+  const csv = await exportResponse.text()
+  expect(csv.split('\r\n')[0]).toContain('Inquiry type')
+  // The dangerous cell is neutralized with a leading apostrophe.
+  expect(csv).toContain(`'=HYPERLINK`)
+  expect(csv).not.toMatch(/(^|,)"?=HYPERLINK/m)
+  // The free-text message is deliberately excluded from the export.
+  expect(csv).not.toContain('nobody owns the follow-up')
+})
+
+test('the Inquiries screen shows qualification reasons, attribution, and consent', async ({ page, baseURL }) => {
+  const { response } = await submitInquiry(page, baseURL)
+  expect(response.ok(), await response.text()).toBeTruthy()
+  const { id } = await response.json()
+
+  await login(page)
+  await page.goto(`/admin/leads`)
+
+  await expect(async () => {
+    const detailResponse = await page.request.get(`${baseURL}/api/admin/leads/${id}`)
+    expect((await detailResponse.json()).attempts.length).toBeGreaterThan(0)
+  }).toPass({ timeout: 15_000 })
+
+  await page.reload()
+  await page.getByRole('button', { name: /\d/ }).first().click()
+
+  await expect(page.getByRole('heading', { name: 'Why it scored this way' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Where it came from' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /^Consent/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /^Delivery attempts/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /^Activity/ })).toBeVisible()
+})
+
+test('the inquiry endpoint starts refusing once one address submits too often', async ({ page, baseURL }) => {
+  // One fixed address for every attempt: the limiter keys on the client IP, so
+  // varying it (as every other test here deliberately does) would spread the
+  // attempts across separate counters and never reach the limit.
+  const clientIp = '198.51.100.7'
+  let sawTooMany = false
+
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    const response = await page.request.post(`${baseURL}/api/inquiries`, {
+      headers: { 'cf-connecting-ip': clientIp },
+      data: {
+        inquiryType: 'general',
+        fullName: 'Rate Limit Probe',
+        email: `probe-${Date.now()}-${attempt}@example.com`,
+        message: `Probe attempt ${attempt} for the submission rate limiter.`,
+        consent: { granted: true, consentTextVersion: '2026-09-17', privacyPolicyVersion: '2026-09-17' },
+      },
+    })
+
+    if (response.status() === 429) {
+      sawTooMany = true
+      // A well-behaved client needs to know how long to wait.
+      expect(Number(response.headers()['retry-after'] ?? 0)).toBeGreaterThan(0)
+      break
+    }
+    expect(response.ok()).toBeTruthy()
+  }
+
+  expect(sawTooMany, 'expected a 429 within 12 submissions from one address').toBe(true)
 })

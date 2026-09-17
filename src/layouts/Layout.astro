@@ -10,13 +10,15 @@ import type { SeoData } from '../lib/content/seo'
 interface Props {
   title: string
   seo?: SeoData | null
-  jsonLd?: Record<string, unknown> | Record<string, unknown>[]
+  jsonLd?: Record<string, unknown> | null | (Record<string, unknown> | null)[]
 }
 
 const { title, seo = null, jsonLd } = Astro.props
 const siteSettings = await loadSiteSettings()
 const currentPath = new URL(Astro.request.url).pathname
-const jsonLdBlocks = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : []
+// Helpers like getFaqSchema() return null when there is nothing truthful to
+// emit, so falsy entries are dropped rather than rendered as a `null` script.
+const jsonLdBlocks = (jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : []).filter(Boolean)
 
 /**
  * JSON.stringify doesn't escape `<`, so a string value containing
@@ -89,7 +91,15 @@ function safeJsonLd(value: unknown): string {
 
     <script>
       import { initScrollReveal } from '../lib/scrollReveal'
+      import { initAnalytics, initViewTracking } from '../lib/analyticsBootstrap'
+
       initScrollReveal()
+      // Attribution and the delegated CTA listener are set up immediately (they
+      // are a few hundred bytes and must not miss an early click); the GA4
+      // script itself is still deferred to idle by the inline tag in <head>,
+      // and track() is a no-op until it lands.
+      initAnalytics()
+      initViewTracking()
     </script>
 
     <noscript>

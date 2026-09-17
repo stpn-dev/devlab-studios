@@ -8,6 +8,8 @@ import { ArrowRight, Calendar, CheckCircle2, Clock, Code2, MessageSquare } from 
 import { loadPageSeo } from '../lib/content/seo'
 import { loadArticlesContent, formatArticleDate, slugifyLabel, type ArticlePost } from '../lib/content/articles'
 import { loadPage } from '../lib/content/pages'
+import { getBreadcrumbSchema } from '../config/schema.js'
+import { getLeadMagnet } from '../config/offers.js'
 
 function resolveIcon(name: string) {
   return (Icons as Record<string, typeof Icons.Lightbulb>)[name] || Icons.Lightbulb
@@ -38,9 +40,16 @@ const filterOptions = [
   })),
 ]
 const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
+const leadMagnet = getLeadMagnet('lead-intake-checklist')
+const jsonLd = [
+  getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Insights', path: '/insights' },
+  ]),
+]
 ---
 
-<Layout title="Insights — DevLab Studios" seo={seo}>
+<Layout title="Insights — DevLab Studios" seo={seo} jsonLd={jsonLd}>
   <div class="space-y-10">
     <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
       <VectorField motif="editorial" />
@@ -58,8 +67,14 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
               <Code2 size={16} />
               Explore Solutions
             </PrimaryButton>
-            <PrimaryButton to="/contact" variant="secondary">
-              <MessageSquare size={16} />
+            <PrimaryButton
+              to="/contact?type=business_system"
+              variant="secondary"
+              data-cta-id="insights-hero-secondary"
+              data-cta-variant="secondary"
+              data-inquiry-type="business_system"
+            >
+              <MessageSquare size={16} aria-hidden="true" />
               Ask About a Workflow
             </PrimaryButton>
           </div>
@@ -231,6 +246,39 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
       </div>
     </section>
 
+    {leadMagnet ? (
+      <section
+        class="light-artifact grid gap-5 rounded-[28px] bg-gradient-to-br from-[#fff9ff] via-[#fbf9ff] to-[#f2efff] p-6 shadow-[0_18px_38px_rgba(48,28,114,0.12)] sm:p-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center"
+        data-view-event="lead_magnet_view"
+        data-offer-id={leadMagnet.id}
+      >
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Free resource</p>
+          <h2 class="mt-2 text-2xl font-semibold text-brand-ink sm:text-3xl">{leadMagnet.title}</h2>
+          <p class="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">{leadMagnet.summary}</p>
+        </div>
+        <div class="flex flex-wrap gap-3 lg:justify-end">
+          <PrimaryButton
+            to={`/offers/${leadMagnet.id}`}
+            data-cta-id="insights-lead-magnet"
+            data-cta-variant="primary"
+            data-offer-id={leadMagnet.id}
+            showIcon
+          >
+            Get the checklist
+          </PrimaryButton>
+          <PrimaryButton
+            to={leadMagnet.path}
+            variant="secondary"
+            data-cta-id="insights-lead-magnet-read"
+            data-cta-variant="secondary"
+          >
+            Read it here
+          </PrimaryButton>
+        </div>
+      </section>
+    ) : null}
+
     <section class="rounded-[28px] bg-gradient-to-r from-brand-ink via-[#22185a] to-[#3120a3] p-6 text-white shadow-[0_22px_50px_rgba(20,13,64,0.22)] sm:p-8">
       <div class="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-center">
         <div>
@@ -241,13 +289,23 @@ const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
           </p>
         </div>
         <div class="flex flex-wrap gap-3 lg:justify-end">
-          <PrimaryButton to="/contact">
-            <MessageSquare size={16} />
-            Start a Conversation
+          <PrimaryButton
+            to="/contact?type=business_system"
+            data-cta-id="insights-final-primary"
+            data-cta-variant="primary"
+            data-inquiry-type="business_system"
+          >
+            <MessageSquare size={16} aria-hidden="true" />
+            Discuss Your System
           </PrimaryButton>
-          <PrimaryButton to="/services" variant="secondary">
-            <ArrowRight size={16} />
-            View Services
+          <PrimaryButton
+            to="/services"
+            variant="secondary"
+            data-cta-id="insights-final-secondary"
+            data-cta-variant="secondary"
+          >
+            <ArrowRight size={16} aria-hidden="true" />
+            View Solutions
           </PrimaryButton>
         </div>
       </div>

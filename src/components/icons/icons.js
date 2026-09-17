@@ -94,4 +94,11 @@ export {
   GitBranch,
   Triangle,
   Coffee,
+  Workflow,
+  Inbox,
+  Target,
+  Filter,
+  RefreshCw,
+  ClipboardCheck,
+  Timer,
 } from 'lucide-react'

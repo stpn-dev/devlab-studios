@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { brandingAssets } from '../../config/branding'
 import devlabStudiosLogo from '../../assets/devlabstudios-logo-only.png'
 import siteSettingsContent from '../../data/siteSettingsContent'
-import { Code2, Database, FileText, Network } from '../../components/icons/icons'
+import { Code2, Database, Eye, EyeOff, FileText, Network } from '../../components/icons/icons'
 import AdminVectorField from '../components/AdminVectorField'
 
 const CMS_CAPABILITIES = [
@@ -15,6 +15,7 @@ const CMS_CAPABILITIES = [
 function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
   const [status, setStatus] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [tagline, setTagline] = useState(siteSettingsContent.footer.tagline)
@@ -144,15 +145,39 @@ function LoginPage({ onLogin }) {
           />
 
           <label className="mt-4 block text-sm font-semibold text-slate-800" htmlFor="admin-password">Password</label>
-          <input
-            id="admin-password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="mt-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-teal"
-            required
-          />
+          <div className="relative mt-2">
+            <input
+              id="admin-password"
+              /*
+               * Toggling `type` rather than overlaying a second field keeps a
+               * single input, so the browser's saved credential, autofill, and
+               * the form's `required` validation all continue to work.
+               */
+              type={isPasswordVisible ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="w-full rounded-md border border-slate-300 py-2 pl-3 pr-11 text-sm outline-none focus:border-brand-teal"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setIsPasswordVisible((visible) => !visible)}
+              /*
+               * `aria-pressed` + a label that states the ACTION is what makes
+               * this usable without sight: the icon alone communicates nothing,
+               * and a label naming the current state ("password shown") reads
+               * as a status rather than a control.
+               */
+              aria-pressed={isPasswordVisible}
+              aria-controls="admin-password"
+              aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
+              title={isPasswordVisible ? 'Hide password' : 'Show password'}
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-slate-500 transition hover:text-brand-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-teal"
+            >
+              {isPasswordVisible ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+            </button>
+          </div>
 
           {status ? <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{status}</div> : null}
 

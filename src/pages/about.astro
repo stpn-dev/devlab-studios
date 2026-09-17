@@ -7,6 +7,7 @@ import { ArrowRight, BadgeCheck, Briefcase, CheckCircle2, Code2, Lightbulb, Sett
 import { loadPageSeo } from '../lib/content/seo'
 import { loadPage } from '../lib/content/pages'
 import { loadServicesContent } from '../lib/content/services'
+import { getBreadcrumbSchema, getFaqSchema, getOrganizationSchema } from '../config/schema.js'
 
 const seo = await loadPageSeo('about')
 const aboutPage = await loadPage('about')
@@ -77,9 +78,19 @@ const buildAreas = defaultBuildAreas.map((area, index) => selectedServices[index
 const missionCopy = richTextBlocks[0]?.props || {}
 const founderCopy = richTextBlocks[1]?.props || {}
 const faqs = Array.isArray(faqBlock.items) && faqBlock.items.length ? faqBlock.items : defaultFaqs
+const jsonLd = [
+  getOrganizationSchema(),
+  getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'About', path: '/about' },
+  ]),
+  // Only the questions rendered below are emitted — FAQ structured data whose
+  // answers are not visible on the page is a policy violation, not a shortcut.
+  getFaqSchema(faqs),
+]
 ---
 
-<Layout title="About DevLab Studios" seo={seo}>
+<Layout title="About DevLab Studios" seo={seo} jsonLd={jsonLd}>
   <div class="space-y-10">
     <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-12">
       <VectorField motif="fullstack" />
@@ -93,12 +104,17 @@ const faqs = Array.isArray(faqBlock.items) && faqBlock.items.length ? faqBlock.i
             {heroSubheading}
           </p>
           <div class="flex flex-wrap gap-3">
-            <PrimaryButton to="/services">
-              <Briefcase size={16} />
-              View Services
+            <PrimaryButton to="/services" data-cta-id="about-hero-primary" data-cta-variant="primary">
+              <Briefcase size={16} aria-hidden="true" />
+              View Solutions
             </PrimaryButton>
-            <PrimaryButton to="/profile" variant="secondary">
-              <BadgeCheck size={16} />
+            <PrimaryButton
+              to="/profile"
+              variant="secondary"
+              data-cta-id="about-hero-secondary"
+              data-cta-variant="secondary"
+            >
+              <BadgeCheck size={16} aria-hidden="true" />
               Founder Profile
             </PrimaryButton>
           </div>
@@ -189,8 +205,14 @@ const faqs = Array.isArray(faqBlock.items) && faqBlock.items.length ? faqBlock.i
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Next Step</p>
           <h2 class="mt-2 text-2xl font-semibold text-brand-ink">{String(ctaBlock.heading || 'Need a system designed around your workflow?')}</h2>
         </div>
-        <a href={String(aboutCta.href || '/contact')} class="inline-flex items-center gap-2 text-sm font-semibold text-brand-teal transition hover:text-brand-orange">
-          {String(aboutCta.label || 'Start a project conversation')}
+        <a
+          href={String(aboutCta.href || '/contact?type=business_system')}
+          class="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-brand-teal transition hover:text-brand-orange"
+          data-cta-id="about-final-primary"
+          data-cta-variant="primary"
+          data-inquiry-type="business_system"
+        >
+          {String(aboutCta.label || 'Discuss Your System')}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </a>
       </div>

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { pbkdf2Sync, randomBytes } from 'node:crypto'
 import { handleAdminLogin, handleAdminLogout, requireAdmin } from './adminAuth.js'
 
 /**
@@ -184,6 +185,42 @@ describe('admin auth: password hash formats', () => {
 
     expect(response.status).toBe(503)
     expect((await response.json()).error).toMatch(/retired format/i)
+  })
+
+  /**
+   * The generator script (scripts/cms/hash-admin-password.mjs) builds hashes
+   * with node:crypto's pbkdf2Sync and its own base64url encoder, while
+   * verifyPassword checks them with WebCrypto and a separate base64url
+   * decoder. Nothing else pins those two implementations together, and a
+   * mismatch between them is invisible until an admin is locked out of
+   * production — which is exactly what happened before this test existed.
+   */
+  it('accepts a credential produced by the hash-admin-password script', async () => {
+    const salt = randomBytes(16)
+    const derived = pbkdf2Sync(PASSWORD, salt, 100000, 32, 'sha256')
+    const toBase64Url = (buffer) =>
+      buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+    const scriptHash = `pbkdf2_sha256$100000$${toBase64Url(salt)}$${toBase64Url(derived)}`
+
+    const response = await handleAdminLogin(
+      makeContext({ env: await passwordEnv({ ADMIN_PASSWORD_HASH: scriptHash }), body: { email: EMAIL, password: PASSWORD } }),
+    )
+
+    expect(response.status).toBe(200)
+  })
+
+  it('rejects a wrong password against a script-produced credential', async () => {
+    const salt = randomBytes(16)
+    const derived = pbkdf2Sync(PASSWORD, salt, 100000, 32, 'sha256')
+    const toBase64Url = (buffer) =>
+      buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+    const scriptHash = `pbkdf2_sha256$100000$${toBase64Url(salt)}$${toBase64Url(derived)}`
+
+    const response = await handleAdminLogin(
+      makeContext({ env: await passwordEnv({ ADMIN_PASSWORD_HASH: scriptHash }), body: { email: EMAIL, password: `${PASSWORD}x` } }),
+    )
+
+    expect(response.status).toBe(401)
   })
 
   it('rejects a pbkdf2 hash below the 100k iteration floor', async () => {

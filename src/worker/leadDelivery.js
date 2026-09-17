@@ -1,105 +1,216 @@
 import { updateLeadStatus } from './repositories/leads.js'
-import { countDeliveryAttempts, recordDeliveryAttempt } from './repositories/deliveryAttempts.js'
+import { countDeliveryAttempts, listDeliveryAttempts, recordDeliveryAttempt } from './repositories/deliveryAttempts.js'
+import { getLeadAttribution, recordLeadActivity } from './repositories/leadContext.js'
+import { buildConfirmationEmail, buildLeadMagnetEmail, buildNotificationEmail } from './delivery/messages.js'
+import { buildWebhookPayload, createResendProvider, createWebhookProvider } from './delivery/providers.js'
+import { classifyDeliveryFailure, isRetryable, nextRetryAt } from './delivery/classify.js'
+import { getLeadMagnet } from '../config/offers.js'
 
-const DELIVERY_TARGET = 'resend'
-const DEFAULT_SENDER = 'hello@devlabstudios.com'
+const DEFAULT_RECIPIENT = 'hello@devlabstudios.com'
+/** `leads.source` value that marks a lead-magnet capture rather than an inquiry. */
+export const LEAD_MAGNET_SOURCE = 'lead-magnet'
+/**
+ * Attempts made inside one invocation before giving up and leaving the lead
+ * retryable from the admin. Bounded on purpose: a Worker request budget is
+ * not the place for an unbounded retry loop, and an inquiry that is already
+ * durably persisted loses nothing by waiting for a human to press Retry.
+ */
+const MAX_ATTEMPTS_PER_INVOCATION = 3
 
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-/** @param {{ name: string, email: string, subject: string, message: string }} lead */
-function buildLeadEmail(lead) {
-  const text = [
-    `New contact form submission from ${lead.name} <${lead.email}>`,
-    '',
-    `Subject: ${lead.subject}`,
-    '',
-    lead.message,
-  ].join('\n')
-
-  const html = `
-    <p>New contact form submission from <strong>${escapeHtml(lead.name)}</strong> &lt;${escapeHtml(lead.email)}&gt;</p>
-    <p><strong>Subject:</strong> ${escapeHtml(lead.subject)}</p>
-    <p>${escapeHtml(lead.message).replace(/\n/g, '<br>')}</p>
-  `.trim()
-
-  return { text, html }
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**
- * Attempts to deliver a lead notification via Resend and records the
- * outcome — called both from the contact API's background waitUntil()
- * task (first attempt) and the admin "Retry" action (any later attempt),
- * so both paths share identical logging/status behavior.
- *
- * @param {{ DB: import('@cloudflare/workers-types').D1Database, RESEND_API_KEY?: string, RESEND_FROM_EMAIL?: string, LEAD_NOTIFICATION_EMAIL?: string }} env
- * @param {{ id: string, name: string, email: string, subject: string, message: string }} lead
+ * Which destinations this lead still needs. A target that has already
+ * succeeded is never re-sent, so pressing Retry after a partial failure does
+ * not email the visitor a second confirmation.
  */
-export async function attemptLeadDelivery(env, lead) {
-  const attemptNumber = (await countDeliveryAttempts(env.DB, lead.id)) + 1
-  const startedAt = Date.now()
+async function pendingTargets(env, lead, attempts) {
+  const succeeded = new Set(attempts.filter((attempt) => attempt.status === 'success').map((attempt) => attempt.target))
 
-  if (!env.RESEND_API_KEY) {
-    await recordDeliveryAttempt(env.DB, {
-      leadId: lead.id,
-      target: DELIVERY_TARGET,
-      attemptNumber,
-      status: 'failure',
-      errorMessage: 'RESEND_API_KEY is not configured.',
-    })
-    await updateLeadStatus(env.DB, lead.id, 'failed')
-    console.log(JSON.stringify({ event: 'lead_delivery', outcome: 'failure', leadId: lead.id, attemptNumber, reason: 'missing_api_key' }))
-    return { ok: false }
-  }
+  const notificationProvider = createResendProvider(env, { name: 'resend' })
+  const confirmationProvider = createResendProvider(env, { name: 'resend-confirmation' })
+  const webhookProvider = createWebhookProvider(env)
+  const attribution = await getLeadAttribution(env.DB, lead.id).catch(() => null)
 
-  const fromEmail = env.RESEND_FROM_EMAIL || DEFAULT_SENDER
-  const toEmail = env.LEAD_NOTIFICATION_EMAIL || DEFAULT_SENDER
-  const { text, html } = buildLeadEmail(lead)
-
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
+  const targets = [
+    {
+      provider: notificationProvider,
+      required: true,
+      buildPayload: () => {
+        const message = buildNotificationEmail(lead, { attribution })
+        return {
+          to: env.LEAD_NOTIFICATION_EMAIL || DEFAULT_RECIPIENT,
+          replyTo: lead.email,
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+        }
       },
-      body: JSON.stringify({
-        from: `DevLab Studios <${fromEmail}>`,
-        to: [toEmail],
-        reply_to: lead.email,
-        subject: `New contact form lead: ${lead.subject}`,
-        text,
-        html,
-      }),
-    })
+    },
+    {
+      provider: confirmationProvider,
+      required: false,
+      buildPayload: () => {
+        // The offer is resolved from the server-owned registry by id, never
+        // from a URL the submission carried — see src/config/offers.js.
+        const message =
+          lead.source === LEAD_MAGNET_SOURCE
+            ? buildLeadMagnetEmail(lead, getLeadMagnet(lead.solutionInterest))
+            : buildConfirmationEmail(lead)
+        return {
+          to: lead.email,
+          replyTo: env.LEAD_NOTIFICATION_EMAIL || DEFAULT_RECIPIENT,
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+        }
+      },
+    },
+    {
+      provider: webhookProvider,
+      required: false,
+      buildPayload: () => ({ payload: buildWebhookPayload(lead, attribution) }),
+    },
+  ]
 
+  return targets.filter((target) => target.provider.isConfigured && !succeeded.has(target.provider.name))
+}
+
+async function deliverToTarget(env, lead, target) {
+  let attemptNumber = (await countDeliveryAttempts(env.DB, lead.id, target.provider.name)) + 1
+
+  for (let tryIndex = 0; tryIndex < MAX_ATTEMPTS_PER_INVOCATION; tryIndex += 1) {
+    const startedAt = Date.now()
+    const result = await target.provider.send(target.buildPayload())
     const durationMs = Date.now() - startedAt
-    const body = await response.json().catch(() => null)
 
-    if (response.ok && body?.id) {
-      await recordDeliveryAttempt(env.DB, { leadId: lead.id, target: DELIVERY_TARGET, attemptNumber, status: 'success', statusCode: response.status })
-      await updateLeadStatus(env.DB, lead.id, 'delivered')
-      console.log(JSON.stringify({ event: 'lead_delivery', outcome: 'success', leadId: lead.id, attemptNumber, durationMs, statusCode: response.status, resendId: body.id }))
-      return { ok: true }
+    if (result.ok) {
+      await recordDeliveryAttempt(env.DB, {
+        leadId: lead.id,
+        target: target.provider.name,
+        attemptNumber,
+        status: 'success',
+        statusCode: result.statusCode ?? null,
+      })
+      console.log(
+        JSON.stringify({
+          event: 'lead_delivery',
+          outcome: 'success',
+          leadId: lead.id,
+          target: target.provider.name,
+          attemptNumber,
+          durationMs,
+          statusCode: result.statusCode ?? null,
+        }),
+      )
+      return { ok: true, target: target.provider.name }
     }
 
-    const errorMessage = body?.message || `Upstream returned ${response.status}`
-    await recordDeliveryAttempt(env.DB, { leadId: lead.id, target: DELIVERY_TARGET, attemptNumber, status: 'failure', statusCode: response.status, errorMessage })
-    await updateLeadStatus(env.DB, lead.id, 'failed')
-    console.log(JSON.stringify({ event: 'lead_delivery', outcome: 'failure', leadId: lead.id, attemptNumber, durationMs, statusCode: response.status, errorMessage }))
-    return { ok: false }
-  } catch (error) {
-    const durationMs = Date.now() - startedAt
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    await recordDeliveryAttempt(env.DB, { leadId: lead.id, target: DELIVERY_TARGET, attemptNumber, status: 'failure', errorMessage })
-    await updateLeadStatus(env.DB, lead.id, 'failed')
-    console.log(JSON.stringify({ event: 'lead_delivery', outcome: 'failure', leadId: lead.id, attemptNumber, durationMs, errorMessage }))
-    return { ok: false }
+    const category = classifyDeliveryFailure(result)
+    const retryable = isRetryable(category) && tryIndex < MAX_ATTEMPTS_PER_INVOCATION - 1
+
+    await recordDeliveryAttempt(env.DB, {
+      leadId: lead.id,
+      target: target.provider.name,
+      attemptNumber,
+      status: 'failure',
+      statusCode: result.statusCode ?? null,
+      errorMessage: result.errorMessage,
+      errorCategory: category,
+      nextRetryAt: isRetryable(category) ? nextRetryAt(attemptNumber) : null,
+    })
+
+    // Never logs the lead's message, name, or email — only the id and the
+    // upstream's own summary.
+    console.log(
+      JSON.stringify({
+        event: 'lead_delivery',
+        outcome: 'failure',
+        leadId: lead.id,
+        target: target.provider.name,
+        attemptNumber,
+        durationMs,
+        statusCode: result.statusCode ?? null,
+        errorCategory: category,
+      }),
+    )
+
+    if (!retryable) {
+      return { ok: false, target: target.provider.name, category }
+    }
+
+    await sleep(Math.min(400 * 2 ** tryIndex, 2000))
+    attemptNumber += 1
   }
+
+  return { ok: false, target: target.provider.name, category: 'transient' }
+}
+
+/**
+ * Delivers a persisted inquiry to every configured destination and records
+ * every attempt.
+ *
+ * Called from the submission pipeline's background `waitUntil()` task (first
+ * attempt) and from the admin Retry action (any later attempt), so both share
+ * identical logging, classification, and status behavior.
+ *
+ * The lead is already durably in D1 before this ever runs — nothing here can
+ * lose it, only leave it visibly undelivered.
+ *
+ * @param {{ DB: import('@cloudflare/workers-types').D1Database }} env
+ * @param {{ id: string }} lead
+ */
+export async function attemptLeadDelivery(env, lead) {
+  const existingAttempts = await listDeliveryAttempts(env.DB, lead.id).catch(() => [])
+  const targets = await pendingTargets(env, lead, existingAttempts)
+
+  if (!targets.length) {
+    const alreadyDelivered = existingAttempts.some(
+      (attempt) => attempt.target === 'resend' && attempt.status === 'success',
+    )
+    if (alreadyDelivered) return { ok: true, results: [] }
+
+    // Nothing is configured to deliver to. This is a configuration failure,
+    // not a lost lead: the record is in D1 and visible in the admin.
+    await recordDeliveryAttempt(env.DB, {
+      leadId: lead.id,
+      target: 'resend',
+      attemptNumber: (await countDeliveryAttempts(env.DB, lead.id, 'resend')) + 1,
+      status: 'failure',
+      errorMessage: 'No delivery provider is configured.',
+      errorCategory: 'configuration',
+    })
+    await updateLeadStatus(env.DB, lead.id, 'failed')
+    await recordLeadActivity(env.DB, lead.id, {
+      activityType: 'delivery',
+      status: 'failed',
+      metadata: { reason: 'no_provider_configured' },
+    }).catch(() => {})
+    console.log(JSON.stringify({ event: 'lead_delivery', outcome: 'failure', leadId: lead.id, reason: 'no_provider_configured' }))
+    return { ok: false, results: [] }
+  }
+
+  const results = []
+  for (const target of targets) {
+    results.push(await deliverToTarget(env, lead, target))
+  }
+
+  const requiredFailed = targets.some(
+    (target, index) => target.required && !results[index].ok,
+  )
+  const anyFailed = results.some((result) => !result.ok)
+  const status = requiredFailed || anyFailed ? 'failed' : 'delivered'
+
+  await updateLeadStatus(env.DB, lead.id, status)
+  await recordLeadActivity(env.DB, lead.id, {
+    activityType: 'delivery',
+    status: status === 'delivered' ? 'ok' : 'failed',
+    metadata: {
+      targets: results.map((result) => ({ target: result.target, ok: result.ok, category: result.category || null })),
+    },
+  }).catch(() => {})
+
+  return { ok: status === 'delivered', results }
 }

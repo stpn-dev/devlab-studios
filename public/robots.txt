@@ -1,12 +1,19 @@
 # robots.txt
-# Allows all search engines to crawl and index the site
+# Search engines may crawl and index the public site.
 
 User-agent: *
 Allow: /
+
+# Private and operational surfaces. These are also served with
+# `X-Robots-Tag: noindex, nofollow` by src/lib/securityHeaders.ts — robots.txt
+# only asks crawlers not to fetch them, the header is what actually keeps them
+# out of an index if they are reached some other way.
 Disallow: /404
 Disallow: /admin
-Disallow: /api/admin/
+Disallow: /api/
+Disallow: /pickleball/app
+Disallow: /pickleball/rt/
 
-# Sitemap location for search engines
+# Sitemap is generated at request time (src/pages/sitemap.xml.ts) so published
+# articles and offers stay listed without anyone editing a static file.
 Sitemap: https://www.devlabstudios.com/sitemap.xml
-

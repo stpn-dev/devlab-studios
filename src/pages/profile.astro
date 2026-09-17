@@ -2,11 +2,14 @@
 import Layout from '../layouts/Layout.astro'
 import VectorField from '../components/VectorField.astro'
 import PersonalInfoCard from '../components/PersonalInfoCard.jsx'
+import PrimaryButton from '../components/PrimaryButton.jsx'
 import ToolsMarquee from '../components/ui/ToolsMarquee.jsx'
 import PortfolioGallery from '../components/islands/PortfolioGallery.jsx'
 import CertificationsGallery from '../components/islands/CertificationsGallery.jsx'
 import CertificationLogo from '../components/ui/CertificationLogo.jsx'
 import ExperienceTimeline from '../components/islands/ExperienceTimeline.jsx'
+import { ArrowRight, Briefcase, Download, Mail } from '../components/icons/icons.js'
+import { getBreadcrumbSchema, getPersonSchema } from '../config/schema.js'
 import { loadPageSeo } from '../lib/content/seo'
 import { loadProfileContent } from '../lib/content/profile'
 import { loadProjects } from '../lib/content/projects'
@@ -20,19 +23,95 @@ const projects = await loadProjects()
 const aboutData = profileContent.about || {}
 const experiences = profileContent.experiences || []
 const certifications = profileContent.certifications || []
+const technicalSkills = profileContent.skills?.technical || []
 const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 320, fit: 'cover' })
+
+/**
+ * Capability groupings for the "What Stephen builds" panel.
+ *
+ * Every entry is a capability the rest of this page already evidences —
+ * through the experience timeline, the certifications, or the portfolio — so
+ * the panel summarizes rather than asserts anything new.
+ */
+const capabilityAreas = [
+  {
+    title: 'Full-stack development',
+    items: ['React and Astro interfaces', 'Tailwind design systems', 'Server-rendered applications on Cloudflare Workers'],
+  },
+  {
+    title: 'Backend and APIs',
+    items: ['Java and Spring Boot services', 'Laravel applications', 'REST APIs and webhooks', 'SQL data models and migrations'],
+  },
+  {
+    title: 'AI automation architecture',
+    items: ['n8n, Make, and Zapier orchestration', 'AI-assisted classification and drafting', 'Human-in-the-loop approval steps'],
+  },
+  {
+    title: 'Operations and delivery',
+    items: ['CRM and third-party integrations', 'Dashboards and reporting workflows', 'Deployment, documentation, and handoff'],
+  },
+]
+
+const jsonLd = [
+  getPersonSchema(),
+  getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Founder Profile', path: '/profile' },
+  ]),
+]
 ---
 
-<Layout title="Profile — DevLab Studios" seo={seo}>
+<Layout title="Stephen Rey Agustinez — Founder Profile | DevLab Studios" seo={seo} jsonLd={jsonLd}>
   <div class="space-y-10">
-    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8">
+    <nav aria-label="Breadcrumb" class="text-sm text-slate-400">
+      <ol class="flex flex-wrap items-center gap-2">
+        <li><a href="/" class="transition hover:text-white hover:underline">Home</a></li>
+        <li aria-hidden="true">/</li>
+        <li aria-current="page" class="text-slate-200">Founder Profile</li>
+      </ol>
+    </nav>
+
+    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
       <VectorField motif="fullstack" />
-      <div class="relative z-10 max-w-3xl space-y-3">
+      <div class="relative z-10 max-w-3xl space-y-4">
         <p class="tech-kicker">Founder Profile</p>
-        <h1 class="text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Full-stack development with an automation mindset.</h1>
-        <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-          Stephen Rey Agustinez builds across interfaces, services, APIs, data, and AI-enabled workflows—then connects every layer into a system people can actually operate.
+        <h1 class="text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">Stephen Rey Agustinez</h1>
+        <p class="text-lg font-semibold text-violet-200 sm:text-xl">
+          Founder, Full-Stack Developer, and AI Automation Architect
         </p>
+        <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
+          Stephen designs and builds the technical systems delivered through DevLab Studios — from customer-facing
+          interfaces and backend services to APIs, databases, AI workflows, and operational automation.
+        </p>
+        <p class="max-w-2xl text-base leading-relaxed text-slate-400">
+          He is also open to suitable remote employment, contract, and technical collaboration opportunities.
+        </p>
+
+        <div class="flex flex-wrap gap-3 pt-2">
+          <PrimaryButton to="#portfolio" data-cta-id="profile-hero-work" data-cta-variant="primary">
+            <Briefcase size={16} aria-hidden="true" />
+            View Selected Work
+          </PrimaryButton>
+          <PrimaryButton
+            href="/resume.pdf"
+            variant="secondary"
+            data-cta-id="profile-hero-resume"
+            data-cta-variant="secondary"
+          >
+            <Download size={16} aria-hidden="true" />
+            Download Résumé
+          </PrimaryButton>
+          <PrimaryButton
+            to="/contact?type=employment_opportunity"
+            variant="secondary"
+            data-cta-id="profile-hero-contact"
+            data-cta-variant="secondary"
+            data-inquiry-type="employment_opportunity"
+          >
+            <Mail size={16} aria-hidden="true" />
+            Contact Stephen
+          </PrimaryButton>
+        </div>
       </div>
     </section>
 
@@ -45,13 +124,45 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
 
       <div class="min-w-0 space-y-12 lg:border-l lg:border-slate-200 lg:pl-10">
         <section id="about">
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">About</h3>
-          <p class="text-base leading-relaxed text-slate-700 sm:text-lg">{aboutData.about}</p>
+          <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">About</h2>
+          <p class="mt-3 text-base leading-relaxed text-slate-700 sm:text-lg">{aboutData.about}</p>
+        </section>
+
+        <section id="capabilities" class="border-t border-slate-200 pt-8">
+          <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">What Stephen builds</h2>
+          <div class="mt-4 grid gap-4 sm:grid-cols-2">
+            {capabilityAreas.map((area) => (
+              <article class="light-artifact rounded-2xl bg-white/[0.94] p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
+                <h3 class="font-semibold text-brand-ink">{area.title}</h3>
+                <ul class="mt-3 space-y-2 text-sm text-slate-700">
+                  {area.items.map((item) => (
+                    <li class="flex gap-2 leading-relaxed">
+                      <ArrowRight className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-brand-teal" aria-hidden="true" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+
+          {technicalSkills.length > 0 ? (
+            <div class="mt-5">
+              <h3 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Technical skills</h3>
+              <ul class="mt-3 flex flex-wrap gap-2">
+                {technicalSkills.map((skill: string) => (
+                  <li class="rounded-full border border-slate-200 bg-[#faf8ff] px-3 py-1 text-xs font-semibold text-slate-600">
+                    {skill}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
 
         <section id="education" class="border-t border-slate-200 pt-8">
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Education</h3>
-          <ul class="space-y-4">
+          <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Education</h2>
+          <ul class="mt-4 space-y-4">
             {(aboutData.education || []).map((item) => (
               <li>
                 <p class="font-semibold text-brand-ink">{item.program}</p>
@@ -63,7 +174,9 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
 
           {(aboutData.achievementsAndResponsibilities || []).length > 0 ? (
             <div class="mt-6">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Achievements & Responsibilities</p>
+              <h3 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">
+                Achievements &amp; Responsibilities
+              </h3>
               <ul class="mt-3 space-y-4">
                 {(aboutData.achievementsAndResponsibilities || []).map((item) => (
                   <li>
@@ -77,8 +190,8 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
         </section>
 
         <section id="certifications" class="border-t border-slate-200 pt-8">
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Certifications</h3>
-          <p class="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Professional</p>
+          <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Certifications</h2>
+          <h3 class="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Professional</h3>
           <ul class="mt-3 grid gap-4 sm:grid-cols-2">
             {(aboutData.certificatesAndLicenses || []).map((cert) => (
               <li class="flex items-start gap-3">
@@ -93,7 +206,7 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
 
           {certifications.length > 0 ? (
             <div class="mt-6">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Platform Training</p>
+              <h3 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-teal">Platform Training</h3>
               <div class="mt-3">
                 <CertificationsGallery client:load certifications={certifications} />
               </div>
@@ -102,18 +215,69 @@ const optimizedPhoto = await optimizeImage(profilePhoto, { width: 320, height: 3
         </section>
 
         <section id="experience" class="border-t border-slate-200 pt-8">
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Experience</h3>
+          <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Experience</h2>
           <ExperienceTimeline client:visible experiences={experiences} />
         </section>
 
         <section id="tools" class="border-t border-slate-200 pt-8">
-          <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tools &amp; Platforms</h3>
+          <h2 class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tools &amp; Platforms</h2>
           <ToolsMarquee tools={coreTools} />
         </section>
 
-        <section id="portfolio" class="border-t border-slate-200 pt-8">
-          <h3 class="mb-6 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Portfolio</h3>
+        <section id="portfolio" class="border-t border-slate-200 pt-8 scroll-mt-28">
+          <h2 class="mb-6 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Selected technical projects</h2>
           <PortfolioGallery client:visible projects={projects} />
+          <p class="mt-6 text-sm text-slate-600">
+            The same projects are written up as business systems — problem, architecture, and operating behavior — on the
+            <a href="/work" class="font-semibold text-brand-teal underline-offset-2 hover:underline"> Work page</a>.
+          </p>
+        </section>
+
+        <section id="availability" class="border-t border-slate-200 pt-8">
+          <div class="light-artifact rounded-[1.5rem] bg-gradient-to-br from-[#fff9ff] via-[#fbf9ff] to-[#f2efff] p-6 shadow-[0_18px_38px_rgba(48,28,114,0.12)] sm:p-7">
+            <h2 class="text-xl font-semibold text-brand-ink">Employment and collaboration</h2>
+            <p class="mt-2 text-sm leading-relaxed text-slate-700">
+              Stephen is open to suitable remote full-time, part-time, and contract roles, as well as technical
+              collaboration. Recruiters and hiring managers reach him directly — the form is a short employment inquiry,
+              not the business qualification process.
+            </p>
+            <div class="mt-5 flex flex-wrap gap-3">
+              <PrimaryButton
+                to="/contact?type=employment_opportunity"
+                data-cta-id="profile-availability-contact"
+                data-cta-variant="primary"
+                data-inquiry-type="employment_opportunity"
+                showIcon
+              >
+                Contact Stephen about a role
+              </PrimaryButton>
+              <PrimaryButton
+                to="/contact?type=contract_collaboration"
+                variant="secondary"
+                data-cta-id="profile-availability-contract"
+                data-cta-variant="secondary"
+                data-inquiry-type="contract_collaboration"
+              >
+                Discuss a contract or collaboration
+              </PrimaryButton>
+            </div>
+            <div class="mt-5 flex flex-wrap gap-4 text-sm font-semibold text-brand-teal">
+              <a href="https://github.com/stpn-dev" target="_blank" rel="noreferrer" class="inline-flex items-center gap-1.5 hover:underline">
+                GitHub <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+              <a
+                href="https://www.linkedin.com/in/stephen-rey-agustinez-8b86041b3"
+                target="_blank"
+                rel="noreferrer"
+                class="inline-flex items-center gap-1.5 hover:underline"
+              >
+                LinkedIn <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+              <a href="/resume.pdf" target="_blank" rel="noreferrer" class="inline-flex items-center gap-1.5 hover:underline">
+                Résumé <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            </div>
+          </div>
         </section>
       </div>
     </div>

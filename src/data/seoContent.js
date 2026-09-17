@@ -3,19 +3,19 @@ export const seoContent = {
     {
       id: 'seo-home',
       pageSlug: 'home',
-      metaTitle: 'DevLab Studios - Full-Stack Developer & AI Automation Specialist',
+      metaTitle: 'DevLab Studios - Software & Automation Systems for Businesses',
       metaDescription:
-        'DevLab Studios by Stephen Rey Agustinez - full-stack development, conversion-focused web experiences, APIs, data systems, and AI automation for modern businesses worldwide.',
+        'DevLab Studios builds reliable software and automation systems for businesses: conversion websites, lead intake and follow-up, CRM workflows, backend services, APIs, and AI automation.',
       metaKeywords:
-        'Stephen Agustinez, Stephen Rey Agustinez, Devlab Studios, software engineer, AI automation specialist, backend developer, workflow automation, Spring Boot, Laravel, React developer, Next.js developer, API integrations, business automation',
+        'business automation systems, lead intake automation, workflow automation, CRM integration, custom business software, AI automation for business, backend integration, internal tools, DevLab Studios',
       canonicalUrl: 'https://www.devlabstudios.com/',
-      ogTitle: 'DevLab Studios - Full-Stack Development & AI Automation',
+      ogTitle: 'DevLab Studios - Software & Automation Systems for Businesses',
       ogDescription:
-        'DevLab Studios connects web interfaces, backend services, structured data, and AI automation into complete business systems.',
+        'Conversion websites, backend services, structured data, CRM workflows, and AI automation connected into maintainable business systems.',
       ogImage: 'https://www.devlabstudios.com/og.png',
-      twitterTitle: 'DevLab Studios - Full-Stack Development & AI Automation',
+      twitterTitle: 'DevLab Studios - Software & Automation Systems for Businesses',
       twitterDescription:
-        'Devlab Studios - software engineering, websites, backend integrations, and workflow automation for modern businesses.',
+        'Lead intake and follow-up, workflow and AI automation, and custom operations software built to stay maintainable.',
       twitterImage: 'https://www.devlabstudios.com/og.png',
     },
     {
@@ -38,74 +38,92 @@ export const seoContent = {
     {
       id: 'seo-services',
       pageSlug: 'services',
-      metaTitle: 'Services - Business Automation & Web Solutions | DevLab Studios',
+      metaTitle: 'Solutions - Lead Intake, Workflow Automation & Custom Software | DevLab Studios',
       metaDescription:
-        'Explore DevLab Studios services for websites, business automation, backend integrations, CRM-connected workflows, and custom internal tools.',
+        'Four solution areas: lead intake and follow-up systems, workflow and AI automation, custom software and operations systems, and a workflow systems audit.',
       metaKeywords:
-        'business automation services, website development services, backend integration services, CRM workflows, DevLab Studios services',
+        'lead intake system, lead follow-up automation, workflow automation, AI automation, n8n, Make, Zapier, CRM integration, custom business software, internal tools, workflow audit',
       canonicalUrl: 'https://www.devlabstudios.com/services',
-      ogTitle: 'Services - Business Automation & Web Solutions | DevLab Studios',
+      ogTitle: 'Solutions - Lead Intake, Workflow Automation & Custom Software',
       ogDescription:
-        'Websites, backend systems, AI automation, and workflow support designed around real business operations.',
-      ogImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
-      twitterTitle: 'Services - DevLab Studios',
+        'Complete systems: the interface, the logic, the data, the integrations, and the handoff to a person.',
+      ogImage: 'https://www.devlabstudios.com/og.png',
+      twitterTitle: 'Solutions - DevLab Studios',
       twitterDescription:
-        'Business automation, websites, backend support, and workflow system services from DevLab Studios.',
-      twitterImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
+        'Lead intake and follow-up, workflow and AI automation, custom operations software, and workflow audits.',
+      twitterImage: 'https://www.devlabstudios.com/og.png',
     },
     {
       id: 'seo-resources',
       pageSlug: 'insights',
-      metaTitle: 'Resources - AI, Automation & Web Systems Feed | DevLab Studios',
+      metaTitle: 'Insights - AI, Automation & Web Systems Notes | DevLab Studios',
       metaDescription:
         'Read DevLab Studios resources covering practical automation guides, AI updates, website systems, operations insights, and implementation notes for modern business workflows.',
       metaKeywords:
         'AI automation resources, workflow guides, automation news, website systems insights, operations playbook, DevLab Studios resources',
       canonicalUrl: 'https://www.devlabstudios.com/insights',
-      ogTitle: 'Resources - AI, Automation & Web Systems Feed | DevLab Studios',
+      ogTitle: 'Insights - AI, Automation & Web Systems Notes | DevLab Studios',
       ogDescription:
         'A feed of practical guides, AI updates, web systems notes, and operational implementation insights.',
       ogImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
-      twitterTitle: 'Resources - AI, Automation & Web Systems Feed',
+      twitterTitle: 'Insights - AI, Automation & Web Systems Notes',
       twitterDescription:
         'DevLab Studios feed for automation systems, AI updates, web delivery, and operational implementation.',
       twitterImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
     },
     {
+      id: 'seo-work',
+      pageSlug: 'work',
+      metaTitle: 'Work - Business Systems Already Running | DevLab Studios',
+      metaDescription:
+        'Selected systems with the business problem, the architecture designed for it, and what the system verifiably does in operation. No invented metrics.',
+      metaKeywords:
+        'automation case studies, workflow automation examples, lead intake system examples, CRM integration examples, custom business software examples',
+      canonicalUrl: 'https://www.devlabstudios.com/work',
+      ogTitle: 'Work - Business Systems Already Running | DevLab Studios',
+      ogDescription:
+        'The problem, the system designed for it, and what it does in operation - for each selected project.',
+      ogImage: 'https://www.devlabstudios.com/og.png',
+      twitterTitle: 'Work - DevLab Studios',
+      twitterDescription:
+        'Selected business systems, with architecture and operating behavior explained.',
+      twitterImage: 'https://www.devlabstudios.com/og.png',
+    },
+    {
       id: 'seo-profile',
       pageSlug: 'profile',
-      metaTitle: 'Profile - Stephen Rey Agustinez | DevLab Studios',
+      metaTitle: 'Stephen Rey Agustinez - Full-Stack Developer & AI Automation Architect',
       metaDescription:
-        'Profile of Stephen Rey Agustinez, founder of DevLab Studios, full-stack developer and AI automation specialist building complete web and workflow systems.',
+        'Founder profile: full-stack development with React, Astro, Java, Spring Boot and Laravel; backend services, REST APIs and SQL data models; AI automation architecture with n8n, Make and Zapier. Open to remote employment, contract, and collaboration.',
       metaKeywords:
-        'Stephen Rey Agustinez profile, DevLab Studios founder, software engineer portfolio, AI automation specialist, React Laravel automation portfolio',
+        'Stephen Rey Agustinez, full-stack developer, backend engineer, Java developer, Spring Boot developer, Laravel developer, React developer, REST API developer, SQL, AI automation architect, n8n, Make.com, Zapier, remote developer',
       canonicalUrl: 'https://www.devlabstudios.com/profile',
-      ogTitle: 'Profile - Stephen Rey Agustinez | DevLab Studios',
+      ogTitle: 'Stephen Rey Agustinez - Full-Stack Developer & AI Automation Architect',
       ogDescription:
-        'Founder profile, experience, skills, and selected website and automation projects from DevLab Studios.',
+        'Experience, certifications, technical skills, and selected projects. Open to remote employment, contract, and technical collaboration.',
       ogImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
-      twitterTitle: 'Profile - Stephen Rey Agustinez | DevLab Studios',
+      twitterTitle: 'Stephen Rey Agustinez - Full-Stack Developer & AI Automation Architect',
       twitterDescription:
-        'Software engineer and AI automation specialist profile with experience, skills, and project portfolio.',
+        'Founder of DevLab Studios. Full-stack, backend, API, SQL, and AI automation experience, with selected technical projects.',
       twitterImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
     },
     {
       id: 'seo-contact',
       pageSlug: 'contact',
-      metaTitle: 'Hire a Full-Stack Developer & AI Automation Specialist | DevLab Studios',
+      metaTitle: 'Discuss Your System - Contact DevLab Studios',
       metaDescription:
-        'Get in touch with Devlab Studios for software engineering, website builds, backend integrations, or AI automation projects. Available for remote work worldwide across Java, Laravel, React, Next.js, and workflow systems.',
+        'Start a business inquiry about lead intake, workflow or AI automation, a custom operations system, or a workflow audit. Employment and collaboration inquiries have their own short form.',
       metaKeywords:
-        'hire software engineer, hire AI automation specialist, backend developer for hire, Java Spring Boot developer, Laravel developer, API integration specialist, remote developer hire, business automation consultant',
+        'business automation inquiry, workflow audit request, custom software inquiry, CRM integration consultation, DevLab Studios contact',
       canonicalUrl: 'https://www.devlabstudios.com/contact',
-      ogTitle: 'Hire a Full-Stack Developer & AI Automation Specialist | DevLab Studios',
+      ogTitle: 'Discuss Your System - Contact DevLab Studios',
       ogDescription:
-        'Hire Devlab Studios for software engineering, websites, backend integrations, or AI automation projects. Remote-first, available worldwide.',
-      ogImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
-      twitterTitle: 'Hire a Full-Stack Developer & AI Automation Specialist | DevLab Studios',
+        'Describe the workflow that is slowing down and get a straight answer about the right first move.',
+      ogImage: 'https://www.devlabstudios.com/og.png',
+      twitterTitle: 'Discuss Your System - Contact DevLab Studios',
       twitterDescription:
-        'Hire Devlab Studios for software engineering, backend integrations, websites, or AI automation. Remote-first, available worldwide.',
-      twitterImage: 'https://www.devlabstudios.com/devlabstudios-logo-only.png',
+        'Business system inquiries, plus a separate short form for employment and collaboration.',
+      twitterImage: 'https://www.devlabstudios.com/og.png',
     },
     {
       id: 'seo-pickleball',

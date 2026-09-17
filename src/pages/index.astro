@@ -2,236 +2,175 @@
 import Layout from '../layouts/Layout.astro'
 import SectionHeader from '../components/SectionHeader.jsx'
 import PrimaryButton from '../components/PrimaryButton.jsx'
-import ServiceGraphic from '../components/ServiceGraphic.jsx'
 import VectorField from '../components/VectorField.astro'
 import LivingSystems from '../components/LivingSystems.astro'
-import { ArrowRight, Briefcase, CheckCircle2, Clock, Code2, Lightbulb, MessageSquare, Search, Settings, TrendingUp, Wrench, Zap } from '../components/icons/icons.js'
-import { getPersonSchema, getWebsiteSchema } from '../config/schema.js'
+import * as Icons from '../components/icons/icons.js'
+import { ArrowRight, CheckCircle2, ShieldCheck, User } from '../components/icons/icons.js'
+import { getFaqSchema, getOrganizationSchema, getWebsiteSchema } from '../config/schema.js'
 import { loadPageSeo } from '../lib/content/seo'
 import { loadPage } from '../lib/content/pages'
-import { loadServicesContent } from '../lib/content/services'
+import { loadProjects } from '../lib/content/projects'
+import { loadArticlesContent } from '../lib/content/articles'
+import {
+  deliveryApproach,
+  operationalProblems,
+  reliabilityPrinciples,
+  solutionCategories,
+} from '../data/solutionsContent.js'
+import { getLeadMagnet } from '../config/offers.js'
+
+function resolveIcon(name: string) {
+  return (Icons as Record<string, typeof Icons.Lightbulb>)[name] || Icons.Lightbulb
+}
 
 const seo = await loadPageSeo('home')
 const homePage = await loadPage('home')
-const servicesContent = await loadServicesContent()
-const cmsHero = homePage?.blocks.find((block) => block.type === 'hero')?.props || {}
-const heroHeading = String(cmsHero.heading || 'From first click to final handoff, build the whole system to move.')
-const heroSubheading = String(cmsHero.subheading || 'DevLab Studios connects polished web experiences, dependable APIs, structured data, and AI-powered automation into one clear operating flow.')
-const heroPrimary = (cmsHero.primaryCta as { label?: string; href?: string } | undefined) || { label: 'Start a Project', href: '/contact' }
-const heroSecondary = (cmsHero.secondaryCta as { label?: string; href?: string } | undefined) || { label: 'View Work', href: '/work' }
-const canonicalTagline = String(cmsHero.tagline || 'Your Vision, Digitally Crafted — one solution at a time, always evolving.')
-const heroCapabilities = Array.isArray(cmsHero.capabilities) && cmsHero.capabilities.length ? cmsHero.capabilities : [
-  { label: '01 / Build', value: 'Full-stack Development' },
-  { label: '02 / Orchestrate', value: 'AI Automation' },
-  { label: '03 / Connect', value: 'Systems Integration' },
-]
+const workPage = await loadPage('work')
+const projects = await loadProjects()
+const { posts } = await loadArticlesContent()
 
-const defaultWorkAreas = [
-  {
-    title: 'Conversion websites',
-    description: 'Landing pages and business websites built to load fast, explain the offer clearly, and move visitors toward inquiry or booking.',
-    icon: Code2,
-  },
-  {
-    title: 'Automation systems',
-    description: 'Lead routing, follow-up flows, AI-assisted responses, and operations automations across Zapier, n8n, Make, and HighLevel.',
-    icon: Zap,
-  },
-  {
-    title: 'Internal workflows',
-    description: 'CRM integrations, dashboards, trackers, forms, and structured handoff systems that reduce manual work for teams.',
-    icon: Settings,
-  },
-  {
-    title: 'Full-stack product delivery',
-    description: 'React and Astro interfaces connected to Java, Spring Boot, Laravel, REST APIs, and SQL-backed systems.',
-    icon: ArrowRight,
-  },
-]
+/**
+ * Every section below reads its copy from the CMS block of the matching type
+ * and falls back to the bundled default. That is the existing pattern on this
+ * page — it keeps the page renderable before an editor has ever saved it,
+ * which is what the static-fallback rule in AGENTS.md is about.
+ */
+const blocks = homePage?.blocks || []
+const heroBlock = blocks.find((block) => block.type === 'hero')?.props || {}
+const problemBlock = blocks.find((block) => block.type === 'problemList')?.props || {}
+const solutionsBlock = blocks.find((block) => block.type === 'servicesGrid')?.props || {}
+const proofBlock = blocks.find((block) => block.type === 'workProjectShowcase')?.props || {}
+const approachBlock = blocks.find((block) => block.type === 'processSteps')?.props || {}
+const principlesBlock = blocks.find((block) => block.type === 'stats')?.props || {}
+const magnetBlock = blocks.find((block) => block.type === 'leadMagnet')?.props || {}
+const founderBlock = blocks.find((block) => block.type === 'richText')?.props || {}
+const faqBlock = blocks.find((block) => block.type === 'faq')?.props || {}
+const ctaBlock = blocks.find((block) => block.type === 'cta')?.props || {}
 
-const defaultServices = [
-  {
-    title: 'Landing Page Builds',
-    summary: 'Conversion-focused pages for local services, product launches, and offer validation.',
-    deliverables: ['Messaging-led page structure', 'Responsive React or static build', 'Fast deployment to Cloudflare Pages'],
-    icon: Code2,
-    imageLabel: 'Page structure and launch build',
-    variant: 'landing',
-    tools: ['React', 'Tailwind', 'CTA Flow'],
-    visualNote: 'Sections, call-to-action flow, and responsive launch setup.',
-  },
-  {
-    title: 'AI Workflow Automation',
-    summary: 'Automations that qualify leads, generate replies, route tasks, and keep communication moving.',
-    deliverables: ['Zapier, n8n, or Make flows', 'AI-assisted summaries and drafting', 'Lead and client follow-up logic'],
-    icon: Zap,
-    imageLabel: 'Automation and orchestration flow',
-    variant: 'automation',
-    tools: ['Zapier', 'n8n', 'Make.com'],
-    visualNote: 'Trigger, route, qualify, and respond across connected tools.',
-  },
-  {
-    title: 'CRM and Operations Setup',
-    summary: 'Connected systems for forms, sheets, inboxes, CRMs, and internal reporting.',
-    deliverables: ['CRM and spreadsheet integrations', 'Dashboards and tracking systems', 'SOP and handoff documentation'],
-    icon: Settings,
-    imageLabel: 'CRM, dashboard, and ops setup',
-    variant: 'crm',
-    tools: ['CRM', 'Sheets', 'Dashboards'],
-    visualNote: 'Operational visibility, routing, and reporting in one system flow.',
-  },
-  {
-    title: 'Custom Business Tools',
-    summary: 'Lightweight internal tools, SQL-backed workflows, and custom interfaces for teams that need more than a spreadsheet.',
-    deliverables: ['Workflow-focused web interfaces', 'Backend/API integration support', 'Deployment and iteration support'],
-    icon: Wrench,
-    imageLabel: 'Internal tools and custom workflows',
-    variant: 'tools',
-    tools: ['Internal App', 'Workflow UI', 'SQL Logic'],
-    visualNote: 'Custom interfaces built around team actions and operational needs.',
-  },
-  {
-    title: 'Full-Stack & API Systems',
-    summary: 'End-to-end applications that connect clear interfaces with secure services, structured data, and maintainable integrations.',
-    deliverables: ['React or Astro interface delivery', 'Java, Spring Boot, or Laravel services', 'REST APIs, SQL data models, and deployment support'],
-    icon: ArrowRight,
-    imageLabel: 'Backend services and API delivery',
-    variant: 'backend',
-    tools: ['Java', 'Laravel', 'REST API'],
-    visualNote: 'Service logic, integrations, and reliable data exchange layers.',
-  },
-]
+const heroHeading = String(
+  heroBlock.heading || 'Build the systems your business needs to capture opportunities and operate reliably.',
+)
+const heroSubheading = String(
+  heroBlock.subheading ||
+    'DevLab Studios designs and connects conversion websites, backend services, structured data, CRM workflows, and AI automation into maintainable business systems.',
+)
+const heroKicker = String(heroBlock.kicker || heroBlock.eyebrow || 'Software and automation studio')
+const heroPrimary = (heroBlock.primaryCta as { label?: string; href?: string } | undefined) || {}
+const heroSecondary = (heroBlock.secondaryCta as { label?: string; href?: string } | undefined) || {}
+const heroSignals = Array.isArray(heroBlock.capabilities) && heroBlock.capabilities.length
+  ? heroBlock.capabilities
+  : [
+      { label: '01 / Capture', value: 'Intake and follow-up that never drops an inquiry' },
+      { label: '02 / Operate', value: 'Automation with visible failures and real owners' },
+      { label: '03 / Build', value: 'Interfaces, APIs, and data that outlive the first release' },
+    ]
 
-const defaultProcessSteps = [
-  {
-    step: '01',
-    title: 'Problem Audit',
-    icon: Search,
-    summary: 'The process begins by mapping the actual business problem, not just the requested feature. That includes bottlenecks, broken handoffs, slow response points, missing integrations, and unclear customer flow.',
-    outcomes: ['Current workflow review', 'Pain point and bottleneck mapping', 'Priority opportunities for speed, clarity, and automation'],
-    visualTitle: 'Audit Signals',
-    visualChips: ['Bottlenecks', 'Missed Handoffs', 'Response Delay'],
-    visualNote: 'The first pass is about seeing the friction clearly before solving it.',
-    visualFlow: [
-      { label: 'Workflow Review', icon: Search },
-      { label: 'Gap Analysis', icon: Clock },
-      { label: 'Priority Map', icon: TrendingUp },
-    ],
-  },
-  {
-    step: '02',
-    title: 'Solution Proposal',
-    icon: Lightbulb,
-    summary: 'The audit produces a defined, best-fit solution model. This usually includes the recommended system structure, scope, tools, delivery phases, and the expected business outcome before any build work begins.',
-    outcomes: ['Recommended system direction', 'Tool and architecture fit', 'Clear scope, deliverables, and rollout plan'],
-    visualTitle: 'Proposed System',
-    visualChips: ['Scope', 'Tools', 'Rollout Plan'],
-    visualNote: 'The proposal translates findings into a practical system direction.',
-    visualFlow: [
-      { label: 'Scope Fit', icon: Briefcase },
-      { label: 'Tool Match', icon: Lightbulb },
-      { label: 'Rollout Plan', icon: ArrowRight },
-    ],
-  },
-  {
-    step: '03',
-    title: 'Solution Build-Up',
-    icon: Settings,
-    summary: 'Once the direction is approved, implementation proceeds in structured phases across the website, automation, integration, or backend workflow so each part is tested, connected, and ready for real use.',
-    outcomes: ['Implementation in controlled phases', 'Integrated forms, APIs, data flow, or automation logic', 'Validation for reliability and maintainability'],
-    visualTitle: 'Build Layers',
-    visualChips: ['Frontend', 'Integrations', 'Validation'],
-    visualNote: 'Each layer is connected, tested, and tightened before release.',
-    visualFlow: [
-      { label: 'Modules', icon: Code2 },
-      { label: 'Integrations', icon: Settings },
-      { label: 'Testing', icon: CheckCircle2 },
-    ],
-  },
-  {
-    step: '04',
-    title: 'Solution Delivery',
-    icon: CheckCircle2,
-    summary: 'The final stage focuses on launch readiness, handoff, and operational clarity. That includes deployment, walkthroughs, documentation, and making sure the system can actually be used by the client or team.',
-    outcomes: ['Launch-ready delivery', 'Documentation and handoff support', 'Operational clarity for post-launch use'],
-    visualTitle: 'Launch & Handoff',
-    visualChips: ['Deployment', 'Documentation', 'Team Handoff'],
-    visualNote: 'Delivery means the system is live, documented, and usable by the team.',
-    visualFlow: [
-      { label: 'Launch', icon: Zap },
-      { label: 'Walkthrough', icon: MessageSquare },
-      { label: 'Handoff', icon: Briefcase },
-    ],
-  },
-]
+const problems = Array.isArray(problemBlock.items) && problemBlock.items.length ? problemBlock.items : operationalProblems
 
-const statsBlocks = homePage?.blocks.filter((block) => block.type === 'stats') || []
-const richTextBlocks = homePage?.blocks.filter((block) => block.type === 'richText') || []
-const servicesBlock = homePage?.blocks.find((block) => block.type === 'servicesGrid')?.props || {}
-const processBlock = homePage?.blocks.find((block) => block.type === 'processSteps')?.props || {}
-const capabilityItems = Array.isArray(statsBlocks[0]?.props?.items) ? statsBlocks[0].props.items : []
-const workAreas = defaultWorkAreas.map((item, index) => ({
-  ...item,
-  title: String(capabilityItems[index]?.label || item.title),
-  description: String(capabilityItems[index]?.value || item.description),
-}))
-const selectedServiceIds = Array.isArray(servicesBlock.serviceIds) ? servicesBlock.serviceIds : []
-const serviceRecords = selectedServiceIds.length
-  ? selectedServiceIds.flatMap((id) => servicesContent.solutionGroups.filter((group) => group.id === id))
-  : []
-const services = defaultServices.map((item, index) => {
-  const record = serviceRecords[index]
-  return record ? { ...item, title: record.title, summary: record.description, deliverables: record.capabilities?.length ? record.capabilities : item.deliverables } : item
-})
-const cmsProcessSteps = Array.isArray(processBlock.steps) ? processBlock.steps : []
-const processSteps = defaultProcessSteps.map((item, index) => ({
-  ...item,
-  title: String(cmsProcessSteps[index]?.title || item.title),
-  summary: String(cmsProcessSteps[index]?.description || item.summary),
-  outcomes: Array.isArray(cmsProcessSteps[index]?.outcomes) && cmsProcessSteps[index].outcomes.length ? cmsProcessSteps[index].outcomes : item.outcomes,
-  visualTitle: String(cmsProcessSteps[index]?.visualTitle || item.visualTitle),
-  visualChips: Array.isArray(cmsProcessSteps[index]?.visualChips) && cmsProcessSteps[index].visualChips.length ? cmsProcessSteps[index].visualChips : item.visualChips,
-  visualNote: String(cmsProcessSteps[index]?.visualNote || item.visualNote),
-}))
-const capabilityHeading = String(statsBlocks[0]?.props?.heading || 'One system, every layer')
-const capabilitySubtitle = String(statsBlocks[0]?.props?.subheading || 'Full-stack delivery across customer experience, application logic, data, and the automation that keeps work moving.')
-const architectureCopy = richTextBlocks[0]?.props || {}
-const processHeading = String(processBlock.heading || 'Problem To Solution Approach')
-const processSubtitle = String(processBlock.subheading || 'A four-phase delivery model: diagnose the problem, define the approach, build in structured phases, and deliver with full handoff support.')
-const credibilityCopy = richTextBlocks[1]?.props || {}
-const credibilityHighlights = Array.isArray(credibilityCopy.highlights) && credibilityCopy.highlights.length ? credibilityCopy.highlights : [
-  { label: 'Full-stack Development', value: 'Interfaces, APIs, backend services, and data designed as one maintainable product.' },
-  { label: 'AI Automation', value: 'Connected workflows, intelligent routing, and operational handoffs built for reliable delivery.' },
+/** Work items already carry an editor-approved, verified narrative — reuse them rather than inventing proof. */
+const workShowcase = workPage?.blocks.find((block) => block.type === 'workProjectShowcase')?.props || {}
+const projectsById = new Map(projects.map((project) => [project.id, project]))
+const featuredProof = (Array.isArray(workShowcase.items) ? workShowcase.items : [])
+  .filter((item: Record<string, unknown>) => item.status === 'published')
+  .flatMap((item: Record<string, unknown>) => {
+    const project = projectsById.get(String(item.projectId || ''))
+    return project ? [{ project, narrative: item }] : []
+  })
+  .slice(0, 3)
+
+const approachSteps = Array.isArray(approachBlock.steps) && approachBlock.steps.length
+  ? approachBlock.steps.map((step: Record<string, unknown>, index: number) => ({
+      step: String(index + 1).padStart(2, '0'),
+      title: String(step.title || deliveryApproach[index]?.title || ''),
+      description: String(step.description || deliveryApproach[index]?.description || ''),
+      outcomes: Array.isArray(step.outcomes) && step.outcomes.length ? step.outcomes : deliveryApproach[index]?.outcomes || [],
+      icon: String(step.icon || deliveryApproach[index]?.icon || 'Settings'),
+    }))
+  : deliveryApproach
+
+const principles = Array.isArray(principlesBlock.items) && principlesBlock.items.length
+  ? principlesBlock.items
+  : reliabilityPrinciples
+
+// An unknown offerId from the CMS falls back to the default rather than
+// rendering a card with no destination.
+const magnetOffer = getLeadMagnet(String(magnetBlock.offerId || '')) || getLeadMagnet('lead-intake-checklist')
+const latestInsight = posts.filter((post) => post.status !== 'draft')[0] || null
+
+const defaultFaqs = [
+  {
+    question: 'Do you only build automations?',
+    answer:
+      'No. Automation is one layer. The same engagements regularly include a conversion website, backend services, an API, a data model, dashboards, or an internal tool — whichever the workflow actually needs.',
+  },
+  {
+    question: 'Can you work with the tools we already use?',
+    answer:
+      'Yes. Systems are built around the CRM, forms, spreadsheets, inbox, and task tools already in place, using n8n, Make, Zapier, or direct API integration depending on what stays maintainable.',
+  },
+  {
+    question: 'What happens if an integration goes down?',
+    answer:
+      'Submissions are stored before any external delivery is attempted, every delivery attempt is recorded, and failed attempts stay visible to an administrator who can retry them. An outage leaves work undelivered, not lost.',
+  },
+  {
+    question: 'How does a project start?',
+    answer:
+      'With a workflow review. The goal is to understand the business problem, map the current process, and define the smallest reliable system that solves it before any build work begins.',
+  },
+  {
+    question: 'Who does the work?',
+    answer:
+      'Stephen Rey Agustinez, the founder, designs and implements the systems delivered through DevLab Studios. The Founder Profile lists the full technical background.',
+  },
 ]
-const jsonLd = [getPersonSchema(), getWebsiteSchema()]
+const faqs = Array.isArray(faqBlock.items) && faqBlock.items.length ? faqBlock.items : defaultFaqs
+
+const jsonLd = [getOrganizationSchema(), getWebsiteSchema(), getFaqSchema(faqs)]
 ---
 
-<Layout title="DevLab Studios — Full-Stack Development & AI Automation" seo={seo} jsonLd={jsonLd}>
+<Layout
+  title="DevLab Studios — Software and Automation Systems for Businesses"
+  seo={seo}
+  jsonLd={jsonLd}
+>
   <div>
+    <!-- 1. Outcome-focused hero -->
     <section class="home-landing cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-9 lg:p-12">
       <VectorField motif="fullstack" />
       <div class="home-landing__grid relative z-10 grid items-center gap-10 lg:grid-cols-[1.04fr_0.96fr]">
         <div class="home-landing__copy space-y-7 lg:py-8">
-          <p class="tech-kicker">{String(cmsHero.kicker || cmsHero.eyebrow || 'Full-stack Development + AI Automation')}</p>
-          <div class="space-y-6">
-            <h1 class="home-landing__tagline text-white">{canonicalTagline}</h1>
-            <div class="home-landing__context space-y-2">
-              <p class="text-base font-semibold leading-snug text-white sm:text-lg">{heroHeading}</p>
-              <p class="text-sm leading-relaxed text-slate-300 sm:text-base">{heroSubheading}</p>
-            </div>
+          <p class="tech-kicker">{heroKicker}</p>
+          <div class="space-y-5">
+            <h1 class="text-[clamp(2rem,4.4vw,3.25rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-white">
+              {heroHeading}
+            </h1>
+            <p class="max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">{heroSubheading}</p>
           </div>
 
           <div class="flex flex-wrap gap-3">
-            <PrimaryButton to={heroPrimary.href || '/contact'} variant="primary" showIcon>
-              {heroPrimary.label || 'Start a Project'}
+            <PrimaryButton
+              to={heroPrimary.href || '/contact?type=business_system'}
+              variant="primary"
+              showIcon
+              data-cta-id="home-hero-primary"
+              data-cta-variant="primary"
+              data-inquiry-type="business_system"
+            >
+              {heroPrimary.label || 'Discuss Your System'}
             </PrimaryButton>
-            <PrimaryButton to={heroSecondary.href || '/work'} variant="secondary">
-              {heroSecondary.label || 'View Work'}
+            <PrimaryButton
+              to={heroSecondary.href || '/work'}
+              variant="secondary"
+              data-cta-id="home-hero-secondary"
+              data-cta-variant="secondary"
+            >
+              {heroSecondary.label || 'View Our Work'}
             </PrimaryButton>
           </div>
 
           <div class="home-landing__capabilities">
-            {heroCapabilities.map(({ label, value }) => (
+            {heroSignals.map(({ label, value }: { label: string; value: string }) => (
               <div>
                 <p>{label}</p>
                 <p>{value}</p>
@@ -240,204 +179,318 @@ const jsonLd = [getPersonSchema(), getWebsiteSchema()]
           </div>
         </div>
 
-        <LivingSystems contentNodes={cmsHero.canvasNodes} statusLabel={String(cmsHero.statusLabel || 'System online')} />
+        <LivingSystems contentNodes={heroBlock.canvasNodes} statusLabel={String(heroBlock.statusLabel || 'System online')} />
       </div>
     </section>
 
-    <section class="chapter grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
-      <div class="space-y-6">
-        <SectionHeader
-          title={capabilityHeading}
-          subtitle={capabilitySubtitle}
-        />
-        <div class="capability-list">
-          {workAreas.map((item, index) => (
-            <article class="capability-row">
-              <span class="capability-row__index">{String(index + 1).padStart(2, '0')}</span>
-              <h3 class="text-lg font-semibold text-brand-ink">{item.title}</h3>
-              <p class="text-sm leading-relaxed text-slate-600">{item.description}</p>
-            </article>
-          ))}
-        </div>
-      </div>
-
-      <aside class="system-brief lg:sticky lg:top-28">
-        <div class="relative z-10">
-          <p class="tech-kicker">{String(architectureCopy.eyebrow || 'System architecture')}</p>
-          <h3 class="mt-6 max-w-lg text-3xl font-semibold leading-tight">{String(architectureCopy.heading || 'Every layer has a purpose. Every handoff stays visible.')}</h3>
-          <div class="mt-8 grid gap-3" aria-label="DevLab delivery architecture">
-            {['Interface / customer intent', 'Application / business logic', 'API / integrations', 'Data / operational state', 'Automation / routed action', 'Human / accountable handoff'].map((layer, index) => (
-              <div class="flex items-center gap-4 border-b border-white/10 py-3 last:border-0">
-                <span class="text-[0.65rem] font-bold tracking-[0.15em] text-violet-300">0{index + 1}</span>
-                <span class="text-sm font-medium text-slate-200">{layer}</span>
-                <span class="ml-auto h-1.5 w-1.5 rounded-full bg-violet-400" aria-hidden="true"></span>
-              </div>
-            ))}
-          </div>
-          <p class="mt-8 max-w-lg text-sm leading-relaxed text-slate-400">{String(architectureCopy.body || 'The result is not a collection of disconnected tools. It is one maintainable operating flow with clear failure paths and ownership.')}</p>
-        </div>
-      </aside>
-    </section>
-
-    <section class="chapter space-y-6">
+    <!-- 2. The operational problems -->
+    <section class="chapter space-y-6" aria-labelledby="home-problems">
       <SectionHeader
-        title={String(servicesBlock.heading || 'Services Offered')}
-        subtitle={String(servicesBlock.subheading || 'The offers below are grounded in the work already shown in the portfolio, resume history, and technical stack.')}
+        title={String(problemBlock.heading || 'The problems these systems are built to remove')}
+        subtitle={String(
+          problemBlock.subheading ||
+            'These are the failure modes that cost a business opportunities quietly, without anything obviously breaking.',
+        )}
       />
-      <div class="space-y-5">
-        {services.map((service, index) => {
-          const isImageFirst = index % 2 === 1
-
+      <h2 id="home-problems" class="sr-only">Operational problems DevLab Studios addresses</h2>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {problems.map((problem: { title: string; description?: string; icon?: string }) => {
+          const Icon = resolveIcon(problem.icon || 'AlertTriangle')
           return (
-            <article class="light-artifact overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#fff9ff] via-[#fbf9ff] to-[#f2efff] shadow-[0_18px_38px_rgba(48,28,114,0.12)]">
-              <div class="grid items-center gap-0 lg:grid-cols-2">
-                <div class={['flex justify-center p-6 sm:p-8 lg:p-10', isImageFirst ? 'lg:order-1' : 'lg:order-2'].join(' ')}>
-                  <ServiceGraphic service={service} />
-                </div>
-
-                <div class={['space-y-5 p-6 sm:p-8 lg:p-10', isImageFirst ? 'lg:order-2' : 'lg:order-1'].join(' ')}>
-                  <div class="space-y-3">
-                    <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">
-                      Service {String(index + 1).padStart(2, '0')}
-                    </p>
-                    <h3 class="text-2xl font-semibold text-brand-ink sm:text-3xl">{service.title}</h3>
-                    <p class="max-w-2xl text-slate-600">{service.summary}</p>
-                  </div>
-
-                  <ul class="space-y-3 text-sm text-slate-700 sm:text-base">
-                    {service.deliverables.map((deliverable) => (
-                      <li class="flex gap-3 leading-relaxed">
-                        <ArrowRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />
-                        <span>{deliverable}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div>
-                    <a href="/contact" class="text-sm font-semibold text-brand-teal transition hover:text-brand-orange">
-                      Ask about this service
-                    </a>
-                  </div>
-                </div>
-              </div>
+            <article class="light-artifact flex h-full flex-col gap-3 rounded-2xl bg-white/[0.94] p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
+              <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-mint text-brand-teal">
+                <Icon className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <h3 class="text-base font-semibold text-brand-ink">{problem.title}</h3>
+              {problem.description ? <p class="text-sm leading-relaxed text-slate-600">{problem.description}</p> : null}
             </article>
           )
         })}
       </div>
     </section>
 
-    <section class="chapter space-y-6">
+    <!-- 3. Solution categories -->
+    <section class="chapter space-y-6" aria-labelledby="home-solutions">
       <SectionHeader
-        title={processHeading}
-        subtitle={processSubtitle}
+        title={String(solutionsBlock.heading || 'Four ways that gets solved')}
+        subtitle={String(
+          solutionsBlock.subheading ||
+            'Each one is a complete system — the interface, the logic, the data, the integrations, and the handoff to a person.',
+        )}
       />
-      <div class="chapter-dark p-6 sm:p-8 lg:p-10">
-        <div class="relative">
-          <div class="process-timeline absolute bottom-0 left-5 top-0 z-0 w-[2px] bg-gradient-to-b from-violet-300/35 via-brand-teal/90 to-cyan-200/40 shadow-[0_0_18px_rgba(139,92,246,0.32)] lg:left-1/2 lg:-translate-x-1/2" aria-hidden="true"></div>
-
-          <div class="space-y-6 lg:space-y-8">
-            {processSteps.map((item, index) => {
-              const isRight = index % 2 === 1
-
-              return (
-                <div class="relative lg:grid lg:grid-cols-2 lg:items-center lg:gap-10">
-                  <div class={['pl-16 lg:pl-0', isRight ? 'lg:order-2 lg:pl-10' : 'lg:order-1 lg:pr-10'].join(' ')}>
-                    <div class="light-artifact rounded-[1.5rem] bg-white/[0.92] p-5 shadow-[0_14px_30px_rgba(48,28,114,0.10)] ring-1 ring-slate-200/70 sm:p-6">
-                      <div class="space-y-4">
-                        <div class="flex items-center gap-3">
-                          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
-                            <item.icon className="h-5 w-5" aria-hidden="true" />
-                          </div>
-                          <div>
-                            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-brand-teal">Step {item.step}</p>
-                            <h3 class="text-2xl font-semibold text-brand-ink">{item.title}</h3>
-                          </div>
-                        </div>
-
-                        <p class="text-slate-600">{item.summary}</p>
-
-                        <ul class="space-y-3 text-sm text-slate-700 sm:text-base">
-                          {item.outcomes.map((outcome: string) => (
-                            <li class="flex gap-3 leading-relaxed">
-                              <ArrowRight className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />
-                              <span>{outcome}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class={['mt-4 pl-16 lg:mt-0 lg:pl-0', isRight ? 'lg:order-1 lg:pr-10' : 'lg:order-2 lg:pl-10'].join(' ')}>
-                    <div class="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-[#f7fbff] via-white to-[#f3edff] p-5 shadow-[0_14px_30px_rgba(48,28,114,0.08)] ring-1 ring-slate-200/70 sm:p-6">
-                      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(122,0,255,0.10),transparent_34%)]" aria-hidden="true"></div>
-                      <div class="relative z-10 grid gap-4">
-                        <div class="flex items-center justify-between gap-3">
-                          <div class="min-w-0 flex-1">
-                            <div class="flex items-center gap-3">
-                              <p class="flex-none text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">{item.visualTitle}</p>
-                              <span class="h-px min-w-8 flex-1 bg-gradient-to-r from-brand-teal/55 to-brand-orange/20" aria-hidden="true"></span>
-                            </div>
-                            <p class="mt-1 text-sm text-slate-600">{item.visualNote}</p>
-                          </div>
-                          <div class="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal shadow-[0_10px_22px_rgba(48,28,114,0.10)]" style="animation: float 5.4s ease-in-out infinite" aria-hidden="true">
-                            <item.icon className="h-6 w-6" />
-                          </div>
-                        </div>
-
-                        <div class="grid gap-3 sm:grid-cols-3">
-                          {item.visualChips.map((chip: string, chipIndex: number) => (
-                            <div class="rounded-2xl bg-white/[0.92] px-3 py-3 text-center shadow-sm ring-1 ring-slate-200/70" style={`animation: fadeInScale ${0.45 + chipIndex * 0.12}s ease-out, pulse-soft ${4.2 + chipIndex * 0.35}s ease-in-out infinite`}>
-                              <div class="mx-auto mb-2 h-2.5 w-2.5 rounded-full bg-brand-teal/80" aria-hidden="true"></div>
-                              <p class="text-sm font-semibold text-brand-ink">{chip}</p>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div class="grid gap-3 sm:grid-cols-3">
-                          {item.visualFlow.map((flowItem, flowIndex) => (
-                            <div class="rounded-2xl border border-slate-200/70 bg-white/90 p-3">
-                              <div class="flex items-center gap-2 text-sm font-semibold text-brand-ink" style={`animation: fadeInScale ${0.4 + flowIndex * 0.12}s ease-out`}>
-                                <flowItem.icon className="h-4 w-4 text-brand-teal" aria-hidden="true" />
-                                {flowItem.label}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="process-timeline__node absolute left-5 top-8 z-10 flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full border-4 border-white bg-brand-teal text-sm font-semibold text-white shadow-[0_10px_22px_rgba(48,28,114,0.18)] lg:left-1/2 lg:top-10" aria-hidden="true">
-                    {item.step}
-                  </div>
-
-                  <div class={['process-timeline__connector absolute top-[3.25rem] z-0 hidden h-[2px] bg-gradient-to-r from-violet-300/80 to-brand-teal/60 shadow-[0_0_12px_rgba(139,92,246,0.28)] lg:block', isRight ? 'left-1/2 w-10' : 'right-1/2 w-10'].join(' ')} aria-hidden="true"></div>
+      <h2 id="home-solutions" class="sr-only">Solution categories</h2>
+      <div class="grid gap-4 md:grid-cols-2">
+        {solutionCategories.map((category) => {
+          const Icon = resolveIcon(category.icon)
+          return (
+            <article
+              class="light-artifact flex h-full flex-col gap-4 rounded-[1.75rem] bg-gradient-to-br from-[#fff9ff] via-[#fbf9ff] to-[#f2efff] p-6 shadow-[0_18px_38px_rgba(48,28,114,0.12)] sm:p-7"
+              data-view-event="solution_view"
+              data-solution-id={category.id}
+            >
+              <div class="flex items-start gap-3">
+                <span class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-mint text-brand-teal">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">{category.eyebrow}</p>
+                  <h3 class="text-xl font-semibold text-brand-ink sm:text-2xl">{category.title}</h3>
                 </div>
-              )
-            })}
-          </div>
-        </div>
+              </div>
+              <p class="text-sm leading-relaxed text-slate-700">{category.description}</p>
+              <p class="flex items-start gap-2 text-sm font-medium text-brand-ink">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />
+                <span>{category.outcome}</span>
+              </p>
+              <a
+                href={`/services#${category.id}`}
+                class="mt-auto inline-flex items-center gap-1.5 text-sm font-semibold text-brand-teal transition hover:text-brand-orange"
+              >
+                What this includes
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </article>
+          )
+        })}
       </div>
     </section>
 
-    <section class="chapter-dark mb-0 p-6 sm:p-8">
-      <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-        <div class="space-y-3">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">{String(credibilityCopy.eyebrow || 'Why clients hire DevLab Studios')}</p>
-          <h2 class="text-3xl font-semibold leading-tight">{String(credibilityCopy.heading || 'Full-stack Development + AI Automation, connected from interface to handoff.')}</h2>
-          <p class="text-white/75">{String(credibilityCopy.body || 'The work spans customer-facing websites, backend services, structured data, AI-assisted workflows, CRM integrations, dashboards, and internal tools—so projects move from polished experience to reliable operations without fragmented handoffs.')}</p>
+    <!-- 4. Verified project proof -->
+    {featuredProof.length > 0 ? (
+      <section class="chapter space-y-6" aria-labelledby="home-proof">
+        <SectionHeader
+          title={String(proofBlock.heading || 'Systems already running')}
+          subtitle={String(
+            proofBlock.subheading ||
+              'Each write-up describes the problem, the system designed for it, and what the system verifiably does — not what it is claimed to have earned.',
+          )}
+        />
+        <h2 id="home-proof" class="sr-only">Featured work</h2>
+        <div class="grid gap-4 lg:grid-cols-3">
+          {featuredProof.map(({ project, narrative }) => (
+            <article class="light-artifact flex h-full flex-col gap-4 rounded-2xl bg-white/[0.94] p-6 shadow-[0_14px_32px_rgba(60,28,120,0.10)] ring-1 ring-slate-200">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">{project.type} system</p>
+              <h3 class="text-lg font-semibold leading-snug text-brand-ink">{project.title}</h3>
+              <p class="text-sm leading-relaxed text-slate-600">{String(narrative.challenge || narrative.description || '')}</p>
+              <div class="flex flex-wrap gap-2">
+                {(project.techStack || []).slice(0, 4).map((technology: string) => (
+                  <span class="rounded-full border border-slate-200 bg-[#faf8ff] px-2.5 py-1 text-[0.7rem] font-semibold text-slate-600">
+                    {technology}
+                  </span>
+                ))}
+              </div>
+              <a
+                href="/work"
+                class="mt-auto inline-flex items-center gap-1.5 text-sm font-semibold text-brand-teal transition hover:text-brand-orange"
+              >
+                Read the system write-up
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </article>
+          ))}
+        </div>
+      </section>
+    ) : null}
+
+    <!-- 5. Delivery approach -->
+    <section class="chapter space-y-6" aria-labelledby="home-approach">
+      <SectionHeader
+        title={String(approachBlock.heading || 'How delivery works')}
+        subtitle={String(
+          approachBlock.subheading ||
+            'Four phases: understand the workflow, agree the system, build it in stages, and hand it over so the team can run it.',
+        )}
+      />
+      <h2 id="home-approach" class="sr-only">Delivery approach</h2>
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {approachSteps.map((item: { step: string; title: string; description: string; outcomes: string[]; icon: string }) => {
+          const Icon = resolveIcon(item.icon)
+          return (
+            <article class="light-artifact flex h-full flex-col gap-3 rounded-2xl bg-white/[0.94] p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
+              <div class="flex items-center gap-3">
+                <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-mint text-brand-teal">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Phase {item.step}</p>
+              </div>
+              <h3 class="text-lg font-semibold text-brand-ink">{item.title}</h3>
+              <p class="text-sm leading-relaxed text-slate-600">{item.description}</p>
+              <ul class="mt-auto space-y-1.5 text-sm text-slate-700">
+                {item.outcomes.map((outcome: string) => (
+                  <li class="flex gap-2 leading-relaxed">
+                    <ArrowRight className="mt-1 h-3.5 w-3.5 flex-shrink-0 text-brand-teal" aria-hidden="true" />
+                    <span>{outcome}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          )
+        })}
+      </div>
+    </section>
+
+    <!-- 6. Reliability principles -->
+    <section class="chapter-dark p-6 sm:p-8 lg:p-10" aria-labelledby="home-principles">
+      <div class="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+        <div class="space-y-4">
+          <p class="tech-kicker">{String(principlesBlock.heading ? '' : 'Reliability')}</p>
+          <h2 id="home-principles" class="text-3xl font-semibold leading-tight text-white">
+            {String(principlesBlock.heading || 'What "reliable" has to mean before a system ships')}
+          </h2>
+          <p class="text-white/75">
+            {String(
+              principlesBlock.subheading ||
+                'These are not aspirations. They are the rules this studio builds to — including on this website, whose own inquiry pipeline works exactly this way.',
+            )}
+          </p>
+          <p class="flex items-start gap-2 text-sm text-white/60">
+            <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-violet-300" aria-hidden="true" />
+            <span>Every layer has a purpose, and every handoff stays visible.</span>
+          </p>
         </div>
         <div class="grid gap-3 sm:grid-cols-2">
-          {credibilityHighlights.map((highlight) => (
-            <div class="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
-              <p class="text-2xl font-semibold">{highlight.label}</p>
-              <p class="mt-1 text-sm text-white/70">{highlight.value}</p>
+          {principles.map((principle: { label: string; value: string }) => (
+            <div class="rounded-2xl border border-white/10 bg-white/[0.07] p-5 backdrop-blur-sm">
+              <p class="text-base font-semibold text-white">{principle.label}</p>
+              <p class="mt-2 text-sm leading-relaxed text-white/70">{principle.value}</p>
             </div>
           ))}
         </div>
       </div>
     </section>
 
+    <!-- 7. Insight + lead magnet -->
+    <section class="chapter grid gap-4 lg:grid-cols-[1.05fr_0.95fr]" aria-labelledby="home-insight">
+      <article class="light-artifact flex flex-col gap-4 rounded-[1.75rem] bg-white/[0.94] p-6 shadow-[0_14px_32px_rgba(60,28,120,0.10)] ring-1 ring-slate-200 sm:p-8">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">
+          {String(magnetBlock.eyebrow || 'Free resource')}
+        </p>
+        <h2 id="home-insight" class="text-2xl font-semibold text-brand-ink">
+          {String(magnetBlock.heading || magnetOffer.title)}
+        </h2>
+        <p class="text-sm leading-relaxed text-slate-600">{String(magnetBlock.body || magnetOffer.summary)}</p>
+        <div class="mt-auto flex flex-wrap gap-3">
+          <PrimaryButton
+            to={`/offers/${magnetOffer.id}`}
+            variant="primary"
+            showIcon
+            data-cta-id="home-lead-magnet"
+            data-cta-variant="primary"
+            data-offer-id={magnetOffer.id}
+          >
+            Get the checklist
+          </PrimaryButton>
+          <PrimaryButton to={magnetOffer.path} variant="secondary" data-cta-id="home-lead-magnet-read" data-cta-variant="secondary">
+            Read it on the site
+          </PrimaryButton>
+        </div>
+      </article>
+
+      {latestInsight ? (
+        <article class="light-artifact flex flex-col gap-3 rounded-[1.75rem] bg-gradient-to-br from-[#f7fbff] via-white to-[#f3edff] p-6 shadow-[0_14px_32px_rgba(60,28,120,0.08)] ring-1 ring-slate-200 sm:p-8">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Latest insight</p>
+          <h3 class="text-xl font-semibold leading-snug text-brand-ink">{latestInsight.title}</h3>
+          <p class="text-sm leading-relaxed text-slate-600">{latestInsight.summary}</p>
+          <a
+            href={`/insights/${latestInsight.slug}`}
+            class="mt-auto inline-flex items-center gap-1.5 text-sm font-semibold text-brand-teal transition hover:text-brand-orange"
+          >
+            Read the article
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </a>
+        </article>
+      ) : null}
+    </section>
+
+    <!-- 8. Founder credibility -->
+    <section class="chapter" aria-labelledby="home-founder">
+      <div class="light-artifact grid gap-6 rounded-[1.75rem] bg-white/[0.94] p-6 shadow-[0_14px_32px_rgba(60,28,120,0.10)] ring-1 ring-slate-200 sm:p-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+        <div class="space-y-3">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">
+            {String(founderBlock.eyebrow || 'Who builds it')}
+          </p>
+          <h2 id="home-founder" class="text-2xl font-semibold text-brand-ink sm:text-3xl">
+            {String(founderBlock.heading || 'One engineer accountable for the whole system')}
+          </h2>
+          <p class="text-sm leading-relaxed text-slate-600 sm:text-base">
+            {String(
+              founderBlock.body ||
+                'Stephen Rey Agustinez designs and builds the technical systems delivered through DevLab Studios — from customer-facing interfaces and backend services to APIs, databases, AI workflows, and operational automation. Nothing is handed to a subcontractor who was not in the original conversation.',
+            )}
+          </p>
+          <div class="flex flex-wrap gap-3 pt-2">
+            <PrimaryButton to="/profile" variant="secondary">
+              <User size={16} aria-hidden="true" />
+              View the Founder Profile
+            </PrimaryButton>
+          </div>
+        </div>
+        <ul class="grid gap-2 text-sm text-slate-700">
+          {['Full-stack development across React, Astro, Java, Spring Boot, and Laravel',
+            'Backend services, REST APIs, webhooks, and SQL-backed data models',
+            'AI automation architecture with n8n, Make, and Zapier',
+            'Integration, deployment, and documented handoff'].map((item) => (
+            <li class="flex gap-2 leading-relaxed">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-teal" aria-hidden="true" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+
+    <!-- 9. FAQ -->
+    <section class="chapter space-y-6" aria-labelledby="home-faq">
+      <SectionHeader
+        title={String(faqBlock.heading || 'Questions people ask first')}
+        subtitle={String(faqBlock.subheading || '')}
+      />
+      <h2 id="home-faq" class="sr-only">Frequently asked questions</h2>
+      <div class="grid gap-4 lg:grid-cols-2">
+        {faqs.map((faq: { question: string; answer: string }) => (
+          <article class="light-artifact rounded-2xl bg-white/[0.94] p-5 shadow-[0_12px_28px_rgba(60,28,120,0.08)] ring-1 ring-slate-200">
+            <h3 class="font-semibold text-brand-ink">{faq.question}</h3>
+            <p class="mt-2 text-sm leading-relaxed text-slate-600">{faq.answer}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <!-- 10. Final business inquiry CTA -->
+    <section class="chapter-dark mb-0 p-6 sm:p-9" aria-labelledby="home-cta">
+      <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div class="space-y-3">
+          <p class="tech-kicker">{String(ctaBlock.eyebrow || 'Next step')}</p>
+          <h2 id="home-cta" class="text-3xl font-semibold leading-tight text-white">
+            {String(ctaBlock.heading || 'Start with the workflow that loses the most time.')}
+          </h2>
+          <p class="text-white/75">
+            {String(
+              ctaBlock.body ||
+                'Describe what is slowing down, and you will get a straight answer about whether the right first move is a website, an automation, an integration, an internal tool, or a backend service.',
+            )}
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-3 lg:justify-end">
+          <PrimaryButton
+            to={String((ctaBlock.primaryCta as { href?: string })?.href || '/contact?type=business_system')}
+            showIcon
+            data-cta-id="home-final-primary"
+            data-cta-variant="primary"
+            data-inquiry-type="business_system"
+          >
+            {String((ctaBlock.primaryCta as { label?: string })?.label || 'Discuss Your System')}
+          </PrimaryButton>
+          <PrimaryButton
+            to={String((ctaBlock.secondaryCta as { href?: string })?.href || '/services')}
+            variant="secondary"
+            data-cta-id="home-final-secondary"
+            data-cta-variant="secondary"
+          >
+            {String((ctaBlock.secondaryCta as { label?: string })?.label || 'See the solutions')}
+          </PrimaryButton>
+        </div>
+      </div>
+    </section>
   </div>
 </Layout>

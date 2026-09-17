@@ -31,7 +31,7 @@ function PersonalInfoCard({ aboutData, photo }) {
       <div className="space-y-2">
         <h2 className="text-2xl font-semibold text-brand-ink sm:text-[1.75rem]">{aboutData.name}</h2>
         {aboutData.role ? <p className="text-sm text-slate-300">{aboutData.role}</p> : null}
-        <span className="badge-pill inline-block">Available for part-time and full-time engagements</span>
+        <span className="badge-pill inline-block">Open to remote employment, contract, and collaboration</span>
       </div>
 
       <div className="w-full space-y-3 border-t border-slate-200 pt-5">
@@ -64,6 +64,7 @@ function PersonalInfoCard({ aboutData, photo }) {
           href="/resume.pdf"
           target="_blank"
           rel="noreferrer"
+          data-cta-id="profile-card-resume"
           className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-brand-teal/20 bg-brand-mint/65 px-4 py-2.5 text-sm font-semibold text-brand-teal transition hover:border-brand-teal/35 hover:bg-brand-mint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50"
         >
           View Resume
@@ -77,11 +78,13 @@ function PersonalInfoCard({ aboutData, photo }) {
         className="profile-side-nav relative hidden max-h-[45vh] w-full overflow-y-auto lg:block"
       >
         <a href="#about" className="profile-side-nav-link is-active text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">About</a>
+        <a href="#capabilities" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Capabilities</a>
         <a href="#education" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Education</a>
         <a href="#certifications" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Certifications</a>
         <a href="#experience" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Experience</a>
         <a href="#tools" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Tools &amp; Platforms</a>
-        <a href="#portfolio" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Portfolio</a>
+        <a href="#portfolio" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Selected Work</a>
+        <a href="#availability" className="profile-side-nav-link text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/50 focus-visible:ring-inset">Availability</a>
       </nav>
     </section>
   )

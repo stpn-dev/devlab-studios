@@ -195,6 +195,63 @@ const ctaBlockSchema = z.object({
     body: z.string().optional().default(''),
     primaryCta: z.object({ label: z.string(), href: z.string() }),
     secondaryCta: z.object({ label: z.string(), href: z.string() }).optional(),
+    /**
+     * Routing context carried into the inquiry form. `inquiryType` preselects
+     * the form's type so a visitor arriving from a solution page never has to
+     * classify themselves; the rest are attribution ids, never displayed.
+     */
+    inquiryType: z.union([
+      z.enum([
+        'business_system',
+        'software_project',
+        'workflow_audit',
+        'employment_opportunity',
+        'contract_collaboration',
+        'partnership',
+        'general',
+      ]),
+      // The admin's select offers an explicit "do not preselect" option, which
+      // posts an empty string — it has to validate, not be a save error.
+      z.literal(''),
+    ]).optional().default(''),
+    formId: z.string().max(80).optional().default(''),
+    offerId: z.string().max(80).optional().default(''),
+    solutionId: z.string().max(80).optional().default(''),
+  }),
+})
+
+/**
+ * The operational problems a visitor recognizes before they know what to call
+ * the solution. Its own block (rather than a `stats` reuse) because each item
+ * needs a real sentence, not a label/value pair.
+ */
+const problemListBlockSchema = z.object({
+  type: z.literal('problemList'),
+  props: z.object({
+    eyebrow: z.string().optional().default(''),
+    heading: z.string().optional().default(''),
+    subheading: z.string().optional().default(''),
+    items: z.array(z.object({
+      title: z.string(),
+      description: z.string().optional().default(''),
+      icon: z.string().optional().default(''),
+    })).max(8).optional().default([]),
+  }),
+})
+
+/**
+ * A gated resource. `offerId` is a key into the server-owned registry in
+ * src/config/offers.js -- an editor selects which offer, never what URL gets
+ * emailed, so the CMS cannot be used to redirect a delivery.
+ */
+const leadMagnetBlockSchema = z.object({
+  type: z.literal('leadMagnet'),
+  props: z.object({
+    eyebrow: z.string().optional().default(''),
+    heading: z.string().min(1),
+    body: z.string().optional().default(''),
+    offerId: z.string().min(1),
+    bullets: z.array(z.string()).max(6).optional().default([]),
   }),
 })
 
@@ -210,6 +267,8 @@ export const pageBlockSchema = z.discriminatedUnion('type', [
   featuredCaseStudiesBlockSchema,
   testimonialsBlockSchema,
   faqBlockSchema,
+  problemListBlockSchema,
+  leadMagnetBlockSchema,
   resourceCardsBlockSchema,
   imageGalleryBlockSchema,
   ctaBlockSchema,
@@ -229,6 +288,8 @@ export const PAGE_BLOCK_TYPES: PageBlockType[] = [
   'featuredCaseStudies',
   'testimonials',
   'faq',
+  'problemList',
+  'leadMagnet',
   'resourceCards',
   'imageGallery',
   'cta',
