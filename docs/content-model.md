@@ -110,6 +110,27 @@ Some repository function names retain historical `Resources` wording while
 querying `articles`; treat the D1 table and current Astro route names as the
 public source of truth when extending this area.
 
+## Generated content: the daily digest
+
+`migrations/0011_insights_digest.sql` adds two tables that are **not** content
+collections and have no CMS editor:
+
+| Table | Holds | Notes |
+|---|---|---|
+| `digests` | One row per day | `digest_date` is UNIQUE, which is what makes a re-run replace the day rather than duplicate it. `model` is NULL when the run degraded to titles-and-links because Workers AI was unavailable. |
+| `digest_items` | Title, source name, source URL, and OUR OWN one-sentence summary | No source body text is ever stored. `ON DELETE CASCADE` from `digests`. |
+
+Deliberately separate from `articles`. Articles are evergreen, hand-written and
+permanent; a digest is generated, ephemeral, and swept by a `DELETE` with a date
+predicate. Sharing a table would put real editorial content one bad `WHERE`
+clause away from that sweep.
+
+Nothing here is authored, so the admin surface (`/admin/digests`) offers only
+what an operator needs over generated output: unpublish a day, delete a day, or
+run the job now. Retention removes anything older than seven days.
+
+Rationale and constraints: [ADR 0008](./architecture/decisions/0008-insights-daily-digest.md).
+
 ## Media and R2
 
 R2 stores uploaded bytes. `media_assets` stores the CMS metadata index:

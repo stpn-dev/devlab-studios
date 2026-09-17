@@ -8,6 +8,7 @@ import { ArrowRight, Calendar, CheckCircle2, Clock, Code2, MessageSquare } from 
 import { loadPageSeo } from '../lib/content/seo'
 import { loadArticlesContent, formatArticleDate, slugifyLabel, type ArticlePost } from '../lib/content/articles'
 import { loadPage } from '../lib/content/pages'
+import { loadDigests, formatDigestDate } from '../lib/content/digests'
 import { getBreadcrumbSchema } from '../config/schema.js'
 import { getLeadMagnet } from '../config/offers.js'
 
@@ -40,6 +41,10 @@ const filterOptions = [
   })),
 ]
 const feedPosts = sortedPosts.filter((post) => post.id !== featuredPost?.id)
+// Only the latest edition, and only its first few items: this is a pointer to
+// /insights/daily, not a second copy of it.
+const [latestDigest] = await loadDigests(1)
+const digestPreviewItems = latestDigest?.items.slice(0, 4) || []
 const leadMagnet = getLeadMagnet('lead-intake-checklist')
 const jsonLd = [
   getBreadcrumbSchema([
@@ -159,6 +164,46 @@ const jsonLd = [
             </div>
           </div>
         </article>
+      </section>
+    ) : null}
+
+    {latestDigest && digestPreviewItems.length > 0 ? (
+      <section class="rounded-[28px] border border-slate-200 bg-white/95 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)] sm:p-8">
+        <div class="flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-brand-teal">Updated daily</p>
+            <h2 class="mt-2 text-2xl font-semibold text-brand-ink sm:text-3xl">AI &amp; Automation Daily</h2>
+            <p class="mt-2 text-sm text-slate-500">{formatDigestDate(latestDigest.digestDate)}</p>
+          </div>
+          <a
+            href="/insights/daily"
+            class="inline-flex items-center gap-2 text-sm font-semibold text-brand-teal transition hover:text-brand-tealDark"
+            data-cta-id="insights-digest-link"
+            data-cta-variant="link"
+          >
+            Read the full log
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </a>
+        </div>
+
+        <ul class="mt-5 space-y-3">
+          {digestPreviewItems.map((item) => (
+            <li class="flex gap-3 text-sm leading-relaxed text-slate-600">
+              <span class="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-teal" aria-hidden="true"></span>
+              <span>
+                <a
+                  href={item.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  class="font-semibold text-brand-ink transition hover:text-brand-teal"
+                >
+                  {item.title}
+                </a>
+                <span class="ml-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{item.sourceName}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
       </section>
     ) : null}
 

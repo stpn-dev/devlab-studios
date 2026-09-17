@@ -118,13 +118,35 @@ different value, so preview/e2e runs can never send a real email.
 
 ## Rate limiting
 
-`src/pages/api/contact.ts` keeps an in-memory per-IP counter
-(`isContactRateLimited`) as a first line of defense — explicitly *not*
-durable across Worker isolates, cheap, and backed up by Turnstile and the
-D1-backed duplicate check for anything it misses. No other public route
-currently rate-limits; none of them (services/resources/profile/site-settings
-reads, project reads) do anything expensive enough server-side to be worth
-it yet.
+Every limit goes through `src/worker/rateLimit.js`, backed by `RateLimiterDO`
+(a Durable Object), so the count is global rather than per-isolate. One module
+for all of them, so a limiter can never again be "configured but not actually
+enforcing" without it being visible in one place. The earlier in-memory per-IP
+counter in `contact.ts` did not survive across isolates and is gone.
+
+| Bucket | Identity | Limit |
+|---|---|---|
+| `admin-login` | `ip:email`, and separately the IP | 8 per 15 min per pair, 20 per 15 min per IP |
+| `admin-password-change` | admin email | 10 per 15 min; cleared on success |
+| `inquiry` / `contact` | client IP | 5 per 10 min |
+| `admin-lead-retry` | admin email, else IP | 10 per 5 min |
+| `admin-media-write` | admin email, else IP | 60 per 5 min |
+| `digest-generate` | client IP | 4 per hour |
+| `public-state` (Pickleball) | client IP | 60 per min |
+
+`clientIp()` prefers `cf-connecting-ip`, which Cloudflare's edge sets and a
+caller cannot spoof; `x-forwarded-for` is only a fallback for non-edge contexts.
+
+**The limiter FAILS OPEN.** If the Durable Object is unreachable, a request is
+allowed rather than rejected — a limiter that takes the login page down with it
+when it has a bad minute is worse than one that briefly stops counting. This
+also means a MISSING `RATE_LIMITER` binding silently enforces nothing, which is
+exactly what happened on preview before the binding was mirrored into
+`env.preview`. Both environments must declare it.
+
+`digest-generate` is limited despite being admin-only: each run makes four
+outbound fetches and up to ten Workers AI calls against a daily allocation, so
+an admin holding down the button should not be able to spend the day's neurons.
 
 ## Inquiry data handling
 
@@ -165,6 +187,30 @@ it yet.
 - **Admin writes cannot rewrite visitor input.** `leadUpdateSchema` contains
   only `pipelineStatus`, `assignedOwner`, and `internalNotes`; there is no
   field through which a submitted value could be edited.
+
+## Third-party feed content (daily digest)
+
+The digest ingests text written by other people and passes it through a language
+model, which is two separate trust problems:
+
+- **SSRF.** The feed registry (`src/worker/digest/feeds.js`) is server-owned
+  code. The run only ever fetches URLs from that list — never one from a
+  request, a CMS field, or a feed's own contents. Each fetch is bounded by an
+  8s timeout and the response is truncated at 256KB before parsing.
+- **Prompt injection.** A headline is attacker-influenced input: anyone who can
+  get a post onto a syndicated feed can attempt one. Feed text is fenced between
+  explicit `<<<ITEM>>>` / `<<<END>>>` markers and the system prompt states that
+  everything inside is quoted third-party material to be treated strictly as
+  data, with any instruction-like text inside it ignored. A unit test asserts
+  the attacker-controlled string appears only inside the fence and never in the
+  system message.
+- **Stored output.** Only the title, the source URL, and our own one-sentence
+  summary are persisted. No source body text is stored or rendered, and every
+  item links back to the publisher with `rel="noopener noreferrer nofollow"`.
+- **Fabrication.** The model is instructed to summarize only what the supplied
+  headline and excerpt state and to add no numbers, dates, versions or claims
+  not present in them. When the model is unavailable the item publishes as a
+  title and a link rather than an invented summary.
 
 ## Known gaps (tracked, not silently ignored)
 

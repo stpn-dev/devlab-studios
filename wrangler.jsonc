@@ -16,6 +16,17 @@
   "images": {
     "binding": "IMAGES"
   },
+  // Workers AI writes the one-line summaries in the daily Insights digest.
+  // Nothing in the request path uses it: if the binding is missing or the daily
+  // allocation is spent, the digest still publishes as titles and links.
+  "ai": {
+    "binding": "AI"
+  },
+  // 06:00 UTC daily — after the US news cycle closes and before the European
+  // working day. Handled by `scheduled()` in src/worker.ts.
+  "triggers": {
+    "crons": ["0 6 * * *"]
+  },
   "d1_databases": [
     {
       "binding": "DB",
@@ -93,6 +104,16 @@
       // on preview and responsive variants silently degrade there.
       "images": {
         "binding": "IMAGES"
+      },
+      "ai": {
+        "binding": "AI"
+      },
+      // Preview needs its own cron: the content mirror deliberately does not
+      // copy digests, so without one there would be nothing here to look at
+      // before a change goes to production. Staggered half an hour so the two
+      // environments do not hit the same feeds at the same moment.
+      "triggers": {
+        "crons": ["30 6 * * *"]
       },
       "d1_databases": [
         {

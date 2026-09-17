@@ -29,6 +29,7 @@ export {
   Mail,
   MapPin,
   Megaphone,
+  Newspaper,
   Phone,
   Calendar,
   ExternalLink,

@@ -14,6 +14,7 @@ import {
   Lock,
   Mail,
   Menu,
+  Newspaper,
   Search,
   Settings,
 } from '../../components/icons/icons'
@@ -36,6 +37,7 @@ const NAV_GROUPS = [
       { label: 'Projects', to: '/admin/content/projects', icon: Briefcase },
       { label: 'Service Catalog', to: '/admin/content/services', icon: Settings },
       { label: 'Insight Articles', to: '/admin/content/resources', icon: FileText },
+      { label: 'Daily Digests', to: '/admin/digests', icon: Newspaper },
       { label: 'Certifications', to: '/admin/collections/certifications', icon: BadgeCheck },
     ],
   },

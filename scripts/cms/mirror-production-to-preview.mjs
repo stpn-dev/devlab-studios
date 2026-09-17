@@ -104,6 +104,11 @@ const FORBIDDEN_TABLES = [
   'content_versions',
   'media_assets',
   'd1_migrations',
+  // Generated per environment by the daily cron, not authored, and pruned on a
+  // 7-day window. Copying production's editions into preview would make preview
+  // show days its own retention sweep is about to delete.
+  'digests',
+  'digest_items',
 ]
 
 const isDryRun = process.argv.includes('--dry-run')

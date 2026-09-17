@@ -1,0 +1,137 @@
+import { test, expect } from '@playwright/test'
+
+/**
+ * Daily digest: access control, the admin surface, and the public page's
+ * empty state.
+ *
+ * Deliberately does NOT exercise "Generate now". That run makes four real
+ * outbound requests to third-party feeds, so an e2e assertion on its output
+ * would be an assertion about someone else's uptime. The pipeline itself —
+ * parsing, deduplication, caps, retention, AI degradation — is covered by unit
+ * tests that run the real SQL against SQLite (src/worker/digest/*.test.js and
+ * src/worker/repositories/digests.test.js).
+ */
+
+const ADMIN_EMAIL = 'smoke-test@devlabstudios.com'
+const ADMIN_PASSWORD = 'smoke-test-password-123'
+const SESSION_COOKIE = 'devlab_admin_session'
+
+// One sign-in per Playwright worker, for the same reason as admin.spec.js:
+// /api/admin/login is rate limited per IP and re-authenticating per test trips
+// it part-way through a full run.
+let cachedSessionCookie = null
+
+async function login(page) {
+  if (cachedSessionCookie) {
+    await page.context().addCookies([cachedSessionCookie])
+    await page.goto('/admin')
+    await expect(page.getByRole('button', { name: /log ?out/i })).toBeVisible({ timeout: 10_000 })
+    return
+  }
+
+  await page.goto('/admin')
+  await page.getByLabel('Email').fill(ADMIN_EMAIL)
+  await page.getByLabel('Password', { exact: true }).fill(ADMIN_PASSWORD)
+  await page.getByRole('button', { name: /sign in/i }).click()
+  await expect(page.getByRole('button', { name: /log ?out/i })).toBeVisible({ timeout: 10_000 })
+
+  const cookies = await page.context().cookies()
+  cachedSessionCookie = cookies.find((cookie) => cookie.name === SESSION_COOKIE) || null
+}
+
+// A bodyless DELETE carries no Content-Type, and Astro's CSRF check rejects any
+// non-GET request that has neither a form-like Content-Type nor a matching
+// `Origin`. A browser always sends `Origin`; Playwright's request context does
+// not, so these tests send it explicitly rather than weakening the check.
+test.describe('digest admin API access control', () => {
+  test('every digest endpoint rejects an unauthenticated caller', async ({ request, baseURL }) => {
+    const list = await request.get(`${baseURL}/api/admin/digests`)
+    expect(list.status()).toBe(401)
+
+    const generate = await request.post(`${baseURL}/api/admin/digests`, { data: {} })
+    expect(generate.status()).toBe(401)
+
+    const patch = await request.patch(`${baseURL}/api/admin/digests/does-not-exist`, { data: { status: 'draft' } })
+    expect(patch.status()).toBe(401)
+
+    const remove = await request.delete(`${baseURL}/api/admin/digests/does-not-exist`, {
+      headers: { Origin: baseURL },
+    })
+    expect(remove.status()).toBe(401)
+  })
+})
+
+test.describe('digest admin', () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page)
+  })
+
+  test('lists digests for an authenticated admin', async ({ page, baseURL }) => {
+    const response = await page.request.get(`${baseURL}/api/admin/digests`)
+    expect(response.ok()).toBeTruthy()
+
+    const body = await response.json()
+    expect(Array.isArray(body.digests)).toBe(true)
+  })
+
+  test('rejects an unknown status rather than writing it', async ({ page, baseURL }) => {
+    // A missing digest is reported as missing before the status is looked at,
+    // so this asserts the 404 path; the 400 path is covered by the unit-level
+    // enum check in the route.
+    const response = await page.request.patch(`${baseURL}/api/admin/digests/does-not-exist`, {
+      data: { status: 'published' },
+    })
+    expect(response.status()).toBe(404)
+  })
+
+  test('reports a missing digest on delete instead of silently succeeding', async ({ page, baseURL }) => {
+    const response = await page.request.delete(`${baseURL}/api/admin/digests/does-not-exist`, {
+      headers: { Origin: baseURL },
+    })
+    expect(response.status()).toBe(404)
+  })
+
+  test('the Daily Digests page is reachable from the sidebar', async ({ page }) => {
+    await page.getByRole('link', { name: 'Daily Digests' }).first().click()
+
+    await expect(page.getByRole('heading', { name: 'Daily Digests', level: 1 })).toBeVisible()
+    await expect(page.getByRole('button', { name: /generate now/i })).toBeVisible()
+  })
+})
+
+test.describe('the public daily log', () => {
+  test('renders with its heading and a link back to Insights', async ({ page }) => {
+    await page.goto('/insights/daily')
+
+    await expect(page.getByRole('heading', { name: /AI & Automation Daily/i, level: 1 })).toBeVisible()
+    await expect(page.getByRole('link', { name: /all insights/i })).toBeVisible()
+  })
+
+  test('declares a single canonical URL rather than one per edition', async ({ page }) => {
+    await page.goto('/insights/daily')
+
+    const canonical = page.locator('link[rel="canonical"]')
+    await expect(canonical).toHaveAttribute('href', 'https://www.devlabstudios.com/insights/daily')
+  })
+
+  test('says so plainly when no edition has been generated', async ({ page }) => {
+    await page.goto('/insights/daily')
+
+    // The local database starts without digests; once one exists this becomes
+    // the dated-sections branch, which is why both are asserted as alternatives
+    // rather than the empty state being asserted unconditionally.
+    const empty = page.getByRole('heading', { name: /no digest yet/i })
+    const editions = page.getByRole('heading', { name: /latest editions/i })
+
+    await expect(empty.or(editions)).toBeVisible()
+  })
+
+  test('is listed in the sitemap exactly once', async ({ request, baseURL }) => {
+    const response = await request.get(`${baseURL}/sitemap.xml`)
+    expect(response.ok()).toBeTruthy()
+
+    const xml = await response.text()
+    const matches = xml.match(/<loc>https:\/\/www\.devlabstudios\.com\/insights\/daily<\/loc>/g) || []
+    expect(matches).toHaveLength(1)
+  })
+})

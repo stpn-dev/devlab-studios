@@ -55,7 +55,7 @@ export default defineConfig({
     },
     {
       name: 'worker',
-      testMatch: [/admin\.spec\.js/, /pickleball[\\/].*\.spec\.js/],
+      testMatch: [/admin\.spec\.js/, /digest\.spec\.js/, /pickleball[\\/].*\.spec\.js/],
       use: { baseURL: 'http://localhost:8787' },
     },
     {

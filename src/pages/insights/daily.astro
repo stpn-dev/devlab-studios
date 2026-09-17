@@ -1,0 +1,158 @@
+---
+import Layout from '../../layouts/Layout.astro'
+import SectionHeader from '../../components/SectionHeader.jsx'
+import PrimaryButton from '../../components/PrimaryButton.jsx'
+import VectorField from '../../components/VectorField.astro'
+import { ArrowRight, ExternalLink, MessageSquare } from '../../components/icons/icons.js'
+import { loadDigests, formatDigestDate, sourceHost } from '../../lib/content/digests'
+import { RETENTION_DAYS } from '../../worker/digest/feeds.js'
+import { getBreadcrumbSchema } from '../../config/schema.js'
+
+/**
+ * AI & Automation Daily — a dated log on one permanent URL.
+ *
+ * Deliberately NOT one page per day. Each day's digest is a handful of
+ * summarized links; a separate indexable page per day would be a thin-content
+ * page generated on a schedule, which is what Google's "scaled content abuse"
+ * policy targets. One durable page with dated sections and `#YYYY-MM-DD`
+ * anchors is linkable without manufacturing URLs.
+ */
+const digests = await loadDigests(RETENTION_DAYS)
+const latest = digests[0] || null
+
+const seo = {
+  metaTitle: 'AI & Automation Daily — DevLab Studios',
+  metaDescription:
+    'A short daily log of AI automation and AI advancement stories worth reading, summarized and linked to the original source.',
+  canonicalUrl: 'https://www.devlabstudios.com/insights/daily',
+}
+
+const jsonLd = [
+  getBreadcrumbSchema([
+    { name: 'Home', path: '/' },
+    { name: 'Insights', path: '/insights' },
+    { name: 'AI & Automation Daily', path: '/insights/daily' },
+  ]),
+]
+---
+
+<Layout title="AI & Automation Daily — DevLab Studios" seo={seo} jsonLd={jsonLd}>
+  <div class="space-y-10">
+    <section class="cinematic-panel relative overflow-hidden rounded-[2rem] p-6 text-white sm:p-8 lg:p-10">
+      <VectorField motif="editorial" />
+      <div class="relative z-10 space-y-5">
+        <p class="tech-kicker">Daily Log</p>
+        <h1 class="text-4xl font-semibold leading-tight text-white sm:text-5xl">AI &amp; Automation Daily</h1>
+        <p class="max-w-3xl text-base leading-relaxed text-slate-300 sm:text-lg">
+          A short daily pass over AI automation and AI advancement news. Each item is summarized in a sentence
+          and linked to the publisher &mdash; read the summary to decide, then read the source. The last {RETENTION_DAYS} days
+          are kept here.
+        </p>
+        <p class="text-sm text-slate-400">
+          Summaries are machine-generated from each publisher&rsquo;s own headline and excerpt, then linked back to the
+          original. DevLab Studios does not author, endorse, or verify the linked reporting.
+        </p>
+        <div class="flex flex-wrap gap-3">
+          <PrimaryButton to="/insights" variant="secondary" data-cta-id="digest-hero-insights" data-cta-variant="secondary">
+            <ArrowRight size={16} aria-hidden="true" />
+            All Insights
+          </PrimaryButton>
+        </div>
+      </div>
+    </section>
+
+    {digests.length === 0 ? (
+      <section class="rounded-[28px] border border-slate-200 bg-white/95 p-8 text-center shadow-[0_18px_45px_rgba(60,28,120,0.10)]">
+        <h2 class="text-2xl font-semibold text-brand-ink">No digest yet</h2>
+        <p class="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-600">
+          The next edition publishes after the daily run. In the meantime, the long-form guides and implementation
+          notes are on the main Insights page.
+        </p>
+        <div class="mt-6 flex justify-center">
+          <PrimaryButton to="/insights" showIcon>Read Insights</PrimaryButton>
+        </div>
+      </section>
+    ) : (
+      <section class="space-y-8">
+        <SectionHeader
+          title="Latest editions"
+          subtitle={`Newest first. ${latest ? `Last updated ${formatDigestDate(latest.digestDate)}.` : ''}`}
+        />
+
+        {digests.map((digest, digestIndex) => (
+          <article id={digest.digestDate} class="scroll-mt-24 rounded-[28px] border border-slate-200 bg-white/95 p-6 shadow-[0_18px_45px_rgba(60,28,120,0.10)] sm:p-8">
+            <header class="flex flex-wrap items-baseline justify-between gap-3 border-b border-slate-200 pb-4">
+              <div>
+                <h2 class="text-2xl font-semibold text-brand-ink">
+                  <a href={`#${digest.digestDate}`} class="transition hover:text-brand-teal">
+                    <time datetime={digest.digestDate}>{formatDigestDate(digest.digestDate)}</time>
+                  </a>
+                </h2>
+                <p class="mt-1 text-sm text-slate-500">
+                  {digest.itemCount} {digest.itemCount === 1 ? 'story' : 'stories'}
+                  {digestIndex === 0 ? ' · latest edition' : ''}
+                </p>
+              </div>
+            </header>
+
+            <ol class="mt-5 space-y-5">
+              {digest.items.map((item) => (
+                <li class="border-b border-slate-100 pb-5 last:border-b-0 last:pb-0">
+                  <h3 class="text-lg font-semibold leading-snug text-brand-ink">
+                    <a
+                      href={item.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      class="inline-flex items-start gap-2 transition hover:text-brand-teal"
+                      data-cta-id="digest-item"
+                      data-cta-variant="link"
+                    >
+                      <span>{item.title}</span>
+                      <ExternalLink className="mt-1 h-4 w-4 flex-shrink-0 text-slate-400" aria-hidden="true" />
+                      <span class="sr-only">(opens on {sourceHost(item.sourceUrl)} in a new tab)</span>
+                    </a>
+                  </h3>
+                  {item.summary ? (
+                    <p class="mt-2 text-sm leading-relaxed text-slate-600">{item.summary}</p>
+                  ) : null}
+                  <p class="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    {item.sourceName}
+                    {sourceHost(item.sourceUrl) ? ` · ${sourceHost(item.sourceUrl)}` : ''}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </article>
+        ))}
+      </section>
+    )}
+
+    <section class="rounded-[28px] bg-gradient-to-r from-brand-ink via-[#22185a] to-[#3120a3] p-6 text-white shadow-[0_22px_50px_rgba(20,13,64,0.22)] sm:p-8">
+      <div class="grid gap-6 lg:grid-cols-[1fr_0.8fr] lg:items-center">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">From reading to building</p>
+          <h2 class="mt-2 text-3xl font-semibold">Want one of these working in your business?</h2>
+          <p class="mt-3 text-white/75">
+            Most of what lands here is a capability before it is a product. If something in the log looks like it
+            solves a problem you actually have, we can scope what it would take to run it in your operation.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-3 lg:justify-end">
+          <PrimaryButton
+            to="/contact?type=business_system"
+            data-cta-id="digest-final-primary"
+            data-cta-variant="primary"
+            data-inquiry-type="business_system"
+          >
+            <MessageSquare size={16} aria-hidden="true" />
+            Discuss an Automation
+          </PrimaryButton>
+          <PrimaryButton to="/services" variant="secondary" data-cta-id="digest-final-secondary" data-cta-variant="secondary">
+            <ArrowRight size={16} aria-hidden="true" />
+            View Solutions
+          </PrimaryButton>
+        </div>
+      </div>
+    </section>
+  </div>
+</Layout>

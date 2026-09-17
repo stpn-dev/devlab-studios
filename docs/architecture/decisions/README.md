@@ -12,3 +12,6 @@ have to re-derive from git archaeology.
 3. [Leads delivery: waitUntil + manual retry, not a Cloudflare Queue](./0003-leads-delivery-waituntil.md)
 4. [Enforce security headers in middleware, not \_headers](./0004-security-headers-in-middleware.md)
 5. [Preview environment via CLOUDFLARE_ENV at build time, not wrangler --env](./0005-preview-environment-build-time-env.md)
+6. [Durable Objects for Pickleball session coordination](./0006-pickleball-durable-objects.md)
+7. [Business inquiry pipeline](./0007-business-inquiry-pipeline.md)
+8. [Insights daily digest: a cron in our own Worker entrypoint](./0008-insights-daily-digest.md)

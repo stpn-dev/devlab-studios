@@ -40,6 +40,12 @@ Employment messaging lives there, not in the business funnel.
   selector; CTA context preselects the type via `?type=`. Employers reach a
   separate short employment form and never the business qualification
   questions.
+- **AI & Automation Daily** (`/insights/daily`) is a generated daily log: up to
+  ten AI automation / AI advancement stories, each a title, a link to the
+  publisher, and a one-sentence summary written from that publisher's own
+  headline and excerpt. One permanent page with dated sections and
+  `#YYYY-MM-DD` anchors — not a page per day. Seven-day retention. The latest
+  edition previews on `/insights`.
 - **Offers** (`/offers/[slug]`) are lead-magnet landing pages. The resource
   itself stays publicly readable in Insights — nothing is gated.
 - Navigation is Home · Solutions · Work · Insights · About · Profile, with one
@@ -61,6 +67,25 @@ Qualification is deterministic and stores its reasons.
 
 See [ADR 0007](architecture/decisions/0007-business-inquiry-pipeline.md).
 
+## Daily digest
+
+`scheduled()` in `src/worker.ts` runs once a day (production 06:00 UTC, preview
+06:30 UTC) and does one pass: fetch four fixed feeds, drop anything stale or
+already published in the trailing week, summarize with Workers AI, publish the
+day, sweep anything older than seven days.
+
+Every stage degrades rather than aborts. A dead feed costs that feed; an
+exhausted AI allocation costs the summaries and the items still publish as
+titles and links; a run that finds nothing new leaves yesterday's edition up
+rather than replacing it with an empty section. The retention sweep is the one
+stage that is not best-effort — it runs even when nothing published.
+
+The feed registry is server-owned code, so the run can never fetch a URL that
+came from a request, a CMS field, or a feed's own contents. Feed text is fenced
+and passed to the model as quoted data, never as instructions.
+
+See [ADR 0008](architecture/decisions/0008-insights-daily-digest.md).
+
 ## CMS and admin
 
 - Page blocks gained `problemList` and `leadMagnet`; `cta` gained routing
@@ -70,6 +95,9 @@ See [ADR 0007](architecture/decisions/0007-business-inquiry-pipeline.md).
   owner; add internal notes; view qualification reasons, attribution, consent,
   delivery attempts and activity; retry an eligible failed delivery; soft
   archive; export CSV.
+- `/admin/digests` ("Daily Digests") covers the two controls that make sense
+  over generated output — unpublish a day, delete a day — plus "Generate now",
+  which runs exactly what the cron runs.
 - Admin labels follow `src/config/publicSurfaces.js`, so CMS labels cannot
   drift from the routes visitors see.
 
@@ -84,6 +112,9 @@ See [ADR 0007](architecture/decisions/0007-business-inquiry-pipeline.md).
 - Structured data: Organization, WebSite, Service per solution, Person on the
   Profile, Article on insights, BreadcrumbList, and FAQPage only where the
   questions are actually rendered. No LocalBusiness — the studio is remote.
+- `/insights/daily` is one canonical URL listed once in the sitemap, not a
+  generated page per edition. Every item links out to the publisher with
+  `rel="noopener noreferrer nofollow"`.
 
 ## Deployment and branches
 
@@ -95,27 +126,35 @@ See [ADR 0007](architecture/decisions/0007-business-inquiry-pipeline.md).
 
 - `npm run typecheck` — 0 errors
 - `npm run build` — passes
-- `npm run test:unit` — 489 passing across 41 files
+- `npm run test:unit` — 546 passing across 46 files
 - `npx eslint .` — 0 errors (1 pre-existing warning in `WorkPageManager.jsx`)
-- Playwright `static` — 94 passing, 1 skipped
-- Playwright `worker` (`admin.spec.js`) — 35/35 serially
-- Playwright `worker` (pickleball auth/crud/rate-limit/public-pages) — 60/60
-- Migration validated against a real SQLite database: pre-existing lead and
-  delivery-attempt rows survive `0009` untouched and backfill correctly
+- Playwright `static` + `worker` — 258 passing, 1 skipped
+- Migration `0009` validated against a real SQLite database: pre-existing lead
+  and delivery-attempt rows survive it untouched and backfill correctly
+- Migration `0011` and the digest repository are covered by tests that run the
+  real SQL against SQLite, including the retention boundary (a day exactly at
+  the window is kept, the next one out is swept) and the cascade to items
+- The retention assertion was mutation-tested: removing the sweep from the
+  "nothing published" branch fails exactly one test, so the assertion is not
+  vacuous
 
 ## Environment status
 
-- **Pending operator action:** apply `migrations/0009_business_inquiry_platform.sql`
-  and `scripts/cms/updates/2026-09-17-business-first-content.sql` to Preview,
-  verify, then Production. See [operations.md](operations.md).
+- Migrations `0009`, `0010` and `0011` are applied to **both** Preview and
+  Production, along with `scripts/cms/updates/2026-09-17-business-first-content.sql`
+  and `2026-09-17-work-page-copy-fix.sql`. See [operations.md](operations.md).
+- Both Workers declare the `AI` binding and a cron trigger (production 06:00
+  UTC, preview 06:30 UTC). Workers AI is billed against the account's daily
+  neuron allocation; ten short summaries a day sits far inside it.
 - `LEAD_WEBHOOK_URL` / `LEAD_WEBHOOK_SECRET` are optional and unset; the
   outbound webhook provider stays inert until they are configured.
-- **Pending operator action:** `ADMIN_PASSWORD_HASH` held a retired
-  single-round SHA-256 hash, which `verifyPassword` refuses (reported as a 503
-  configuration error rather than a bad password). Re-generate with
-  `npm run cms:hash-admin-password` and set it as a **Secret** on both Workers
-  — it must never go into `wrangler.jsonc`, whose `vars` are plaintext and
-  committed.
+- `ADMIN_PASSWORD_HASH` was re-generated (the old value was a retired
+  single-round SHA-256 hash that `verifyPassword` refuses) and set as a
+  **Secret** on both Workers — it must never go into `wrangler.jsonc`, whose
+  `vars` are plaintext and committed. The password can now be changed from
+  `/admin/security` without regenerating a hash by hand; `admin_credentials`
+  is empty until the first such change, so the env bootstrap is still in force.
+  **The password handed over in chat must be changed at first sign-in.**
 - `env.preview` now mirrors the top-level `RATE_LIMITER` Durable Object,
   `images` binding, and the two Resend vars. Nothing at the top level is
   inherited by an environment, and `checkRateLimit()` fails open when the

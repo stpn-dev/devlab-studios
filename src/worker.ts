@@ -12,14 +12,40 @@
 //   2. Additionally exports the Durable Object class alongside it.
 //
 // See docs/architecture/decisions/0006-pickleball-durable-objects.md.
+//
+// Owning this file also makes `scheduled()` possible, which is what the daily
+// Insights digest runs on. ADR 0003 ruled out cron because the generated
+// entrypoint could not export one; ADR 0006 already had to replace that
+// entrypoint for the Durable Objects, so the constraint no longer applies.
 import { handle } from '@astrojs/cloudflare/handler'
 import { SessionCoordinatorDO } from './worker/pickleball/SessionCoordinatorDO'
 import { RateLimiterDO } from './worker/RateLimiterDO'
+import { runDailyDigest } from './worker/digest/runDigest.js'
 
 export { SessionCoordinatorDO, RateLimiterDO }
 
 export default {
   async fetch(request, env, ctx) {
     return handle(request, env, ctx)
+  },
+
+  // Cron: see the `triggers` block in wrangler.jsonc (and in `env.preview`).
+  //
+  // `waitUntil` rather than `await`: the digest's stages are individually
+  // bounded, but a scheduled handler that throws is retried, and a retried
+  // digest run would re-summarize items that already published. `runDailyDigest`
+  // contains its own failures and logs the outcome.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(
+      runDailyDigest(env, { now: new Date(event.scheduledTime), trigger: 'cron' }).catch((error) => {
+        console.log(
+          JSON.stringify({
+            event: 'digest_run',
+            outcome: 'crashed',
+            error: error instanceof Error ? error.message : 'unknown',
+          }),
+        )
+      }),
+    )
   },
 } satisfies ExportedHandler<Env>

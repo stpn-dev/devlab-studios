@@ -30,6 +30,9 @@ const STATIC_ENTRIES: SitemapEntry[] = [
   { path: '/services', changefreq: 'monthly', priority: '0.9' },
   { path: '/work', changefreq: 'monthly', priority: '0.9' },
   { path: '/insights', changefreq: 'weekly', priority: '0.8' },
+  // One permanent URL whose dated sections change every day — hence `daily`
+  // here and a single entry rather than one per edition.
+  { path: '/insights/daily', changefreq: 'daily', priority: '0.6' },
   { path: '/about', changefreq: 'monthly', priority: '0.8' },
   { path: '/profile', changefreq: 'monthly', priority: '0.8' },
   { path: '/contact', changefreq: 'monthly', priority: '0.8' },
