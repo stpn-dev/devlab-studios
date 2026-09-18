@@ -14,8 +14,8 @@ import { normalizeEmail } from '../domain/domains.js'
 import { ZOHO } from '../config/defaults.js'
 import { bounded, buildWhere, clampLimit, clampOffset, newId, nowIso, parseJsonField } from './helpers.js'
 
+/** Maps a present row. Callers that may have none guard with `mapped()` below. */
 function mapConversation(row) {
-  if (!row) return null
   return {
     id: row.id,
     leadId: row.lead_id,
@@ -35,6 +35,10 @@ function mapConversation(row) {
     stage: row.stage ?? null,
   }
 }
+
+/** `null` for an absent row, the mapped shape otherwise. */
+const mappedConversation = (row) => (row ? mapConversation(row) : null)
+
 
 function mapMessage(row) {
   if (!row) return null
@@ -75,7 +79,7 @@ const CONVERSATION_SELECT = `
 /** @param {import('@cloudflare/workers-types').D1Database} db */
 export async function getConversation(db, id) {
   const row = await db.prepare(`${CONVERSATION_SELECT} WHERE cv.id = ?`).bind(id).first()
-  return mapConversation(row)
+  return mappedConversation(row)
 }
 
 /**
@@ -102,9 +106,9 @@ export async function ensureConversation(db, { leadId, contactId = null, subject
         .prepare('UPDATE lead_conversations SET provider_thread_id = ?, updated_at = ? WHERE id = ?')
         .bind(providerThreadId, nowIso(), existing.id)
         .run()
-      return mapConversation({ ...existing, provider_thread_id: providerThreadId })
+      return mappedConversation({ ...existing, provider_thread_id: providerThreadId })
     }
-    return mapConversation(existing)
+    return mappedConversation(existing)
   }
 
   const id = newId()
@@ -128,7 +132,7 @@ export async function findConversationByThreadId(db, providerThreadId, provider 
     .prepare(`${CONVERSATION_SELECT} WHERE cv.provider = ? AND cv.provider_thread_id = ? LIMIT 1`)
     .bind(provider, providerThreadId)
     .first()
-  return mapConversation(row)
+  return mappedConversation(row)
 }
 
 /** @param {import('@cloudflare/workers-types').D1Database} db */
@@ -313,7 +317,7 @@ export async function listUnansweredReplies(db, { limit = 50 } = {}) {
     .all()
 
   return (result.results || []).map((row) => ({
-    ...mapMessage(row),
+    ...(mapMessage(row) ?? {}),
     conversationSubject: row.conversation_subject,
     conversationStatus: row.conversation_status,
     companyName: row.company_name,

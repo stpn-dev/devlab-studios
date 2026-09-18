@@ -21,8 +21,32 @@ import { handle } from '@astrojs/cloudflare/handler'
 import { SessionCoordinatorDO } from './worker/pickleball/SessionCoordinatorDO'
 import { RateLimiterDO } from './worker/RateLimiterDO'
 import { runDailyDigest } from './worker/digest/runDigest.js'
+import { runScheduledTick } from './lead-engine/jobs/scheduler.js'
+import { handleQueueBatch } from './lead-engine/queues/consumer.js'
+import {
+  CampaignDiscoveryWorkflow,
+  LeadResearchWorkflow,
+  MailboxSyncWorkflow,
+  MaintenanceWorkflow,
+  ReplyAnalysisWorkflow,
+} from './lead-engine/workflows/index'
 
 export { SessionCoordinatorDO, RateLimiterDO }
+
+// Lead Intelligence Engine Workflows. Exported here because a Workflow class,
+// like a Durable Object, has to be exported from the Worker's entrypoint to be
+// bindable — but the `workflows` block in wrangler.jsonc is COMMENTED OUT, so
+// nothing is bound to them yet. Exporting an unbound class is inert; declaring
+// a binding for a Workflow that has not been created would fail `wrangler
+// deploy` for the whole Worker, public site included. See
+// docs/lead-engine/cloudflare-workflows.md for the activation steps.
+export {
+  CampaignDiscoveryWorkflow,
+  LeadResearchWorkflow,
+  MailboxSyncWorkflow,
+  ReplyAnalysisWorkflow,
+  MaintenanceWorkflow,
+}
 
 export default {
   async fetch(request, env, ctx) {
@@ -47,5 +71,41 @@ export default {
         )
       }),
     )
+
+    // The Lead Intelligence Engine's tick, on the same cron as the digest.
+    //
+    // A SEPARATE waitUntil, not chained onto the digest's: the two are
+    // unrelated jobs and one must not be able to prevent or delay the other.
+    // `runScheduledTick` contains its own failures for the same reason the
+    // digest does — a scheduled handler that throws is retried, and a retried
+    // invocation would re-run the digest, which must not happen.
+    //
+    // With the feature flags at their shipped defaults this returns
+    // immediately, having done nothing.
+    ctx.waitUntil(
+      runScheduledTick(env, { now: new Date(event.scheduledTime), trigger: 'cron' }).catch((error) => {
+        console.log(
+          JSON.stringify({
+            event: 'lead_engine.scheduled_tick',
+            result: 'crashed',
+            error: error instanceof Error ? error.message : 'unknown',
+          }),
+        )
+      }),
+    )
+  },
+
+  // Cloudflare Queues consumer for the Lead Intelligence Engine.
+  //
+  // Present but currently unreachable: the `queues` block in wrangler.jsonc is
+  // commented out, so no queue is bound and this handler is never invoked. It
+  // is declared now so that enabling Queues is a configuration change rather
+  // than a code change — and until then the same work drains through the D1
+  // job ledger on the cron tick above. See docs/lead-engine/queues.md.
+  async queue(batch, env) {
+    // The consumer is plain JS and declares the narrow message shape it uses;
+    // the runtime's MessageBatch is wider. Narrowed at the boundary rather than
+    // widening the consumer, so the consumer stays testable with a plain object.
+    await handleQueueBatch(batch as unknown as Parameters<typeof handleQueueBatch>[0], env)
   },
 } satisfies ExportedHandler<Env>

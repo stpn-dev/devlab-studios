@@ -119,7 +119,7 @@ async function admitCandidate(db, { campaign, candidate, sourceId, correlationId
 /**
  * Runs discovery for one campaign.
  *
- * @param {{ DB: object }} env
+ * @param {Env} env
  * @param {string} campaignId
  * @param {{ fetchImpl?: typeof fetch, limit?: number, correlationId?: string,
  *           actorEmail?: string|null, enqueueResearch?: boolean }} [options]
@@ -285,7 +285,7 @@ export async function runCampaignDiscovery(env, campaignId, options = {}) {
  * Runs through exactly the same normalization, deduplication and admission path
  * as an automated adapter — an imported domain is not a privileged one.
  *
- * @param {{ DB: object }} env
+ * @param {Env} env
  * @param {string} campaignId
  * @param {Array<object>} rawCandidates from parseImportCsv / parseDomainList
  * @param {{ actorEmail?: string|null, correlationId?: string }} [options]

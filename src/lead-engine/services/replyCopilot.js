@@ -70,7 +70,7 @@ async function loadMessage(db, messageId) {
 /**
  * Analyses one inbound message.
  *
- * @param {{ DB: object, AI?: object }} env
+ * @param {Env} env
  * @param {string} messageId
  * @param {{ correlationId?: string }} [options]
  */
@@ -192,7 +192,7 @@ export async function analyzeReply(env, messageId, options = {}) {
 /**
  * Generates a suggested reply.
  *
- * @param {{ DB: object, AI?: object }} env
+ * @param {Env} env
  * @param {string} messageId the inbound message being answered
  * @param {{ variant?: string|null, actorEmail?: string|null, correlationId?: string }} [options]
  */
@@ -315,7 +315,7 @@ export async function generateReplyDraft(env, messageId, options = {}) {
  * draft from, and drafting anyway would produce a reply written without knowing
  * what was asked.
  *
- * @param {{ DB: object, AI?: object }} env
+ * @param {Env} env
  */
 export async function processInboundReply(env, messageId, options = {}) {
   const analysis = await analyzeReply(env, messageId, options)

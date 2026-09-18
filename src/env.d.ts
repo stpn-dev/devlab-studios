@@ -30,6 +30,56 @@ interface Env {
   PICKLEBALL_TEST_AUTH_ENABLED?: string
   SESSION_COORDINATOR: DurableObjectNamespace<import('./worker/pickleball/SessionCoordinatorDO').SessionCoordinatorDO>
   RATE_LIMITER: DurableObjectNamespace<import('./worker/RateLimiterDO').RateLimiterDO>
+
+  // ---------------------------------------------------------------------
+  // Lead Intelligence Engine
+  //
+  // Every flag is optional and defaults to OFF. A deploy that sets none of
+  // them changes nothing observable: no discovery, no crawling, no Workers AI
+  // spend, no mailbox polling. See src/lead-engine/config/flags.js.
+  //
+  // There is deliberately no LEAD_AUTO_SEND flag, because automated prospect
+  // email sending does not exist in this system.
+  // ---------------------------------------------------------------------
+  /** Master switch. Every other lead flag is ANDed with this one. */
+  LEAD_ENGINE_ENABLED?: string
+  LEAD_DISCOVERY_ENABLED?: string
+  LEAD_CRAWLER_ENABLED?: string
+  LEAD_BROWSER_RUN_ENABLED?: string
+  LEAD_AI_ENABLED?: string
+  LEAD_TRACKING_ENABLED?: string
+  LEAD_CAMPAIGN_SCHEDULES_ENABLED?: string
+  ZOHO_MAIL_ENABLED?: string
+  ZOHO_MAIL_SYNC_ENABLED?: string
+
+  /** Optional discovery source. The engine works without it. */
+  BRAVE_SEARCH_API_KEY?: string
+
+  /** Optional Browser Rendering fallback for client-rendered sites. */
+  CLOUDFLARE_ACCOUNT_ID?: string
+  BROWSER_RENDERING_API_TOKEN?: string
+
+  // Zoho Mail. SECRETS — set with `wrangler secret put`, never in wrangler.jsonc.
+  ZOHO_ACCOUNT_ID?: string
+  ZOHO_USER_EMAIL?: string
+  ZOHO_OAUTH_CLIENT_ID?: string
+  ZOHO_OAUTH_CLIENT_SECRET?: string
+  ZOHO_OAUTH_REFRESH_TOKEN?: string
+  ZOHO_API_BASE_URL?: string
+  ZOHO_ACCOUNTS_BASE_URL?: string
+
+  // Optional Queue bindings. Absent by default — the D1 job ledger drains the
+  // same work on the cron tick when they are not configured.
+  LEAD_RESEARCH_QUEUE?: Queue
+  LEAD_AI_REVIEW_QUEUE?: Queue
+  LEAD_MAILBOX_QUEUE?: Queue
+
+  // Optional Workflow bindings, likewise absent by default.
+  LEAD_CAMPAIGN_DISCOVERY_WORKFLOW?: Workflow
+  LEAD_RESEARCH_WORKFLOW?: Workflow
+  LEAD_MAILBOX_SYNC_WORKFLOW?: Workflow
+  LEAD_REPLY_ANALYSIS_WORKFLOW?: Workflow
+  LEAD_MAINTENANCE_WORKFLOW?: Workflow
 }
 
 declare namespace App {

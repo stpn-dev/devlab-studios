@@ -68,7 +68,7 @@ export async function listCampaigns(db, filters = {}) {
     .bind(...bindings, clampLimit(filters.limit, 50, 200), clampOffset(filters.offset))
     .all()
 
-  return (result.results || []).map(mapRow)
+  return (result.results || []).map(mapRow).filter(Boolean)
 }
 
 /**
@@ -86,12 +86,13 @@ export async function listScheduledCampaigns(db) {
   const result = await db
     .prepare("SELECT * FROM lead_campaigns WHERE status = 'active' AND schedule_enabled = 1 ORDER BY last_run_at ASC NULLS FIRST")
     .all()
-  return (result.results || []).map(mapRow)
+  return (result.results || []).map(mapRow).filter(Boolean)
 }
 
 /**
  * @param {import('@cloudflare/workers-types').D1Database} db
  * @param {object} input already validated by the campaign zod schema
+ * @param {string|null} [actorEmail]
  */
 export async function createCampaign(db, input, actorEmail = null) {
   const existing = await getCampaignBySlug(db, input.slug)

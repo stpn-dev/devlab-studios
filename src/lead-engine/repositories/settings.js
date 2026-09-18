@@ -115,7 +115,8 @@ export async function listSettingMetadata(db) {
  * @param {string} key
  * @param {unknown} value
  */
-export async function setSetting(db, key, value, { actorEmail = null, isSecret = false } = {}) {
+export async function setSetting(db, key, value, options = {}) {
+  const { actorEmail = null, isSecret = false } = /** @type {{ actorEmail?: string|null, isSecret?: boolean }} */ (options)
   if (!key || typeof key !== 'string') throw operationError('A setting key is required.', 422)
 
   const serialized = JSON.stringify(value)

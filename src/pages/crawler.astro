@@ -1,0 +1,100 @@
+---
+import Layout from '../layouts/Layout.astro'
+import GlassCard from '../components/GlassCard.jsx'
+import SectionHeader from '../components/SectionHeader.jsx'
+import { CRAWLER } from '../lead-engine/config/defaults.js'
+
+/**
+ * The crawler disclosure page.
+ *
+ * Linked from the research crawler's User-Agent string, so a site operator who
+ * finds `DevLabResearchBot` in their logs can read what it is, what it will and
+ * will not do, and how to stop it — in one click, without having to ask anyone.
+ * That is the entire justification for a transparent user agent: it is only
+ * transparent if the URL it names actually explains something.
+ *
+ * Deliberately says nothing about internal architecture, rate-limit values, or
+ * which sources are configured. What a site operator needs is behaviour and a
+ * way to opt out; the rest is our business.
+ */
+
+const userAgent = CRAWLER.userAgent
+const maxPages = CRAWLER.maxPagesPerSite
+---
+
+<Layout
+  title="About DevLabResearchBot — DevLab Studios"
+  seo={{
+    metaTitle: 'About DevLabResearchBot',
+    metaDescription:
+      'What the DevLab Studios research crawler does, what it does not do, and how to block it.',
+    canonicalUrl: 'https://www.devlabstudios.com/crawler',
+  }}
+>
+  <div class="space-y-8">
+    <SectionHeader
+      title="About DevLabResearchBot"
+      subtitle="Our automated research crawler, and how to control it."
+      align="center"
+    />
+
+    <GlassCard className="p-8">
+      <div class="prose prose-invert max-w-none space-y-6 text-slate-200/85">
+        <p>
+          DevLab Studios operates a small automated crawler that reads publicly
+          accessible pages on business websites. If you found
+          <code class="rounded bg-white/10 px-1.5 py-0.5 text-sm">DevLabResearchBot</code>
+          in your server logs, this page explains what it was doing.
+        </p>
+
+        <h2 class="text-xl font-semibold text-white">What it does</h2>
+        <ul class="list-disc space-y-2 pl-6">
+          <li>
+            Requests a small number of public pages — at most {maxPages} per site — normally
+            the homepage and pages such as contact, services or about.
+          </li>
+          <li>Reads only what a visitor without an account would see.</li>
+          <li>Identifies itself on every request with this user agent:</li>
+        </ul>
+        <pre class="overflow-x-auto rounded-lg bg-slate-950/60 p-4 text-xs text-slate-200"><code>{userAgent}</code></pre>
+        <ul class="list-disc space-y-2 pl-6">
+          <li>Requests one page at a time, with a pause between requests.</li>
+          <li>
+            Honours <code class="rounded bg-white/10 px-1.5 py-0.5 text-sm">robots.txt</code>,
+            including any <code class="rounded bg-white/10 px-1.5 py-0.5 text-sm">Crawl-delay</code> you set.
+          </li>
+          <li>Stops and records the reason whenever it is told not to fetch something.</li>
+        </ul>
+
+        <h2 class="text-xl font-semibold text-white">What it does not do</h2>
+        <ul class="list-disc space-y-2 pl-6">
+          <li>It does not log in, create accounts, or access anything behind a login.</li>
+          <li>It does not submit forms or interact with your site in any way.</li>
+          <li>It does not attempt to bypass CAPTCHAs, bot protection, or a firewall.</li>
+          <li>It does not change its identity or its address to get around a block.</li>
+          <li>It does not collect personal profiles or read social media accounts.</li>
+          <li>It does not store copies of your pages. It keeps short excerpts as evidence for what it observed, and the URL each came from.</li>
+        </ul>
+
+        <h2 class="text-xl font-semibold text-white">How to block it</h2>
+        <p>Add this to your <code class="rounded bg-white/10 px-1.5 py-0.5 text-sm">robots.txt</code>:</p>
+        <pre class="overflow-x-auto rounded-lg bg-slate-950/60 p-4 text-xs text-slate-200"><code>User-agent: DevLabResearchBot
+Disallow: /</code></pre>
+        <p>
+          We check <code class="rounded bg-white/10 px-1.5 py-0.5 text-sm">robots.txt</code> before
+          every site and honour it. If it is unreachable or returns a server error, we do not crawl.
+        </p>
+
+        <h2 class="text-xl font-semibold text-white">Contact us</h2>
+        <p>
+          If you would rather not hear from us at all, or you want your business removed from our
+          records, email
+          <a class="font-medium text-brand-teal hover:underline" href="mailto:hello@devlabstudios.com">
+            hello@devlabstudios.com
+          </a>
+          and we will add you to our do-not-contact list. You do not need to give a reason.
+        </p>
+      </div>
+    </GlassCard>
+  </div>
+</Layout>

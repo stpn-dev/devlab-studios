@@ -36,6 +36,29 @@ import { processInboundReply } from '../services/replyCopilot.js'
 import { listLeadsInStage } from '../repositories/leads.js'
 import { STAGES } from '../domain/pipeline.js'
 
+/**
+ * What a step returns to the Workflows runtime.
+ *
+ * `runJob` types its `result` as `unknown`, which is accurate — each handler
+ * returns something different — but `step.do()` requires a statically
+ * serializable return type. Narrowing here rather than widening the handler
+ * keeps the useful typing on the handler side and confines the assertion to
+ * this file, which is the only place the constraint applies.
+ */
+function toStepOutcome(outcome: Awaited<ReturnType<typeof runJob>>) {
+  const result = (outcome.result ?? {}) as { status?: string; routesToAi?: boolean }
+  return {
+    ok: outcome.ok,
+    error: outcome.error ?? '',
+    retryable: outcome.retryable ?? false,
+    // Only the two fields a later step branches on. Workflow state is execution
+    // bookkeeping, not a second copy of the lead — everything else the handler
+    // produced is already in D1 before this returns.
+    status: result.status ?? '',
+    routesToAi: result.routesToAi === true,
+  }
+}
+
 interface CampaignDiscoveryParams {
   campaignId: string
   limit?: number
@@ -80,20 +103,22 @@ export class CampaignDiscoveryWorkflow extends WorkflowEntrypoint<Env, CampaignD
     const { campaignId, limit, correlationId } = event.payload
 
     const discovery = await step.do('discover-candidates', EXTERNAL_RETRY, async () =>
-      runJob(this.env as unknown as Record<string, unknown>, {
-        jobType: 'campaign_discovery',
-        campaignId,
-        leadId: null,
-        payload: { campaignId, limit },
-        correlationId,
-        attempts: 1,
-      }),
+      toStepOutcome(
+        await runJob(this.env, {
+          jobType: 'campaign_discovery',
+          campaignId,
+          leadId: null,
+          payload: { campaignId, limit },
+          correlationId,
+          attempts: 1,
+        }),
+      ),
     )
 
     // A bounded drain in the same instance, so a small campaign completes
     // end-to-end without waiting for the next cron tick.
     const drained = await step.do('drain-research-batch', async () =>
-      drainJobs(this.env as unknown as Record<string, unknown>, {
+      drainJobs(this.env, {
         jobTypes: ['lead_research'],
         limit: 10,
         correlationId,
@@ -114,25 +139,27 @@ export class CampaignDiscoveryWorkflow extends WorkflowEntrypoint<Env, CampaignD
 export class LeadResearchWorkflow extends WorkflowEntrypoint<Env, LeadResearchParams> {
   async run(event: WorkflowEvent<LeadResearchParams>, step: WorkflowStep) {
     const { leadId, campaignId, correlationId } = event.payload
-    const env = this.env as unknown as Record<string, unknown>
 
     const research = await step.do('research-lead', EXTERNAL_RETRY, async () =>
-      runJob(env, { jobType: 'lead_research', leadId, campaignId, payload: { leadId }, correlationId, attempts: 1 }),
+      toStepOutcome(
+        await runJob(this.env, { jobType: 'lead_research', leadId, campaignId, payload: { leadId }, correlationId, attempts: 1 }),
+      ),
     )
 
-    if (!research.ok || !(research.result as { routesToAi?: boolean })?.routesToAi) {
-      return { research, reviewed: false }
-    }
+    if (!research.ok || !research.routesToAi) return { research, reviewed: false }
 
     const review = await step.do('ai-review', EXTERNAL_RETRY, async () =>
-      runJob(env, { jobType: 'ai_review', leadId, campaignId, payload: { leadId }, correlationId, attempts: 1 }),
+      toStepOutcome(
+        await runJob(this.env, { jobType: 'ai_review', leadId, campaignId, payload: { leadId }, correlationId, attempts: 1 }),
+      ),
     )
 
-    const qualified = (review.result as { status?: string })?.status === 'qualified'
-    if (!review.ok || !qualified) return { research, review, drafted: false }
+    if (!review.ok || review.status !== 'qualified') return { research, review, drafted: false }
 
     const draft = await step.do('outreach-draft', EXTERNAL_RETRY, async () =>
-      runJob(env, { jobType: 'outreach_draft', leadId, campaignId, payload: { leadId }, correlationId, attempts: 1 }),
+      toStepOutcome(
+        await runJob(this.env, { jobType: 'outreach_draft', leadId, campaignId, payload: { leadId }, correlationId, attempts: 1 }),
+      ),
     )
 
     return { research, review, draft }
@@ -149,17 +176,20 @@ export class LeadResearchWorkflow extends WorkflowEntrypoint<Env, LeadResearchPa
 export class MailboxSyncWorkflow extends WorkflowEntrypoint<Env, { correlationId?: string }> {
   async run(event: WorkflowEvent<{ correlationId?: string }>, step: WorkflowStep) {
     const correlationId = event.payload?.correlationId
-    const env = this.env as unknown as Record<string, unknown>
 
-    const sync = await step.do('sync-mailbox', EXTERNAL_RETRY, async () => syncMailbox(env, { correlationId }))
+    const sync = await step.do('sync-mailbox', EXTERNAL_RETRY, async () => {
+      const result = await syncMailbox(this.env, { correlationId })
+      return { sent: result.sent.status, inbox: result.inbox.status, imported: result.sent.imported + result.inbox.imported }
+    })
 
     // Queried rather than carried from the sync result, so a sync that
     // half-completed still gets its replies analysed.
-    const replied = await step.do('find-unanalyzed-replies', async () =>
-      listLeadsInStage(this.env.DB, STAGES.REPLIED, { limit: 20 }),
-    )
+    const replied: Array<{ id: string }> = await step.do('find-unanalyzed-replies', async () => {
+      const leads: Array<{ id: string }> = await listLeadsInStage(this.env.DB, STAGES.REPLIED, { limit: 20 })
+      return leads.map((lead) => ({ id: lead.id }))
+    })
 
-    const analyses = []
+    const analyses: string[] = []
     for (const lead of replied) {
       const row = await this.env.DB.prepare(
         `SELECT id FROM lead_messages
@@ -173,11 +203,14 @@ export class MailboxSyncWorkflow extends WorkflowEntrypoint<Env, { correlationId
 
       // One step per message: a model failure on one reply must not discard
       // the analysis of the others.
-      analyses.push(
-        await step.do(`analyze-reply-${row.id}`, EXTERNAL_RETRY, async () =>
-          processInboundReply(env, row.id, { correlationId }),
-        ),
-      )
+      await step.do(`analyze-reply-${row.id}`, EXTERNAL_RETRY, async () => {
+        await processInboundReply(this.env, row.id, { correlationId })
+        // The analysis itself is persisted to D1 by the service; only the count
+        // travels back through the workflow, so nothing here has to be
+        // serializable beyond a string.
+        return { messageId: row.id }
+      })
+      analyses.push(row.id)
     }
 
     return { sync, analyzed: analyses.length }
@@ -188,9 +221,11 @@ export class MailboxSyncWorkflow extends WorkflowEntrypoint<Env, { correlationId
 export class ReplyAnalysisWorkflow extends WorkflowEntrypoint<Env, ReplyAnalysisParams> {
   async run(event: WorkflowEvent<ReplyAnalysisParams>, step: WorkflowStep) {
     const { messageId, correlationId } = event.payload
-    const env = this.env as unknown as Record<string, unknown>
 
-    return step.do('process-reply', EXTERNAL_RETRY, async () => processInboundReply(env, messageId, { correlationId }))
+    return step.do('process-reply', EXTERNAL_RETRY, async () => {
+      const result = await processInboundReply(this.env, messageId, { correlationId })
+      return { analysis: result.analysis.status, drafted: Boolean(result.draft) }
+    })
   }
 }
 
@@ -200,13 +235,12 @@ export class ReplyAnalysisWorkflow extends WorkflowEntrypoint<Env, ReplyAnalysis
 export class MaintenanceWorkflow extends WorkflowEntrypoint<Env, { correlationId?: string }> {
   async run(event: WorkflowEvent<{ correlationId?: string }>, step: WorkflowStep) {
     const correlationId = event.payload?.correlationId
-    const env = this.env as unknown as Record<string, unknown>
 
     const maintenance = await step.do('maintenance', async () =>
-      runJob(env, { jobType: 'maintenance', payload: {}, correlationId, attempts: 1 }),
+      toStepOutcome(await runJob(this.env, { jobType: 'maintenance', payload: {}, correlationId, attempts: 1 })),
     )
 
-    const drained = await step.do('drain-backlog', async () => drainJobs(env, { limit: 25, correlationId }))
+    const drained = await step.do('drain-backlog', async () => drainJobs(this.env, { limit: 25, correlationId }))
 
     return { maintenance, drained }
   }

@@ -109,7 +109,7 @@ export async function listAiRuns(db, filters = {}) {
     .bind(...bindings, clampLimit(filters.limit, 50, 200))
     .all()
 
-  return (result.results || []).map(mapRow)
+  return (result.results || []).map(mapRow).filter(Boolean)
 }
 
 /**

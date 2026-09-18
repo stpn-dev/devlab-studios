@@ -113,6 +113,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
     source: String(payload.source || '').trim() || 'contact-form',
     consentType: CONSENT_TYPES.contact,
     locals,
+    // Passed through solely so the Lead Intelligence Engine can read its
+    // first-party attribution cookie. It cannot affect this response.
+    request,
   })
 
   // The historical success body was exactly `{ ok: true }`; callers that only

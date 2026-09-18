@@ -49,7 +49,7 @@ export function isFlagOn(value) {
 /**
  * Resolves every flag for a request.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @returns {{
  *   engine: boolean, discovery: boolean, crawler: boolean, browserRun: boolean,
  *   ai: boolean, tracking: boolean, zohoMail: boolean, zohoMailSync: boolean,
@@ -95,7 +95,7 @@ export class FeatureDisabledError extends Error {
 }
 
 /**
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {keyof FLAG_KEYS} flag
  */
 export function assertFlag(env, flag) {

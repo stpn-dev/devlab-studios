@@ -19,8 +19,8 @@ export const SUPPRESSION_REASONS = Object.freeze([
   'manual_block', 'existing_client', 'competitor', 'other',
 ])
 
+/** Maps a present row. Callers that may have none guard with `mapped()` below. */
 function mapRow(row) {
-  if (!row) return null
   return {
     id: row.id,
     scope: row.scope,
@@ -38,6 +38,10 @@ function mapRow(row) {
     companyName: row.company_name ?? null,
   }
 }
+
+/** `null` for an absent row, the mapped shape otherwise. */
+const mappedRow = (row) => (row ? mapRow(row) : null)
+
 
 /**
  * Whether an address may be contacted.
@@ -160,7 +164,13 @@ export async function addSuppression(db, input) {
     .bind(scope, value)
     .first()
 
-  return { entry: mapRow(stored), created: stored?.id === id }
+  const entry = mappedRow(stored)
+  // The row was just written (or already existed); a null here means the insert
+  // silently did nothing, which callers must not have to defend against on a
+  // suppression path.
+  if (!entry) throw operationError('The suppression entry could not be stored.', 500)
+
+  return { entry, created: stored?.id === id }
 }
 
 /**
@@ -187,7 +197,9 @@ export async function removeSuppression(db, id, { actorEmail, reason }) {
     .bind(nowIso(), actorEmail ?? null, bounded(reason, 500), id)
     .run()
 
-  return mapRow({ ...existing, removed_at: nowIso(), removed_by: actorEmail, removal_reason: reason })
+  const removed = mappedRow({ ...existing, removed_at: nowIso(), removed_by: actorEmail, removal_reason: reason })
+  if (!removed) throw operationError('The suppression entry could not be read back.', 500)
+  return removed
 }
 
 /**
@@ -224,5 +236,7 @@ export async function listSuppression(db, filters = {}) {
     .bind(...bindings, ...extraBindings, clampLimit(filters.limit, 100, 500), clampOffset(filters.offset))
     .all()
 
+  // `mapRow` is nullable for the single-row accessors; a list query cannot
+  // produce a null row, and filtering says so rather than asserting it.
   return (result.results || []).map(mapRow)
 }

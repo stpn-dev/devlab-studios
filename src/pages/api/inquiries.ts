@@ -50,5 +50,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     source: String((parsed.data.attribution as { formId?: string })?.formId || 'inquiry-form'),
     consentType: CONSENT_TYPES.contact,
     locals,
+    // Passed through solely so the Lead Intelligence Engine can read its
+    // first-party attribution cookie. It cannot affect this response.
+    request,
   })
 }

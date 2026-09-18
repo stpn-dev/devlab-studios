@@ -13,8 +13,8 @@ import { normalizeEmail } from '../domain/domains.js'
 import { CONTACTS } from '../config/defaults.js'
 import { newId, nowIso, operationError, toInt } from './helpers.js'
 
+/** Maps a present row. Callers that may have none guard with `mapped()` below. */
 function mapRow(row) {
-  if (!row) return null
   return {
     id: row.id,
     leadId: row.lead_id,
@@ -39,6 +39,10 @@ function mapRow(row) {
     updatedAt: row.updated_at,
   }
 }
+
+/** `null` for an absent row, the mapped shape otherwise. */
+const mappedRow = (row) => (row ? mapRow(row) : null)
+
 
 /**
  * Stores a discovered contact.
@@ -90,7 +94,7 @@ export async function upsertContact(db, input) {
       .run()
 
     const refreshed = await db.prepare('SELECT * FROM lead_contacts WHERE id = ?').bind(existing.id).first()
-    return { contact: mapRow(refreshed), created: false }
+    return { contact: mappedRow(refreshed), created: false }
   }
 
   const id = newId()
@@ -118,7 +122,7 @@ export async function upsertContact(db, input) {
     .bind(input.leadId, email)
     .first()
 
-  return { contact: mapRow(stored), created: stored?.id === id }
+  return { contact: mappedRow(stored), created: stored?.id === id }
 }
 
 /** @param {import('@cloudflare/workers-types').D1Database} db */
@@ -152,7 +156,7 @@ export async function getPrimaryContact(db, leadId) {
     )
     .bind(leadId)
     .first()
-  return mapRow(row)
+  return mappedRow(row)
 }
 
 /** @param {import('@cloudflare/workers-types').D1Database} db */

@@ -17,6 +17,14 @@ import {
   Newspaper,
   Search,
   Settings,
+  Target,
+  Inbox,
+  MessageSquare,
+  ClipboardCheck,
+  Activity,
+  Database,
+  Filter,
+  Users,
 } from '../../components/icons/icons'
 
 const NAV_GROUPS = [
@@ -56,6 +64,25 @@ const NAV_GROUPS = [
     items: [
       { label: 'Inquiries', to: '/admin/leads', icon: Mail },
       { label: 'Security', to: '/admin/security', icon: Lock },
+    ],
+  },
+  {
+    // Outbound prospecting, kept separate from 'Inquiries' above on purpose:
+    // that one holds people who contacted US, this one holds businesses the
+    // engine found. Conflating them in the navigation would be the first step
+    // toward conflating them in someone's head.
+    heading: 'Lead CRM',
+    items: [
+      { label: 'Dashboard', to: '/admin/lead-crm', icon: Target },
+      { label: 'Campaigns', to: '/admin/lead-crm/campaigns', icon: Briefcase },
+      { label: 'Leads', to: '/admin/lead-crm/leads', icon: Users },
+      { label: 'Review Queue', to: '/admin/lead-crm/review', icon: ClipboardCheck },
+      { label: 'Replies', to: '/admin/lead-crm/replies', icon: Inbox },
+      { label: 'Conversations', to: '/admin/lead-crm/conversations', icon: MessageSquare },
+      { label: 'Activity', to: '/admin/lead-crm/activity', icon: Activity },
+      { label: 'Sources', to: '/admin/lead-crm/sources', icon: Database },
+      { label: 'Suppression', to: '/admin/lead-crm/suppression', icon: Filter },
+      { label: 'CRM Settings', to: '/admin/lead-crm/settings', icon: Settings },
     ],
   },
 ]

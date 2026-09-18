@@ -77,5 +77,5 @@ export async function listScoreHistory(db, leadId, limit = 10) {
     .prepare('SELECT * FROM lead_scores WHERE lead_id = ? ORDER BY created_at DESC LIMIT ?')
     .bind(leadId, limit)
     .all()
-  return (result.results || []).map(mapRow)
+  return (result.results || []).map(mapRow).filter(Boolean)
 }

@@ -12,8 +12,8 @@ import { canTransition, describeNextAction, STAGES } from '../domain/pipeline.js
 
 import { buildWhere, clampLimit, clampOffset, newId, nowIso, operationError } from './helpers.js'
 
+/** Maps a present row. Callers that may have none guard with `mapped()` below. */
 function mapRow(row) {
-  if (!row) return null
   return {
     id: row.id,
     campaignId: row.campaign_id,
@@ -45,6 +45,10 @@ function mapRow(row) {
   }
 }
 
+/** `null` for an absent row, the mapped shape otherwise. */
+const mappedRow = (row) => (row ? mapRow(row) : null)
+
+
 const LEAD_SELECT = `
   SELECT l.*,
          c.name AS company_name, c.canonical_domain, c.website_url, c.industry,
@@ -60,7 +64,7 @@ const LEAD_SELECT = `
 /** @param {import('@cloudflare/workers-types').D1Database} db */
 export async function getLead(db, id) {
   const row = await db.prepare(`${LEAD_SELECT} WHERE l.id = ?`).bind(id).first()
-  return mapRow(row)
+  return mappedRow(row)
 }
 
 /**
@@ -81,7 +85,7 @@ export async function upsertLead(db, { campaignId, companyId, priority = 'normal
     .bind(campaignId, companyId)
     .first()
 
-  if (existing) return { lead: mapRow(existing), created: false }
+  if (existing) return { lead: mappedRow(existing), created: false }
 
   const id = newId()
   const now = nowIso()
@@ -100,7 +104,7 @@ export async function upsertLead(db, { campaignId, companyId, priority = 'normal
     .bind(campaignId, companyId)
     .first()
 
-  return { lead: mapRow(stored), created: stored?.id === id }
+  return { lead: mappedRow(stored), created: stored?.id === id }
 }
 
 /**

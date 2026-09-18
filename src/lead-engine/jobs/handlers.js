@@ -191,7 +191,7 @@ export const JOB_HANDLERS = Object.freeze({
  * Never throws. The runner needs a decision — complete, retry, or dead-letter —
  * for every job, including one whose handler crashed.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {object} job
  * @param {{ fetchImpl?: typeof fetch }} [options]
  * @returns {Promise<{ ok: boolean, result?: unknown, error?: string, retryable?: boolean }>}

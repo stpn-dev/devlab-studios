@@ -61,7 +61,7 @@ export function assertNoSendMode(payload) {
  * that expired between the cache check and the request is the single most
  * common transient failure here and is fixed by exactly that.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {string} path relative to the API base, beginning with `/`
  * @param {{ method?: string, body?: unknown, query?: Record<string, unknown>,
  *           fetchImpl?: typeof fetch, onUsage?: () => void|Promise<void> }} [options]
@@ -134,7 +134,7 @@ async function zohoRequest(env, path, options = {}) {
  * checked before it leaves. The human opens Zoho, reviews the draft and clicks
  * Send themselves.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {{ to: string, subject: string, bodyText: string, cc?: string,
  *           inReplyTo?: string|null, references?: string|null }} message
  * @param {{ fetchImpl?: typeof fetch, onUsage?: Function }} [options]
@@ -188,7 +188,7 @@ export async function createDraft(env, message, options = {}) {
  * Bounded by `limit` and by a `receivedTime` lower bound, so a sync reads a
  * recent window rather than mirroring the mailbox.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {{ folder: 'inbox'|'sent', limit?: number, sinceMs?: number|null, start?: number }} query
  * @param {{ fetchImpl?: typeof fetch, onUsage?: Function }} [options]
  */
@@ -221,7 +221,7 @@ export async function listMessages(env, { folder, limit = ZOHO.syncPageSize, sin
  * Called ONLY for messages that already matched a known CRM contact or
  * conversation — the engine does not read the body of unrelated mail.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {string} messageId
  * @param {{ folder?: string, fetchImpl?: typeof fetch, onUsage?: Function }} [options]
  */
@@ -255,7 +255,7 @@ export function buildZohoUrl({ folder = 'drafts' } = {}) {
 /**
  * A cheap connectivity probe for the integration-status screen.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {{ fetchImpl?: typeof fetch }} [options]
  * @returns {Promise<{ ok: boolean, detail: string, code?: string }>}
  */

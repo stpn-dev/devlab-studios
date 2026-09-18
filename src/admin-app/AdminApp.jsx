@@ -12,6 +12,16 @@ import LeadsPage from './pages/LeadsPage'
 import DigestsPage from './pages/DigestsPage'
 import SecurityPage from './pages/SecurityPage'
 import WorkPageManager from './pages/WorkPageManager'
+import LeadCrmDashboardPage from './pages/lead-crm/DashboardPage'
+import LeadCrmCampaignsPage from './pages/lead-crm/CampaignsPage'
+import LeadCrmLeadsPage from './pages/lead-crm/LeadsPage'
+import LeadCrmReviewQueuePage from './pages/lead-crm/ReviewQueuePage'
+import LeadCrmRepliesPage from './pages/lead-crm/RepliesPage'
+import LeadCrmConversationsPage from './pages/lead-crm/ConversationsPage'
+import LeadCrmActivityPage from './pages/lead-crm/ActivityPage'
+import LeadCrmSourcesPage from './pages/lead-crm/SourcesPage'
+import LeadCrmSuppressionPage from './pages/lead-crm/SuppressionPage'
+import LeadCrmSettingsPage from './pages/lead-crm/SettingsPage'
 
 function buildRouter(session, onLogout) {
   return createBrowserRouter([
@@ -29,6 +39,19 @@ function buildRouter(session, onLogout) {
         { path: 'leads', element: <LeadsPage /> },
         { path: 'digests', element: <DigestsPage /> },
         { path: 'security', element: <SecurityPage /> },
+
+        // Lead CRM. A first-class section of this CMS rather than a separate
+        // application: same router, same shell, same auth, same API client.
+        { path: 'lead-crm', element: <LeadCrmDashboardPage /> },
+        { path: 'lead-crm/campaigns', element: <LeadCrmCampaignsPage /> },
+        { path: 'lead-crm/leads', element: <LeadCrmLeadsPage /> },
+        { path: 'lead-crm/review', element: <LeadCrmReviewQueuePage /> },
+        { path: 'lead-crm/replies', element: <LeadCrmRepliesPage /> },
+        { path: 'lead-crm/conversations', element: <LeadCrmConversationsPage /> },
+        { path: 'lead-crm/activity', element: <LeadCrmActivityPage /> },
+        { path: 'lead-crm/sources', element: <LeadCrmSourcesPage /> },
+        { path: 'lead-crm/suppression', element: <LeadCrmSuppressionPage /> },
+        { path: 'lead-crm/settings', element: <LeadCrmSettingsPage /> },
       ],
     },
   ])

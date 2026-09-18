@@ -29,7 +29,7 @@ import { operationError } from '../repositories/helpers.js'
 /**
  * Pushes a CRM draft to Zoho Drafts.
  *
- * @param {{ DB: object }} env
+ * @param {Env} env
  * @param {string} draftId
  * @param {{ actorEmail?: string|null, fetchImpl?: typeof fetch, correlationId?: string }} [options]
  * @returns {Promise<{ status: string, zohoDraftId?: string|null, zohoUrl?: string, reason?: string }>}
@@ -186,9 +186,10 @@ async function findInReplyTo(db, draft) {
  * what the human did next, and without it the gap between ZOHO_DRAFT_CREATED
  * and OUTBOUND_MESSAGE_SENT is unexplained.
  *
- * @param {{ DB: object }} env
+ * @param {Env} env
  */
-export async function recordZohoOpened(env, draftId, { actorEmail = null } = {}) {
+export async function recordZohoOpened(env, draftId, options = {}) {
+  const { actorEmail = null } = /** @type {{ actorEmail?: string|null }} */ (options)
   const draft = await getDraft(env.DB, draftId)
   if (!draft) throw operationError('Draft not found.', 404)
 

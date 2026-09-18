@@ -6,6 +6,7 @@ import { checkRateLimit, clientIp, rateLimitedResponse } from './rateLimit.js'
 import { qualifyInquiry } from '../lib/leads/qualification'
 import { computeIdempotencyKey, normalizeInquiry } from '../lib/leads/normalize'
 import { CONSENT_TEXT_VERSION, PRIVACY_POLICY_VERSION } from '../config/consent.js'
+import { attributeInquiry } from '../lead-engine/tracking/attribution.js'
 
 /**
  * The submission pipeline, in one place, shared by every public form.
@@ -186,9 +187,12 @@ function scheduleDelivery(env, locals, lead) {
 
 /**
  * @param {{ DB: import('@cloudflare/workers-types').D1Database }} env
- * @param {{ input: object, source: string, consentType: string, locals?: object }} options
+ * @param {{ input: object, source: string, consentType: string, locals?: object,
+ *           request?: Request|null }} options `request` is read ONLY for the
+ *   Lead Intelligence Engine's first-party attribution cookie; it cannot affect
+ *   the response.
  */
-export async function submitInquiry(env, { input, source, consentType, locals }) {
+export async function submitInquiry(env, { input, source, consentType, locals, request = null }) {
   if (!env.DB) {
     return jsonResponse({ error: 'Server misconfiguration: D1 DB binding missing.' }, 503)
   }
@@ -258,6 +262,18 @@ export async function submitInquiry(env, { input, source, consentType, locals })
 
   const inlineTask = scheduleDelivery(env, locals, lead)
   if (inlineTask) await inlineTask
+
+  // Lead Intelligence Engine attribution. Fire-and-forget, fully contained, and
+  // deliberately AFTER the lead is persisted and delivery is scheduled: it
+  // cannot change this response, cannot delay it, and cannot fail it. When the
+  // engine is disabled, when no tracking cookie is present, or when anything at
+  // all goes wrong, `attributeInquiry` returns quietly. See
+  // src/lead-engine/tracking/attribution.js.
+  if (request) {
+    const attribution = attributeInquiry(env, { request, inboundLeadId: lead.id })
+    if (locals?.cfContext) locals.cfContext.waitUntil(attribution)
+    else await attribution
+  }
 
   // `persisted: true` is what the client uses to decide whether to report a
   // conversion — never the delivery outcome, which happens after this responds.

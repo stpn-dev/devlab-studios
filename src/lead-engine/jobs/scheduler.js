@@ -59,7 +59,7 @@ async function shouldSyncMailbox(db, mailbox) {
  * of the WHOLE scheduled invocation — including the digest, which must not be
  * re-run.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {{ now?: Date, trigger?: string, fetchImpl?: typeof fetch }} [options]
  */
 export async function runScheduledTick(env, options = {}) {

@@ -53,7 +53,7 @@ export class ZohoAuthError extends Error {
  * admin's integration-status screen can list the exact missing variables
  * instead of showing a single unhelpful failure.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  */
 export function readZohoConfig(env) {
   const config = {
@@ -96,7 +96,7 @@ export function redactZohoError(value) {
 /**
  * Exchanges the refresh token for an access token, using the cache when valid.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {{ fetchImpl?: typeof fetch, force?: boolean, now?: () => number }} [options]
  * @returns {Promise<string>}
  */

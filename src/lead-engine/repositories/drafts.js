@@ -13,8 +13,8 @@ import { bounded, buildWhere, clampLimit, newId, nowIso, operationError } from '
 const MAX_SUBJECT = 300
 const MAX_BODY = 8_000
 
+/** Maps a present row. Callers that may have none guard with `mapped()` below. */
 function mapRow(row) {
-  if (!row) return null
   return {
     id: row.id,
     leadId: row.lead_id,
@@ -38,6 +38,10 @@ function mapRow(row) {
     updatedAt: row.updated_at,
   }
 }
+
+/** `null` for an absent row, the mapped shape otherwise. */
+const mappedRow = (row) => (row ? mapRow(row) : null)
+
 
 /**
  * Stores a generated draft, superseding the previous one of the same kind.
@@ -88,7 +92,7 @@ export async function createDraft(db, input) {
 /** @param {import('@cloudflare/workers-types').D1Database} db */
 export async function getDraft(db, id) {
   const row = await db.prepare('SELECT * FROM lead_outreach_drafts WHERE id = ?').bind(id).first()
-  return mapRow(row)
+  return mappedRow(row)
 }
 
 /**
@@ -106,7 +110,7 @@ export async function getCurrentDraft(db, leadId, kind = 'initial') {
     )
     .bind(leadId, kind)
     .first()
-  return mapRow(row)
+  return mappedRow(row)
 }
 
 /**

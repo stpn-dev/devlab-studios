@@ -30,7 +30,7 @@ import { createLogger } from './log.js'
 /**
  * Reviews one lead.
  *
- * @param {{ DB: object, AI?: object }} env
+ * @param {Env} env
  * @param {string} leadId
  * @param {{ correlationId?: string, actorEmail?: string|null }} [options]
  */

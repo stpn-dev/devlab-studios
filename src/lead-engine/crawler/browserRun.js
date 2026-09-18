@@ -25,7 +25,7 @@ const BROWSER_RENDER_TIMEOUT_MS = 30_000
 /**
  * Whether the fallback is configured at all.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  */
 export function isBrowserRunConfigured(env) {
   return Boolean(env?.CLOUDFLARE_ACCOUNT_ID && env?.BROWSER_RENDERING_API_TOKEN)
@@ -60,7 +60,7 @@ export function shouldUseBrowserRun(crawlResult) {
  * Returns an outcome rather than throwing, for the same reason `fetchPage`
  * does: a rendering failure is an ordinary crawl outcome.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {string} url
  * @param {{ fetchImpl?: typeof fetch, timeoutMs?: number }} [options]
  * @returns {Promise<{ ok: boolean, html: string, bytes: number, reason: string|null }>}

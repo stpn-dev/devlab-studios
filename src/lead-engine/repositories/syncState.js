@@ -113,5 +113,5 @@ export async function recordSyncFailure(db, { provider = 'zoho', mailbox, folder
 /** @param {import('@cloudflare/workers-types').D1Database} db */
 export async function listSyncState(db) {
   const result = await db.prepare('SELECT * FROM lead_sync_state ORDER BY provider, mailbox, folder').all()
-  return (result.results || []).map(mapRow)
+  return (result.results || []).map(mapRow).filter(Boolean)
 }

@@ -207,7 +207,7 @@ export async function listTrackingTokens(db, leadId) {
     .prepare('SELECT * FROM lead_tracking_tokens WHERE lead_id = ? ORDER BY created_at DESC')
     .bind(leadId)
     .all()
-  return (result.results || []).map(mapRow)
+  return (result.results || []).map(mapRow).filter(Boolean)
 }
 
 /** @param {import('@cloudflare/workers-types').D1Database} db */

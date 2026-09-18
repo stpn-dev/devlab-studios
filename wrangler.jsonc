@@ -62,8 +62,118 @@
     { "tag": "v1", "new_sqlite_classes": ["SessionCoordinatorDO"] },
     { "tag": "v2", "new_sqlite_classes": ["RateLimiterDO"] }
   ],
+
+  // ----------------------------------------------------------------------
+  // Lead Intelligence Engine — Queues and Workflows
+  //
+  // DELIBERATELY COMMENTED OUT, and they must stay that way until the
+  // resources actually exist.
+  //
+  // A `queues.consumers` entry naming a queue that has not been created, or a
+  // `workflows` binding for a Workflow that has not been deployed, fails
+  // `wrangler deploy` for the ENTIRE Worker — which on this account means the
+  // public site, the Admin CMS and the pickleball app all fail to deploy
+  // because of a lead-generation feature that is switched off.
+  //
+  // The engine does not need them. Work is dispatched through the `lead_jobs`
+  // table in D1 and drained on the existing cron trigger; Queues and Workflows
+  // are an optional acceleration layer that the same handlers run under. See
+  // docs/lead-engine/queues.md and docs/lead-engine/cloudflare-workflows.md.
+  //
+  // To enable Queues:
+  //   1. wrangler queues create devlab-lead-research
+  //      wrangler queues create devlab-lead-ai-review
+  //      wrangler queues create devlab-lead-mailbox
+  //      wrangler queues create devlab-lead-dead-letter
+  //   2. Uncomment the block below.
+  //   3. Deploy, and confirm `wrangler queues list` shows all four.
+  //
+  // "queues": {
+  //   "producers": [
+  //     { "binding": "LEAD_RESEARCH_QUEUE", "queue": "devlab-lead-research" },
+  //     { "binding": "LEAD_AI_REVIEW_QUEUE", "queue": "devlab-lead-ai-review" },
+  //     { "binding": "LEAD_MAILBOX_QUEUE", "queue": "devlab-lead-mailbox" }
+  //   ],
+  //   "consumers": [
+  //     {
+  //       "queue": "devlab-lead-research",
+  //       // Small on purpose: each message is a crawl of somebody else's
+  //       // website, and the per-domain delay lives inside the crawler.
+  //       "max_batch_size": 5,
+  //       "max_concurrency": 2,
+  //       "max_retries": 3,
+  //       "dead_letter_queue": "devlab-lead-dead-letter"
+  //     },
+  //     {
+  //       "queue": "devlab-lead-ai-review",
+  //       // Concurrency 1: these are calls against a daily neuron allocation,
+  //       // and parallelism costs the ability to stop cleanly when it runs out.
+  //       "max_batch_size": 3,
+  //       "max_concurrency": 1,
+  //       "max_retries": 3,
+  //       "dead_letter_queue": "devlab-lead-dead-letter"
+  //     },
+  //     {
+  //       "queue": "devlab-lead-mailbox",
+  //       "max_batch_size": 5,
+  //       "max_concurrency": 1,
+  //       "max_retries": 3,
+  //       "dead_letter_queue": "devlab-lead-dead-letter"
+  //     }
+  //   ]
+  // },
+  //
+  // To enable Workflows, uncomment the block below and deploy. The classes are
+  // already exported from src/worker.ts, so no code change is needed.
+  //
+  // "workflows": [
+  //   {
+  //     "name": "devlab-lead-campaign-discovery",
+  //     "binding": "LEAD_CAMPAIGN_DISCOVERY_WORKFLOW",
+  //     "class_name": "CampaignDiscoveryWorkflow"
+  //   },
+  //   {
+  //     "name": "devlab-lead-research",
+  //     "binding": "LEAD_RESEARCH_WORKFLOW",
+  //     "class_name": "LeadResearchWorkflow"
+  //   },
+  //   {
+  //     "name": "devlab-lead-mailbox-sync",
+  //     "binding": "LEAD_MAILBOX_SYNC_WORKFLOW",
+  //     "class_name": "MailboxSyncWorkflow"
+  //   },
+  //   {
+  //     "name": "devlab-lead-reply-analysis",
+  //     "binding": "LEAD_REPLY_ANALYSIS_WORKFLOW",
+  //     "class_name": "ReplyAnalysisWorkflow"
+  //   },
+  //   {
+  //     "name": "devlab-lead-maintenance",
+  //     "binding": "LEAD_MAINTENANCE_WORKFLOW",
+  //     "class_name": "MaintenanceWorkflow"
+  //   }
+  // ],
+
   "vars": {
     "ADMIN_AUTH_MODE": "password",
+    // Lead Intelligence Engine. EVERY FLAG IS OFF, in both environments.
+    //
+    // These are plain vars rather than secrets on purpose: they are operational
+    // switches, not credentials, and having them visible here is how an
+    // operator can see at a glance that the engine is inert. The Zoho
+    // credentials and the Brave key are `wrangler secret put` and appear
+    // nowhere in this file.
+    //
+    // There is no auto-send flag because there is no auto-send.
+    "LEAD_ENGINE_ENABLED": "false",
+    "LEAD_DISCOVERY_ENABLED": "false",
+    "LEAD_CRAWLER_ENABLED": "false",
+    "LEAD_BROWSER_RUN_ENABLED": "false",
+    "LEAD_AI_ENABLED": "false",
+    "LEAD_TRACKING_ENABLED": "false",
+    "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false",
+    "ZOHO_MAIL_ENABLED": "false",
+    "ZOHO_MAIL_SYNC_ENABLED": "false",
     "R2_PUBLIC_BASE_URL": "https://pub-401ca3448c3348158cdb3e4e9a9dcb20.r2.dev",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAEO3GbzGXQvAtOdI",
     "RESEND_FROM_EMAIL": "hello@devlabstudios.com",
@@ -100,7 +210,21 @@
         "RESEND_FROM_EMAIL": "hello@devlabstudios.com",
         "LEAD_NOTIFICATION_EMAIL": "hello@devlabstudios.com",
         "PICKLEBALL_OAUTH_REDIRECT_BASE_URL": "https://devlab-studios-preview.stpnrey-agustinez.workers.dev",
-        "GOOGLE_OAUTH_CLIENT_ID": "623988421575-p6kvgpj2rhq7l59ovpg6ftbl1ha3bnib.apps.googleusercontent.com"
+        "GOOGLE_OAUTH_CLIENT_ID": "623988421575-p6kvgpj2rhq7l59ovpg6ftbl1ha3bnib.apps.googleusercontent.com",
+        // Repeated here because nothing at the top level is inherited by an
+        // environment — the same omission that once left preview silently
+        // falling back to hardcoded lead-delivery defaults. Off in preview too:
+        // preview shares the real internet, and a crawl from preview is just as
+        // real to the site being crawled.
+        "LEAD_ENGINE_ENABLED": "false",
+        "LEAD_DISCOVERY_ENABLED": "false",
+        "LEAD_CRAWLER_ENABLED": "false",
+        "LEAD_BROWSER_RUN_ENABLED": "false",
+        "LEAD_AI_ENABLED": "false",
+        "LEAD_TRACKING_ENABLED": "false",
+        "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false",
+        "ZOHO_MAIL_ENABLED": "false",
+        "ZOHO_MAIL_SYNC_ENABLED": "false"
       },
       // Also not inherited. Without it, optimizeImage() has no Images binding
       // on preview and responsive variants silently degrade there.

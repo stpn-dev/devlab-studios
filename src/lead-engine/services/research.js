@@ -40,7 +40,7 @@ import { createLogger } from './log.js'
  * expected results that must be recorded, not exceptions that abort a batch of
  * fifty leads.
  *
- * @param {{ DB: object, AI?: object }} env
+ * @param {Env} env
  * @param {string} leadId
  * @param {{ fetchImpl?: typeof fetch, correlationId?: string, actorEmail?: string|null }} [options]
  * @returns {Promise<{ status: string, reason?: string, score?: object, routing?: string }>}

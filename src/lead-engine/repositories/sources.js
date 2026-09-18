@@ -48,7 +48,7 @@ export async function listSources(db) {
        FROM lead_sources s ORDER BY s.name ASC`,
     )
     .all()
-  return (result.results || []).map(mapSource)
+  return (result.results || []).map(mapSource).filter(Boolean)
 }
 
 /**
@@ -80,6 +80,7 @@ export async function assertSourceUsable(db, slug) {
 /**
  * @param {import('@cloudflare/workers-types').D1Database} db
  * @param {object} input
+ * @param {string|null} [actorEmail]
  */
 export async function upsertSource(db, input, actorEmail = null) {
   const existing = await getSourceBySlug(db, input.slug)

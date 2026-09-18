@@ -84,7 +84,7 @@ function makeLeadConversationLookup(db) {
 /**
  * Synchronizes one folder.
  *
- * @param {{ DB: object }} env
+ * @param {Env} env
  * @param {'inbox'|'sent'} folder
  * @param {{ fetchImpl?: typeof fetch, correlationId?: string, limit?: number }} [options]
  * @returns {Promise<{ status: string, seen: number, imported: number, matched: number, reason?: string }>}
@@ -378,7 +378,7 @@ async function handleInboundMessage(db, { leadId, conversationId, messageId, mes
  * CONTACTED → AWAITING_REPLY → REPLIED sequence rather than a reply arriving at
  * a lead that the CRM still believes was never contacted.
  *
- * @param {{ DB: object }} env
+ * @param {Env} env
  */
 export async function syncMailbox(env, options = {}) {
   const sent = await syncFolder(env, 'sent', options)

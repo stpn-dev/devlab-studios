@@ -56,7 +56,7 @@ const DEVLAB_CAPABILITIES = Object.freeze([
  * Returns every failing condition rather than the first, so the lead detail
  * screen can tell the operator everything that needs fixing in one pass.
  *
- * @param {{ DB: object }} env
+ * @param {Env} env
  * @param {string} leadId
  * @returns {Promise<{ ready: boolean, blockers: Array<{ code: string, detail: string }>,
  *                     lead, company, contact, compliance }>}
@@ -148,7 +148,7 @@ export async function checkOutreachReadiness(env, leadId) {
 /**
  * Generates an outreach draft.
  *
- * @param {{ DB: object, AI?: object }} env
+ * @param {Env} env
  * @param {string} leadId
  * @param {{ variant?: string|null, actorEmail?: string|null, correlationId?: string }} [options]
  */

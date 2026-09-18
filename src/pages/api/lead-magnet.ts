@@ -90,5 +90,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     source: LEAD_MAGNET_SOURCE,
     consentType: CONSENT_TYPES.leadMagnet,
     locals,
+    // Passed through solely so the Lead Intelligence Engine can read its
+    // first-party attribution cookie. It cannot affect this response.
+    request,
   })
 }

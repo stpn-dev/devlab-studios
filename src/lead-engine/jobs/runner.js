@@ -24,7 +24,7 @@ import { runJob } from './handlers.js'
 /**
  * Drains one batch.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {{ jobTypes?: string[], limit?: number, fetchImpl?: typeof fetch,
  *           correlationId?: string }} [options]
  * @returns {Promise<{ claimed: number, succeeded: number, failed: number, deadLettered: number }>}
@@ -105,7 +105,7 @@ export async function drainJobs(env, options = {}) {
  * and a background run execute identical code — the difference is only who
  * decided to start it.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {{ jobType: string, leadId?: string, campaignId?: string, payload?: object }} job
  */
 export async function runJobNow(env, job, options = {}) {

@@ -32,7 +32,7 @@ import { createLogger } from '../services/log.js'
  * Handles one batch.
  *
  * @param {{ messages: Array<{ body: object, ack: Function, retry: Function, attempts?: number }>, queue: string }} batch
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  */
 export async function handleQueueBatch(batch, env) {
   const logger = createLogger({})
@@ -128,7 +128,7 @@ export async function handleQueueBatch(batch, env) {
  * work for the D1 runner. That fallback is what makes the queue bindings
  * genuinely optional rather than a soft requirement.
  *
- * @param {Record<string, unknown>} env
+ * @param {Env} env
  * @param {object} job a row from `lead_jobs`
  * @returns {Promise<boolean>} whether the job was published
  */
