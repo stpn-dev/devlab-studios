@@ -213,12 +213,13 @@
         "GOOGLE_OAUTH_CLIENT_ID": "623988421575-p6kvgpj2rhq7l59ovpg6ftbl1ha3bnib.apps.googleusercontent.com",
         // Repeated here because nothing at the top level is inherited by an
         // environment — the same omission that once left preview silently
-        // falling back to hardcoded lead-delivery defaults. Off in preview too:
-        // preview shares the real internet, and a crawl from preview is just as
-        // real to the site being crawled.
+        // falling back to hardcoded lead-delivery defaults. Preview enables only
+        // the engine and crawler so an operator can manually import a controlled
+        // test domain and explicitly drain its research job. Discovery, browser
+        // rendering, AI, tracking, Zoho and schedules remain off.
         "LEAD_ENGINE_ENABLED": "true",
         "LEAD_DISCOVERY_ENABLED": "false",
-        "LEAD_CRAWLER_ENABLED": "false",
+        "LEAD_CRAWLER_ENABLED": "true",
         "LEAD_BROWSER_RUN_ENABLED": "false",
         "LEAD_AI_ENABLED": "false",
         "LEAD_TRACKING_ENABLED": "false",

@@ -107,16 +107,18 @@ describe('assertFlag', () => {
 describe('shipped configuration', () => {
   const wrangler = readFileSync(resolve(repoRoot, 'wrangler.jsonc'), 'utf8')
 
-  it('keeps production inert and enables only the preview shell', () => {
+  it('keeps production inert and enables only manual preview research', () => {
     // Production remains fully inert. Preview deliberately exposes the CRM
-    // shell while every capability stays off, so no discovery, crawl, AI call,
-    // mailbox operation or scheduled campaign can start.
+    // shell and crawler for an operator-triggered test. Discovery, browser
+    // rendering, AI, mailbox operations and schedules remain off.
+    const enabledInPreview = new Set([FLAG_KEYS.engine, FLAG_KEYS.crawler])
+
     for (const key of Object.values(FLAG_KEYS)) {
       const occurrences = [...wrangler.matchAll(new RegExp(`"${key}"\\s*:\\s*"(\\w+)"`, 'g'))].map((m) => m[1])
 
       expect(occurrences.length, `${key} should appear in production and preview vars`).toBe(2)
       expect(occurrences[0], `${key} must stay off in production`).toBe('false')
-      expect(occurrences[1], `${key} has the wrong preview state`).toBe(key === FLAG_KEYS.engine ? 'true' : 'false')
+      expect(occurrences[1], `${key} has the wrong preview state`).toBe(enabledInPreview.has(key) ? 'true' : 'false')
     }
   })
 
