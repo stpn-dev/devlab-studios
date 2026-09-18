@@ -387,6 +387,51 @@ describe('the outreach gate', () => {
     expect((await getLead(db, lead.id)).stage).toBe(STAGES.READY_FOR_REVIEW)
   })
 
+  it('mints no tracked link when tracking is off, and rejects any link the model invents', async () => {
+    const { lead } = await qualified()
+    await configureBusinessIdentity()
+
+    const env = {
+      ...FLAGS,
+      DB: db,
+      AI: aiStub({
+        outreach_draft: {
+          ...GOOD_DRAFT,
+          body: `${GOOD_DRAFT.body}
+
+See https://www.devlabstudios.com/case-studies`,
+        },
+      }),
+    }
+
+    const result = await generateOutreachDraft(env, lead.id)
+
+    expect(await db.prepare('SELECT COUNT(*) AS total FROM lead_tracking_tokens').first()).toMatchObject({ total: 0 })
+    // An empty allow-list means every URL is disallowed — the safer default.
+    expect(result.violations.map((violation) => violation.code)).toContain('DISALLOWED_LINK')
+  })
+
+  it('mints a tracked link when tracking is on, and permits that one link', async () => {
+    const { lead } = await qualified()
+    await configureBusinessIdentity()
+
+    const ai = aiStub({ outreach_draft: GOOD_DRAFT })
+    const env = { ...FLAGS, LEAD_TRACKING_ENABLED: 'true', DB: db, AI: ai }
+
+    await generateOutreachDraft(env, lead.id)
+
+    const token = await db.prepare('SELECT * FROM lead_tracking_tokens WHERE lead_id = ?').bind(lead.id).first()
+    expect(token).toBeTruthy()
+    expect(token.destination_url).toBe('https://www.devlabstudios.com')
+    // Opaque and non-sequential — it must reveal nothing about the lead.
+    expect(token.token).not.toContain(lead.id)
+    expect(token.token.length).toBeGreaterThan(30)
+
+    // The model was told which link it may use.
+    const [, body] = ai.run.mock.calls[0]
+    expect(body.messages[1].content).toContain(`/r/${token.token}`)
+  })
+
   it('stores a draft that trips the invention guard, with the violations attached', async () => {
     const { lead } = await qualified()
     await configureBusinessIdentity()

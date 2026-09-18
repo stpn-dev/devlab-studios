@@ -17,8 +17,8 @@
  * Zoho.
  */
 
-import { AI } from '../config/defaults.js'
-import { assertFlag } from '../config/flags.js'
+import { AI, TRACKING } from '../config/defaults.js'
+import { assertFlag, resolveFlags } from '../config/flags.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 import { runAiTask } from '../ai/client.js'
@@ -38,6 +38,7 @@ import { getLead, refreshNextAction, transitionLead } from '../repositories/lead
 import { listSignals } from '../repositories/research.js'
 import { resolveSettingsSafely } from '../repositories/settings.js'
 import { checkSuppression } from '../repositories/suppression.js'
+import { createTrackingToken } from '../repositories/tracking.js'
 import { createLogger } from './log.js'
 
 /** What DevLab can actually do, given to the model so it has something concrete
@@ -153,6 +154,45 @@ export async function checkOutreachReadiness(env, leadId, options = {}) {
 }
 
 /**
+ * Mints an opaque tracked link for this lead, when tracking is enabled.
+ *
+ * Returns an empty list when the flag is off, which is the shipped default —
+ * and an empty `allowedLinks` means the content guard rejects EVERY URL the
+ * model produces, so a disabled tracker cannot result in an untracked raw link
+ * appearing instead. That is the right failure direction: no link is better
+ * than a link nobody decided to include.
+ *
+ * Never throws. A tracking failure must not cost the draft.
+ *
+ * @param {Env} env
+ * @returns {Promise<string[]>}
+ */
+async function mintTrackedLink(env, { lead, settings, correlationId }) {
+  if (!resolveFlags(env).tracking) return []
+
+  const tracking = { ...TRACKING, ...(settings['tracking.config'] || {}) }
+  const destination = settings['business.identity']?.website || 'https://www.devlabstudios.com'
+
+  try {
+    const token = await createTrackingToken(env.DB, {
+      leadId: lead.id,
+      campaignId: lead.campaignId,
+      destinationUrl: destination,
+      label: 'outreach',
+      allowedHosts: tracking.allowedHosts,
+    })
+
+    return [`${destination.replace(/\/$/, '')}/r/${token.token}`]
+  } catch (error) {
+    createLogger({ correlationId, leadId: lead.id }).log('tracked_link_failed', {
+      result: 'error',
+      error: error instanceof Error ? error.message : 'unknown',
+    })
+    return []
+  }
+}
+
+/**
  * Generates an outreach draft.
  *
  * @param {Env} env
@@ -179,6 +219,11 @@ export async function generateOutreachDraft(env, leadId, options = {}) {
     .slice(0, 8)
     .map((signal) => signal.evidence || `${signal.signalKey}: ${signal.valueText}`)
 
+  // A tracked link is minted ONLY when tracking is enabled — off by default.
+  // Without one, `allowedLinks` is empty and the content guard rejects any URL
+  // the model invents, which is the safer default for a first cold email.
+  const trackedLinks = await mintTrackedLink(env, { lead, settings, correlationId: logger.correlationId })
+
   const brief = buildOutreachBrief({
     company,
     opportunity: review,
@@ -186,7 +231,7 @@ export async function generateOutreachDraft(env, leadId, options = {}) {
     sender: settings['business.identity'] || {},
     capabilities: DEVLAB_CAPABILITIES,
     evidence,
-    trackedLinks: [],
+    trackedLinks,
   })
 
   const aiConfig = { ...AI, ...(settings['ai.config'] || {}) }
@@ -231,7 +276,7 @@ export async function generateOutreachDraft(env, leadId, options = {}) {
       body: outcome.value.body,
       referencedObservations: outcome.value.referenced_observations,
     },
-    { allowedLinks: [], availableEvidence: [...evidence, ...signals.map((signal) => signal.signalKey)] },
+    { allowedLinks: trackedLinks, availableEvidence: [...evidence, ...signals.map((signal) => signal.signalKey)] },
   )
 
   const identity = settings['business.identity'] || {}
