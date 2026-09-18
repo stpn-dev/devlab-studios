@@ -576,6 +576,37 @@ describe('the dashboard', () => {
     expect(dashboard.zoho.configured).toBe(false)
   })
 
+  it('reports readiness against a real settings row, not just the flags', async () => {
+    // The dashboard resolves settings from D1, so this is the one place the
+    // readiness panel is exercised against the same store the operator edits.
+    const dashboard = await getDashboard({ DB: db })
+    const identity = dashboard.readiness.capabilities.find((entry) => entry.key === 'outreach_identity')
+
+    expect(dashboard.readiness.ready).toBe(false)
+    expect(dashboard.readiness.blocking).toContain('outreach_identity')
+    // Seeded defaults leave the postal address empty on purpose — this system
+    // does not invent one.
+    expect(identity.missing).toContain('business.identity.postalAddress')
+  })
+
+  it('clears the identity block once the setting is filled in', async () => {
+    await setSetting(db, 'business.identity', {
+      legalName: 'DevLab Studios',
+      senderName: 'Test Sender',
+      senderEmail: 'hello@example.com',
+      postalAddress: '1 Example Street',
+      city: 'Testville',
+      region: 'CA',
+      postalCode: '90000',
+      countryCode: 'US',
+      website: 'https://example.com',
+    })
+
+    const dashboard = await getDashboard({ DB: db })
+
+    expect(dashboard.readiness.blocking).not.toContain('outreach_identity')
+  })
+
   it('counts the funnel cumulatively, so work draining through does not shrink it', async () => {
     const { lead } = await seedLead()
     await researchLead({ ...FLAGS, DB: db }, lead.id, { fetchImpl: siteFetch() })

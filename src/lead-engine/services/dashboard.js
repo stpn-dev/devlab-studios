@@ -13,6 +13,7 @@
  */
 
 import { resolveFlags } from '../config/flags.js'
+import { resolveReadiness } from '../config/readiness.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { PROGRESSION_STAGES, STAGES } from '../domain/pipeline.js'
 import { countActivityByType } from '../repositories/activity.js'
@@ -23,6 +24,8 @@ import { countJobsByStatus, listJobs } from '../repositories/jobs.js'
 import { countLeadsByStage, listLeadsInStage } from '../repositories/leads.js'
 import { listFailedCrawlRuns } from '../repositories/research.js'
 import { listUnansweredReplies } from '../repositories/conversations.js'
+import { resolveSettingsSafely } from '../repositories/settings.js'
+import { listSources } from '../repositories/sources.js'
 import { listSyncState } from '../repositories/syncState.js'
 import { getUsage } from '../repositories/usage.js'
 import { readZohoConfig } from '../zoho/oauth.js'
@@ -52,6 +55,8 @@ export async function getDashboard(env, options = {}) {
     failedCrawls,
     deadJobs,
     syncState,
+    settings,
+    sources,
   ] = await Promise.all([
     countLeadsByStage(db, campaignId),
     countActivityByType(db, since24h),
@@ -64,6 +69,8 @@ export async function getDashboard(env, options = {}) {
     listFailedCrawlRuns(db, { since: since7d, limit: 10 }),
     listJobs(db, { status: 'dead', limit: 10 }),
     listSyncState(db),
+    resolveSettingsSafely(db),
+    listSources(db),
   ])
 
   const [readyForReview, readyToContact, needingAction] = await Promise.all([
@@ -91,6 +98,12 @@ export async function getDashboard(env, options = {}) {
 
   return {
     flags: resolveFlags(env),
+    /**
+     * Flags say what was asked for; this says whether the credentials behind it
+     * exist. A flag on without its secret fails later, inside a job, against a
+     * real lead — so it is reported here, before a run.
+     */
+    readiness: resolveReadiness(env, { businessIdentity: settings['business.identity'], sources }),
     pipeline,
     cumulative,
     totals: {

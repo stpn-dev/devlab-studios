@@ -10,7 +10,7 @@ INSERT OR IGNORE INTO lead_sources
   (id, name, slug, type, base_url, enabled, automation_allowed, crawl_allowed,
    policy_status, policy_notes, parser_version, created_at, updated_at)
 VALUES ('daa2d7be-4b63-46ad-809e-d927b85ac537', 'OpenStreetMap (Overpass API)', 'osm-overpass', 'osm_overpass', 'https://overpass-api.de/api/interpreter',
-        0, 0, 0, 'unreviewed', 'Data is ODbL-licensed and openly available. Before enabling, confirm the current Overpass API usage policy (https://operations.osmfoundation.org/policies/api/) and that our request volume and rate are within it. The adapter is sequential and bounded by USAGE_LIMITS.overpass_requests, but the ceiling is ours to justify. Attribution: OSM data must be credited where it is displayed publicly. It is not displayed publicly here — it is internal research evidence only.', 1, '2026-09-18T07:02:18.075Z', '2026-09-18T07:02:18.075Z');
+        0, 0, 0, 'unreviewed', 'Data is ODbL-licensed and openly available. Before enabling, review the current public instance guidance (https://wiki.openstreetmap.org/wiki/Overpass_API) and the policy of the exact endpoint configured. The main public instance directs regular commercial use to self-hosted or paid infrastructure. The adapter is sequential and bounded, but that does not itself grant permission to use an endpoint. Attribution: OSM data must be credited where it is displayed publicly. It is not displayed publicly here — it is internal research evidence only.', 1, '2026-09-18T07:02:18.075Z', '2026-09-18T07:02:18.075Z');
 
 INSERT OR IGNORE INTO lead_sources
   (id, name, slug, type, base_url, enabled, automation_allowed, crawl_allowed,

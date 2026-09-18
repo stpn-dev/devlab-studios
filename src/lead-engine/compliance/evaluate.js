@@ -25,6 +25,7 @@
  * accepted this risk" indistinguishable from a rule firing.
  */
 
+import { BUSINESS_IDENTITY_FIELDS } from '../config/defaults.js'
 import { getCountryProfile, HARD_BOUNDARY_CHECK_KEYS } from './countryProfiles.js'
 import { buildUnsubscribeInstruction, messageContainsOptOutInstruction } from './optOut.js'
 
@@ -36,9 +37,6 @@ import { buildUnsubscribeInstruction, messageContainsOptOutInstruction } from '.
  * refusal.
  */
 export const DO_NOT_CONTACT_STAGES = Object.freeze(['DO_NOT_CONTACT', 'UNSUBSCRIBED', 'NO_CONTACT'])
-
-/** Fields that together make a postal address showable in a message. */
-const POSTAL_ADDRESS_FIELDS = Object.freeze(['postalAddress', 'city', 'region', 'postalCode', 'countryCode'])
 
 /** @param {unknown} value */
 function present(value) {
@@ -81,7 +79,7 @@ const EVALUATORS = Object.freeze({
   },
 
   sender_identity_configured({ businessIdentity }) {
-    const missing = ['senderName', 'senderEmail'].filter((field) => !present(businessIdentity[field]))
+    const missing = BUSINESS_IDENTITY_FIELDS.sender.filter((field) => !present(businessIdentity[field]))
     if (missing.length) {
       return { passed: false, detail: `Business identity settings are missing: ${missing.join(', ')}.` }
     }
@@ -89,7 +87,7 @@ const EVALUATORS = Object.freeze({
   },
 
   postal_address_configured({ businessIdentity }) {
-    const missing = POSTAL_ADDRESS_FIELDS.filter((field) => !present(businessIdentity[field]))
+    const missing = BUSINESS_IDENTITY_FIELDS.postal.filter((field) => !present(businessIdentity[field]))
     if (missing.length) {
       return { passed: false, detail: `Business postal address is incomplete: ${missing.join(', ')}.` }
     }

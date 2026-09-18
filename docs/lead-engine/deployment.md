@@ -155,8 +155,19 @@ record what you found in `policy_notes`, set `policy_status`, and set `enabled` 
 **This is a human step and there is no way around it.** `assertSourceUsable`
 refuses an unreviewed source, so discovery finds nothing until it is done.
 
-For the dry run you need `osm-overpass` at minimum. `brave-search` is optional
-and needs a key. `manual-import` is worth enabling as a fallback.
+For automated discovery you need at least one approved source. `brave-search`
+is optional and needs a separate account, API key, and an acceptable plan.
+`osm-overpass` is keyless, but keyless does not mean unrestricted: review the
+policy for the exact endpoint you configure. The main public instance directs
+regular commercial use to self-hosted or paid infrastructure. Manual import
+remains available as the free, operator-controlled path.
+
+Do not substitute the public Nominatim endpoint for automated business
+discovery. Its usage policy forbids systematic POI queries and treats scheduled
+requests as bulk geocoding. A self-hosted Nominatim instance is a different
+service and may be evaluated separately. Likewise, do not replace the API with
+a Playwright search-results scraper: that makes search-engine anti-bot controls
+and terms part of this system's reliability and provenance model.
 
 ### Step 4 — fill in the business identity
 

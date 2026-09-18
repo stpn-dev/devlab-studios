@@ -14,6 +14,77 @@ import { useResource } from './useResource'
  * not track email opens — no pixel is embedded in anything it produces.
  */
 
+/**
+ * What is configured, and what is missing before it can be used.
+ *
+ * Required gaps are always shown because they prevent a complete run. Optional
+ * gaps appear only when their feature was explicitly enabled: an unused Brave
+ * key or browser renderer is not a problem, but an enabled one that cannot run
+ * is an actionable configuration error.
+ */
+function ReadinessNotice({ readiness }) {
+  if (!readiness) return null
+
+  const blocked = readiness.capabilities.filter(
+    (capability) => capability.importance === 'required' && !capability.configured,
+  )
+  const degraded = readiness.capabilities.filter(
+    (capability) => capability.importance === 'optional' && capability.enabled && !capability.configured,
+  )
+  if (blocked.length === 0 && degraded.length === 0) return null
+
+  return (
+    <div className="space-y-3">
+      {blocked.length > 0 ? (
+        <ReadinessGroup
+          capabilities={blocked}
+          title={`${blocked.length === 1 ? 'One capability is' : `${blocked.length} capabilities are`} missing configuration.`}
+          tone="rose"
+        />
+      ) : null}
+      {degraded.length > 0 ? (
+        <ReadinessGroup
+          capabilities={degraded}
+          title={`${degraded.length === 1 ? 'One optional capability is' : `${degraded.length} optional capabilities are`} enabled but unavailable.`}
+          tone="amber"
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function ReadinessGroup({ capabilities, title, tone }) {
+  const styles =
+    tone === 'rose'
+      ? { panel: 'border-rose-200 bg-rose-50', heading: 'text-rose-900', text: 'text-rose-800', code: 'bg-rose-100' }
+      : {
+          panel: 'border-amber-200 bg-amber-50',
+          heading: 'text-amber-900',
+          text: 'text-amber-800',
+          code: 'bg-amber-100',
+        }
+
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${styles.panel}`}>
+      <p className={`text-sm font-semibold ${styles.heading}`}>{title}</p>
+      <ul className="mt-2 space-y-1.5">
+        {capabilities.map((capability) => (
+          <li key={capability.key} className={`text-xs ${styles.text}`}>
+            <span className="font-semibold">{capability.label}</span> — {capability.impact}
+            <br />
+            <span>Missing: </span>
+            {capability.missing.map((name) => (
+              <code key={name} className={`mr-1 rounded px-1 ${styles.code}`}>
+                {name}
+              </code>
+            ))}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 const FUNNEL_ROWS = [
   ['Discovered', 'discovered'],
   ['Researched', 'researched'],
@@ -85,7 +156,7 @@ function LeadCrmDashboardPage() {
   if (state === 'error') return <p className="text-sm text-rose-600">The dashboard could not be loaded.</p>
   if (!data) return null
 
-  const { totals, actionable, usage, flags, zoho, jobs } = data
+  const { totals, actionable, usage, flags, zoho, jobs, readiness } = data
   const maxFunnel = Math.max(1, ...FUNNEL_ROWS.map(([, key]) => totals[key] || 0))
 
   return (
@@ -99,6 +170,8 @@ function LeadCrmDashboardPage() {
       </div>
 
       <DisabledNotice flags={flags} />
+
+      <ReadinessNotice readiness={readiness} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Ready for review" value={totals.readyForReview} tone="text-amber-700" />

@@ -294,6 +294,23 @@ export const TRACKING = Object.freeze({
 })
 
 /**
+ * The `business.identity` fields that must be filled before outreach is
+ * possible, split by what each group unblocks.
+ *
+ * Defined here rather than in compliance/evaluate.js because two callers need
+ * the same list: the compliance evaluator, which blocks an individual lead, and
+ * config/readiness.js, which tells the operator up front that no lead will ever
+ * clear review. Two copies of this list drifting apart would mean the dashboard
+ * reporting ready while every lead blocks.
+ */
+export const BUSINESS_IDENTITY_FIELDS = Object.freeze({
+  /** Needed to address a message at all. */
+  sender: Object.freeze(['senderName', 'senderEmail']),
+  /** Needed for the US profile's postal-address requirement. */
+  postal: Object.freeze(['postalAddress', 'city', 'region', 'postalCode', 'countryCode']),
+})
+
+/**
  * The effective defaults as a flat key/value map, which is the shape
  * `lead_settings` overrides and the Settings screen edits.
  */
