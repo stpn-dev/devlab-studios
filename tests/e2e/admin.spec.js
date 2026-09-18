@@ -34,6 +34,11 @@ async function login(page) {
   cachedSessionCookie = cookies.find((cookie) => cookie.name === SESSION_COOKIE) || null
 }
 
+async function openAdminNavGroup(page, name) {
+  const group = page.getByRole('navigation', { name: 'Admin navigation' }).getByRole('button', { name, exact: true })
+  if ((await group.getAttribute('aria-expanded')) === 'false') await group.click()
+}
+
 // Creates a project directly via the API (bypassing the bespoke editor UI)
 // so each media-focused test starts from a known, isolated project record —
 // mirrors the pattern already used by the "creating a project..." and "Work
@@ -94,7 +99,8 @@ test('the sign-in password can be revealed and re-hidden', async ({ page }) => {
 
 test('admin navigation mirrors public pages and hides unused collections', async ({ page }) => {
   await login(page)
-  const navigation = page.getByRole('navigation')
+  const navigation = page.getByRole('navigation', { name: 'Admin navigation' })
+  await openAdminNavGroup(page, 'Public Pages')
   // Labels mirror src/config/publicSurfaces.js, which is also what the public
   // navigation reads — "Solutions" labels the /solutions route.
   for (const label of ['Home', 'About', 'Solutions', 'Work', 'Insights', 'Founder Profile']) {
@@ -102,6 +108,7 @@ test('admin navigation mirrors public pages and hides unused collections', async
   }
   await expect(navigation.getByRole('link', { name: 'Testimonials' })).toHaveCount(0)
   await expect(navigation.getByRole('link', { name: 'Case Studies' })).toHaveCount(0)
+  await openAdminNavGroup(page, 'Site Management')
   await navigation.getByRole('link', { name: 'Navigation & Footer' }).click()
   await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 })
@@ -116,6 +123,7 @@ test('media library inventories the bound R2 bucket and explains its purpose', a
   expect(typeof body.summary?.objectCount).toBe('number')
   expect(typeof body.summary?.totalBytes).toBe('number')
 
+  await openAdminNavGroup(page, 'Site Management')
   await page.getByRole('navigation').getByRole('link', { name: 'Media' }).click()
   await expect(page.getByRole('heading', { name: 'Media Library', level: 1 })).toBeVisible()
   await expect(page.getByText(/optimized public images in the current environment/i)).toBeVisible()
@@ -130,6 +138,7 @@ test('media library inventories the bound R2 bucket and explains its purpose', a
 
 test('site settings save round-trip persists across reload', async ({ page }) => {
   await login(page)
+  await openAdminNavGroup(page, 'Site Management')
   await page.getByRole('navigation').getByRole('link', { name: 'Navigation & Footer' }).click()
   await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 
@@ -140,12 +149,14 @@ test('site settings save round-trip persists across reload', async ({ page }) =>
   await expect(page.getByText(/saved/i)).toBeVisible({ timeout: 10_000 })
 
   await page.reload()
+  await openAdminNavGroup(page, 'Site Management')
   await page.getByRole('navigation').getByRole('link', { name: 'Navigation & Footer' }).click()
   await expect(page.getByLabel(/tagline/i).first()).toHaveValue(marker)
 })
 
 test('site settings changes are versioned and a prior version can be restored', async ({ page }) => {
   await login(page)
+  await openAdminNavGroup(page, 'Site Management')
   await page.getByRole('navigation').getByRole('link', { name: 'Navigation & Footer' }).click()
   await expect(page.getByRole('heading', { name: 'Site Settings', level: 2 })).toBeVisible()
 
@@ -201,6 +212,7 @@ test('hidden testimonials collection remains backward compatible by direct route
 
 test('redirects collection: create, verify it actually redirects, then delete', async ({ page }) => {
   await login(page)
+  await openAdminNavGroup(page, 'Site Management')
   await page.getByRole('navigation').getByRole('link', { name: 'Redirects' }).click()
   await expect(page.getByRole('heading', { name: 'Redirects', level: 1 })).toBeVisible()
 
@@ -232,6 +244,7 @@ test('redirects collection: create, verify it actually redirects, then delete', 
 
 test('page builder: add a block, save, verify it persists, then remove it', async ({ page }) => {
   await login(page)
+  await openAdminNavGroup(page, 'Public Pages')
   await page.getByRole('navigation').getByRole('link', { name: 'Home' }).click()
   await expect(page.getByRole('heading', { name: /^Page:/, level: 1 })).toBeVisible()
 
@@ -329,6 +342,7 @@ test('Work editor selects existing Projects and owns its narrative without ownin
   })
   expect(emptyWorkResponse.ok()).toBeTruthy()
 
+  await openAdminNavGroup(page, 'Public Pages')
   await page.getByRole('navigation').getByRole('link', { name: 'Work' }).click()
   await expect(page.getByRole('heading', { name: 'Work', level: 1 })).toBeVisible()
   await expect(page.locator('input[type="file"]')).toHaveCount(0)
@@ -405,6 +419,7 @@ test('a lead persists in D1 and shows a failed delivery attempt when Resend is u
 
   // The Inquiries table lists sender/type/status rather than the subject line,
   // so the lead is found by searching for its sender and opened from its row.
+  await openAdminNavGroup(page, 'Operations')
   await page.getByRole('navigation').getByRole('link', { name: 'Inquiries' }).click()
   await page.getByLabel('Search inquiries').fill(senderEmail)
   await expect(page.getByText(senderEmail)).toBeVisible()
@@ -1054,6 +1069,7 @@ test('the password change endpoint rejects an unauthenticated caller', async ({ 
 
 test('the Security screen refuses a wrong current password', async ({ page }) => {
   await login(page)
+  await openAdminNavGroup(page, 'Operations')
   await page.getByRole('navigation').getByRole('link', { name: 'Security' }).click()
   await expect(page.getByRole('heading', { name: 'Security', level: 1 })).toBeVisible()
 

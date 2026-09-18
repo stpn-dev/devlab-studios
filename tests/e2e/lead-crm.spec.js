@@ -61,6 +61,11 @@ async function login(page) {
   cachedSessionCookie = cookies.find((cookie) => cookie.name === SESSION_COOKIE) || null
 }
 
+async function openAdminNavGroup(page, name) {
+  const group = page.getByRole('navigation', { name: 'Admin navigation' }).getByRole('button', { name, exact: true })
+  if ((await group.getAttribute('aria-expanded')) === 'false') await group.click()
+}
+
 test.describe('Lead CRM API authorization', () => {
   test('every Lead CRM endpoint refuses an unauthenticated caller', async ({ request, baseURL }) => {
     for (const path of LEAD_CRM_ENDPOINTS) {
@@ -142,10 +147,39 @@ test.describe('Lead CRM admin screens', () => {
   test('appear in the CMS navigation, separate from Inquiries', async ({ page }) => {
     await page.goto('/admin')
 
-    const nav = page.getByRole('navigation')
+    const nav = page.getByRole('navigation', { name: 'Admin navigation' })
     await expect(nav.getByText('Lead CRM', { exact: true })).toBeVisible()
     // The pre-existing inbound inbox must still be there and still be distinct.
+    await openAdminNavGroup(page, 'Operations')
     await expect(nav.getByRole('link', { name: 'Inquiries' })).toBeVisible()
+  })
+
+  test('highlights only the exact Lead CRM destination', async ({ page }) => {
+    await page.goto('/admin/lead-crm/review')
+
+    const nav = page.getByRole('navigation', { name: 'Admin navigation' })
+    const review = nav.getByRole('link', { name: 'Review Queue' })
+    const leadDashboard = nav.locator('a[href="/admin/lead-crm"]')
+
+    await expect(review).toHaveClass(/admin-nav-link--active/)
+    await expect(leadDashboard).not.toHaveClass(/admin-nav-link--active/)
+  })
+
+  test('collapses sections and persists compact desktop navigation', async ({ page }) => {
+    await page.goto('/admin/lead-crm/review')
+
+    const nav = page.getByRole('navigation', { name: 'Admin navigation' })
+    const leadGroup = nav.getByRole('button', { name: 'Lead CRM', exact: true })
+    await expect(leadGroup).toHaveAttribute('aria-expanded', 'true')
+    await leadGroup.click()
+    await expect(nav.getByRole('link', { name: 'Review Queue' })).toHaveCount(0)
+    await leadGroup.click()
+    await expect(nav.getByRole('link', { name: 'Review Queue' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Collapse admin navigation' }).click()
+    await expect(page.getByRole('button', { name: 'Expand admin navigation' })).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Expand admin navigation' })).toBeVisible()
   })
 
   test('the dashboard renders inside the existing admin shell', async ({ page }) => {
