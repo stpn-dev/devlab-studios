@@ -134,10 +134,19 @@ See [ADR 0008](architecture/decisions/0008-insights-daily-digest.md).
 
 - `npm run typecheck` — 0 errors
 - `npm run build` — passes
-- `npm run test:unit` — 552 passing across 46 files
+- `npm run test:unit` — 581 passing across 48 files
 - `npx eslint .` — 0 errors (1 pre-existing warning in `WorkPageManager.jsx`)
-- Playwright `static` + `worker` — 258 passing, 1 skipped (run as site+admin and
-  pickleball separately; see the wrangler note under Known limitations)
+- Playwright site + admin (`public-pages`, `contact-form`, `image-weight`,
+  `admin`, `digest`) — 177 passing, 2 failing. Both failures are the
+  pre-existing `site settings` parallel-write race; both pass with `--workers=1`
+- Playwright `pickleball` — **130 of 246 failing, and failing identically on an
+  unmodified tree** (verified with `git stash`). A local wrangler/miniflare
+  crash (`Uncaught Error: Network connection lost`, `D1_ERROR: internal error`)
+  kills the dev worker mid-suite and everything after it fails with
+  ECONNREFUSED. Pre-existing and unrelated to this work; see Known limitations
+- The AI summary fix was verified against the deployed preview Worker, not only
+  in tests: `summarized: 10`, `model: @cf/meta/llama-3.1-8b-instruct-fp8`,
+  `neurons: 36.3`
 - The daily digest was run end to end against the live feeds from a local
   worker: all four feeds parsed, 16 candidates, 10 published, and a second run
   on the same day produced the same 10 rather than the leftovers
@@ -180,11 +189,19 @@ See [ADR 0008](architecture/decisions/0008-insights-daily-digest.md).
 - The `site settings save round-trip` admin e2e test races with the versioning
   test under parallel workers — both write the same global `site_settings` row.
   Pre-existing; reproduced on the unmodified spec. Passes serially.
-- `wrangler dev --local` (wrangler 4.116.0) intermittently dies mid-suite with
-  an internal `ProxyController` error, which cascades into ECONNREFUSED across
-  every remaining `worker`-project test. Not caused by any application code —
-  the same specs pass when the suite is split. Worth revisiting after a wrangler
-  upgrade.
+- `wrangler dev --local` (wrangler 4.116.0) dies mid-suite with
+  `Uncaught Error: Network connection lost` and `D1_ERROR: internal error`,
+  cascading into ECONNREFUSED across every remaining `worker`-project test. The
+  Pickleball suite is currently unrunnable locally because of it: 130 of 246
+  fail, and **the identical 130 fail on an unmodified tree**, confirmed by
+  stashing all local work and re-running. Not caused by application code. The
+  local Pickleball D1 had also grown to 92 MB from accumulated e2e runs and was
+  rebuilt; that was not the cause. Worth revisiting after a wrangler upgrade.
+- The admin login limiter (20/IP/15 min) bounds how often the e2e suite can be
+  run. Two full runs inside the window exhaust it and every later test fails
+  with a misleading "element not found". Locally, deleting
+  `.wrangler/state/v3/do/devlab-studios-RateLimiterDO` resets the fixture; the
+  limiter itself is unchanged and still covered by its own test.
 - Delivery retry is bounded per invocation plus manual admin retry; there is no
   scheduled retry worker (see ADR 0003 for why there is no Queue).
 - Case studies and testimonials collections remain backward-compatible but
