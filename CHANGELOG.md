@@ -51,6 +51,8 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-09-18
+
 ### Fixed
 - **Content-safeguard failures now block Zoho export.** AI drafts that contain a forbidden claim, unsupported observation, or unapproved link remain visible verbatim for human review, but the UI shows every violation and both the UI and service refuse Zoho draft creation until a person edits and saves the text.
 - **Corrected AI retries have clean audit status.** When Workers AI returns an invalid first answer and a schema-valid retry, the successful run now keeps its two-attempt count and accumulated usage without retaining the rejected attempt's error text beside an `ok` status.
