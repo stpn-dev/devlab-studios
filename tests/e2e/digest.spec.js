@@ -92,6 +92,12 @@ test.describe('digest admin', () => {
   })
 
   test('the Daily Digests page is reachable from the sidebar', async ({ page }) => {
+    // The sidebar groups collapse, and only the group matching the current page
+    // is open. Reaching a link in another group means expanding it first, which
+    // is part of what "reachable from the sidebar" now means.
+    const group = page.getByRole('button', { name: 'Content Libraries' })
+    if ((await group.getAttribute('aria-expanded')) === 'false') await group.click()
+
     await page.getByRole('link', { name: 'Daily Digests' }).first().click()
 
     await expect(page.getByRole('heading', { name: 'Daily Digests', level: 1 })).toBeVisible()

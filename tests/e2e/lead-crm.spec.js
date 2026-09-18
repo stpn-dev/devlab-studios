@@ -228,12 +228,34 @@ test.describe('Lead CRM admin screens', () => {
 
     await expect(page.getByRole('heading', { name: 'Operational switches' })).toBeVisible()
     await expect(page.getByRole('switch')).toHaveCount(9)
-    await expect(page.getByRole('switch', { name: 'Engine (master switch) operational switch' })).toBeEnabled()
-    await expect(page.getByRole('switch', { name: 'Engine (master switch) operational switch' })).not.toBeChecked()
-    await expect(page.getByText(/locked by deployment configuration/i)).toHaveCount(0)
+
+    // Permitted by the deployment ceiling, and still off until someone turns it
+    // on: an operable switch that has not been operated.
+    const engine = page.getByRole('switch', { name: 'Engine (master switch) operational switch' })
+    await expect(engine).toBeEnabled()
+    await expect(engine).not.toBeChecked()
+
     await expect(page.getByText(/no automated-send switch/i)).toBeVisible()
     // Nothing on this screen may offer to send mail.
     await expect(page.getByRole('button', { name: /^send$/i })).toHaveCount(0)
+  })
+
+  test('a switch whose deployment ceiling is shut is locked, and says so', async ({ page }) => {
+    await page.goto('/admin/lead-crm/settings')
+
+    // Two ceilings ship shut, for different reasons. Campaign schedules is the
+    // switch that makes campaigns run unattended and stays shut until a dry run
+    // and a real run have both been inspected; browser rendering has no
+    // credentials, so an operable switch would fail inside every research job.
+    // Both must present as LOCKED rather than as a control that lies.
+    for (const label of ['Campaign schedules', 'Browser rendering fallback']) {
+      const control = page.getByRole('switch', { name: `${label} operational switch` })
+
+      await expect(control, `${label} should be locked by its ceiling`).toBeDisabled()
+      await expect(control).not.toBeChecked()
+    }
+
+    await expect(page.getByText(/locked by deployment configuration/i)).toHaveCount(2)
   })
 
   test('sources expose one lead-intake control instead of internal permission gates', async ({ page }) => {

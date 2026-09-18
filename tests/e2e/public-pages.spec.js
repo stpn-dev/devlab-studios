@@ -67,22 +67,57 @@ test('footer has real links to Privacy and Terms', async ({ page }) => {
   await expect(footer).not.toContainText(/(?:version history|smoke test) tagline/i)
 })
 
+/**
+ * The header navigation, whichever one this viewport actually shows.
+ *
+ * The desktop nav is `hidden md:flex` and the mobile panel only exists once the
+ * hamburger is pressed, so a locator written for one viewport resolves to zero
+ * elements on the other. These specs run under `desktop-safari` and
+ * `mobile-safari` as well as Chrome, and the navigation's CONTENT - the labels,
+ * the hrefs, the absence of retired routes - should be identical either way.
+ * Asserting it through this helper checks both, rather than silently testing
+ * only the width the author happened to have in mind.
+ */
+async function headerNav(page) {
+  const banner = page.getByRole('banner')
+  const desktop = banner.getByRole('navigation').first()
+
+  if (await desktop.isVisible()) return desktop
+
+  await banner.getByRole('button', { name: /open navigation/i }).click()
+  const mobile = banner.getByRole('navigation').first()
+  await mobile.waitFor({ state: 'visible' })
+  return mobile
+}
+
 test('primary navigation is business-first and does not promote Process', async ({ page }) => {
   await page.goto('/')
-  const navigation = page.getByRole('banner').getByRole('navigation')
-  await expect(navigation.getByRole('link')).toHaveText(['Home', 'Solutions', 'Work', 'Insights', 'About', 'Profile'])
+  const navigation = await headerNav(page)
+
+  // The mobile panel puts the CTA INSIDE the <nav>; on desktop it sits beside
+  // it. Dropping it by its exact label keeps this assertion strict about the
+  // navigation items themselves on both viewports, instead of loosening to a
+  // partial match that would stop noticing an unexpected extra link.
+  const labels = (await navigation.getByRole('link').allInnerTexts())
+    .map((text) => text.trim())
+    .filter((text) => text !== 'Discuss Your System')
+
+  expect(labels).toEqual(['Home', 'Solutions', 'Work', 'Insights', 'About', 'Profile'])
   await expect(navigation.getByRole('link', { name: 'Process' })).toHaveCount(0)
 })
 
 test('the Profile nav item is labelled Profile, never "Hire Me"', async ({ page }) => {
   await page.goto('/')
-  const navigation = page.getByRole('banner').getByRole('navigation')
+  const navigation = await headerNav(page)
   await expect(navigation.getByRole('link', { name: 'Profile' })).toHaveAttribute('href', '/profile')
   await expect(navigation.getByRole('link', { name: /hire/i })).toHaveCount(0)
 })
 
 test('the header CTA is a single business call to action', async ({ page }) => {
   await page.goto('/')
+  // The CTA sits beside the nav on desktop and inside the panel on mobile, so
+  // the menu has to be open before it can be found on a phone viewport.
+  await headerNav(page)
   const headerCta = page.getByRole('banner').getByRole('link', { name: 'Discuss Your System' }).first()
   await expect(headerCta).toHaveAttribute('href', '/contact?type=business_system')
 })
@@ -416,8 +451,6 @@ test('the renamed Solutions route serves, and /services permanently redirects to
 
 test('the primary navigation points at /solutions, not the old route', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('navigation').getByRole('link', { name: 'Solutions' }).first()).toHaveAttribute(
-    'href',
-    '/solutions',
-  )
+  const navigation = await headerNav(page)
+  await expect(navigation.getByRole('link', { name: 'Solutions' }).first()).toHaveAttribute('href', '/solutions')
 })
