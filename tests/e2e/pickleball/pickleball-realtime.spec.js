@@ -191,6 +191,32 @@ test('a rally recorded via REST broadcasts an updated snapshot to a connected op
   expect(parsed.payload.games[0].scoreA).toBe(1)
 })
 
+/**
+ * One rate-limit bucket per test, because locally every request shares one.
+ *
+ * `/api/pickleball/public/:code/state` allows 60 requests per minute per
+ * client, and `clientIp()` falls back to the literal string 'unknown' when
+ * neither `cf-connecting-ip` nor `x-forwarded-for` is present — which is
+ * always, under `wrangler dev`. So in a full run EVERY request from EVERY spec
+ * counts against the same allowance, and whichever test happens to run after
+ * the 60th gets a 429 for reasons that have nothing to do with what it
+ * asserts. These two were those tests: they passed alone, passed as a file, and
+ * failed only in a complete run, the second one receiving 429 where it expected
+ * 404.
+ *
+ * Same fix, and same reasoning, as `submitInquiry` in admin.spec.js.
+ * `cf-connecting-ip` is safe to set: Cloudflare overwrites it at the edge in
+ * production, so it cannot be spoofed there, and locally it is simply absent
+ * unless a test provides one.
+ *
+ * The limiter's own behaviour is not what these tests are for — they assert the
+ * snapshot shape and the unknown-code response.
+ */
+const PUBLIC_STATE_IPS = Object.freeze({
+  snapshot: '203.0.113.194',
+  unknownCode: '203.0.113.212',
+})
+
 test('public REST polling fallback returns the same sanitized shape as the WebSocket channel', async ({ request, context }) => {
   const baseURL = test.info().project.use.baseURL
   const sessionId = await createLiveSessionForRealtimeTests(request, context, baseURL)
@@ -202,7 +228,9 @@ test('public REST polling fallback returns the same sanitized shape as the WebSo
     `SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'`,
   )[0].public_code
 
-  const response = await request.get(`/api/pickleball/public/${code}/state`)
+  const response = await request.get(`/api/pickleball/public/${code}/state`, {
+    headers: { 'cf-connecting-ip': PUBLIC_STATE_IPS.snapshot },
+  })
   expect(response.ok()).toBe(true)
   const body = await response.json()
   expect(body.session.id).toBe(sessionId)
@@ -210,7 +238,9 @@ test('public REST polling fallback returns the same sanitized shape as the WebSo
 })
 
 test('public REST polling fallback 404s for a revoked-or-unknown code', async ({ request }) => {
-  const response = await request.get('/api/pickleball/public/does-not-exist/state')
+  const response = await request.get('/api/pickleball/public/does-not-exist/state', {
+    headers: { 'cf-connecting-ip': PUBLIC_STATE_IPS.unknownCode },
+  })
   expect(response.status()).toBe(404)
 })
 
