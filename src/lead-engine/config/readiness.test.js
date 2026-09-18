@@ -27,6 +27,10 @@ const APPROVED_OVERPASS = Object.freeze([
   { slug: 'osm-overpass', enabled: true, automationAllowed: true, policyStatus: 'approved' },
 ])
 
+const APPROVED_MANUAL_IMPORT = Object.freeze([
+  { slug: 'manual-import', enabled: true, automationAllowed: true, policyStatus: 'approved' },
+])
+
 const configured = (options = {}) => ({ businessIdentity: COMPLETE_IDENTITY, sources: APPROVED_OVERPASS, ...options })
 
 const capability = (result, key) => result.capabilities.find((entry) => entry.key === key)
@@ -128,24 +132,35 @@ describe('resolveReadiness', () => {
     expect(result.capabilities.every((entry) => Array.isArray(entry.missing))).toBe(true)
   })
 
-  it('blocks automated discovery until a source is enabled and policy-approved', () => {
+  it('keeps automated discovery optional when approved manual intake is available', () => {
     const unreviewed = [{ slug: 'osm-overpass', enabled: true, automationAllowed: false, policyStatus: 'unreviewed' }]
-    const result = resolveReadiness(FULLY_CONFIGURED, configured({ sources: unreviewed }))
+    const result = resolveReadiness(FULLY_CONFIGURED, configured({ sources: [...unreviewed, ...APPROVED_MANUAL_IMPORT] }))
 
-    expect(result.blocking).toContain('discovery')
+    expect(result.blocking).not.toContain('discovery')
+    expect(result.blocking).not.toContain('candidate_intake')
+    expect(capability(result, 'discovery').importance).toBe('optional')
     expect(capability(result, 'discovery').missing).toEqual([
       'approved automated source (Lead CRM > Sources)',
     ])
   })
 
-  it('does not count Brave as usable without its API key', () => {
+  it('does not count Brave without an API key as a usable intake path', () => {
     const brave = [{ slug: 'brave-search', enabled: true, automationAllowed: true, policyStatus: 'approved' }]
     const result = resolveReadiness(
       { ...FULLY_CONFIGURED, BRAVE_SEARCH_API_KEY: '' },
       configured({ sources: brave }),
     )
 
-    expect(result.blocking).toContain('discovery')
+    expect(result.blocking).toContain('candidate_intake')
+  })
+
+  it('blocks when neither manual nor automated intake is policy-approved', () => {
+    const result = resolveReadiness(FULLY_CONFIGURED, configured({ sources: [] }))
+
+    expect(result.blocking).toContain('candidate_intake')
+    expect(capability(result, 'candidate_intake').missing).toEqual([
+      'approved manual import or automated source (Lead CRM > Sources)',
+    ])
   })
 
   it('reports no capability that implies a send exists', () => {

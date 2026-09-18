@@ -107,11 +107,11 @@ describe('assertFlag', () => {
 describe('shipped configuration', () => {
   const wrangler = readFileSync(resolve(repoRoot, 'wrangler.jsonc'), 'utf8')
 
-  it('keeps production inert and enables only manual preview research', () => {
+  it('keeps production inert and enables only controlled preview research and AI review', () => {
     // Production remains fully inert. Preview deliberately exposes the CRM
     // shell and crawler for an operator-triggered test. Discovery, browser
-    // rendering, AI, mailbox operations and schedules remain off.
-    const enabledInPreview = new Set([FLAG_KEYS.engine, FLAG_KEYS.crawler])
+    // rendering, mailbox operations and schedules remain off.
+    const enabledInPreview = new Set([FLAG_KEYS.engine, FLAG_KEYS.crawler, FLAG_KEYS.ai])
 
     for (const key of Object.values(FLAG_KEYS)) {
       const occurrences = [...wrangler.matchAll(new RegExp(`"${key}"\\s*:\\s*"(\\w+)"`, 'g'))].map((m) => m[1])

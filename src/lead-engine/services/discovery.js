@@ -122,7 +122,7 @@ async function admitCandidate(db, { campaign, candidate, sourceId, correlationId
  * @param {Env} env
  * @param {string} campaignId
  * @param {{ fetchImpl?: typeof fetch, limit?: number, correlationId?: string,
- *           actorEmail?: string|null, enqueueResearch?: boolean }} [options]
+ *           actorEmail?: string|null, enqueueResearch?: boolean, allowInactive?: boolean }} [options]
  */
 export async function runCampaignDiscovery(env, campaignId, options = {}) {
   assertFlag(env, 'discovery')
@@ -133,9 +133,11 @@ export async function runCampaignDiscovery(env, campaignId, options = {}) {
 
   const logger = createLogger({ correlationId: options.correlationId, campaignId })
 
-  // A draft or paused campaign never runs, whatever asked. Checked here rather
-  // than only in the route, because the scheduler calls this too.
-  if (campaign.status !== 'active') {
+  // A normal or scheduled run requires ACTIVE. The admin's explicit dry-run
+  // path may inspect a draft or paused campaign, but never revives a completed
+  // or archived one.
+  const dryRunnable = options.allowInactive && ['draft', 'paused'].includes(campaign.status)
+  if (campaign.status !== 'active' && !dryRunnable) {
     return { status: 'skipped', reason: `Campaign is ${campaign.status}.`, created: 0, duplicates: 0 }
   }
 
@@ -297,6 +299,7 @@ export async function importCandidates(env, campaignId, rawCandidates, options =
 
   const logger = createLogger({ correlationId: options.correlationId, campaignId })
   const permission = await assertSourceUsable(db, 'manual-import')
+  if (!permission.allowed) throw operationError(permission.reason || 'Manual import is not approved.', 409)
 
   const normalized = []
   const rejected = []
@@ -315,7 +318,7 @@ export async function importCandidates(env, campaignId, rawCandidates, options =
     const admitted = await admitCandidate(db, {
       campaign,
       candidate,
-      sourceId: permission.allowed ? permission.source.id : null,
+      sourceId: permission.source.id,
       correlationId: logger.correlationId,
     })
 

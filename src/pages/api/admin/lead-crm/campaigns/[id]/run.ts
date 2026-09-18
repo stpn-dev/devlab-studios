@@ -31,6 +31,7 @@ export const POST: APIRoute = async (context) =>
     const result = await runCampaignDiscovery(database.env, context.params.id!, {
       limit: body.data.limit,
       enqueueResearch: !body.data.dryRun,
+      allowInactive: body.data.dryRun,
       actorEmail: email,
     })
 

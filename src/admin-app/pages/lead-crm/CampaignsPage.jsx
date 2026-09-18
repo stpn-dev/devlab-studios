@@ -130,7 +130,7 @@ function CampaignForm({ onCreated, onCancel }) {
   )
 }
 
-function CampaignRow({ campaign, onChanged, onImported }) {
+function CampaignRow({ campaign, flags, onChanged, onImported }) {
   const [busy, setBusy] = useState(null)
   const [feedback, setFeedback] = useState(null)
   const [showImport, setShowImport] = useState(false)
@@ -184,7 +184,7 @@ function CampaignRow({ campaign, onChanged, onImported }) {
       const rejected = (result.rejected ?? 0) + parseErrors
       setImportFeedback({
         tone: rejected > 0 ? 'warn' : 'ok',
-        message: `${result.created} new, ${result.duplicates} already known, ${rejected} rejected. Research remains queued until its capability is enabled.`,
+        message: `${result.created} new, ${result.duplicates} already known, ${rejected} rejected. Research was queued for the next manual or scheduled job run.`,
       })
       if (rejected === 0) setImportContent('')
       onImported()
@@ -225,15 +225,27 @@ function CampaignRow({ campaign, onChanged, onImported }) {
           >
             {showImport ? 'Close import' : 'Import list'}
           </button>
-          <button type="button" onClick={() => run(true)} disabled={busy !== null} className={buttonClass}>
+          <button
+            type="button"
+            onClick={() => run(true)}
+            disabled={busy !== null || !flags?.discovery}
+            className={buttonClass}
+            title={!flags?.discovery ? 'Automated discovery is disabled. Manual import is still available.' : undefined}
+          >
             {busy === 'dry' ? 'Running…' : 'Automated dry run'}
           </button>
           <button
             type="button"
             onClick={() => run(false)}
-            disabled={busy !== null || campaign.status !== 'active'}
+            disabled={busy !== null || campaign.status !== 'active' || !flags?.discovery}
             className={buttonClass}
-            title={campaign.status !== 'active' ? 'Activate the campaign first.' : undefined}
+            title={
+              !flags?.discovery
+                ? 'Automated discovery is disabled. Manual import is still available.'
+                : campaign.status !== 'active'
+                  ? 'Activate the campaign first.'
+                  : undefined
+            }
           >
             {busy === 'run' ? 'Running…' : 'Run discovery'}
           </button>
@@ -375,7 +387,13 @@ function CampaignsPage() {
 
       <div className="space-y-3">
         {campaigns.map((campaign) => (
-          <CampaignRow key={campaign.id} campaign={campaign} onChanged={handleChanged} onImported={reload} />
+          <CampaignRow
+            key={campaign.id}
+            campaign={campaign}
+            flags={data?.flags}
+            onChanged={handleChanged}
+            onImported={reload}
+          />
         ))}
       </div>
     </div>

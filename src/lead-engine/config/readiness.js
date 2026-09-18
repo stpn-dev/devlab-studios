@@ -87,6 +87,15 @@ export function resolveReadiness(env, options = {}) {
   const approvedAutomatedSources = sources?.filter(
     (entry) => entry?.enabled && entry?.automationAllowed && entry?.policyStatus === 'approved',
   )
+  const manualImportConfigured =
+    sources === null ||
+    sources.some(
+      (entry) =>
+        entry?.slug === 'manual-import' &&
+        entry?.enabled &&
+        entry?.automationAllowed &&
+        entry?.policyStatus === 'approved',
+    )
   const automatedDiscoveryConfigured =
     approvedAutomatedSources === undefined ||
     approvedAutomatedSources.some(
@@ -111,14 +120,26 @@ export function resolveReadiness(env, options = {}) {
       impact: 'Master switch. Every other capability is ANDed with this one.',
     },
     {
+      key: 'candidate_intake',
+      label: 'Candidate intake',
+      importance: REQUIRED,
+      flag: null,
+      enabled: true,
+      configured: manualImportConfigured || automatedDiscoveryConfigured,
+      missing: manualImportConfigured || automatedDiscoveryConfigured
+        ? []
+        : ['approved manual import or automated source (Lead CRM > Sources)'],
+      impact: 'At least one policy-approved path is required to add businesses to a campaign.',
+    },
+    {
       key: 'discovery',
       label: 'Automated discovery',
-      importance: REQUIRED,
+      importance: OPTIONAL,
       flag: FLAG_KEYS.discovery,
       enabled: isFlagOn(source[FLAG_KEYS.discovery]),
       configured: automatedDiscoveryConfigured,
       missing: automatedDiscoveryConfigured ? [] : ['approved automated source (Lead CRM > Sources)'],
-      impact: 'No automated source is enabled and policy-approved. Manual import remains available.',
+      impact: 'No automated source is enabled and policy-approved. Approved manual import remains available.',
     },
     {
       key: 'discovery_brave',

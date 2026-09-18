@@ -9,6 +9,7 @@ import { reviewLeadOpportunity } from './aiReview.js'
 import { checkOutreachReadiness, generateOutreachDraft } from './outreach.js'
 import { pushDraftToZoho } from './zohoDraft.js'
 import { getDashboard } from './dashboard.js'
+import { importCandidates, runCampaignDiscovery } from './discovery.js'
 import { createCampaign } from '../repositories/campaigns.js'
 import { upsertCompany } from '../repositories/companies.js'
 import { getLead, upsertLead } from '../repositories/leads.js'
@@ -152,6 +153,55 @@ beforeEach(async () => {
   // and it is configuration rather than a constant precisely so a test can turn
   // it off. Without this the suite spends 20 seconds sleeping.
   await setSetting(db, 'crawler.limits', { perDomainDelayMs: 0 })
+})
+
+describe('candidate intake controls', () => {
+  it('refuses manual imports unless the registered source is enabled and approved', async () => {
+    const campaign = await createCampaign(db, { name: 'Manual intake', slug: 'manual-intake', countryCode: 'US' })
+
+    await expect(
+      importCandidates({ ...FLAGS, DB: db }, campaign.id, [{ websiteUrl: 'https://acme.com' }]),
+    ).rejects.toMatchObject({ status: 409 })
+
+    const count = await db.prepare('SELECT COUNT(*) AS count FROM lead_companies').first()
+    expect(Number(count.count)).toBe(0)
+  })
+
+  it('records approved manual imports with source provenance', async () => {
+    const campaign = await createCampaign(db, { name: 'Manual intake', slug: 'manual-intake', countryCode: 'US' })
+    const now = new Date().toISOString()
+    await db
+      .prepare(
+        `INSERT INTO lead_sources
+           (id, name, slug, type, enabled, automation_allowed, policy_status, created_at, updated_at)
+         VALUES (?, ?, 'manual-import', 'manual_import', 1, 1, 'approved', ?, ?)`,
+      )
+      .bind('manual-source', 'Manual import', now, now)
+      .run()
+
+    const result = await importCandidates(
+      { ...FLAGS, DB: db },
+      campaign.id,
+      [{ websiteUrl: 'https://acme.com', name: 'Acme' }],
+    )
+
+    expect(result.created).toBe(1)
+    const record = await db.prepare('SELECT source_id FROM lead_source_records').first()
+    expect(record.source_id).toBe('manual-source')
+  })
+
+  it('allows an explicit dry run for a draft campaign without relaxing normal runs', async () => {
+    const campaign = await createCampaign(db, { name: 'Dry run', slug: 'dry-run', countryCode: 'US' })
+
+    const ordinary = await runCampaignDiscovery({ ...FLAGS, DB: db }, campaign.id)
+    const dryRun = await runCampaignDiscovery({ ...FLAGS, DB: db }, campaign.id, {
+      allowInactive: true,
+      enqueueResearch: false,
+    })
+
+    expect(ordinary).toMatchObject({ status: 'skipped', reason: 'Campaign is draft.' })
+    expect(dryRun.status).toBe('ok')
+  })
 })
 
 describe('researchLead', () => {

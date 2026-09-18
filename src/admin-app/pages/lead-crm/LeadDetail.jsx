@@ -88,9 +88,11 @@ function SignalList({ signals }) {
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{humanize(category)}</h4>
           <ul className="mt-1 space-y-1.5">
             {entries.map((signal) => (
-              <li key={signal.id} className="text-sm">
-                <span className="font-medium text-slate-800">{humanize(signal.signalKey)}</span>
-                {signal.valueText ? <span className="text-slate-500"> — {signal.valueText}</span> : null}
+              <li key={signal.id} className="text-sm leading-5">
+                <div>
+                  <span className="font-medium text-slate-800">{humanize(signal.signalKey)}</span>
+                  {signal.valueText ? <span className="text-slate-500"> — {signal.valueText}</span> : null}
+                </div>
                 {signal.evidence ? (
                   <p className="mt-0.5 border-l-2 border-slate-200 pl-2 text-xs italic text-slate-500">
                     “{signal.evidence}”
@@ -101,9 +103,9 @@ function SignalList({ signals }) {
                     href={signal.sourceUrl}
                     target="_blank"
                     rel="noreferrer nofollow"
-                    className="text-xs text-slate-400 hover:text-brand-teal hover:underline"
+                    className="mt-0.5 inline-block text-xs text-slate-400 hover:text-brand-teal hover:underline"
                   >
-                    {signal.sourceUrl}
+                    Source page ↗
                   </a>
                 ) : null}
               </li>

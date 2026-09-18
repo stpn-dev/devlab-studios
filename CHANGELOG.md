@@ -51,7 +51,12 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Fixed
+- **Lead-engine intake and preview controls.** Manual imports now fail closed unless their registered source is enabled and policy-approved, always retain source provenance, and report queued research accurately. The dashboard treats approved manual import as a valid intake path instead of falsely blocking on optional automated discovery; disabled discovery controls explain why they cannot run; advertised dry runs can inspect draft campaigns without enqueueing research; and research signal source links no longer visually run into extracted values.
+- **Cloudflare compatibility date refreshed.** The Worker now targets `2026-08-06`, the newest date supported by the repository's pinned local Workers runtime, while retaining `nodejs_compat` and avoiding stale-runtime drift before the lead engine release.
+
 ### Added
+- **Preview AI review enabled.** The isolated preview Worker now permits Workers AI opportunity review after deterministic rules qualify a manually imported, researched lead. Automated discovery, browser rendering, tracking, Zoho drafting and sync, schedules, and all production lead-engine capabilities remain disabled.
 - **Preview manual research enabled.** The preview Worker now permits website research only when an operator explicitly drains a queued job. This supports a controlled end-to-end test of a manually imported domain while automated discovery, browser rendering, AI review, tracking, Zoho drafting and sync, campaign schedules, and every production lead-engine capability remain disabled.
 - **Manual lead import controls.** Campaign cards now expose the existing policy-gated manual-import endpoint through a domain/URL list or CSV form, report created, duplicate, and rejected rows, and clearly distinguish manual import from automated discovery. Imports create lead records while crawling, AI, Zoho drafting, synchronization, and sending remain independently controlled.
 - **Preview lead-engine shell enabled.** The preview Worker enables the Lead Intelligence Engine shell so its seeded dashboard, settings, sources, campaigns, manual-import workflow, and explicitly triggered research can be exercised against isolated preview data. Automated discovery, browser rendering, AI review, tracking, Zoho drafting and sync, and campaign schedules remain disabled.
