@@ -134,13 +134,16 @@ disabled state. The cron tick logs
 Above. **Verify:** 22 tables, 3 source rows, 1 draft campaign, 1
 `business.identity` row.
 
-### Step 2 — turn on the engine, nothing else
+### Step 2 — permit and turn on the engine, nothing else
 
 ```jsonc
 "LEAD_ENGINE_ENABLED": "true"
 ```
 
-in both `vars` and `env.preview.vars`. Deploy.
+in the target environment's `vars`. Deploy, then turn on **Engine (master
+switch)** in **Lead CRM > CRM Settings**. On the first deployment of the
+UI-managed controls, the stored state bootstraps from these vars, so an already
+enabled engine stays enabled until an admin changes it.
 
 **Verify:** `/admin/lead-crm` renders the dashboard with real (empty) counts.
 Sources, Campaigns, Settings all load. Nothing reaches the internet — every

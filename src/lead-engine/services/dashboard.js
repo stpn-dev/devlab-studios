@@ -13,6 +13,7 @@
  */
 
 import { resolveFlags } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { resolveReadiness } from '../config/readiness.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { PROGRESSION_STAGES, STAGES } from '../domain/pipeline.js'
@@ -38,6 +39,7 @@ const SYNC_PROBLEM_THRESHOLD = 2
  * @param {{ campaignId?: string|null }} [options]
  */
 export async function getDashboard(env, options = {}) {
+  env = await withOperationalFlags(env)
   const db = env.DB
   const campaignId = options.campaignId ?? null
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()

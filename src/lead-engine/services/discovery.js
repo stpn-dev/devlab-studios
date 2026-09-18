@@ -13,6 +13,7 @@
  */
 
 import { assertFlag } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { discoverViaBrave } from '../discovery/brave.js'
 import { discoverViaOverpass } from '../discovery/overpass.js'
@@ -125,6 +126,7 @@ async function admitCandidate(db, { campaign, candidate, sourceId, correlationId
  *           actorEmail?: string|null, enqueueResearch?: boolean, allowInactive?: boolean }} [options]
  */
 export async function runCampaignDiscovery(env, campaignId, options = {}) {
+  env = await withOperationalFlags(env)
   assertFlag(env, 'discovery')
 
   const db = env.DB

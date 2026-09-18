@@ -218,6 +218,21 @@ export const settingsUpdateSchema = z.object({
   isSecret: z.boolean().optional().default(false),
 })
 
+export const featureFlagUpdateSchema = z.object({
+  key: z.enum([
+    'engine',
+    'discovery',
+    'crawler',
+    'browserRun',
+    'ai',
+    'tracking',
+    'zohoMail',
+    'zohoMailSync',
+    'campaignSchedules',
+  ]),
+  enabled: z.boolean(),
+})
+
 export const importSchema = z
   .object({
     format: z.enum(['csv', 'domains']),

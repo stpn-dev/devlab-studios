@@ -19,6 +19,7 @@
 
 import { AI, TRACKING } from '../config/defaults.js'
 import { assertFlag, resolveFlags } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 import { runAiTask } from '../ai/client.js'
@@ -200,6 +201,7 @@ async function mintTrackedLink(env, { lead, settings, correlationId }) {
  * @param {{ variant?: string|null, actorEmail?: string|null, correlationId?: string }} [options]
  */
 export async function generateOutreachDraft(env, leadId, options = {}) {
+  env = await withOperationalFlags(env)
   assertFlag(env, 'ai')
 
   const db = env.DB

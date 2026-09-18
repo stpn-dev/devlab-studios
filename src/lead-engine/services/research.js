@@ -12,6 +12,7 @@
  */
 
 import { assertFlag, resolveFlags } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { CRAWLER } from '../config/defaults.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
@@ -46,6 +47,7 @@ import { createLogger } from './log.js'
  * @returns {Promise<{ status: string, reason?: string, score?: object, routing?: string }>}
  */
 export async function researchLead(env, leadId, options = {}) {
+  env = await withOperationalFlags(env)
   assertFlag(env, 'crawler')
 
   const db = env.DB

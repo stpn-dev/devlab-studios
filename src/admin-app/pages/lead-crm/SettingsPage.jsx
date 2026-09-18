@@ -14,9 +14,9 @@ import { useResource } from './useResource'
  *     identity). Editable, stored in D1, layered over the code defaults. A
  *     "Reset" removes the override and restores the default rather than
  *     writing the default back — so a later change to the default is picked up.
- *   - INTEGRATION STATUS (Zoho, feature flags). Read-only here. Flags are
- *     Worker vars, deliberately: a flag is how you stop the engine, and it must
- *     not depend on the database the engine is failing against.
+ *   - OPERATIONAL SWITCHES. Editable here and stored in D1, but bounded by
+ *     deployment-level Worker vars. The Worker vars remain the emergency stop;
+ *     the UI cannot enable a capability the deployment has forbidden.
  *
  * No credential value is ever rendered. The API masks anything marked secret
  * before it leaves the Worker, so it is not in the page source or the network
@@ -207,57 +207,131 @@ function ZohoStatus() {
   )
 }
 
-function FlagRow({ label, enabled, varName }) {
+const FLAG_ROWS = [
+  { key: 'engine', label: 'Engine (master switch)', varName: 'LEAD_ENGINE_ENABLED' },
+  { key: 'discovery', label: 'Discovery', varName: 'LEAD_DISCOVERY_ENABLED' },
+  { key: 'crawler', label: 'Crawler', varName: 'LEAD_CRAWLER_ENABLED' },
+  { key: 'browserRun', label: 'Browser rendering fallback', varName: 'LEAD_BROWSER_RUN_ENABLED' },
+  { key: 'ai', label: 'Workers AI', varName: 'LEAD_AI_ENABLED' },
+  { key: 'tracking', label: 'First-party tracking', varName: 'LEAD_TRACKING_ENABLED' },
+  { key: 'campaignSchedules', label: 'Campaign schedules', varName: 'LEAD_CAMPAIGN_SCHEDULES_ENABLED', confirm: true },
+  { key: 'zohoMail', label: 'Zoho Mail', varName: 'ZOHO_MAIL_ENABLED' },
+  { key: 'zohoMailSync', label: 'Zoho mailbox sync', varName: 'ZOHO_MAIL_SYNC_ENABLED', confirm: true },
+]
+
+function FlagRow({ item, state, busy, onToggle }) {
+  const requested = Boolean(state.requested?.[item.key])
+  const effective = Boolean(state.effective?.[item.key])
+  const deploymentAllowed = Boolean(state.deployment?.engine && state.deployment?.[item.key])
+  const disabled = busy || !state.available || !deploymentAllowed
+
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5 text-sm">
+    <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-2.5 last:border-b-0">
       <div>
-        <span className="text-slate-700">{label}</span>
-        <code className="ml-2 rounded bg-slate-100 px-1 text-xs text-slate-500">{varName}</code>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-slate-700">{item.label}</span>
+          <Badge
+            value={effective ? 'on' : 'off'}
+            tones={{ on: 'bg-emerald-100 text-emerald-800', off: 'bg-slate-100 text-slate-500' }}
+            label={effective ? 'On' : requested ? 'Armed' : 'Off'}
+          />
+        </div>
+        <p className="mt-0.5 text-xs text-slate-400">
+          <code>{item.varName}</code>
+          {!deploymentAllowed ? ' · locked by deployment configuration' : ''}
+        </p>
       </div>
-      <Badge
-        value={enabled ? 'on' : 'off'}
-        tones={{ on: 'bg-emerald-100 text-emerald-800', off: 'bg-slate-100 text-slate-500' }}
-        label={enabled ? 'On' : 'Off'}
-      />
+      <button
+        type="button"
+        role="switch"
+        aria-label={`${item.label} operational switch`}
+        aria-checked={requested}
+        disabled={disabled}
+        onClick={() => onToggle(item, !requested)}
+        className={`relative inline-flex h-6 w-11 flex-none rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 ${
+          requested ? 'bg-violet-600' : 'bg-slate-300'
+        } disabled:cursor-not-allowed disabled:opacity-45`}
+      >
+        <span
+          aria-hidden="true"
+          className={`mt-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+            requested ? 'translate-x-[1.375rem]' : 'translate-x-0.5'
+          }`}
+        />
+      </button>
     </div>
+  )
+}
+
+function FeatureFlagsPanel() {
+  const { data, state, reload } = useResource('/api/admin/lead-crm/feature-flags')
+  const [busyKey, setBusyKey] = useState(null)
+  const [feedback, setFeedback] = useState(null)
+
+  async function toggle(item, enabled) {
+    if (
+      enabled &&
+      item.confirm &&
+      !window.confirm(
+        item.key === 'campaignSchedules'
+          ? 'Enable unattended campaign schedules? Individual campaigns must still be armed separately.'
+          : 'Enable mailbox synchronization? This reads the configured Zoho Inbox and Sent folders.',
+      )
+    ) {
+      return
+    }
+
+    setBusyKey(item.key)
+    setFeedback(null)
+    try {
+      await adminApi.put('/api/admin/lead-crm/feature-flags', { key: item.key, enabled })
+      setFeedback({ tone: 'ok', message: `${item.label} turned ${enabled ? 'on' : 'off'}.` })
+      reload()
+    } catch (error) {
+      setFeedback({ tone: 'error', message: error.message })
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
+  return (
+    <Panel
+      title="Operational switches"
+      description="Changes take effect immediately. Worker vars remain the deployment-level emergency stop."
+    >
+      {state === 'loading' ? <p className="text-sm text-slate-500">Loading switches…</p> : null}
+      {data ? (
+        <div>
+          {FLAG_ROWS.map((item) => (
+            <FlagRow key={item.key} item={item} state={data} busy={busyKey === item.key} onToggle={toggle} />
+          ))}
+        </div>
+      ) : null}
+      <Feedback feedback={feedback} />
+      <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">
+        A deployment-locked switch cannot be enabled here. There is no automated-send switch: this system only
+        creates Zoho drafts, and a person sends them.
+      </p>
+    </Panel>
   )
 }
 
 function SettingsPage() {
   const { data, state, reload } = useResource('/api/admin/lead-crm/settings')
-  const { data: dashboard } = useResource('/api/admin/lead-crm/dashboard')
 
   const settings = data?.settings ?? {}
   const metadata = data?.metadata ?? []
-  const flags = dashboard?.flags
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Lead CRM settings</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Thresholds, weights, budgets and identity. Feature flags are Worker vars, not database rows — a switch that
-          stops the engine must not depend on the database.
+          Control live capabilities, thresholds, weights, budgets and business identity from one place.
         </p>
       </div>
 
-      {flags ? (
-        <Panel title="Feature flags" description="Read-only here. Set these as Cloudflare Worker vars.">
-          <FlagRow label="Engine (master switch)" enabled={flags.engine} varName="LEAD_ENGINE_ENABLED" />
-          <FlagRow label="Discovery" enabled={flags.discovery} varName="LEAD_DISCOVERY_ENABLED" />
-          <FlagRow label="Crawler" enabled={flags.crawler} varName="LEAD_CRAWLER_ENABLED" />
-          <FlagRow label="Browser rendering fallback" enabled={flags.browserRun} varName="LEAD_BROWSER_RUN_ENABLED" />
-          <FlagRow label="Workers AI" enabled={flags.ai} varName="LEAD_AI_ENABLED" />
-          <FlagRow label="First-party tracking" enabled={flags.tracking} varName="LEAD_TRACKING_ENABLED" />
-          <FlagRow label="Campaign schedules" enabled={flags.campaignSchedules} varName="LEAD_CAMPAIGN_SCHEDULES_ENABLED" />
-          <FlagRow label="Zoho Mail" enabled={flags.zohoMail} varName="ZOHO_MAIL_ENABLED" />
-          <FlagRow label="Zoho mailbox sync" enabled={flags.zohoMailSync} varName="ZOHO_MAIL_SYNC_ENABLED" />
-          <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">
-            There is no automated-send flag. This system has no send capability: it writes Zoho drafts and a person
-            sends them.
-          </p>
-        </Panel>
-      ) : null}
+      <FeatureFlagsPanel />
 
       <ZohoStatus />
 

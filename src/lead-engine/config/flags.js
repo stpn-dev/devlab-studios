@@ -11,9 +11,10 @@
  * absence of an SMTP/prospecting-provider module is the guarantee; a flag
  * would imply a switch exists.
  *
- * Flags read from `env` (Worker vars/secrets) rather than from D1: a flag is
- * how an operator stops the engine, and it must not depend on the database the
- * engine is failing against.
+ * These raw deployment flags are the hard ceiling and emergency stop. Normal
+ * operation is controlled by the validated `operations.flags` D1 row through
+ * `withOperationalFlags`; a database failure resolves every operational flag
+ * off, while these vars remain able to stop the engine independently.
  */
 
 /**
@@ -87,7 +88,7 @@ export function resolveFlags(env) {
 export class FeatureDisabledError extends Error {
   /** @param {string} flagKey */
   constructor(flagKey) {
-    super(`This capability is disabled. Set ${flagKey}=true to enable it.`)
+    super(`This capability is disabled. Enable it in Lead CRM Settings; ${flagKey} must also permit it.`)
     this.name = 'FeatureDisabledError'
     this.status = 503
     this.flagKey = flagKey

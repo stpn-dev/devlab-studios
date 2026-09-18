@@ -12,6 +12,7 @@
  */
 
 import { assertFlag } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 import { buildZohoUrl, createDraft as createZohoDraft } from '../zoho/client.js'
@@ -35,6 +36,7 @@ import { operationError } from '../repositories/helpers.js'
  * @returns {Promise<{ status: string, zohoDraftId?: string|null, zohoUrl?: string, reason?: string }>}
  */
 export async function pushDraftToZoho(env, draftId, options = {}) {
+  env = await withOperationalFlags(env)
   assertFlag(env, 'zohoMail')
 
   const db = env.DB

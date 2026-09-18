@@ -14,6 +14,7 @@
  */
 
 import { FeatureDisabledError } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { STAGES } from '../domain/pipeline.js'
 import { runCampaignDiscovery } from '../services/discovery.js'
 import { researchLead } from '../services/research.js'
@@ -198,6 +199,7 @@ export const JOB_HANDLERS = Object.freeze({
  * @returns {Promise<{ ok: boolean, result?: unknown, error?: string, retryable?: boolean }>}
  */
 export async function runJob(env, job, options = {}) {
+  env = await withOperationalFlags(env)
   const handler = JOB_HANDLERS[job.jobType]
   if (!handler) {
     return { ok: false, error: `No handler for job type "${job.jobType}".`, retryable: false }

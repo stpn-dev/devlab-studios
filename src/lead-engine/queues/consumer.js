@@ -24,6 +24,7 @@
  */
 
 import { resolveFlags } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { runJob } from '../jobs/handlers.js'
 import { completeJob, failJob, getJob } from '../repositories/jobs.js'
 import { createLogger } from '../services/log.js'
@@ -35,6 +36,7 @@ import { createLogger } from '../services/log.js'
  * @param {Env} env
  */
 export async function handleQueueBatch(batch, env) {
+  env = await withOperationalFlags(env)
   const logger = createLogger({})
   const flags = resolveFlags(env)
 

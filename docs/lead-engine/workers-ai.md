@@ -23,7 +23,7 @@ The unquantized variant is not, and answers in a different response shape.
 The model is behind four gates, all of which must pass.
 
 1. **`LEAD_AI_ENABLED`** (ANDed with `LEAD_ENGINE_ENABLED`). `assertFlag(env, 'ai')`
-   throws `FeatureDisabledError` → HTTP 503 naming the exact var to set.
+   throws `FeatureDisabledError` → HTTP 503 naming CRM Settings and the deployment ceiling.
 2. **The deterministic score routed the lead to AI** — `routesToAi(routing)`,
    which means a total of 60 or more. The model sees a few dozen businesses a day
    that already look plausible, rather than every domain a directory returned.

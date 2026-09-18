@@ -14,6 +14,7 @@
 
 import { AI } from '../config/defaults.js'
 import { assertFlag } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 import { runAiTask } from '../ai/client.js'
@@ -75,6 +76,7 @@ async function loadMessage(db, messageId) {
  * @param {{ correlationId?: string }} [options]
  */
 export async function analyzeReply(env, messageId, options = {}) {
+  env = await withOperationalFlags(env)
   assertFlag(env, 'ai')
 
   const db = env.DB
@@ -197,6 +199,7 @@ export async function analyzeReply(env, messageId, options = {}) {
  * @param {{ variant?: string|null, actorEmail?: string|null, correlationId?: string }} [options]
  */
 export async function generateReplyDraft(env, messageId, options = {}) {
+  env = await withOperationalFlags(env)
   assertFlag(env, 'ai')
 
   const db = env.DB

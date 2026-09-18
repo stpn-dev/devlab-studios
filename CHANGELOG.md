@@ -51,6 +51,9 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Added
+- **UI-managed Lead CRM operational switches.** Administrators can turn permitted engine capabilities on or off immediately from CRM Settings. Changes are validated and audited, deployment Worker vars remain hard safety ceilings, and a settings-store failure turns every capability off.
+
 ### Fixed
 - **Facebook footer icon.** Facebook social links now render a recognizable Facebook glyph instead of falling back to the email envelope.
 - **Admin navigation state and density.** Exact route matching prevents the Lead CRM Dashboard and the selected child screen from appearing active together. Sidebar sections can now be expanded or collapsed, the current section opens automatically, and desktop users can persist an icon-only compact mode so the growing CMS navigation no longer dominates the workspace.

@@ -84,9 +84,12 @@ export function DisabledNotice({ flags }) {
     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
       <p className="text-sm font-semibold text-amber-900">The Lead Intelligence Engine is switched off.</p>
       <p className="mt-1 text-xs text-amber-800">
-        Nothing is being discovered, crawled, analysed or synchronized. Set{' '}
-        <code className="rounded bg-amber-100 px-1">LEAD_ENGINE_ENABLED=true</code> and the capability flags you need as
-        Worker vars. Existing data stays readable.
+        Nothing is being discovered, crawled, analysed or synchronized. Turn on the engine and the capabilities you
+        need in{' '}
+        <a className="font-semibold underline" href="/admin/lead-crm/settings">
+          CRM Settings
+        </a>
+        . Deployment-locked switches require their Worker var to permit them. Existing data stays readable.
       </p>
     </div>
   )

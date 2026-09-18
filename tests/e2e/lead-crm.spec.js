@@ -36,6 +36,7 @@ const LEAD_CRM_ENDPOINTS = [
   '/api/admin/lead-crm/sources',
   '/api/admin/lead-crm/suppression',
   '/api/admin/lead-crm/settings',
+  '/api/admin/lead-crm/feature-flags',
   '/api/admin/lead-crm/jobs',
   '/api/admin/lead-crm/zoho/status',
 ]
@@ -80,6 +81,7 @@ test.describe('Lead CRM API authorization', () => {
       ['post', '/api/admin/lead-crm/suppression', { scope: 'email', value: 'a@b.com', reason: 'manual_block' }],
       ['post', '/api/admin/lead-crm/jobs', { action: 'drain' }],
       ['put', '/api/admin/lead-crm/settings', { key: 'x', value: 1 }],
+      ['put', '/api/admin/lead-crm/feature-flags', { key: 'engine', enabled: true }],
     ]
 
     for (const [method, path, body] of writes) {
@@ -196,7 +198,10 @@ test.describe('Lead CRM admin screens', () => {
     await page.goto('/admin/lead-crm')
 
     await expect(page.getByText(/Lead Intelligence Engine is switched off/i)).toBeVisible()
-    await expect(page.getByText('LEAD_ENGINE_ENABLED')).toBeVisible()
+    await expect(page.getByRole('main').getByRole('link', { name: 'CRM Settings' })).toHaveAttribute(
+      'href',
+      '/admin/lead-crm/settings',
+    )
   })
 
   test('every CRM screen loads without error', async ({ page }) => {
@@ -218,11 +223,14 @@ test.describe('Lead CRM admin screens', () => {
     }
   })
 
-  test('the settings screen shows every flag as off and no send switch', async ({ page }) => {
+  test('the settings screen exposes safe operational switches and no send switch', async ({ page }) => {
     await page.goto('/admin/lead-crm/settings')
 
-    await expect(page.getByRole('heading', { name: 'Feature flags' })).toBeVisible()
-    await expect(page.getByText(/no automated-send flag/i)).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Operational switches' })).toBeVisible()
+    await expect(page.getByRole('switch')).toHaveCount(9)
+    await expect(page.getByRole('switch', { name: 'Engine (master switch) operational switch' })).toBeDisabled()
+    await expect(page.getByText(/locked by deployment configuration/i).first()).toBeVisible()
+    await expect(page.getByText(/no automated-send switch/i)).toBeVisible()
     // Nothing on this screen may offer to send mail.
     await expect(page.getByRole('button', { name: /^send$/i })).toHaveCount(0)
   })

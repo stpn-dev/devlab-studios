@@ -65,6 +65,9 @@ export async function getEffectiveSettings(db) {
   // A stored key with no default is surfaced rather than dropped, so a setting
   // left behind by a removed feature is visible instead of invisibly retained.
   for (const [key, value] of overrides) {
+    // Internal control-plane rows have dedicated, validated UI. Showing them
+    // as raw JSON tunables would create two competing ways to edit a switch.
+    if (key.startsWith('operations.')) continue
     if (!(key in effective)) effective[key] = value
   }
 
@@ -100,7 +103,9 @@ export async function resolveSettingsSafely(db) {
  * @param {import('@cloudflare/workers-types').D1Database} db
  */
 export async function listSettingMetadata(db) {
-  const result = await db.prepare('SELECT key, is_secret, updated_by, updated_at FROM lead_settings').all()
+  const result = await db
+    .prepare("SELECT key, is_secret, updated_by, updated_at FROM lead_settings WHERE key NOT LIKE 'operations.%'")
+    .all()
   return (result.results || []).map((row) => ({
     key: row.key,
     isSecret: row.is_secret === 1,

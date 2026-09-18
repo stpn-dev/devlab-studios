@@ -8,25 +8,35 @@ mirrors this file.
 
 | Kind | Set with | Visible in | Use for |
 |---|---|---|---|
-| **var** | `wrangler.jsonc` `vars` | The repository, and the Cloudflare dashboard | Operational switches |
+| **var** | `wrangler.jsonc` `vars` | The repository, and the Cloudflare dashboard | Deployment ceilings and emergency stops |
 | **secret** | `npx wrangler secret put NAME` | Nowhere | Credentials |
 
 The nine feature flags are deliberately **plain vars in the committed
-`wrangler.jsonc`**: they are switches, not credentials, and having them visible
-there is how an operator can see at a glance that the engine is inert.
+`wrangler.jsonc`**. They are deployment ceilings, not credentials: an admin can
+turn an allowed capability on or off in **Lead CRM > CRM Settings**, but can
+never turn on a capability the deployment forbids. This keeps the deployment
+configuration as an independent emergency stop.
 
 Everything else — the Zoho OAuth triple, the Brave key, the Browser Rendering
 token — is a secret and appears nowhere in the repository.
 
 **Nothing in `lead_settings` is a credential.** That table is for operational
-tunables (thresholds, weights, budgets, business identity). Its `is_secret`
+tunables and the validated `operations.flags` control row. Its `is_secret`
 column marks a merely sensitive value the admin UI should mask, such as an
 account id. Real secrets are Worker secrets.
 
 ## Feature flags
 
-All nine are plain vars, all default `"false"`, all present in **both**
-`wrangler.jsonc` `vars` and `env.preview.vars`.
+All nine have a Worker var in **both** `wrangler.jsonc` `vars` and
+`env.preview.vars`. The effective state is:
+
+> master switch in CRM Settings AND deployment master allowance AND the
+> capability's CRM Settings switch AND its deployment allowance
+
+Before an admin first saves a switch, requested state is bootstrapped from the
+deployment vars so an upgrade preserves the deployed behavior. After that,
+changes in CRM Settings take effect immediately and are audited. If D1 cannot
+be read, all effective switches fail closed.
 
 | Var | Gates | Required |
 |---|---|---|
@@ -58,9 +68,9 @@ whole engine without having to remember the rest.
 ### When a flag is off
 
 `assertFlag(env, flag)` throws `FeatureDisabledError`, which routes answer as
-**HTTP 503 naming the exact var to set**:
+**HTTP 503 naming both places to check**:
 
-> `This capability is disabled. Set LEAD_CRAWLER_ENABLED=true to enable it.`
+> `This capability is disabled. Enable it in Lead CRM Settings; LEAD_CRAWLER_ENABLED must also permit it.`
 
 Not a generic failure and — importantly — not a silent success. `jobs/handlers.js`
 classifies it as a **permanent** error, so a job fails once and dead-letters

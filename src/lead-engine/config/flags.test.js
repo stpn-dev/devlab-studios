@@ -78,7 +78,7 @@ describe('resolveFlags', () => {
 })
 
 describe('assertFlag', () => {
-  it('throws a 503 naming the exact variable to set', () => {
+  it('throws a 503 naming the UI control and deployment ceiling', () => {
     try {
       assertFlag({ LEAD_ENGINE_ENABLED: 'true' }, 'ai')
       throw new Error('should have thrown')
@@ -86,6 +86,7 @@ describe('assertFlag', () => {
       expect(error).toBeInstanceOf(FeatureDisabledError)
       expect(error.status).toBe(503)
       expect(error.flagKey).toBe('LEAD_AI_ENABLED')
+      expect(error.message).toContain('Lead CRM Settings')
       expect(error.message).toContain('LEAD_AI_ENABLED')
     }
   })

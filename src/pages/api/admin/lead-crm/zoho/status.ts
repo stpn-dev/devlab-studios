@@ -5,6 +5,7 @@ import { readZohoConfig } from '../../../../../lead-engine/zoho/oauth.js'
 import { listSyncState } from '../../../../../lead-engine/repositories/syncState.js'
 import { syncMailbox } from '../../../../../lead-engine/services/mailboxSync.js'
 import { resolveFlags } from '../../../../../lead-engine/config/flags.js'
+import { withOperationalFlags } from '../../../../../lead-engine/config/operationalFlags.js'
 import { utcDateKey } from '../../../../../lead-engine/repositories/helpers.js'
 import { recordAuditEvent } from '../../../../../worker/repositories/auditLog.js'
 import {
@@ -32,14 +33,15 @@ export const GET: APIRoute = async () =>
     const database = requireDatabase()
     if (!database.ok) return database.response
 
-    const config = readZohoConfig(database.env)
-    const flags = resolveFlags(database.env)
+    const env = await withOperationalFlags(database.env)
+    const config = readZohoConfig(env)
+    const flags = resolveFlags(env)
     const syncState = await listSyncState(database.env.DB)
 
     // The probe is only run when the integration is actually configured —
     // otherwise it would be a guaranteed failure reported as a health problem.
     const connection = config.isConfigured
-      ? await checkConnection(database.env)
+      ? await checkConnection(env)
       : { ok: false, detail: `Not configured. Missing: ${config.missing.join(', ')}.`, code: 'zoho_not_configured' }
 
     const today = `${utcDateKey()}T00:00:00.000Z`

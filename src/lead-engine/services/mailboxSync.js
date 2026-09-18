@@ -19,6 +19,7 @@
 
 import { ZOHO } from '../config/defaults.js'
 import { assertFlag } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 import { getMessageContent, listMessages } from '../zoho/client.js'
@@ -90,6 +91,7 @@ function makeLeadConversationLookup(db) {
  * @returns {Promise<{ status: string, seen: number, imported: number, matched: number, reason?: string }>}
  */
 export async function syncFolder(env, folder, options = {}) {
+  env = await withOperationalFlags(env)
   assertFlag(env, 'zohoMailSync')
 
   const db = env.DB
@@ -388,6 +390,7 @@ async function handleInboundMessage(db, { leadId, conversationId, messageId, mes
  * @param {Env} env
  */
 export async function syncMailbox(env, options = {}) {
+  env = await withOperationalFlags(env)
   const sent = await syncFolder(env, 'sent', options)
   const inbox = await syncFolder(env, 'inbox', options)
   return { sent, inbox }

@@ -65,8 +65,8 @@ export async function readValidatedBody<T>(
 
 /**
  * Wraps a route handler with the error translation the rest of the admin API
- * uses, plus one addition: a disabled feature answers 503 naming the exact var
- * to set, rather than a generic failure.
+ * uses, plus one addition: a disabled feature answers 503 naming the admin
+ * control and its deployment ceiling, rather than a generic failure.
  */
 export async function handleRoute(operation: () => Promise<Response>): Promise<Response> {
   try {

@@ -18,6 +18,7 @@
  */
 
 import { resolveFlags } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { dispatchJob } from './dispatch.js'
 import { listScheduledCampaigns } from '../repositories/campaigns.js'
 import { getSyncState } from '../repositories/syncState.js'
@@ -63,6 +64,7 @@ async function shouldSyncMailbox(db, mailbox) {
  * @param {{ now?: Date, trigger?: string, fetchImpl?: typeof fetch }} [options]
  */
 export async function runScheduledTick(env, options = {}) {
+  env = await withOperationalFlags(env)
   const flags = resolveFlags(env)
   const logger = createLogger({})
 

@@ -3,6 +3,7 @@ import { createCampaign, listCampaigns } from '../../../../../lead-engine/reposi
 import { recordAuditEvent } from '../../../../../worker/repositories/auditLog.js'
 import { createCampaignSchema } from '../../../../../lead-engine/schemas/index'
 import { resolveFlags } from '../../../../../lead-engine/config/flags.js'
+import { withOperationalFlags } from '../../../../../lead-engine/config/operationalFlags.js'
 import {
   actorEmail,
   handleRoute,
@@ -24,7 +25,7 @@ export const GET: APIRoute = async ({ url }) =>
       limit: Number(url.searchParams.get('limit')) || 50,
     })
 
-    return jsonResponse({ campaigns, flags: resolveFlags(database.env) })
+    return jsonResponse({ campaigns, flags: resolveFlags(await withOperationalFlags(database.env)) })
   })
 
 export const POST: APIRoute = async (context) =>

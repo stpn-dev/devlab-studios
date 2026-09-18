@@ -204,7 +204,7 @@ what failed and the thing an operator retries.
 
 | Error mentions | Cause | Fix |
 |---|---|---|
-| `This capability is disabled. Set LEAD_… =true` | A flag is off | Set the var and redeploy. **Do not retry first** — it will fail identically. |
+| `This capability is disabled. Enable it in Lead CRM Settings; LEAD_… must also permit it.` | The UI switch or its deployment ceiling is off | Check CRM Settings first. If deployment-locked, set the Worker var and redeploy. **Do not retry first** — it will fail identically. |
 | `robots_disallowed` | The site refused us | Correct. Nothing to fix. Reject or archive the lead. |
 | `Zoho is not fully configured. Missing: …` | Secrets absent | [zoho-integration.md](zoho-integration.md) Part 1.6 |
 | `zoho_reauthorization_required` / `invalid_grant` | Refresh token revoked | Redo the auth-code flow |

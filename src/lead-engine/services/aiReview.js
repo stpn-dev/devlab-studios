@@ -9,6 +9,7 @@
 
 import { AI } from '../config/defaults.js'
 import { assertFlag } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 import { runAiTask } from '../ai/client.js'
@@ -35,6 +36,7 @@ import { createLogger } from './log.js'
  * @param {{ correlationId?: string, actorEmail?: string|null }} [options]
  */
 export async function reviewLeadOpportunity(env, leadId, options = {}) {
+  env = await withOperationalFlags(env)
   assertFlag(env, 'ai')
 
   const db = env.DB

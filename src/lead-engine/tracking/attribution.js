@@ -25,6 +25,7 @@ import { ACTIVITY } from '../domain/activity.js'
 import { recordActivity } from '../repositories/activity.js'
 import { findRecentClickForToken, recordContactFormConversion } from '../repositories/tracking.js'
 import { resolveFlags } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 
 /**
  * Reads the attribution token from a request's cookies.
@@ -63,10 +64,16 @@ export function readAttributionToken(request) {
 export async function attributeInquiry(env, { request, inboundLeadId }) {
   try {
     if (!env?.DB || !inboundLeadId) return { attributed: false }
+    // Avoid touching D1 at all when the deployment ceiling is off or there is
+    // no attribution token to look up. These are the overwhelmingly common
+    // public-form paths.
     if (!resolveFlags(env).tracking) return { attributed: false }
 
     const token = readAttributionToken(request)
     if (!token) return { attributed: false }
+
+    env = await withOperationalFlags(env)
+    if (!resolveFlags(env).tracking) return { attributed: false }
 
     // Bounded by the attribution window, so a click from six months ago is not
     // credited with a conversion that has nothing to do with it.

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro'
 import { getEnv } from '../../lib/env'
 import { resolveFlags } from '../../lead-engine/config/flags.js'
+import { withOperationalFlags } from '../../lead-engine/config/operationalFlags.js'
 import { TRACKING } from '../../lead-engine/config/defaults.js'
 import { isAllowedDestination, recordClick } from '../../lead-engine/repositories/tracking.js'
 import { ACTIVITY } from '../../lead-engine/domain/activity.js'
@@ -47,7 +48,7 @@ function redirectTo(destination: string, headers: Record<string, string> = {}): 
 }
 
 export const GET: APIRoute = async ({ params, request }) => {
-  const env = getEnv()
+  const env = await withOperationalFlags(getEnv())
   const flags = resolveFlags(env)
 
   // With tracking off, or no database, the link still WORKS — it just records

@@ -3,10 +3,20 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { JOB_HANDLERS, runJob } from './handlers.js'
-import { FeatureDisabledError } from '../config/flags.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../../..')
+
+function dbThatFailsAfterFlagRead(error) {
+  return {
+    prepare(sql) {
+      if (sql.includes('FROM lead_settings')) {
+        return { bind: () => ({ first: async () => null }) }
+      }
+      throw error
+    },
+  }
+}
 
 describe('runJob', () => {
   it('refuses an unknown job type permanently rather than retrying it forever', () => {
@@ -36,11 +46,7 @@ describe('runJob', () => {
     const env = {
       LEAD_ENGINE_ENABLED: 'true',
       LEAD_CRAWLER_ENABLED: 'true',
-      DB: {
-        prepare() {
-          throw Object.assign(new Error('D1 unavailable'), { status: 503 })
-        },
-      },
+      DB: dbThatFailsAfterFlagRead(Object.assign(new Error('D1 unavailable'), { status: 503 })),
     }
 
     const outcome = await runJob(env, { jobType: 'lead_research', payload: { leadId: 'x' } })
@@ -52,11 +58,7 @@ describe('runJob', () => {
     const env = {
       LEAD_ENGINE_ENABLED: 'true',
       LEAD_CRAWLER_ENABLED: 'true',
-      DB: {
-        prepare() {
-          throw Object.assign(new Error('bad request'), { status: 422 })
-        },
-      },
+      DB: dbThatFailsAfterFlagRead(Object.assign(new Error('bad request'), { status: 422 })),
     }
 
     const outcome = await runJob(env, { jobType: 'lead_research', payload: { leadId: 'x' } })
@@ -67,11 +69,7 @@ describe('runJob', () => {
     const env = {
       LEAD_ENGINE_ENABLED: 'true',
       LEAD_CRAWLER_ENABLED: 'true',
-      DB: {
-        prepare() {
-          throw Object.assign(new Error('slow down'), { status: 429 })
-        },
-      },
+      DB: dbThatFailsAfterFlagRead(Object.assign(new Error('slow down'), { status: 429 })),
     }
 
     expect((await runJob(env, { jobType: 'lead_research', payload: { leadId: 'x' } })).retryable).toBe(true)
@@ -82,11 +80,9 @@ describe('runJob', () => {
       LEAD_ENGINE_ENABLED: 'true',
       ZOHO_MAIL_ENABLED: 'true',
       ZOHO_MAIL_SYNC_ENABLED: 'true',
-      DB: {
-        prepare() {
-          throw Object.assign(new Error('reauthorize'), { code: 'zoho_reauthorization_required', status: 401 })
-        },
-      },
+      DB: dbThatFailsAfterFlagRead(
+        Object.assign(new Error('reauthorize'), { code: 'zoho_reauthorization_required', status: 401 }),
+      ),
     }
 
     expect((await runJob(env, { jobType: 'mailbox_sync', payload: {} })).retryable).toBe(false)
@@ -96,11 +92,7 @@ describe('runJob', () => {
     const env = {
       LEAD_ENGINE_ENABLED: 'true',
       LEAD_CRAWLER_ENABLED: 'true',
-      DB: {
-        prepare() {
-          throw Object.assign(new Error('permanent'), { retryable: false })
-        },
-      },
+      DB: dbThatFailsAfterFlagRead(Object.assign(new Error('permanent'), { retryable: false })),
     }
 
     expect((await runJob(env, { jobType: 'lead_research', payload: { leadId: 'x' } })).retryable).toBe(false)

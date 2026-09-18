@@ -15,6 +15,7 @@
 
 import { JOBS } from '../config/defaults.js'
 import { resolveFlags } from '../config/flags.js'
+import { withOperationalFlags } from '../config/operationalFlags.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { claimJobs, completeJob, failJob } from '../repositories/jobs.js'
 import { recordActivity } from '../repositories/activity.js'
@@ -30,6 +31,7 @@ import { runJob } from './handlers.js'
  * @returns {Promise<{ claimed: number, succeeded: number, failed: number, deadLettered: number }>}
  */
 export async function drainJobs(env, options = {}) {
+  env = await withOperationalFlags(env)
   const flags = resolveFlags(env)
   if (!flags.engine) return { claimed: 0, succeeded: 0, failed: 0, deadLettered: 0, reason: 'engine_disabled' }
 
@@ -109,6 +111,7 @@ export async function drainJobs(env, options = {}) {
  * @param {{ jobType: string, leadId?: string, campaignId?: string, payload?: object }} job
  */
 export async function runJobNow(env, job, options = {}) {
+  env = await withOperationalFlags(env)
   const logger = createLogger({ correlationId: options.correlationId, leadId: job.leadId, campaignId: job.campaignId })
 
   const outcome = await runJob(
