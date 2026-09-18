@@ -21,8 +21,11 @@ at the top level is inherited by an environment.
 
 | Environment | Schedule (UTC) | Handler |
 |---|---|---|
-| production | `0 6 * * *` | `scheduled()` in `src/worker.ts` → `runDailyDigest()` |
-| preview | `30 6 * * *` | same, staggered so both environments do not hit the same feeds at once |
+| production | `0 22 * * *` | `scheduled()` in `src/worker.ts` → `runDailyDigest()` |
+| preview | `30 22 * * *` | same, staggered so both environments do not hit the same feeds at once |
+
+22:00 UTC is 06:00 in Manila, where this is operated. The first schedule was
+06:00 UTC — 2pm local — which is not when anyone reads a daily digest.
 
 See [ADR 0008](./architecture/decisions/0008-insights-daily-digest.md).
 
@@ -233,10 +236,20 @@ against the account, so do not leave it on and do not loop it.
 |---|---|
 | `digest_feed` | per feed: `ok` (with item count and body size), `no_items`, `too_large`, `http_error`, or `fetch_failed` |
 | `digest_summary` | only on failure -- the AI call that did not return |
-| `digest_run` | the run: `published`, `empty` (nothing new; yesterday's edition stays up), `skipped`, or `crashed` |
+| `digest_summary` | only on a call that failed or returned nothing readable — `failed` vs `empty` are different problems |
+| `digest_run` | the run: `published`, `empty` (nothing new; yesterday's edition stays up), `skipped`, or `crashed`. Carries `neurons`, `summarized`, `failed` and `empty` counts |
+| `seo_lookup` | `no_record` — a page asked for an SEO slug the CMS does not have, and fell back to the static file |
 
-An edition with `model: null` means Workers AI was unavailable and the items
-published as titles and links. That is the intended degraded path, not a fault.
+An edition with `model: null` means **no summary was stored** — which is not
+the same as "AI was unavailable", and the admin no longer claims it is. Check
+`digest_summary`: `failed` means the call threw (allocation spent, model gone),
+`empty` means it answered and the reply could not be read. The second one is how
+the first production run burned neurons and published nothing, so the two are
+deliberately reported apart.
+
+`digest_run` carries `neurons`. The included allowance is 10,000/day and a run
+costs a few dozen, so this is a fact in a log rather than an estimate in a
+document.
 
 **Removing something.** `/admin/digests` can unpublish a day (hides it from the
 site, keeps the row) or delete it outright (items cascade). Retention removes
@@ -256,10 +269,43 @@ inlines full post content, so the bound is set well above real-world sizes.
 The run only ever fetches URLs from that list -- never one from a request, a CMS
 field, or a feed's own contents.
 
+## Insights library and SEO records
+
+**The article library is code, seeded into D1.** `src/data/insights/{guides,aiUpdates,opsNotes}.js`
+holds the fifteen articles; `src/data/resourcesContent.js` composes them and is
+also the static fallback. `npm run cms:seed:insights` generates an idempotent
+upsert from it:
+
+```powershell
+npm run cms:seed:insights > scripts/cms/updates/2026-09-18-insights-library.sql
+npx wrangler d1 execute DB --env preview --remote --file scripts/cms/updates/2026-09-18-insights-library.sql
+npx wrangler d1 execute DB --remote --file scripts/cms/updates/2026-09-18-insights-library.sql
+```
+
+The generator refuses to emit unless exactly one article is flagged featured and
+every slug is unique. It never emits a DELETE: an article dropped from the
+library stays in D1 for a human to unpublish, because a generated DELETE against
+editorial content is the statement that should not exist.
+
+**Reading time is derived, not stored.** `src/lib/content/readingTime.ts`
+computes it from the body at load time. The stored column had drifted into
+fiction — a 300-word post carrying "5 min read" — and a number the page cannot
+evidence is the same class of problem as the digest's false "AI unavailable".
+
+**Every public route needs an SEO record.** `src/config/publicRoutes.ts` is the
+one list of canonical routes; the sitemap and `src/lib/content/seo.test.ts` both
+read it. The test fails when a route has no record, which is how the four
+missing ones (`/process`, `/privacy`, `/terms`, `/insights/daily`) were found.
+`loadPageSeo` logs `seo_lookup no_record` when it falls back, so a slug that
+drifts out of sync is visible instead of silent. See
+[ADR 0009](./architecture/decisions/0009-solutions-route-rename.md).
+
 ## Local test/dev fixtures
 
 - `.dev.vars` (gitignored): local-only `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`/`ADMIN_SESSION_SECRET`/`RESEND_API_KEY` values used by `wrangler dev --local` and the Playwright `admin.spec.js` suite. `RESEND_API_KEY` is set to a deliberately-invalid placeholder so local/test runs never send a real email. Not real credentials — safe to regenerate at will via `npm run cms:hash-admin-password`.
 - Local D1: `npx wrangler d1 migrations apply devlab-studios-cms --local` applies `migrations/*.sql` to a local SQLite file under `.wrangler/` (gitignored).
+- **The admin login limiter bounds how often the e2e suite can run.** `/api/admin/login` allows 20 attempts per IP per 15 minutes, and a full `admin` + `digest` run uses one sign-in per Playwright worker. Two full runs inside the window exhaust it, and every subsequent test fails with a misleading "element not found" because the login returned 429 rather than the expected error. This is the limiter working; wait out the window rather than weakening it.
+- **`wrangler dev` serves the BUILT worker** (`dist/server/wrangler.json`), not `src/`. A source change is invisible to a running `wrangler dev` until `npm run build`. Several minutes were spent diagnosing a "still broken" feed parser that had already been fixed on disk.
 
 ## Other non-secret, hardcoded values worth knowing about
 

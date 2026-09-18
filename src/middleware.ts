@@ -51,7 +51,26 @@ const PICKLEBALL_ORG_INVITE_ACCEPT_PREFIX = '/api/pickleball/auth/org-invites/'
 // same reason: it cannot go through the blanket gate.
 const PICKLEBALL_PLATFORM_ADMIN_PREFIX = '/api/pickleball/platform/'
 const MAINTENANCE_PAGE = '/maintenance'
-const MAINTENANCE_GATED_PATHS = new Set(['/', '/about', '/services', '/profile', '/insights'])
+const MAINTENANCE_GATED_PATHS = new Set(['/', '/about', '/solutions', '/profile', '/insights'])
+
+/**
+ * Permanent renames of public routes.
+ *
+ * In code rather than the CMS `redirects` table on purpose: these are URLs
+ * that have been published and linked to, and the D1 table is editable from
+ * the admin's Redirects screen — one accidental delete there would turn an
+ * externally-linked URL into a 404. A rename is an architectural fact, so it
+ * lives with the architecture.
+ *
+ * Checked before routing, so the redirect does not depend on the destination
+ * having 404'd first (unlike the CMS table, which is only consulted on a 404).
+ */
+const PERMANENT_PATH_REDIRECTS = new Map([
+  // The nav, page title, SEO metadata and every internal label said
+  // "Solutions" while the route said "services"; the CMS SEO record even
+  // carried a canonical pointing at /solutions, which was a 404.
+  ['/services', '/solutions'],
+])
 
 function isMaintenanceGated(pathname: string): boolean {
   return MAINTENANCE_GATED_PATHS.has(pathname) || pathname.startsWith('/insights/')
@@ -67,6 +86,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
     url.hostname = 'www.devlabstudios.com'
     url.protocol = 'https:'
     return applySecurityHeaders(Response.redirect(url.toString(), 301), url.pathname, url.hostname)
+  }
+
+  const renamedTo = PERMANENT_PATH_REDIRECTS.get(url.pathname.replace(/\/+$/, '') || '/')
+  if (renamedTo) {
+    const destination = new URL(renamedTo + url.search, url)
+    return applySecurityHeaders(Response.redirect(destination.toString(), 301), url.pathname, url.hostname)
   }
 
   if (url.pathname.startsWith(ADMIN_API_PREFIX) && !ADMIN_PUBLIC_ROUTES.has(url.pathname)) {

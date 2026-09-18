@@ -96,7 +96,7 @@ test('admin navigation mirrors public pages and hides unused collections', async
   await login(page)
   const navigation = page.getByRole('navigation')
   // Labels mirror src/config/publicSurfaces.js, which is also what the public
-  // navigation reads — "Solutions" is the label for the unchanged /services route.
+  // navigation reads — "Solutions" labels the /solutions route.
   for (const label of ['Home', 'About', 'Solutions', 'Work', 'Insights', 'Founder Profile']) {
     await expect(navigation.getByRole('link', { name: label, exact: true })).toBeVisible()
   }
@@ -1084,4 +1084,51 @@ test('each Security field reveals independently', async ({ page }) => {
   await expect(current).toHaveAttribute('type', 'text')
   // Revealing the password being replaced must not reveal the new one.
   await expect(next).toHaveAttribute('type', 'password')
+})
+
+test('editing a SEO page slug keeps that row selected and leaves the others alone', async ({ page }) => {
+  // Selection used to be looked up by pageSlug, which is itself an editable
+  // field: one keystroke made the lookup miss, `Math.max(0, -1)` selected row
+  // 0, and every further keystroke edited THAT row's slug instead. The editor
+  // appeared to "refresh" onto the first page mid-typing.
+  //
+  // Built from "+ New page" rather than whichever rows happen to exist, so the
+  // test does not depend on fixture data.
+  await login(page)
+  await page.goto('/admin/content/seo')
+
+  const pageList = page.locator('section').filter({ hasText: 'Pages' }).first()
+  await expect(page.getByRole('button', { name: '+ New page' })).toBeVisible({ timeout: 15_000 })
+  // The editor renders the static fallback first and swaps in the D1 records
+  // when the fetch resolves, which reorders the list. Capture the row only
+  // once that has happened, or the comparison races the load.
+  await expect(page.getByText(/loaded seo content/i)).toBeVisible({ timeout: 15_000 })
+
+  const firstRow = pageList.getByRole('button').first()
+  const firstRowName = await firstRow.textContent()
+
+  await page.getByRole('button', { name: '+ New page' }).click()
+
+  const slugField = page.getByLabel('Page Slug')
+  await expect(slugField).toHaveValue('')
+
+  await slugField.fill('brand-new-route')
+
+  // Still editing the record that was selected, and the heading tracks it.
+  await expect(slugField).toHaveValue('brand-new-route')
+  await expect(page.getByRole('heading', { name: /brand-new-route Metadata/i })).toBeVisible()
+
+  // The row that used to absorb those keystrokes is untouched.
+  await expect(firstRow).toHaveText(String(firstRowName))
+})
+
+test('the SEO editor can add a page record for a route that has none', async ({ page }) => {
+  await login(page)
+  await page.goto('/admin/content/seo')
+
+  await expect(page.getByRole('button', { name: '+ New page' })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: '+ New page' }).click()
+
+  await expect(page.getByLabel('Page Slug')).toHaveValue('')
+  await expect(page.getByText(/set its page slug to match the route/i)).toBeVisible()
 })

@@ -290,7 +290,7 @@ test('the legacy contact endpoint still backs the Pickleball beta form', async (
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
   })
 
-  await page.goto('/services')
+  await page.goto('/solutions')
   await page.getByRole('button', { name: 'Be a beta-tester' }).click()
   await expect(page.getByText(/secure verification complete/i)).toBeVisible({ timeout: 30_000 })
 

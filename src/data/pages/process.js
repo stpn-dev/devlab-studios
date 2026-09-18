@@ -13,7 +13,7 @@ export const processPage = {
         heading: 'A four-phase delivery model built for real operations.',
         subheading: 'Every engagement moves through the same structure: diagnose the problem, define the approach, build in controlled phases, and deliver with full handoff support.',
         primaryCta: { label: 'Book a Consultation', href: '/contact' },
-        secondaryCta: { label: 'View Services', href: '/services' },
+        secondaryCta: { label: 'View Services', href: '/solutions' },
       },
     },
     {

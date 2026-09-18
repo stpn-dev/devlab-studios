@@ -19,8 +19,8 @@ function resolveIcon(name: string) {
   return (Icons as Record<string, typeof Icons.Lightbulb>)[name] || Icons.Lightbulb
 }
 
-const seo = await loadPageSeo('services')
-const servicesPage = await loadPage('services')
+const seo = await loadPageSeo('solutions')
+const servicesPage = await loadPage('solutions')
 const { solutionGroups, faqs } = await loadServicesContent()
 const projectItems = await loadProjects()
 const turnstileSiteKey = resolveTurnstileSiteKey(Astro.request.url)
@@ -59,7 +59,7 @@ const auditOffer = ENTRY_OFFERS['workflow-systems-audit']
 const jsonLd = [
   getBreadcrumbSchema([
     { name: 'Home', path: '/' },
-    { name: 'Solutions', path: '/services' },
+    { name: 'Solutions', path: '/solutions' },
   ]),
   ...solutionCategories.map((category) => getServiceSchema(category)),
   getFaqSchema(faqItems),

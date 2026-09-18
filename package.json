@@ -17,6 +17,7 @@
     "test:e2e": "playwright test",
     "audit": "audit-ci --config audit-ci.json",
     "prepare": "husky",
+    "cms:seed:insights": "node scripts/cms/generate-insights-seed.mjs",
     "cms:seed:projects": "node scripts/cms/generate-project-seed.mjs > scripts/cms/seed/project-seed.sql",
     "cms:upload:project-media": "node scripts/cms/upload-project-media.mjs",
     "cms:hash-admin-password": "node scripts/cms/hash-admin-password.mjs",

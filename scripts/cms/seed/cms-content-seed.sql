@@ -25,7 +25,7 @@ DELETE FROM navigation_items;
 INSERT INTO pages (id, slug, title, status, created_at, updated_at) VALUES
   ('page-home', 'home', 'Home', 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('page-about', 'about', 'About', 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('page-services', 'services', 'Services', 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('page-services', 'solutions', 'Solutions', 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('page-resources', 'resources', 'Resources', 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('page-profile', 'profile', 'Profile', 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('page-work', 'work', 'Work', 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -33,7 +33,7 @@ INSERT INTO pages (id, slug, title, status, created_at, updated_at) VALUES
 
 INSERT INTO page_sections (id, page_id, section_key, section_type, title, content_json, sort_order, status, created_at, updated_at) VALUES
   ('ui-home-hero', 'page-home', 'hero', 'hero', 'Home hero', '{"eyebrow":"Full-Stack Developer & AI Automation Specialist","heading":"From first click to final handoff, build the whole system to move.","subheading":"DevLab Studios connects polished web experiences, dependable APIs, structured data, and AI-powered automation into one clear operating flow.","variant":"system","iconMotif":"fullstack","signals":["React + Astro","Java + Laravel","n8n + Make"],"primaryCta":{"label":"Start a Project","href":"/contact"},"secondaryCta":{"label":"View Work","href":"/work"}}', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('ui-about-hero', 'page-about', 'hero', 'hero', 'About hero', '{"eyebrow":"Founded March 2, 2026","heading":"Systems for clearer offers, faster operations, and cleaner handoffs.","subheading":"DevLab Studios helps businesses turn messy workflows into complete digital systems—customer-facing interfaces, dependable services, structured data, and automation that keeps work moving.","variant":"editorial","iconMotif":"fullstack","signals":[],"primaryCta":{"label":"View Services","href":"/services"},"secondaryCta":{"label":"Founder Profile","href":"/profile"}}', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+  ('ui-about-hero', 'page-about', 'hero', 'hero', 'About hero', '{"eyebrow":"Founded March 2, 2026","heading":"Systems for clearer offers, faster operations, and cleaner handoffs.","subheading":"DevLab Studios helps businesses turn messy workflows into complete digital systems—customer-facing interfaces, dependable services, structured data, and automation that keeps work moving.","variant":"editorial","iconMotif":"fullstack","signals":[],"primaryCta":{"label":"View Services","href":"/solutions"},"secondaryCta":{"label":"Founder Profile","href":"/profile"}}', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
 INSERT INTO page_sections (id, page_id, section_key, section_type, title, content_json, sort_order, status, created_at, updated_at) VALUES
   ('work-hero', 'page-work', 'hero', 'hero', 'Work hero', '{"eyebrow":"Selected Work","heading":"Automation systems with the decisions, data flow, and handoff explained.","subheading":"Real project write-ups covering the operational problem, system architecture, safeguards, and practical value—not just a gallery of workflow screenshots.","variant":"editorial","iconMotif":"automation","signals":[],"primaryCta":{"label":"Explore Selected Projects","href":"#automation-projects"},"secondaryCta":{"label":"Start a Project Conversation","href":"/contact"}}', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -562,7 +562,7 @@ INSERT INTO navigation_items (
   id, label, href, sort_order, status, created_at, updated_at
 ) VALUES
   ('nav-home', 'Home', '/', 10, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-  ('nav-services', 'Solutions', '/services', 20, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('nav-services', 'Solutions', '/solutions', 20, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('nav-work', 'Work', '/work', 30, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('nav-resources', 'Insights', '/insights', 40, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('nav-about', 'About', '/about', 50, 'published', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -605,11 +605,11 @@ INSERT INTO seo_metadata (
   ),
   (
     'seo-services',
-    'services',
+    'solutions',
     'Services - Business Automation & Web Solutions | DevLab Studios',
     'Explore DevLab Studios services for websites, business automation, backend integrations, CRM-connected workflows, and custom internal tools.',
     'business automation services, website development services, backend integration services, CRM workflows, DevLab Studios services',
-    'https://www.devlabstudios.com/services',
+    'https://www.devlabstudios.com/solutions',
     'Services - Business Automation & Web Solutions | DevLab Studios',
     'Websites, backend systems, AI automation, and workflow support designed around real business operations.',
     'https://www.devlabstudios.com/devlabstudios-logo-only.png',
@@ -691,7 +691,7 @@ INSERT INTO site_settings (key, value_json, updated_at) VALUES
   ),
   (
     'site_footer',
-    '{"companyName":"DevLab Studios","tagline":"Your Vision, Digitally Crafted — one solution at a time, always evolving.","email":"stpnrey.agustinez@gmail.com","location":"Lapu-Lapu City, Cebu, PH","quickLinks":[{"label":"Home","href":"/"},{"label":"About","href":"/about"},{"label":"Services","href":"/services"},{"label":"Resources","href":"/insights"},{"label":"Profile","href":"/profile"},{"label":"Contact","href":"/contact"}],"socialLinks":[{"label":"LinkedIn","href":"https://www.linkedin.com/in/stephen-rey-agustinez-8b86041b3"},{"label":"GitHub","href":"https://github.com/stpn-dev"},{"label":"Email","href":"mailto:stpnrey.agustinez@gmail.com"}],"legalLinks":[{"label":"Privacy Policy","href":"/privacy"},{"label":"Terms of Service","href":"/terms"}],"copyright":"(c) 2026 DevLab Studios. All rights reserved."}',
+    '{"companyName":"DevLab Studios","tagline":"Your Vision, Digitally Crafted — one solution at a time, always evolving.","email":"stpnrey.agustinez@gmail.com","location":"Lapu-Lapu City, Cebu, PH","quickLinks":[{"label":"Home","href":"/"},{"label":"About","href":"/about"},{"label":"Services","href":"/solutions"},{"label":"Resources","href":"/insights"},{"label":"Profile","href":"/profile"},{"label":"Contact","href":"/contact"}],"socialLinks":[{"label":"LinkedIn","href":"https://www.linkedin.com/in/stephen-rey-agustinez-8b86041b3"},{"label":"GitHub","href":"https://github.com/stpn-dev"},{"label":"Email","href":"mailto:stpnrey.agustinez@gmail.com"}],"legalLinks":[{"label":"Privacy Policy","href":"/privacy"},{"label":"Terms of Service","href":"/terms"}],"copyright":"(c) 2026 DevLab Studios. All rights reserved."}',
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   )
 ON CONFLICT(key) DO UPDATE SET

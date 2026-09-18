@@ -33,7 +33,13 @@ function DigestCard({ digest, onToggle, onDelete, busy }) {
           <h2 className="text-sm font-semibold text-slate-900">{formatDate(digest.digestDate)}</h2>
           <p className="mt-1 text-xs text-slate-500">
             {digest.itemCount} {digest.itemCount === 1 ? 'item' : 'items'}
-            {digest.model ? ` · summarized by ${digest.model}` : ' · no summaries (AI unavailable at run time)'}
+            {/*
+              The old wording here said "AI unavailable", which was wrong and
+              cost real debugging time: the model had answered fine and the
+              reply was being discarded. All this row can honestly report is
+              that no summary was stored — `wrangler tail` has the reason.
+            */}
+            {digest.model ? ` · summarized by ${digest.model}` : ' · published as titles and links (no summaries stored)'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

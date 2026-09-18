@@ -8,7 +8,7 @@ import { Briefcase, FileText, Home, Info, Settings, User, Wrench } from '../comp
 export const PUBLIC_SURFACES = [
   { key: 'home', label: 'Home', publicPath: '/', adminPath: '/admin/pages/home', icon: Home, primary: true, description: 'Homepage sections and landing-page calls to action.' },
   { key: 'about', label: 'About', publicPath: '/about', adminPath: '/admin/pages/about', icon: Info, primary: true, description: 'Studio overview, mission, capabilities, FAQ, and next step.' },
-  { key: 'services', label: 'Solutions', publicPath: '/services', adminPath: '/admin/pages/services', icon: Settings, primary: true, description: 'Solutions page framing, the four business solution categories, related projects, and FAQ. The public route stays /services.' },
+  { key: 'solutions', label: 'Solutions', publicPath: '/solutions', adminPath: '/admin/pages/solutions', icon: Settings, primary: true, description: 'Solutions page framing, the four business solution categories, related projects, and FAQ.' },
   { key: 'work', label: 'Work', publicPath: '/work', adminPath: '/admin/pages/work', icon: Briefcase, primary: true, description: 'Selected projects and their Work-specific write-ups.' },
   { key: 'insights', label: 'Insights', publicPath: '/insights', adminPath: '/admin/pages/insights', icon: FileText, primary: true, description: 'Insights page framing and its published article feed.' },
   { key: 'profile', label: 'Founder Profile', publicPath: '/profile', adminPath: '/admin/content/profile', icon: User, primary: true, description: 'Founder profile, capabilities, experience, skills, tools, certifications, selected work, and employment availability.' },
@@ -20,8 +20,8 @@ export const PRIMARY_PUBLIC_SURFACES = PUBLIC_SURFACES.filter((surface) => surfa
 export const SUPPORTING_PUBLIC_SURFACES = PUBLIC_SURFACES.filter((surface) => !surface.primary)
 
 export const CONTENT_USAGE = {
-  projects: { label: 'Projects', publicPaths: ['/work', '/services', '/profile'], description: 'Project records are selected by Work, referenced by Services, and displayed in the Profile portfolio.' },
-  services: { label: 'Service Catalog', publicPaths: ['/services'], description: 'Detailed service areas, grouped underneath the four business solution categories on the public Solutions page.' },
+  projects: { label: 'Projects', publicPaths: ['/work', '/solutions', '/profile'], description: 'Project records are selected by Work, referenced by Services, and displayed in the Profile portfolio.' },
+  services: { label: 'Service Catalog', publicPaths: ['/solutions'], description: 'Detailed service areas, grouped underneath the four business solution categories on the public Solutions page.' },
   resources: { label: 'Insights', publicPaths: ['/insights'], description: 'Each record is an article published in the public Insights feed.' },
   profile: { label: 'Profile', publicPaths: ['/profile'], description: 'Controls the public Profile page.' },
   certifications: { label: 'Certifications', publicPaths: ['/profile'], description: 'Certification records are displayed inside Profile.' },

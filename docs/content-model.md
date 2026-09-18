@@ -110,6 +110,34 @@ Some repository function names retain historical `Resources` wording while
 querying `articles`; treat the D1 table and current Astro route names as the
 public source of truth when extending this area.
 
+## Insights taxonomy
+
+Articles carry one of three `content_type` values, defined in
+`src/config/insightTopics.js`:
+
+| id | label |
+|---|---|
+| `guide` | Guides |
+| `ai-update` | AI Updates |
+| `ops-note` | Operational Notes |
+
+The labels are not derivable from the ids — the page used to capitalize the raw
+value, which was fine while every value was a single word and renders
+"Ai-update" once they are not. `normalizeTopicId()` also maps the pre-taxonomy
+values `news` and `insight` onto the new ids, so a row that was never migrated
+still lands in a real bucket instead of disappearing from every filter.
+
+The library lives in `src/data/insights/` split by topic, is composed by
+`src/data/resourcesContent.js`, and is seeded into D1 by
+`npm run cms:seed:insights`. Exactly one article is featured, enforced by the
+generator rather than hoped for: the page picks the first featured post and
+silently falls back to the newest when there is none, so both zero and two
+would render something plausible and wrong.
+
+`reading_time_minutes` exists as a column but is **not read at runtime**.
+`src/lib/content/readingTime.ts` derives it from the body, because the stored
+values had drifted — a 300-word post claiming a five-minute read.
+
 ## Generated content: the daily digest
 
 `migrations/0011_insights_digest.sql` adds two tables that are **not** content

@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 const pages = [
   { path: '/', heading: 'Build the systems your business needs' },
   { path: '/about', heading: 'Systems for clearer offers' },
-  { path: '/services', heading: 'Four ways a business system gets built here' },
+  { path: '/solutions', heading: 'Four ways a business system gets built here' },
   { path: '/profile', heading: 'Stephen Rey Agustinez' },
   { path: '/insights', heading: 'Guides, AI updates, and operational notes' },
   { path: '/process', heading: 'A four-phase delivery model' },
@@ -150,7 +150,7 @@ test('every internal link on the primary pages resolves', async ({ page, request
   // article that must actually be published for the offer to make sense.
   const seen = new Set()
 
-  for (const path of ['/', '/services', '/work', '/insights', '/about', '/profile', '/contact', '/offers/lead-intake-checklist']) {
+  for (const path of ['/', '/solutions', '/work', '/insights', '/about', '/profile', '/contact', '/offers/lead-intake-checklist']) {
     await page.goto(path)
     const hrefs = await page.evaluate(() =>
       Array.from(document.querySelectorAll('a[href]'))
@@ -184,7 +184,7 @@ test('the sitemap lists canonical routes and no redirect sources', async ({ requ
   expect(response.headers()['content-type']).toContain('xml')
 
   const body = await response.text()
-  for (const path of ['/', '/services', '/work', '/insights', '/about', '/profile', '/contact']) {
+  for (const path of ['/', '/solutions', '/work', '/insights', '/about', '/profile', '/contact']) {
     expect(body, path).toContain(`<loc>https://www.devlabstudios.com${path}</loc>`)
   }
   // /resources/* is a permanent redirect into /insights — listing it would
@@ -229,7 +229,7 @@ test('homepage presents the four solution categories with links into Solutions',
   ]) {
     const card = page.locator(`[data-solution-id="${id}"]`).first()
     await expect(card).toContainText(title)
-    await expect(card.getByRole('link', { name: 'What this includes' })).toHaveAttribute('href', `/services#${id}`)
+    await expect(card.getByRole('link', { name: 'What this includes' })).toHaveAttribute('href', `/solutions#${id}`)
   }
 })
 
@@ -395,4 +395,29 @@ test('the contact form CSP allows Turnstile to actually load', async ({ page }) 
 
   await page.waitForFunction(() => Boolean(window.turnstile), { timeout: 15_000 })
   expect(cspViolations).toEqual([])
+})
+
+test('the renamed Solutions route serves, and /services permanently redirects to it', async ({ page, request, baseURL }) => {
+  // The label, heading, breadcrumb and SEO record all said "Solutions" while
+  // the route said "/services", and the CMS canonical pointed at /solutions —
+  // a 404. The route moved; /services has to keep working for anything already
+  // linking to it.
+  const redirect = await request.get(`${baseURL}/services`, { maxRedirects: 0 })
+  expect(redirect.status()).toBe(301)
+  expect(redirect.headers()['location']).toMatch(/\/solutions$/)
+
+  await page.goto('/solutions')
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    'https://www.devlabstudios.com/solutions',
+  )
+})
+
+test('the primary navigation points at /solutions, not the old route', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Solutions' }).first()).toHaveAttribute(
+    'href',
+    '/solutions',
+  )
 })

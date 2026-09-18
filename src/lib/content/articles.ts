@@ -2,6 +2,8 @@ import { getResourcesContent } from '../../worker/repositories/content.js'
 import { resourcesContent } from '../../data/resourcesContent.js'
 import { getEnv } from '../env'
 import { parseLiteMarkdown, type LiteMarkdownBlock } from './liteMarkdown'
+import { readingTimeMinutes } from './readingTime'
+import { normalizeTopicId } from '../../config/insightTopics.js'
 
 export interface ArticlePost {
   id: string
@@ -41,9 +43,28 @@ export async function loadArticlesContent(): Promise<ArticlesContentData> {
   try {
     const data = await getResourcesContent(env.DB)
     if (!data?.posts?.length) return resourcesContent
-    return { posts: data.posts, playbook: data.playbook || [] }
+    return { posts: data.posts.map(normalizePost), playbook: data.playbook || [] }
   } catch {
     return resourcesContent
+  }
+}
+
+/**
+ * Two things the stored row cannot be trusted for.
+ *
+ * `readingTimeMinutes` was typed by hand and had drifted — a 300-word post
+ * claiming "5 min read". It is derived from the body instead, so the number
+ * cannot disagree with the article under it.
+ *
+ * `contentType` predates the named taxonomy, so older rows still carry 'news'
+ * and 'insight'. Normalizing here means one unmigrated row cannot vanish from
+ * every filter on the page.
+ */
+function normalizePost(post: ArticlePost): ArticlePost {
+  return {
+    ...post,
+    contentType: normalizeTopicId(post.contentType),
+    readingTimeMinutes: readingTimeMinutes(post.body) ?? post.readingTimeMinutes,
   }
 }
 

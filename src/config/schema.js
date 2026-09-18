@@ -50,21 +50,21 @@ export const getPersonSchema = () => ({
       name: 'Website Development',
       description:
         'Conversion-focused websites, landing pages, and full-stack web applications built with React, Tailwind CSS, and Laravel.',
-      url: 'https://www.devlabstudios.com/services',
+      url: 'https://www.devlabstudios.com/solutions',
     },
     {
       '@type': 'Offer',
       name: 'AI Automation & Workflow Automation',
       description:
         'Business process automations using Zapier, n8n, Make.com, OpenAI, and Claude. Includes email automation, CRM integration, lead enrichment, and AI-assisted workflow systems.',
-      url: 'https://www.devlabstudios.com/services',
+      url: 'https://www.devlabstudios.com/solutions',
     },
     {
       '@type': 'Offer',
       name: 'Backend & API Integration Support',
       description:
         'Backend and integration work across Java, Spring Boot, Laravel, SQL-backed workflows, REST APIs, and structured data handling for production-ready systems.',
-      url: 'https://www.devlabstudios.com/services',
+      url: 'https://www.devlabstudios.com/solutions',
     },
   ],
   areaServed: 'Worldwide',
@@ -202,7 +202,7 @@ export const getServiceSchema = (service) => ({
     url: 'https://www.devlabstudios.com',
   },
   areaServed: 'Worldwide',
-  url: `https://www.devlabstudios.com/services#${service.id}`,
+  url: `https://www.devlabstudios.com/solutions#${service.id}`,
   ...(service.capabilities?.length
     ? {
         hasOfferCatalog: {

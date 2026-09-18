@@ -10,7 +10,7 @@
  *
  * Nothing in the service catalogue was deleted to make this work. If a
  * service group is added in the CMS and not mapped here, it still renders —
- * see the "unmapped groups" handling in src/pages/services.astro.
+ * see the "unmapped groups" handling in src/pages/solutions.astro.
  */
 
 export const solutionCategories = [

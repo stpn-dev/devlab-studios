@@ -12,7 +12,7 @@ const HIDDEN_PUBLIC_BLOCKS = new Set(['featuredCaseStudies', 'testimonials'])
 const PAGE_ALLOWED_BLOCK_TYPES = {
   home: ['hero', 'stats', 'richText', 'servicesGrid', 'processSteps'],
   about: ['hero', 'stats', 'richText', 'servicesGrid', 'faq', 'cta'],
-  services: ['hero', 'richText', 'faq', 'cta'],
+  solutions: ['hero', 'richText', 'faq', 'cta'],
   insights: ['hero', 'richText', 'cta'],
   contact: ['hero', 'stats', 'cta'],
 }

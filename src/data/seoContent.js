@@ -37,13 +37,13 @@ export const seoContent = {
     },
     {
       id: 'seo-services',
-      pageSlug: 'services',
+      pageSlug: 'solutions',
       metaTitle: 'Solutions - Lead Intake, Workflow Automation & Custom Software | DevLab Studios',
       metaDescription:
         'Four solution areas: lead intake and follow-up systems, workflow and AI automation, custom software and operations systems, and a workflow systems audit.',
       metaKeywords:
         'lead intake system, lead follow-up automation, workflow automation, AI automation, n8n, Make, Zapier, CRM integration, custom business software, internal tools, workflow audit',
-      canonicalUrl: 'https://www.devlabstudios.com/services',
+      canonicalUrl: 'https://www.devlabstudios.com/solutions',
       ogTitle: 'Solutions - Lead Intake, Workflow Automation & Custom Software',
       ogDescription:
         'Complete systems: the interface, the logic, the data, the integrations, and the handoff to a person.',
@@ -178,6 +178,70 @@ export const seoContent = {
       twitterDescription:
         'The formula behind the Open Play Performance Index, and what it deliberately is not.',
       twitterImage: 'https://www.devlabstudios.com/og-pickleball.png',
+    },
+    {
+      id: 'seo-process',
+      pageSlug: 'process',
+      metaTitle: 'Delivery Process - How a Build Runs | DevLab Studios',
+      metaDescription:
+        'How a DevLab Studios engagement runs from first conversation to a working system: discovery, design, build, handover, and support.',
+      metaKeywords:
+        'delivery process, software delivery, project phases, discovery, handover, DevLab Studios',
+      canonicalUrl: 'https://www.devlabstudios.com/process',
+      ogTitle: 'Delivery Process - How a Build Runs',
+      ogDescription:
+        'Discovery, design, build, handover, support - what each phase produces and who is involved.',
+      ogImage: 'https://www.devlabstudios.com/og.png',
+      twitterTitle: 'Delivery Process - DevLab Studios',
+      twitterDescription: 'What each phase of a build produces, and who is involved.',
+      twitterImage: 'https://www.devlabstudios.com/og.png',
+    },
+    {
+      id: 'seo-insights-daily',
+      pageSlug: 'insights/daily',
+      metaTitle: 'AI & Automation Daily - DevLab Studios',
+      metaDescription:
+        'A short daily log of AI automation and AI advancement stories worth reading, summarized and linked to the original source.',
+      metaKeywords:
+        'AI news, AI automation news, daily AI digest, workflow automation news, AI advancements',
+      canonicalUrl: 'https://www.devlabstudios.com/insights/daily',
+      ogTitle: 'AI & Automation Daily',
+      ogDescription:
+        'A short daily pass over AI automation and AI advancement news, linked back to each publisher.',
+      ogImage: 'https://www.devlabstudios.com/og.png',
+      twitterTitle: 'AI & Automation Daily - DevLab Studios',
+      twitterDescription: 'A short daily pass over AI automation and AI advancement news.',
+      twitterImage: 'https://www.devlabstudios.com/og.png',
+    },
+    {
+      id: 'seo-privacy',
+      pageSlug: 'privacy',
+      metaTitle: 'Privacy Policy | DevLab Studios',
+      metaDescription:
+        'How DevLab Studios collects, stores, and uses the information submitted through this site.',
+      metaKeywords: 'privacy policy, data handling, DevLab Studios',
+      canonicalUrl: 'https://www.devlabstudios.com/privacy',
+      ogTitle: 'Privacy Policy - DevLab Studios',
+      ogDescription: 'How information submitted through this site is collected, stored, and used.',
+      ogImage: 'https://www.devlabstudios.com/og.png',
+      twitterTitle: 'Privacy Policy - DevLab Studios',
+      twitterDescription: 'How information submitted through this site is handled.',
+      twitterImage: 'https://www.devlabstudios.com/og.png',
+    },
+    {
+      id: 'seo-terms',
+      pageSlug: 'terms',
+      metaTitle: 'Terms of Service | DevLab Studios',
+      metaDescription:
+        'The terms that apply to use of the DevLab Studios website and the engagements described on it.',
+      metaKeywords: 'terms of service, website terms, DevLab Studios',
+      canonicalUrl: 'https://www.devlabstudios.com/terms',
+      ogTitle: 'Terms of Service - DevLab Studios',
+      ogDescription: 'The terms that apply to use of this website and the engagements described on it.',
+      ogImage: 'https://www.devlabstudios.com/og.png',
+      twitterTitle: 'Terms of Service - DevLab Studios',
+      twitterDescription: 'The terms that apply to use of this website.',
+      twitterImage: 'https://www.devlabstudios.com/og.png',
     },
   ],
 }

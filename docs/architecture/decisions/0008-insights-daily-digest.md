@@ -37,8 +37,14 @@ export beside `fetch` costs nothing extra.
 again in `env.preview` — nothing at the top level is inherited by an
 environment, a lesson already paid for once with `RATE_LIMITER`.
 
-**Workers AI for the summaries.** `@cf/meta/llama-3.1-8b-instruct` through the
-`AI` binding. Ten short summaries a day sits far inside the included daily
+**22:00 UTC, which is 06:00 where this is operated.** The first schedule was
+06:00 UTC, chosen for the US news cycle and without noticing that this is 2pm
+in Manila. An edition that lands mid-afternoon is not a daily digest anyone
+reads with their coffee. Preview runs half an hour later.
+
+**Workers AI for the summaries.** `@cf/meta/llama-3.1-8b-instruct-fp8` through
+the `AI` binding — the id that actually appears in this account's
+`wrangler ai models list`. Ten short summaries a day sits far inside the included daily
 allocation, and the binding costs nothing to hold. The model is told to
 summarize only what the supplied headline and excerpt state, and feed text is
 fenced between explicit markers with an instruction that everything inside is
@@ -93,6 +99,13 @@ a week of failed runs still leaves the table bounded.
   over — "Generate now" pressed twice. The run now excludes its own date.
   Both have regression tests; both were confirmed fixed by re-running against
   the live feeds (16 candidates, all four sources, 10 items, twice in a row).
+- The first production run published ten items with no summaries and reported
+  "AI unavailable at run time". The AI had not been unavailable: the model
+  answered in the OpenAI chat-completions shape (`choices[0].message.content`)
+  and the reader only understood `{ response }`, so every summary was discarded
+  after being paid for. `readText` now handles both shapes, `summarizeItem`
+  distinguishes "threw" from "answered unreadably", and the admin no longer
+  asserts a cause it cannot know. The wrong label cost more than the bug.
 - Preview runs its own cron half an hour later and keeps its own editions. The
   content mirror does not copy digests: production's editions would arrive in
   preview already close to the age its own sweep deletes at.

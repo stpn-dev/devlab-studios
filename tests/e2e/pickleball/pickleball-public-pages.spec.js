@@ -26,7 +26,7 @@ test.describe('Pickleball public pages', () => {
     await expect(page.locator('main h1')).toContainText('Devlab Pickleball')
 
     // During beta the primary action is requesting access, and it must point
-    // at the form actually on this page rather than off to /services.
+    // at the form actually on this page rather than off to /solutions.
     await expect(page.getByRole('link', { name: 'Be a beta tester' })).toHaveAttribute('href', '#request-access')
     await expect(page.locator('#request-access')).toHaveCount(1)
 
@@ -350,7 +350,7 @@ test.describe('Pickleball public pages', () => {
   })
 
   // These two pages are the product's public front door and are linked from
-  // /services, so they need share metadata rather than a bare <title>. Both
+  // /solutions, so they need share metadata rather than a bare <title>. Both
   // resolve it through loadPageSeo(), which falls back to src/data/
   // seoContent.js when the CMS has no row — this asserts the fallback is
   // wired, which is what a fresh environment actually serves.
@@ -415,7 +415,7 @@ test.describe('Pickleball public pages', () => {
   })
 
   test('the services page links to the pickleball product', async ({ page }) => {
-    await page.goto('/services')
+    await page.goto('/solutions')
 
     await expect(page.getByRole('button', { name: 'Be a beta-tester' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'See how it works' })).toHaveAttribute('href', '/pickleball')

@@ -15,7 +15,16 @@
  *      system prompt states that everything inside it is quoted material.
  */
 
-export const DIGEST_MODEL = '@cf/meta/llama-3.1-8b-instruct'
+/**
+ * The id as it appears in `wrangler ai models list` for this account.
+ *
+ * The unquantized `@cf/meta/llama-3.1-8b-instruct` is NOT in that list, and it
+ * answers in the OpenAI chat-completions shape rather than `{ response }` —
+ * which is how the first production run spent neurons and then discarded every
+ * summary. `readText` below now understands both shapes regardless, but the
+ * model we ask for should still be one the account actually lists.
+ */
+export const DIGEST_MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8'
 
 const SYSTEM_PROMPT = [
   'You write one-sentence summaries of technology news for a professional audience.',
@@ -30,6 +39,31 @@ const SYSTEM_PROMPT = [
 
 const MAX_SUMMARY_LENGTH = 320
 
+/**
+ * Workers AI models do not agree on a response shape, and the binding returns
+ * the payload unwrapped while the REST API nests it under `result`. Reading
+ * only one of these is how a working model looks exactly like a broken one.
+ */
+export function readText(result) {
+  if (typeof result === 'string') return result
+
+  const candidates = [
+    result?.response,
+    result?.choices?.[0]?.message?.content,
+    result?.choices?.[0]?.text,
+    result?.result?.response,
+    result?.result?.choices?.[0]?.message?.content,
+  ]
+
+  return candidates.find((candidate) => typeof candidate === 'string' && candidate.trim()) || ''
+}
+
+/** Neuron spend, when the model reports it. Used for budget telemetry, never for control flow. */
+function readNeurons(result) {
+  const value = result?.usage?.neurons ?? result?.result?.usage?.neurons
+  return Number.isFinite(value) ? value : 0
+}
+
 /** Strips wrapping quotes and boilerplate a small model tends to add anyway. */
 function tidy(summary) {
   return String(summary || '')
@@ -42,18 +76,24 @@ function tidy(summary) {
 }
 
 /**
- * Summarizes one item. Returns an empty string rather than throwing when the
- * model is unavailable.
+ * Summarizes one item.
  *
- * Workers AI HARD-FAILS once the daily neuron allocation is exhausted, so
- * "no AI today" is an ordinary branch: the item still publishes as a title and
+ * Returns an outcome rather than just a string, because "the model threw" and
+ * "the model answered with nothing we could read" are different failures that
+ * looked identical in the first version — and the second one is what actually
+ * happened in production while the admin reported "AI unavailable".
+ *
+ * Workers AI hard-fails once the daily neuron allocation is exhausted, so a
+ * failure here is an ordinary branch: the item still publishes as a title and
  * a link. A digest without summaries is useful; a missing digest is not.
+ *
+ * @returns {Promise<{ summary: string, outcome: 'ok'|'empty'|'failed'|'no_binding', neurons: number }>}
  */
 export async function summarizeItem(ai, item) {
-  if (!ai) return ''
+  if (!ai) return { summary: '', outcome: 'no_binding', neurons: 0 }
 
   try {
-    const response = await ai.run(DIGEST_MODEL, {
+    const result = await ai.run(DIGEST_MODEL, {
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         {
@@ -65,16 +105,25 @@ export async function summarizeItem(ai, item) {
       temperature: 0.2,
     })
 
-    return tidy(response?.response ?? response?.result?.response ?? '')
+    const summary = tidy(readText(result))
+    const neurons = readNeurons(result)
+
+    if (!summary) {
+      console.log(JSON.stringify({ event: 'digest_summary', outcome: 'empty', model: DIGEST_MODEL }))
+      return { summary: '', outcome: 'empty', neurons }
+    }
+
+    return { summary, outcome: 'ok', neurons }
   } catch (error) {
     console.log(
       JSON.stringify({
         event: 'digest_summary',
         outcome: 'failed',
+        model: DIGEST_MODEL,
         error: error instanceof Error ? error.message : 'unknown',
       }),
     )
-    return ''
+    return { summary: '', outcome: 'failed', neurons: 0 }
   }
 }
 
@@ -85,16 +134,35 @@ export async function summarizeItem(ai, item) {
  * firing ten in parallel buys a second or two of wall clock on a job with a
  * 15-minute budget, and costs the ability to stop cleanly once the allocation
  * is clearly exhausted.
+ *
+ * @returns {Promise<{ items: object[], model: string|null, neurons: number, summarized: number, failed: number, empty: number }>}
  */
 export async function summarizeItems(ai, items) {
   const summarized = []
-  let aiUsed = false
+  let neurons = 0
+  let okCount = 0
+  let failedCount = 0
+  let emptyCount = 0
 
   for (const item of items) {
-    const summary = await summarizeItem(ai, item)
-    if (summary) aiUsed = true
-    summarized.push({ ...item, summary })
+    const result = await summarizeItem(ai, item)
+
+    neurons += result.neurons
+    if (result.outcome === 'ok') okCount += 1
+    else if (result.outcome === 'failed') failedCount += 1
+    else if (result.outcome === 'empty') emptyCount += 1
+
+    summarized.push({ ...item, summary: result.summary })
   }
 
-  return { items: summarized, model: aiUsed ? DIGEST_MODEL : null }
+  return {
+    items: summarized,
+    // `model` records which model's words are on the page. Nothing was written
+    // by it when every call came back unusable, so it stays null.
+    model: okCount > 0 ? DIGEST_MODEL : null,
+    neurons: Number(neurons.toFixed(3)),
+    summarized: okCount,
+    failed: failedCount,
+    empty: emptyCount,
+  }
 }

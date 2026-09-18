@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro'
 import { loadArticlesContent } from '../lib/content/articles'
 import { LEAD_MAGNETS } from '../config/offers.js'
+import { PUBLIC_ROUTES } from '../config/publicRoutes'
 
 export const prerender = false
 
@@ -24,23 +25,6 @@ interface SitemapEntry {
   priority: string
   lastmod?: string
 }
-
-const STATIC_ENTRIES: SitemapEntry[] = [
-  { path: '/', changefreq: 'weekly', priority: '1.0' },
-  { path: '/services', changefreq: 'monthly', priority: '0.9' },
-  { path: '/work', changefreq: 'monthly', priority: '0.9' },
-  { path: '/insights', changefreq: 'weekly', priority: '0.8' },
-  // One permanent URL whose dated sections change every day — hence `daily`
-  // here and a single entry rather than one per edition.
-  { path: '/insights/daily', changefreq: 'daily', priority: '0.6' },
-  { path: '/about', changefreq: 'monthly', priority: '0.8' },
-  { path: '/profile', changefreq: 'monthly', priority: '0.8' },
-  { path: '/contact', changefreq: 'monthly', priority: '0.8' },
-  { path: '/process', changefreq: 'monthly', priority: '0.6' },
-  { path: '/pickleball', changefreq: 'monthly', priority: '0.6' },
-  { path: '/privacy', changefreq: 'yearly', priority: '0.3' },
-  { path: '/terms', changefreq: 'yearly', priority: '0.3' },
-]
 
 function escapeXml(value: string): string {
   return value
@@ -92,7 +76,7 @@ export const GET: APIRoute = async () => {
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ...[...STATIC_ENTRIES, ...articleEntries, ...offerEntries].map(toUrlElement),
+    ...[...PUBLIC_ROUTES, ...articleEntries, ...offerEntries].map(toUrlElement),
     '</urlset>',
   ].join('\n')
 

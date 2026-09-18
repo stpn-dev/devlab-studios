@@ -56,7 +56,7 @@ export async function runDailyDigest(env, { now = new Date(), trigger = 'cron' }
     return { digestDate, itemCount: 0, published: false, reason: 'no_new_items', pruned }
   }
 
-  const { items, model } = await summarizeItems(env.AI, candidates)
+  const { items, model, neurons, summarized, failed, empty } = await summarizeItems(env.AI, candidates)
   await saveDigest(env.DB, { digestDate, items, model })
   const pruned = await pruneDigests(env.DB, RETENTION_DAYS).catch(() => 0)
 
@@ -65,12 +65,21 @@ export async function runDailyDigest(env, { now = new Date(), trigger = 'cron' }
     digestDate,
     fetched: fetched.length,
     itemCount: items.length,
-    summarized: items.filter((item) => item.summary).length,
+    summarized,
+    // Split on purpose: `failed` is the model refusing or the allocation being
+    // spent, `empty` is a call that returned something we could not read. The
+    // first production run was entirely `empty` while reporting "AI
+    // unavailable", which sent the diagnosis in the wrong direction.
+    failed,
+    empty,
     model,
+    // Budget telemetry. The included allowance is 10,000 neurons/day and a run
+    // costs a few dozen, but "a few dozen" should be measured, not assumed.
+    neurons,
     pruned,
     durationMs: Date.now() - startedAt,
     trigger,
   })
 
-  return { digestDate, itemCount: items.length, published: true, model, pruned }
+  return { digestDate, itemCount: items.length, published: true, model, neurons, summarized, pruned }
 }

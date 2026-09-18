@@ -27,8 +27,16 @@ export async function loadPageSeo(pageSlug: string): Promise<SeoData | null> {
 
   try {
     const data = await getSeoMetadata(env.DB, pageSlug)
+    if (!data) {
+      // Falling back is correct behaviour, but doing it SILENTLY is how the
+      // Solutions page ran for weeks on a slug the CMS no longer had ('services'
+      // vs 'solutions') and the Insights page on a misspelled one ('insigths') —
+      // every edit an admin made on those screens was discarded with no signal.
+      console.log(JSON.stringify({ event: 'seo_lookup', outcome: 'no_record', pageSlug }))
+    }
     return data || fallback
   } catch {
     return fallback
   }
 }
+

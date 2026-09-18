@@ -15,3 +15,4 @@ have to re-derive from git archaeology.
 6. [Durable Objects for Pickleball session coordination](./0006-pickleball-durable-objects.md)
 7. [Business inquiry pipeline](./0007-business-inquiry-pipeline.md)
 8. [Insights daily digest: a cron in our own Worker entrypoint](./0008-insights-daily-digest.md)
+9. [Renaming /services to /solutions, and why the redirect is in code](./0009-solutions-route-rename.md)

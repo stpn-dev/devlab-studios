@@ -23,15 +23,24 @@ const emptySeoPage = {
 
 export default function SeoManager() {
   const [value, setValue] = useState(clone(seoContent))
-  const [selectedSlug, setSelectedSlug] = useState('home')
+  /**
+   * Selection is by POSITION, not by slug.
+   *
+   * It used to look the row up by `pageSlug`, but Page Slug is an editable
+   * field: typing one character into it meant the slug no longer matched,
+   * `findIndex` returned -1, and `Math.max(0, -1)` silently selected row 0.
+   * The editor appeared to jump to "About" mid-keystroke, and every further
+   * keystroke then edited About's slug instead. A position cannot drift out
+   * from under the thing it identifies.
+   */
+  const [selectedIndex, setSelectedIndex] = useState(0)
   const [status, setStatus] = useState('Loading SEO content...')
   const [isSaving, setIsSaving] = useState(false)
 
-  const selectedIndex = useMemo(
-    () => Math.max(0, (value.pages || []).findIndex((item) => item.pageSlug === selectedSlug)),
-    [selectedSlug, value.pages],
-  )
-  const selectedPage = value.pages?.[selectedIndex] || emptySeoPage
+  const pages = useMemo(() => value.pages || [], [value.pages])
+  // Reloading or deleting can shorten the list under a stale index.
+  const safeIndex = Math.min(selectedIndex, Math.max(0, pages.length - 1))
+  const selectedPage = pages[safeIndex] || emptySeoPage
 
   const loadContent = useCallback(async () => {
     try {
@@ -95,8 +104,23 @@ export default function SeoManager() {
   function updateSelected(field, fieldValue) {
     setValue((current) => ({
       ...current,
-      pages: (current.pages || []).map((item, index) => index === selectedIndex ? { ...item, [field]: fieldValue } : item),
+      pages: (current.pages || []).map((item, index) => (index === safeIndex ? { ...item, [field]: fieldValue } : item)),
     }))
+  }
+
+  /**
+   * Adds a page record. Without this the editor could only ever change rows
+   * that already existed, so a new public route had no way to get SEO at all
+   * short of a hand-written SQL statement — which is how /process, /privacy
+   * and /terms ended up with none.
+   */
+  function addPage() {
+    setValue((current) => {
+      const next = [...(current.pages || []), { ...emptySeoPage }]
+      setSelectedIndex(next.length - 1)
+      return { ...current, pages: next }
+    })
+    setStatus('Added a page. Set its Page Slug to match the route, then save.')
   }
 
   return (
@@ -137,23 +161,30 @@ export default function SeoManager() {
             <h3 className="text-base font-semibold text-slate-950">Pages</h3>
           </div>
           <div className="grid gap-3 px-4 py-4">
-            {(value.pages || []).map((item) => (
+            {pages.map((item, index) => (
               <button
-                key={item.pageSlug}
+                key={item.id || `page-${index}`}
                 type="button"
-                onClick={() => setSelectedSlug(item.pageSlug)}
+                onClick={() => setSelectedIndex(index)}
                 className={`rounded-md border px-4 py-3 text-left transition ${
-                  selectedSlug === item.pageSlug
+                  index === safeIndex
                     ? 'border-slate-900 bg-slate-900 text-white'
                     : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
                 }`}
               >
-                <p className="text-sm font-semibold capitalize">{item.pageSlug}</p>
-                <p className={`mt-1 text-xs ${selectedSlug === item.pageSlug ? 'text-slate-300' : 'text-slate-500'}`}>
+                <p className="text-sm font-semibold capitalize">{item.pageSlug || 'Untitled page'}</p>
+                <p className={`mt-1 text-xs ${index === safeIndex ? 'text-slate-300' : 'text-slate-500'}`}>
                   {item.canonicalUrl || 'No canonical URL'}
                 </p>
               </button>
             ))}
+            <button
+              type="button"
+              onClick={addPage}
+              className="rounded-md border border-dashed border-slate-300 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-slate-500 hover:text-slate-900"
+            >
+              + New page
+            </button>
           </div>
         </section>
 

@@ -24,8 +24,8 @@ Employment messaging lives there, not in the business funnel.
   four solution categories → verified project proof → delivery approach →
   reliability principles → insight and lead magnet → founder credibility → FAQ
   → final inquiry CTA.
-- **Solutions** (`/services` — route deliberately unchanged, label changed)
-  presents four business categories: Lead Intake and Follow-up Systems,
+- **Solutions** (`/solutions`; `/services` 301s to it) presents four business
+  categories: Lead Intake and Follow-up Systems,
   Workflow and AI Automation, Custom Software and Operations Systems, and the
   Workflow Systems Audit entry offer. The CMS service catalogue is mapped
   underneath rather than replaced; an unmapped service group still renders.
@@ -40,6 +40,11 @@ Employment messaging lives there, not in the business funnel.
   selector; CTA context preselects the type via `?type=`. Employers reach a
   separate short employment form and never the business qualification
   questions.
+- **Insights** carries fifteen articles across three named topics — Guides, AI
+  Updates, Operational Notes — with one featured and the rest in a filterable
+  grid. Each card is a summary that links to the full article. Reading time is
+  derived from the body rather than stored, because the stored values had
+  drifted.
 - **AI & Automation Daily** (`/insights/daily`) is a generated daily log: up to
   ten AI automation / AI advancement stories, each a title, a link to the
   publisher, and a one-sentence summary written from that publisher's own
@@ -69,8 +74,8 @@ See [ADR 0007](architecture/decisions/0007-business-inquiry-pipeline.md).
 
 ## Daily digest
 
-`scheduled()` in `src/worker.ts` runs once a day (production 06:00 UTC, preview
-06:30 UTC) and does one pass: fetch four fixed feeds, drop anything stale or
+`scheduled()` in `src/worker.ts` runs once a day (production 22:00 UTC, preview
+22:30 UTC — 06:00 and 06:30 in Manila) and does one pass: fetch four fixed feeds, drop anything stale or
 already published in the trailing week, summarize with Workers AI, publish the
 day, sweep anything older than seven days.
 
@@ -112,6 +117,9 @@ See [ADR 0008](architecture/decisions/0008-insights-daily-digest.md).
 - Structured data: Organization, WebSite, Service per solution, Person on the
   Profile, Article on insights, BreadcrumbList, and FAQPage only where the
   questions are actually rendered. No LocalBusiness — the studio is remote.
+- `src/config/publicRoutes.ts` is the single list of canonical routes. The
+  sitemap and `src/lib/content/seo.test.ts` both read it, so a route added
+  without an SEO record fails the suite rather than silently falling back.
 - `/insights/daily` is one canonical URL listed once in the sitemap, not a
   generated page per edition. Every item links out to the publisher with
   `rel="noopener noreferrer nofollow"`.
@@ -145,8 +153,11 @@ See [ADR 0008](architecture/decisions/0008-insights-daily-digest.md).
 ## Environment status
 
 - Migrations `0009`, `0010` and `0011` are applied to **both** Preview and
-  Production, along with `scripts/cms/updates/2026-09-17-business-first-content.sql`
-  and `2026-09-17-work-page-copy-fix.sql`. See [operations.md](operations.md).
+  Production, along with `scripts/cms/updates/2026-09-17-business-first-content.sql`,
+  `2026-09-17-work-page-copy-fix.sql`, `2026-09-18-solutions-route-and-seo-alignment.sql`
+  and `2026-09-18-insights-library.sql`.
+- Preview's `ADMIN_EMAIL` / `ADMIN_PASSWORD_HASH` secrets now match production,
+  so preview is usable as real staging rather than public-pages-only. See [operations.md](operations.md).
 - Both Workers declare the `AI` binding and a cron trigger (production 06:00
   UTC, preview 06:30 UTC). Workers AI is billed against the account's daily
   neuron allocation; ten short summaries a day sits far inside it.
