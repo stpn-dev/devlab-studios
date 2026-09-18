@@ -392,16 +392,10 @@ async function verify() {
   if (failures > 0) {
     heading(`${failures} check(s) failed`)
     console.log(`
-A failing "inbox view" or "sent view" most likely means Zoho wants folderId
-rather than folderName on this account. That is a known unverified area — see
-the "not verified against the live API" list in
-docs/lead-engine/zoho-integration.md. Get the folder ids with:
-
-  curl -H "Authorization: Zoho-oauthtoken <ACCESS_TOKEN>" \\
-    ${region().mail}/accounts/${accountId || '<ACCOUNT_ID>'}/folders
-
-and tell me the result — listMessages() in src/lead-engine/zoho/client.js is
-the one place that needs changing.
+The folder list above is what the engine resolves against. If a view call
+failed while its folder id resolved fine, this account expects a different
+parameter on /messages/view — tell me the error body and it is a one-function
+change in src/lead-engine/zoho/client.js.
 `)
     process.exit(1)
   }

@@ -183,6 +183,98 @@ export async function createDraft(env, message, options = {}) {
 }
 
 /**
+ * Per-isolate folder id cache, keyed by `accountId:folder`.
+ *
+ * Folder ids are stable for the life of a mailbox, so looking them up once per
+ * isolate is right. Same reasoning as the access-token cache in oauth.js: a
+ * Worker isolate is short-lived and single-tenant, so the worst case is a
+ * redundant lookup.
+ *
+ * @type {Map<string, string>}
+ */
+const folderIdCache = new Map()
+
+/**
+ * Lists the account's folders.
+ *
+ * @param {Env} env
+ * @param {{ fetchImpl?: typeof fetch, onUsage?: Function }} [options]
+ * @returns {Promise<Array<{ folderId: string, folderName: string, folderType: string, path: string }>>}
+ */
+export async function listFolders(env, options = {}) {
+  const config = readZohoConfig(env)
+
+  const result = await zohoRequest(env, `/accounts/${config.accountId}/folders`, {
+    fetchImpl: options.fetchImpl,
+    onUsage: options.onUsage,
+  })
+
+  const folders = Array.isArray(result?.data) ? result.data : []
+
+  // Zoho has used both camelCase and capitalised field names across API
+  // versions. Reading both is the difference between a working integration and
+  // one that reports an empty mailbox.
+  return folders.map((folder) => ({
+    folderId: String(folder.folderId ?? folder.FolderID ?? folder.folder_id ?? ''),
+    folderName: String(folder.folderName ?? folder.FolderName ?? folder.folder_name ?? ''),
+    folderType: String(folder.folderType ?? folder.FolderType ?? ''),
+    path: String(folder.path ?? folder.Path ?? ''),
+  }))
+}
+
+/**
+ * Resolves 'inbox' / 'sent' to this account's folder id.
+ *
+ * The `/messages/view` endpoint rejects `folderName` outright —
+ * `EXTRA_PARAM_FOUND: folderName Extra paramters given` — and wants `folderId`,
+ * which differs per mailbox. Resolving it at runtime rather than making it
+ * configuration means one less thing to set per environment, and one less thing
+ * to get wrong when a second mailbox is ever connected.
+ *
+ * MATCHED BY `folderType` FIRST, deliberately. Zoho localises folder DISPLAY
+ * names, so a mailbox whose interface language is not English has no folder
+ * called "Inbox" — but its type is still `Inbox`. Name and path are fallbacks
+ * for older API responses that omit the type.
+ *
+ * @param {Env} env
+ * @param {'inbox'|'sent'} folder
+ * @param {{ fetchImpl?: typeof fetch, onUsage?: Function }} [options]
+ * @returns {Promise<string>}
+ */
+export async function resolveFolderId(env, folder, options = {}) {
+  const config = readZohoConfig(env)
+  const cacheKey = `${config.accountId}:${folder}`
+
+  const cached = folderIdCache.get(cacheKey)
+  if (cached) return cached
+
+  const folders = await listFolders(env, options)
+  const wanted = folder === 'sent' ? 'sent' : 'inbox'
+
+  const match =
+    folders.find((entry) => entry.folderType.toLowerCase() === wanted) ||
+    folders.find((entry) => entry.folderName.toLowerCase() === wanted) ||
+    folders.find((entry) => entry.path.toLowerCase() === `/${wanted}`)
+
+  if (!match?.folderId) {
+    throw new ZohoApiError(
+      `Could not find the ${folder} folder on this Zoho account. Found: ${
+        folders.map((entry) => entry.folderName || entry.folderType).filter(Boolean).join(', ') || 'nothing'
+      }.`,
+      { status: 502, code: 'zoho_folder_not_found', retryable: false },
+    )
+  }
+
+  folderIdCache.set(cacheKey, match.folderId)
+  return match.folderId
+}
+
+/** Clears the folder cache. Exported for tests and for a reconnect. */
+export function clearFolderCache() {
+  folderIdCache.clear()
+}
+
+/**
  * Lists messages in a folder.
  *
  * Bounded by `limit` and by a `receivedTime` lower bound, so a sync reads a
@@ -194,14 +286,11 @@ export async function createDraft(env, message, options = {}) {
  */
 export async function listMessages(env, { folder, limit = ZOHO.syncPageSize, sinceMs = null, start = 1 }, options = {}) {
   const config = readZohoConfig(env)
+  const folderId = await resolveFolderId(env, folder, options)
 
   const result = await zohoRequest(env, `/accounts/${config.accountId}/messages/view`, {
     query: {
-      // Zoho's view endpoint accepts a folder NAME via `folderName` on the
-      // account-scoped route. Folder ids differ per account, so using the name
-      // avoids a configuration value that would have to be looked up and
-      // stored per environment.
-      folderName: folder === 'sent' ? 'Sent' : 'Inbox',
+      folderId,
       limit: Math.min(limit, 200),
       start,
       ...(sinceMs ? { receivedTime: sinceMs } : {}),

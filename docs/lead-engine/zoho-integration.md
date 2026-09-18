@@ -523,19 +523,51 @@ Tuesday". The dashboard raises it as a problem at 2 consecutive failures.
 
 ---
 
-## Honest notes: what has not been verified against the live API
+## What has been verified against a live mailbox
 
-**No part of this integration has been exercised against a real Zoho mailbox.**
-The 45 tests in `zoho/zoho.test.js` are against injected `fetchImpl` stubs.
-Expect the first live connection attempt to surface something in this list.
+Confirmed 18 September 2026, against a real Zoho account on the `.com` data
+centre, using `node scripts/lead-engine/zoho-setup.mjs verify`:
 
-1. **Folder selection by name.** `listMessages` passes
-   `folderName=Inbox` / `folderName=Sent` to `/accounts/<id>/messages/view`. The
-   code comment says the account-scoped route accepts a folder *name*, chosen to
-   avoid a per-environment folder-id configuration value. Zoho's published API
-   more commonly documents `folderId`. If listing returns everything or nothing,
-   this is the first thing to check — you may need a
-   `GET /accounts/<id>/folders` lookup and a `folderId` parameter.
+| Call | Status |
+|---|---|
+| `POST /oauth/v2/token` (refresh grant) | works |
+| `GET /accounts` | works |
+| `GET /accounts/<id>` — the connectivity probe | works |
+| `GET /accounts/<id>/folders` | works |
+| `GET /accounts/<id>/messages/view?folderId=…` | works |
+
+### The one thing that was wrong, and is now fixed
+
+`listMessages` originally sent `folderName=Inbox` / `folderName=Sent`. The live
+API rejects that outright:
+
+```json
+{"data":{"errorCode":"EXTRA_PARAM_FOUND",
+         "moreInfo":"folderName Extra paramters given"},
+ "status":{"code":400,"description":"Invalid Input"}}
+```
+
+`/messages/view` wants **`folderId`**, which differs per mailbox. Rather than
+making that a per-environment configuration value, `resolveFolderId()` in
+`zoho/client.js` looks it up from `GET /accounts/<id>/folders` and caches it for
+the life of the isolate — the same approach as the access-token cache.
+
+**Matching is by `folderType` first, not by name.** Zoho localises folder
+display names, so a mailbox whose interface language is not English has no
+folder called "Inbox" — but its type is still `Inbox`. Name and path are
+fallbacks for older API responses that omit the type.
+
+## Honest notes: what has still not been verified
+
+The items below remain untested against a live mailbox. The rest of
+`zoho/zoho.test.js` (50 tests) runs against injected `fetchImpl` stubs.
+
+1. **Creating a draft.** `verify` deliberately does not exercise `createDraft`,
+   because that writes into a real Drafts folder. It is left for the operator to
+   do from the Lead CRM once a lead reaches `READY_TO_CONTACT`. The response
+   field names (`data.draftId`, `data.messageId`) are therefore unconfirmed — if
+   Zoho names them differently the draft is still created, but the recorded id
+   may be null.
 2. **The content endpoint path.**
    `GET /accounts/<id>/messages/<messageId>/content`. Zoho's documentation
    includes a folder-scoped form. If body fetches 404 while listing works, this
@@ -545,13 +577,10 @@ Expect the first live connection attempt to surface something in this list.
    list endpoint returns all of these is unconfirmed. If it returns none, thread
    matching degrades to contact-address matching, which still works but is weaker
    (see [conversations.md](conversations.md)).
-4. **Draft response fields.** `createDraft` reads `data.draftId` and falls back to
-   `data.messageId`. If Zoho names them differently the draft is still created;
-   the id recorded may be null.
-5. **Timestamp units.** `parseZohoTimestamp` handles epoch seconds, epoch
+4. **Timestamp units.** `parseZohoTimestamp` handles epoch seconds, epoch
    milliseconds (threshold `1e11`) and formatted dates. If the sync cursor jumps
    to 1970 or to the future, look here first.
-6. **The web-client deep link.** `https://mail.zoho.com/zm/#mail/folder/Drafts`
+5. **The web-client deep link.** `https://mail.zoho.com/zm/#mail/folder/Drafts`
    is a plausible, undocumented URL shape. If it stops working, the operator can
    simply open Zoho normally — nothing in the pipeline depends on it.
 

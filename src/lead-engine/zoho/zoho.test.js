@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { assertNoSendMode, buildZohoUrl, checkConnection, createDraft, getMessageContent, listMessages } from './client.js'
+import {
+  assertNoSendMode,
+  buildZohoUrl,
+  checkConnection,
+  clearFolderCache,
+  createDraft,
+  getMessageContent,
+  listMessages,
+  resolveFolderId,
+} from './client.js'
 import { clearTokenCache, getAccessToken, readZohoConfig, redactZohoError } from './oauth.js'
 import {
   extractPlainBody,
@@ -42,6 +51,7 @@ function zohoFetch(handler) {
 
 beforeEach(() => {
   clearTokenCache()
+  clearFolderCache()
 })
 
 describe('readZohoConfig', () => {
@@ -197,24 +207,101 @@ describe('createDraft — the send guarantee', () => {
   })
 })
 
-describe('listMessages and getMessageContent', () => {
-  it('reads a bounded window of one folder', async () => {
-    let requestedUrl = ''
+/**
+ * A mailbox whose folder list comes back in the shape Zoho actually returns.
+ *
+ * `folderType` is the field that matters: Zoho localises DISPLAY names, so a
+ * non-English mailbox has no folder called "Inbox" but still has one typed
+ * `Inbox`.
+ */
+const FOLDERS = [
+  { folderId: '100', folderName: 'Inbox', folderType: 'Inbox', path: '/Inbox' },
+  { folderId: '200', folderName: 'Sent', folderType: 'Sent', path: '/Sent' },
+  { folderId: '300', folderName: 'Drafts', folderType: 'Drafts', path: '/Drafts' },
+]
+
+/** Answers the folder lookup, then delegates everything else. */
+function mailboxFetch(handler, folders = FOLDERS) {
+  return zohoFetch(async (url, init) => {
+    if (String(url).includes('/folders')) return json({ data: folders })
+    return handler(String(url), init)
+  })
+}
+
+describe('folder resolution', () => {
+  it('resolves inbox and sent to the folder ids for this account', async () => {
+    const fetchImpl = mailboxFetch(async () => json({ data: [] }))
+
+    expect(await resolveFolderId(ENV, 'inbox', { fetchImpl })).toBe('100')
+    clearFolderCache()
+    expect(await resolveFolderId(ENV, 'sent', { fetchImpl })).toBe('200')
+  })
+
+  it('matches on folderType, so a localised mailbox still works', async () => {
+    // A Spanish-language mailbox: no folder is NAMED Inbox.
+    const localised = [
+      { folderId: '100', folderName: 'Bandeja de entrada', folderType: 'Inbox', path: '/Bandeja de entrada' },
+      { folderId: '200', folderName: 'Enviados', folderType: 'Sent', path: '/Enviados' },
+    ]
+    const fetchImpl = mailboxFetch(async () => json({ data: [] }), localised)
+
+    expect(await resolveFolderId(ENV, 'inbox', { fetchImpl })).toBe('100')
+  })
+
+  it('reads the capitalised field names older Zoho responses use', async () => {
+    const legacy = [{ FolderID: '900', FolderName: 'Inbox', FolderType: 'Inbox' }]
+    const fetchImpl = mailboxFetch(async () => json({ data: [] }), legacy)
+
+    expect(await resolveFolderId(ENV, 'inbox', { fetchImpl })).toBe('900')
+  })
+
+  it('looks the folder list up once per isolate', async () => {
+    let lookups = 0
     const fetchImpl = zohoFetch(async (url) => {
+      if (String(url).includes('/folders')) {
+        lookups += 1
+        return json({ data: FOLDERS })
+      }
+      return json({ data: [] })
+    })
+
+    await listMessages(ENV, { folder: 'inbox' }, { fetchImpl })
+    await listMessages(ENV, { folder: 'inbox' }, { fetchImpl })
+
+    expect(lookups).toBe(1)
+  })
+
+  it('fails with a message naming the folders it did find', async () => {
+    const fetchImpl = mailboxFetch(async () => json({ data: [] }), [
+      { folderId: '1', folderName: 'Archive', folderType: 'Archive' },
+    ])
+
+    await expect(resolveFolderId(ENV, 'inbox', { fetchImpl })).rejects.toThrow(/Archive/)
+    await expect(resolveFolderId(ENV, 'inbox', { fetchImpl })).rejects.toMatchObject({ retryable: false })
+  })
+})
+
+describe('listMessages and getMessageContent', () => {
+  it('reads a bounded window of one folder BY ID', async () => {
+    // Zoho's /messages/view rejects folderName outright with
+    // `EXTRA_PARAM_FOUND`. Confirmed against a live account, 18 Sep 2026.
+    let requestedUrl = ''
+    const fetchImpl = mailboxFetch(async (url) => {
       requestedUrl = url
       return json({ data: [{ messageId: '1' }] })
     })
 
     await listMessages(ENV, { folder: 'sent', limit: 25, sinceMs: 1_700_000_000_000 }, { fetchImpl })
 
-    expect(requestedUrl).toContain('folderName=Sent')
+    expect(requestedUrl).toContain('folderId=200')
+    expect(requestedUrl).not.toContain('folderName')
     expect(requestedUrl).toContain('limit=25')
     expect(requestedUrl).toContain('receivedTime=1700000000000')
   })
 
   it('caps an absurd limit', async () => {
     let requestedUrl = ''
-    const fetchImpl = zohoFetch(async (url) => {
+    const fetchImpl = mailboxFetch(async (url) => {
       requestedUrl = url
       return json({ data: [] })
     })
@@ -230,7 +317,7 @@ describe('listMessages and getMessageContent', () => {
   it('counts every HTTP call against the usage budget, including a retry', async () => {
     let attempts = 0
     const onUsage = vi.fn()
-    const fetchImpl = zohoFetch(async () => {
+    const fetchImpl = mailboxFetch(async () => {
       attempts += 1
       return attempts === 1 ? json({}, 401) : json({ data: [] })
     })
