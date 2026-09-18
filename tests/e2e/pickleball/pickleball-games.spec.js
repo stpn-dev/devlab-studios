@@ -1,10 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-
+import { queryLocalD1 as queryD1 } from './d1Read.js'
 // This is Phase 4's hardening-pass e2e suite -- the FIRST time any of
 // startGame/recordRally/undoLastRally/finishGame/abandonGame/reopenGame/
 // correctGame, or the operator-grant routes, get exercised against a real
@@ -12,94 +7,12 @@ import { dirname, join } from 'node:path'
 // pickleball-queue.spec.js's established convention exactly: every fixture is
 // created through the REAL API (session -> OPEN_FOR_CHECKIN -> LIVE ->
 // checked-in/queued players -> assignCourt), never via a direct D1 write.
-
-// ---------------------------------------------------------------------------
-// player_game_stats and matchmaking_history have no read API anywhere in this
-// phase, so the only way to verify their CONTENTS (required by this task's
-// brief) is a direct, READ-ONLY local D1 query. This mirrors
-// scripts/pickleball/apply-e2e-fixtures.mjs's own `wrangler d1 execute`
-// invocation technique exactly (resolve the wrangler package's bin/wrangler.js
-// and run it under the current `node` binary, rather than through `npx` --
-// npx's Windows .cmd shim needs `shell: true`, which reintroduces the
-// quoting problems `--file=<path>` exists to avoid) and the Phase 3 plan's
-// explicit convention ("D1 access during verification: --local only, never
-// --remote"). Nothing in this file ever WRITES to the database directly --
+//
+// Read-only D1 access for assertions with no read API goes through the shared
+// hardened helper — see d1Read.js for the cross-process lock and SQLITE_BUSY
+// retry, and why both are necessary. Nothing here ever WRITES to the database:
 // every mutation goes through the real API, same as pickleball-queue.spec.js.
-function resolveWranglerBin() {
-  const require = createRequire(import.meta.url)
-  return join(dirname(require.resolve('wrangler')), '..', 'bin', 'wrangler.js')
-}
 
-// Each of these reads is a SECOND process opening the local SQLite file
-// miniflare already holds open (exactly the hazard playwright.config.js's own
-// webServer comment describes), so it contends with in-flight worker writes:
-// the reader can come back SQLITE_BUSY, and -- worse, because it fails a test
-// that never touched D1 -- a worker write racing the reader can fail and
-// surface as a 500 from an unrelated API call in another spec. Two guards, both
-// pure test infrastructure with no bearing on any assertion:
-//
-//   * a cross-process lock directory, so at most ONE of these reader processes
-//     exists at a time no matter how many Playwright workers are running;
-//   * a bounded SQLITE_BUSY retry for the reader itself.
-//
-// The lock gives up waiting rather than hanging forever, so a crashed holder
-// degrades this to the unlocked behavior instead of wedging the suite.
-const D1_BUSY_RETRIES = 5
-const D1_LOCK_DIR = join(tmpdir(), 'pb-e2e-d1-read-lock')
-const D1_LOCK_WAIT_ATTEMPTS = 400
-
-function sleepSync(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
-}
-
-function withD1ReadLock(read) {
-  let held = false
-  for (let attempt = 0; attempt < D1_LOCK_WAIT_ATTEMPTS; attempt += 1) {
-    try {
-      mkdirSync(D1_LOCK_DIR)
-      held = true
-      break
-    } catch {
-      sleepSync(50)
-    }
-  }
-
-  try {
-    return read()
-  } finally {
-    if (held) {
-      try {
-        rmSync(D1_LOCK_DIR, { recursive: true, force: true })
-      } catch {
-        // Nothing to recover: the next caller's wait loop times out and
-        // proceeds anyway.
-      }
-    }
-  }
-}
-
-function queryD1(sql) {
-  const sqlPath = join(mkdtempSync(join(tmpdir(), 'pb-games-e2e-')), 'query.sql')
-  writeFileSync(sqlPath, sql, 'utf8')
-
-  return withD1ReadLock(() => {
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        const out = execFileSync(
-          process.execPath,
-          [resolveWranglerBin(), 'd1', 'execute', 'devlab-pickleball', '--local', '--json', `--file=${sqlPath}`],
-          { encoding: 'utf-8', windowsHide: true },
-        )
-        const parsed = JSON.parse(out)
-        return parsed[0]?.results || []
-      } catch (error) {
-        const busy = String(error?.message || '').includes('SQLITE_BUSY')
-        if (!busy || attempt >= D1_BUSY_RETRIES) throw error
-        sleepSync(200 * (attempt + 1))
-      }
-    }
-  })
-}
 
 // ---------------------------------------------------------------------------
 // Setup helpers, modeled directly on pickleball-queue.spec.js's

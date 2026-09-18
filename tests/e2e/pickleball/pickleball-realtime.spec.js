@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { execSync } from 'node:child_process'
+import { queryLocalD1 } from './d1Read.js'
 import { loginAsOperator } from './helpers.js'
 
 // Publishing is opt-in per session (a public link shows real player names), so
@@ -89,10 +89,12 @@ test('public channel resolves a code to a sanitized snapshot with no queue data'
   // route surfaces it -- that's a later sub-project's UI concern); read it
   // straight from D1 via wrangler for this test only.
   await enablePublicView(request, sessionId)
-  const output = execSync(
-    `npx wrangler d1 execute devlab-pickleball --local --json --command "SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'"`,
-  ).toString()
-  const code = JSON.parse(output)[0].results[0].public_code
+  // Read-only, through the shared hardened helper: a bare `execSync` here was a
+  // second process opening the SQLite file miniflare holds, and it failed with
+  // SQLITE_BUSY on most parallel runs.
+  const code = queryLocalD1(
+    `SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'`,
+  )[0].public_code
 
   const received = await page.evaluate(
     ({ url }) =>
@@ -193,10 +195,12 @@ test('public REST polling fallback returns the same sanitized shape as the WebSo
   const baseURL = test.info().project.use.baseURL
   const sessionId = await createLiveSessionForRealtimeTests(request, context, baseURL)
   await enablePublicView(request, sessionId)
-  const output = execSync(
-    `npx wrangler d1 execute devlab-pickleball --local --json --command "SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'"`,
-  ).toString()
-  const code = JSON.parse(output)[0].results[0].public_code
+  // Read-only, through the shared hardened helper: a bare `execSync` here was a
+  // second process opening the SQLite file miniflare holds, and it failed with
+  // SQLITE_BUSY on most parallel runs.
+  const code = queryLocalD1(
+    `SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'`,
+  )[0].public_code
 
   const response = await request.get(`/api/pickleball/public/${code}/state`)
   expect(response.ok()).toBe(true)
@@ -381,10 +385,12 @@ test('a mutation broadcasts to a connected public client with the sanitized shap
   // as the public-channel test above) -- read it straight from D1 via
   // wrangler, following this file's own established pattern.
   await enablePublicView(request, sessionId)
-  const output = execSync(
-    `npx wrangler d1 execute devlab-pickleball --local --json --command "SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'"`,
-  ).toString()
-  const code = JSON.parse(output)[0].results[0].public_code
+  // Read-only, through the shared hardened helper: a bare `execSync` here was a
+  // second process opening the SQLite file miniflare holds, and it failed with
+  // SQLITE_BUSY on most parallel runs.
+  const code = queryLocalD1(
+    `SELECT public_code FROM public_session_tokens WHERE session_id = '${sessionId}'`,
+  )[0].public_code
 
   const wsUrl = `${baseURL.replace('http', 'ws')}/pickleball/rt/public/${code}`
 

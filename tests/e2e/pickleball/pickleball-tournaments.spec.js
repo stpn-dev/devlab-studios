@@ -1,85 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { queryLocalD1 as queryD1 } from './d1Read.js'
 import { loginAsOperator } from './helpers.js'
+// Read-only D1 access for assertions with no read API goes through the shared
+// hardened helper — see d1Read.js for why a second process must not open the
+// database miniflare holds. Nothing here ever WRITES directly.
 
-// A tournament is a FIXED_PAIRS session carrying `tournamentFormat` -- NOT a
-// third session type (migration 0014's header, and this phase's own docs).
-// These helpers therefore reuse the ordinary session-creation and
-// fixed-pairs-formation flow, only adding `tournamentFormat` to the create
-// call.
-
-// ---------------------------------------------------------------------------
-// player_game_stats.eligible_for_opi has no read API anywhere in this app
-// (Task 7's own brief requires asserting it directly), so the only way to
-// verify it is a direct, READ-ONLY local D1 query -- mirrors
-// pickleball-games.spec.js's queryD1 helper exactly (module-local there too,
-// so duplicated rather than imported). Nothing in this file ever WRITES to
-// the database directly; every mutation goes through the real API.
-function resolveWranglerBin() {
-  const require = createRequire(import.meta.url)
-  return join(dirname(require.resolve('wrangler')), '..', 'bin', 'wrangler.js')
-}
-
-const D1_BUSY_RETRIES = 5
-const D1_LOCK_DIR = join(tmpdir(), 'pb-e2e-d1-read-lock')
-const D1_LOCK_WAIT_ATTEMPTS = 400
-
-function sleepSync(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
-}
-
-function withD1ReadLock(read) {
-  let held = false
-  for (let attempt = 0; attempt < D1_LOCK_WAIT_ATTEMPTS; attempt += 1) {
-    try {
-      mkdirSync(D1_LOCK_DIR)
-      held = true
-      break
-    } catch {
-      sleepSync(50)
-    }
-  }
-
-  try {
-    return read()
-  } finally {
-    if (held) {
-      try {
-        rmSync(D1_LOCK_DIR, { recursive: true, force: true })
-      } catch {
-        // Nothing to recover: the next caller's wait loop times out and
-        // proceeds anyway.
-      }
-    }
-  }
-}
-
-function queryD1(sql) {
-  const sqlPath = join(mkdtempSync(join(tmpdir(), 'pb-tournaments-e2e-')), 'query.sql')
-  writeFileSync(sqlPath, sql, 'utf8')
-
-  return withD1ReadLock(() => {
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        const out = execFileSync(
-          process.execPath,
-          [resolveWranglerBin(), 'd1', 'execute', 'devlab-pickleball', '--local', '--json', `--file=${sqlPath}`],
-          { encoding: 'utf-8', windowsHide: true },
-        )
-        const parsed = JSON.parse(out)
-        return parsed[0]?.results || []
-      } catch (error) {
-        const busy = String(error?.message || '').includes('SQLITE_BUSY')
-        if (!busy || attempt >= D1_BUSY_RETRIES) throw error
-        sleepSync(200 * (attempt + 1))
-      }
-    }
-  })
-}
 
 async function createTournamentSession(request, overrides = {}, courtCount = 0) {
   await request.post('/api/pickleball/auth/test-login', { data: { email: 'operator@example.com' } })
