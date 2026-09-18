@@ -143,7 +143,10 @@ export async function addSuppression(db, input) {
     .prepare('SELECT * FROM lead_suppression WHERE scope = ? AND value = ? AND removed_at IS NULL')
     .bind(scope, value)
     .first()
-  if (existing) return { entry: mappedRow(existing), created: false }
+  // `mapRow`, not `mappedRow`: inside this branch the row is provably present,
+  // and using the nullable mapper here would make every caller of
+  // `addSuppression` handle a null that cannot occur.
+  if (existing) return { entry: mapRow(existing), created: false }
 
   const id = newId()
   await db

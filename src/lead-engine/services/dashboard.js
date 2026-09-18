@@ -6,8 +6,10 @@
  * today). The funnel is a health metric; the cards are a work queue, and
  * conflating them produces a screen that looks busy and tells you nothing.
  *
- * Nothing here counts email opens. There is no open tracking in this system —
- * see docs/lead-engine/tracking.md for why.
+ * Nothing here counts email opens. There is no open tracking in this system: an
+ * open is not actionable and recording one means embedding a resource in
+ * somebody's inbox. Only clicks on a tracked link are recorded, and only when
+ * LEAD_TRACKING_ENABLED is on. See docs/lead-engine/architecture.md.
  */
 
 import { resolveFlags } from '../config/flags.js'

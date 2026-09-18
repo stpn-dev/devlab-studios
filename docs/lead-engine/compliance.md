@@ -202,6 +202,18 @@ decision. Once a reviewer has set `waived` or recorded a legal basis, a later
 automated re-evaluation records its checks but leaves the state alone. Otherwise
 a routine re-run would quietly undo a considered human judgement.
 
+### Viewing a lead does not write to it
+
+`checkOutreachReadiness(env, leadId, { persist })` takes a `persist` option.
+`GET /api/admin/lead-crm/leads/:id` — the lead detail screen — passes
+`persist: false`, so displaying a lead evaluates compliance without storing the
+result. A GET that mutates the record it is displaying is both surprising and
+wrong.
+
+The write happens on the paths that are about to **act**: draft generation and
+the Zoho push. So the stored `lead_compliance_reviews` row reflects the last time
+something was attempted, not the last time someone looked.
+
 Check details are written to be **actionable**: a blocked lead tells the reader
 what to change, not that something is wrong. For example, *"Business postal
 address is incomplete: postalCode, countryCode."*

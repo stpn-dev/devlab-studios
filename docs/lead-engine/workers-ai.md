@@ -225,6 +225,12 @@ Proves the model did not *write the things it was told not to write*. Applied to
 | `FALSE_PRETEXT` | "as we discussed", "following up on our call", "X suggested I reach out", "you signed up" |
 | `CREDENTIAL_CLAIM` | "award-winning", "certified partner", "ISO 9001", "#1 rated" |
 | `DISALLOWED_LINK` | Any URL not in the brief's `allowed_links`, compared by normalized URL rather than substring |
+
+`allowed_links` holds at most one entry: the `/r/<token>` tracked link minted by
+`mintTrackedLink` during draft generation. With `LEAD_TRACKING_ENABLED` off — the
+shipped default — it is **empty**, so `DISALLOWED_LINK` fires on every URL the
+model produces. That is the intended direction: a disabled tracker must not
+degrade into an untracked raw link.
 | `UNSUPPORTED_OBSERVATION` | A `referenced_observations` entry with no supporting extracted signal |
 
 `findUnsupportedObservations` uses **word overlap**, not exact matching: the model

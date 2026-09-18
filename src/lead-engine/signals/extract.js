@@ -107,8 +107,14 @@ export function classifyPage(url) {
  *   pages: Array<{ url: string, finalUrl?: string, html?: string, used?: boolean }>,
  *   websiteUrl: string,
  *   campaignConfig?: { targetIndustries?: string[], icpKeywords?: string[],
- *                      disqualifyingKeywords?: string[], serviceTerms?: string[] }
- * }} input
+ *                      disqualifyingKeywords?: string[], serviceTerms?: string[],
+ *                      metros?: string[] },
+ *   company?: { countryCode?: string|null, city?: string|null, metro?: string|null,
+ *               region?: string|null, sourceCount?: number }
+ * }} input `company` carries what DISCOVERY already established — geography and
+ *   how many independent sources reported this business. Those are real ICP and
+ *   data-quality facts, but they are not on the page, so they arrive here rather
+ *   than being scraped back out of one.
  * @returns {{
  *   signals: Array<object>,
  *   emails: Array<{ email: string, sourceUrl: string, sourceType: string, fromMailto: boolean }>,
@@ -117,7 +123,7 @@ export function classifyPage(url) {
  *   pageSummaries: Array<{ url: string, title: string|null, description: string|null, textLength: number }>
  * }}
  */
-export function extractSignals({ pages, websiteUrl, campaignConfig = {} }) {
+export function extractSignals({ pages, websiteUrl, campaignConfig = {}, company = {} }) {
   const usable = (pages || []).filter((page) => page.used && page.html)
   const companyDomain = canonicalDomain(websiteUrl)
 
@@ -414,6 +420,39 @@ export function extractSignals({ pages, websiteUrl, campaignConfig = {} }) {
         valueText: matchedIndustry,
         sourceUrl: websiteUrl,
         evidence: excerptAround(combinedText, matchedIndustry, CRAWLER.evidenceExcerptLength),
+      }),
+    )
+  }
+
+  // --- Geography and corroboration -----------------------------------------
+  // These come from the discovery record rather than the page: a business
+  // rarely states its own country in machine-readable form, and "two sources
+  // agreed" is not something any single page can tell us. They carry weights
+  // and operator-facing labels, so without this block those points could never
+  // be earned and ICP fit would be industry-only.
+  const campaignCountry = String(campaignConfig.countryCode || '').toUpperCase()
+  const companyCountry = String(company.countryCode || '').toUpperCase()
+  if (campaignCountry && companyCountry && campaignCountry === companyCountry) {
+    signals.push(signal(CATEGORY.website, 'TARGET_COUNTRY', { valueText: companyCountry, sourceUrl: websiteUrl }))
+  }
+
+  const targetMetros = (campaignConfig.metros || []).map((metro) => String(metro).toLowerCase())
+  const companyPlaces = [company.metro, company.city, company.region]
+    .filter(Boolean)
+    .map((place) => String(place).toLowerCase())
+  const matchedMetro = targetMetros.find((metro) => companyPlaces.some((place) => place.includes(metro)))
+  if (matchedMetro) {
+    signals.push(signal(CATEGORY.website, 'TARGET_METRO', { valueText: matchedMetro, sourceUrl: websiteUrl }))
+  }
+
+  // `sourceCount` is set by dedupeCandidates when two independent adapters
+  // returned the same canonical domain. Two sources agreeing is the strongest
+  // data-quality signal available before anything is crawled.
+  if (Number(company.sourceCount) >= 2) {
+    signals.push(
+      signal(CATEGORY.website, 'CORROBORATED_BY_TWO_SOURCES', {
+        valueText: String(company.sourceCount),
+        sourceUrl: websiteUrl,
       }),
     )
   }

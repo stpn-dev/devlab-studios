@@ -234,6 +234,14 @@ There is no dedicated tracking document (the engine's own comment in
 exist — see the note at the end of this file). The behaviour is:
 
 - `lead_tracking_tokens.token` is 32 random bytes, base64url, non-sequential.
+- **Tokens are minted during draft generation**, by `mintTrackedLink` in
+  `services/outreach.js`, and the resulting `/r/<token>` URL is passed to the
+  model as the **sole** `allowed_links` entry. Minting never throws — a tracking
+  failure must not cost the draft.
+- With `LEAD_TRACKING_ENABLED` off (the default) no token is minted and
+  `allowedLinks` is **empty**, which means the content guard rejects *every* URL
+  the model produces. A disabled tracker therefore cannot degrade into an
+  untracked raw link: no link is better than a link nobody decided to include.
 - `/r/:token` (`src/pages/r/[token].ts`) records a click and 302s to the
   destination. An invalid, expired, revoked or unknown token all get **the same
   answer** — a redirect to the site root — so a token cannot be probed for

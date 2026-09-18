@@ -25,6 +25,14 @@ in D1 and drained on the existing cron trigger.
 The mapping is `QUEUE_FOR_JOB_TYPE` in `queues/consumer.js`. `campaign_discovery`
 and `maintenance` have no queue and would stay on the cron path.
 
+Those seven are the complete set of job types. A unit test asserts the
+`lead_jobs.job_type` `CHECK` list matches `JOB_HANDLERS` — a job type the
+database accepts but nothing serves would be enqueued, claimed, and
+dead-lettered with "no handler", silently losing the work. (Contact discovery is
+deliberately *not* a job type: it runs inline inside `lead_research`, because
+contactability feeds the score and splitting it out would mean scoring a lead
+before knowing whether it can be contacted.)
+
 ## Consumer settings, and why concurrency is small
 
 | Queue | `max_batch_size` | `max_concurrency` | `max_retries` |

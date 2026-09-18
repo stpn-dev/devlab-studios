@@ -270,6 +270,48 @@ describe('extractSignals', () => {
     expect(keys(result).has('DISQUALIFYING_KEYWORD')).toBe(true)
   })
 
+  it('scores geography from the discovery record, not from the page', () => {
+    // A business rarely states its own country in machine-readable form, so
+    // these come from what discovery established rather than from the markup.
+    const result = extractSignals({
+      pages: [page('https://acme.com/', '<html><body>Acme</body></html>')],
+      websiteUrl: 'https://acme.com',
+      campaignConfig: { countryCode: 'US', metros: ['Austin', 'Dallas'] },
+      company: { countryCode: 'US', city: 'Austin', sourceCount: 1 },
+    })
+
+    expect(keys(result).has('TARGET_COUNTRY')).toBe(true)
+    expect(keys(result).has('TARGET_METRO')).toBe(true)
+  })
+
+  it('does not award geography to a company outside the campaign', () => {
+    const result = extractSignals({
+      pages: [page('https://acme.com/', '<html><body>Acme</body></html>')],
+      websiteUrl: 'https://acme.com',
+      campaignConfig: { countryCode: 'US', metros: ['Austin'] },
+      company: { countryCode: 'PH', city: 'Manila' },
+    })
+
+    expect(keys(result).has('TARGET_COUNTRY')).toBe(false)
+    expect(keys(result).has('TARGET_METRO')).toBe(false)
+  })
+
+  it('awards corroboration only when two independent sources agreed', () => {
+    const one = extractSignals({
+      pages: [page('https://acme.com/', '<html><body>Acme</body></html>')],
+      websiteUrl: 'https://acme.com',
+      company: { sourceCount: 1 },
+    })
+    expect(keys(one).has('CORROBORATED_BY_TWO_SOURCES')).toBe(false)
+
+    const two = extractSignals({
+      pages: [page('https://acme.com/', '<html><body>Acme</body></html>')],
+      websiteUrl: 'https://acme.com',
+      company: { sourceCount: 2 },
+    })
+    expect(keys(two).has('CORROBORATED_BY_TWO_SOURCES')).toBe(true)
+  })
+
   it('emits absence signals from the whole-site view', () => {
     const result = extractSignals({
       pages: [

@@ -121,6 +121,16 @@ export async function researchLead(env, leadId, options = {}) {
     await releaseBudget(db, 'crawl_pages', { amount: unusedPages, campaignId: lead.campaignId })
   }
 
+  // How many independent sources reported this business. Counted from the
+  // stored source records rather than carried through the pipeline, so a
+  // company corroborated by a LATER discovery run earns the signal on its next
+  // research pass too.
+  const corroboration = await db
+    .prepare('SELECT COUNT(DISTINCT source_id) AS total FROM lead_source_records WHERE company_id = ?')
+    .bind(company.id)
+    .first()
+  const sourceRecordCount = Number(corroboration?.total || 0)
+
   let pages = crawl.pages
 
   // Browser Run, only when all three conditions hold. Checked here rather than
@@ -179,10 +189,19 @@ export async function researchLead(env, leadId, options = {}) {
   }
 
   // --- Signals -------------------------------------------------------------
+  // The campaign's country travels with its config so the extractor can compare
+  // it to the company's without a second lookup.
   const extraction = extractSignals({
     pages,
     websiteUrl: company.websiteUrl,
-    campaignConfig: campaign?.config || {},
+    campaignConfig: { ...(campaign?.config || {}), countryCode: campaign?.countryCode },
+    company: {
+      countryCode: company.countryCode,
+      city: company.city,
+      metro: company.metro,
+      region: company.region,
+      sourceCount: sourceRecordCount,
+    },
   })
 
   await replaceSignals(db, leadId, extraction.signals, runId)

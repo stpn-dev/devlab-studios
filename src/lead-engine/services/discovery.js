@@ -24,7 +24,7 @@ import { upsertLead } from '../repositories/leads.js'
 import { assertSourceUsable, recordSourceRun, upsertSourceRecord } from '../repositories/sources.js'
 import { checkMonthlyDiscoveryBudget, consumeBudget, releaseBudget } from '../repositories/usage.js'
 import { resolveSettingsSafely } from '../repositories/settings.js'
-import { enqueueJob } from '../repositories/jobs.js'
+import { dispatchJob } from '../jobs/dispatch.js'
 import { operationError } from '../repositories/helpers.js'
 import { createLogger } from './log.js'
 
@@ -247,7 +247,7 @@ export async function runCampaignDiscovery(env, campaignId, options = {}) {
       // hundred businesses must not become a hundred sequential crawls inside
       // one Worker invocation.
       if (options.enqueueResearch !== false) {
-        await enqueueJob(db, {
+        await dispatchJob(env, {
           jobType: 'lead_research',
           campaignId,
           leadId: admitted.leadId,
@@ -321,7 +321,7 @@ export async function importCandidates(env, campaignId, rawCandidates, options =
 
     if (admitted.outcome === 'created') {
       results.created += 1
-      await enqueueJob(db, {
+      await dispatchJob(env, {
         jobType: 'lead_research',
         campaignId,
         leadId: admitted.leadId,

@@ -35,7 +35,7 @@ All nine are plain vars, all default `"false"`, all present in **both**
 | `LEAD_CRAWLER_ENABLED` | `researchLead` | To research them |
 | `LEAD_BROWSER_RUN_ENABLED` | The Browser Rendering fallback | Optional |
 | `LEAD_AI_ENABLED` | All four Workers AI tasks | To qualify and draft |
-| `LEAD_TRACKING_ENABLED` | Click recording and contact-form attribution | Optional |
+| `LEAD_TRACKING_ENABLED` | Minting the tracked link in a draft, click recording, contact-form attribution | Optional. **Off means drafts contain no link at all** — the content guard rejects every URL — not an untracked one. |
 | `LEAD_CAMPAIGN_SCHEDULES_ENABLED` | Cron-driven campaign discovery | Optional; leave off until a dry run looks right |
 | `ZOHO_MAIL_ENABLED` | Zoho draft creation | To reach a mailbox |
 | `ZOHO_MAIL_SYNC_ENABLED` | Inbox/Sent sync. **Additionally requires `ZOHO_MAIL_ENABLED`** | To detect sends and replies |

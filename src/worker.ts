@@ -98,10 +98,14 @@ export default {
   // Cloudflare Queues consumer for the Lead Intelligence Engine.
   //
   // Present but currently unreachable: the `queues` block in wrangler.jsonc is
-  // commented out, so no queue is bound and this handler is never invoked. It
-  // is declared now so that enabling Queues is a configuration change rather
-  // than a code change — and until then the same work drains through the D1
-  // job ledger on the cron tick above. See docs/lead-engine/queues.md.
+  // commented out, so no queue is bound and this handler is never invoked.
+  //
+  // Both halves are wired, not just this one. `dispatchJob`
+  // (src/lead-engine/jobs/dispatch.js) publishes to a queue whenever a binding
+  // exists and falls back to the D1 job ledger when it does not, so enabling
+  // Queues really is a configuration change. Until then the cron tick above
+  // drains the same work through the same handlers.
+  // See docs/lead-engine/queues.md.
   async queue(batch, env) {
     // The consumer is plain JS and declares the narrow message shape it uses;
     // the runtime's MessageBatch is wider. Narrowed at the boundary rather than

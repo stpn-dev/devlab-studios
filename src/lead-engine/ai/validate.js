@@ -7,12 +7,13 @@
  * and conflating them would hide the fact that this layer is heuristic.
  *
  * These checks are deliberately crude and deliberately loud. A draft that trips
- * one is not silently rewritten — it is rejected and regenerated once, and if
- * it trips again the draft is stored with the violations attached so the human
- * reviewing it sees exactly what the model claimed. That is the honest outcome:
- * a person is going to read every one of these before sending it, and the worst
- * thing this layer could do is quietly launder a false claim into something
- * that looks clean.
+ * one is NOT silently rewritten and NOT automatically regenerated: it is stored
+ * as it came back, with the violations attached, and the reviewer sees exactly
+ * what the model claimed. Regenerating is a button a human presses.
+ *
+ * That is the honest outcome. A person reads every one of these before sending
+ * it, and the worst thing this layer could do is quietly launder a false claim
+ * into something that looks clean.
  */
 
 /**

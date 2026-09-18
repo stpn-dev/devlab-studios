@@ -18,7 +18,7 @@
  */
 
 import { resolveFlags } from '../config/flags.js'
-import { enqueueJob } from '../repositories/jobs.js'
+import { dispatchJob } from './dispatch.js'
 import { listScheduledCampaigns } from '../repositories/campaigns.js'
 import { getSyncState } from '../repositories/syncState.js'
 import { readZohoConfig } from '../zoho/oauth.js'
@@ -73,7 +73,7 @@ export async function runScheduledTick(env, options = {}) {
   const summary = { enqueued: 0, campaigns: 0, mailboxSync: false }
 
   try {
-    await enqueueJob(db, {
+    await dispatchJob(env, {
       jobType: 'maintenance',
       payload: {},
       priority: 20,
@@ -85,7 +85,7 @@ export async function runScheduledTick(env, options = {}) {
     if (flags.zohoMailSync) {
       const config = readZohoConfig(env)
       if (config.isConfigured && (await shouldSyncMailbox(db, config.userEmail))) {
-        const { created } = await enqueueJob(db, {
+        const { created } = await dispatchJob(env, {
           jobType: 'mailbox_sync',
           payload: { mailbox: config.userEmail },
           priority: 15,
@@ -105,7 +105,7 @@ export async function runScheduledTick(env, options = {}) {
       summary.campaigns = campaigns.length
 
       for (const campaign of campaigns) {
-        const { created } = await enqueueJob(db, {
+        const { created } = await dispatchJob(env, {
           jobType: 'campaign_discovery',
           campaignId: campaign.id,
           payload: { campaignId: campaign.id },

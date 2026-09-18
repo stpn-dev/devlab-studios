@@ -21,7 +21,8 @@ import { reviewLeadOpportunity } from '../services/aiReview.js'
 import { generateOutreachDraft } from '../services/outreach.js'
 import { syncMailbox } from '../services/mailboxSync.js'
 import { processInboundReply } from '../services/replyCopilot.js'
-import { enqueueJob, pruneCompletedJobs, reclaimStaleJobs } from '../repositories/jobs.js'
+import { pruneCompletedJobs, reclaimStaleJobs } from '../repositories/jobs.js'
+import { dispatchJob } from './dispatch.js'
 import { listLeadsInStage } from '../repositories/leads.js'
 
 /**
@@ -71,7 +72,7 @@ export const JOB_HANDLERS = Object.freeze({
     })
 
     if (result.routesToAi) {
-      await enqueueJob(env.DB, {
+      await dispatchJob(env, {
         jobType: 'ai_review',
         campaignId: job.campaignId,
         leadId,
@@ -96,7 +97,7 @@ export const JOB_HANDLERS = Object.freeze({
     const result = await reviewLeadOpportunity(env, leadId, { correlationId: job.correlationId })
 
     if (result.status === 'qualified' && result.hasContact) {
-      await enqueueJob(env.DB, {
+      await dispatchJob(env, {
         jobType: 'outreach_draft',
         campaignId: job.campaignId,
         leadId,
@@ -109,7 +110,7 @@ export const JOB_HANDLERS = Object.freeze({
     // A deferred review is not a failure: the daily budget ran out, and the
     // job is re-enqueued for tomorrow rather than retried into the same wall.
     if (result.status === 'deferred') {
-      await enqueueJob(env.DB, {
+      await dispatchJob(env, {
         jobType: 'ai_review',
         campaignId: job.campaignId,
         leadId,
@@ -154,7 +155,7 @@ export const JOB_HANDLERS = Object.freeze({
         .first()
 
       if (message) {
-        await enqueueJob(env.DB, {
+        await dispatchJob(env, {
           jobType: 'reply_analysis',
           leadId: lead.id,
           payload: { messageId: message.id },
