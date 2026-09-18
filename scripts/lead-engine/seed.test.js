@@ -105,6 +105,44 @@ describe('the generated seed', () => {
     }
   })
 
+  it('seeds nominatim config in the shape the adapter actually reads', async () => {
+    // The seed and the adapter agree on `config.nominatim.queries` only by
+    // convention. A renamed key would seed cleanly, pass every other test here,
+    // and then discover nothing at runtime with no error - the adapter treats
+    // "no queries configured" as a legitimate no-op, not a failure.
+    const { buildNominatimQueries } = await import('../../src/lead-engine/discovery/nominatim.js')
+    const rows = all('SELECT slug, config_json FROM lead_campaigns')
+    const withQueries = rows.filter(
+      (row) => (JSON.parse(row.config_json).nominatim?.queries?.length ?? 0) > 0,
+    )
+
+    expect(withQueries.length).toBeGreaterThan(0)
+
+    for (const row of withQueries) {
+      const campaign = { config: JSON.parse(row.config_json) }
+
+      expect(buildNominatimQueries(campaign).length, `${row.slug} yields no queries`).toBeGreaterThan(0)
+    }
+  })
+
+  it('seeds overpass config in the shape that adapter actually reads', async () => {
+    const { buildOverpassQuery } = await import('../../src/lead-engine/discovery/overpass.js')
+    const rows = all('SELECT slug, config_json FROM lead_campaigns')
+
+    for (const row of rows) {
+      const { overpass } = JSON.parse(row.config_json)
+      if (!overpass?.areas?.length || !overpass?.tags?.length) continue
+
+      // Throws on a malformed area or tag, which is the point: a seeded bbox
+      // the query builder rejects would surface as overpass_invalid_config on
+      // a real run rather than here.
+      expect(
+        () => buildOverpassQuery({ tags: overpass.tags, bbox: overpass.areas[0].bbox, limit: 25 }),
+        `${row.slug} has unusable overpass config`,
+      ).not.toThrow()
+    }
+  })
+
   it('leaves the business identity empty, so no address is invented', () => {
     const row = db.prepare("SELECT value_json FROM lead_settings WHERE key = 'business.identity'").get()
     const identity = JSON.parse(row.value_json)
