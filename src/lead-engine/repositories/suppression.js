@@ -77,7 +77,7 @@ export async function checkSuppression(db, email) {
     .bind(normalized, domain)
     .first()
 
-  return { suppressed: Boolean(row), entry: mapRow(row) }
+  return { suppressed: Boolean(row), entry: mappedRow(row) }
 }
 
 /**
@@ -143,7 +143,7 @@ export async function addSuppression(db, input) {
     .prepare('SELECT * FROM lead_suppression WHERE scope = ? AND value = ? AND removed_at IS NULL')
     .bind(scope, value)
     .first()
-  if (existing) return { entry: mapRow(existing), created: false }
+  if (existing) return { entry: mappedRow(existing), created: false }
 
   const id = newId()
   await db
