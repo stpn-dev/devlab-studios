@@ -41,6 +41,42 @@ Throughout, replace the placeholders:
 > 1.6). Mixing regions produces `invalid_client` errors that look like a wrong
 > secret.
 
+## 1.0 The fast path — use the helper script
+
+`scripts/lead-engine/zoho-setup.mjs` does Parts 1.2 to 1.5 for you: it builds
+the authorization URL, exchanges the code, looks up the account id, and tells
+you exactly which secrets to set. It reads credentials from the ENVIRONMENT
+rather than from arguments, so your client secret never enters shell history or
+the process list, and it writes nothing to disk.
+
+```powershell
+# PowerShell
+$env:ZOHO_OAUTH_CLIENT_ID     = "1000.XXXX"
+$env:ZOHO_OAUTH_CLIENT_SECRET = "yyyy"
+
+node scripts/lead-engine/zoho-setup.mjs auth-url
+# open the URL, approve, copy `code` from the 404 page's address bar
+node scripts/lead-engine/zoho-setup.mjs exchange <CODE>
+```
+
+Then, to confirm the whole thing works against the real API:
+
+```powershell
+$env:ZOHO_OAUTH_REFRESH_TOKEN = "1000.yyyy..."
+$env:ZOHO_ACCOUNT_ID          = "<from the exchange step>"
+node scripts/lead-engine/zoho-setup.mjs verify
+```
+
+`verify` calls the exact endpoints the engine calls — the connectivity probe,
+the Inbox view and the Sent view — so a folder-addressing problem surfaces here
+rather than on the first real sync. It deliberately does NOT create a draft:
+that writes to your mailbox, so it is left for you to do from the Lead CRM.
+
+Add `--region=eu|in|au|jp|ca|sa` for a non-`.com` data centre.
+
+The manual steps below remain the reference for what the script is doing, and
+for the parts it cannot do (registering the client, setting the secrets).
+
 ## 1.1 Register a Zoho API client
 
 1. Sign in to <https://api-console.zoho.com/> with the **same Zoho account that
