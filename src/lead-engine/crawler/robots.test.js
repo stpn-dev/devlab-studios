@@ -1,0 +1,124 @@
+import { describe, expect, it } from 'vitest'
+import { fetchRobots, isPathAllowed, parseRobots } from './robots.js'
+
+const AGENT = 'devlabresearchbot/1.0 (+https://www.devlabstudios.com/crawler)'
+
+function allows(text, path, agent = AGENT) {
+  return isPathAllowed(parseRobots(text, agent), path)
+}
+
+describe('parseRobots', () => {
+  it('applies wildcard rules when no group names us', () => {
+    const text = 'User-agent: *\nDisallow: /private\n'
+    expect(allows(text, '/')).toBe(true)
+    expect(allows(text, '/private')).toBe(false)
+    expect(allows(text, '/private/page')).toBe(false)
+  })
+
+  it('prefers a group that names us over the wildcard group', () => {
+    const text = [
+      'User-agent: *',
+      'Disallow: /',
+      '',
+      'User-agent: DevLabResearchBot',
+      'Disallow: /admin',
+    ].join('\n')
+
+    expect(allows(text, '/contact')).toBe(true)
+    expect(allows(text, '/admin')).toBe(false)
+    expect(parseRobots(text, AGENT).matchedSpecificAgent).toBe(true)
+  })
+
+  it('does not merge the wildcard group into a named group', () => {
+    // The bug this guards: treating a User-agent line after a rule line as
+    // continuing the previous group, which would apply "/" to us.
+    const text = ['User-agent: DevLabResearchBot', 'Allow: /', 'User-agent: *', 'Disallow: /'].join('\n')
+    expect(allows(text, '/anything')).toBe(true)
+  })
+
+  it('shares one group between consecutive user-agent lines', () => {
+    const text = ['User-agent: SomeBot', 'User-agent: DevLabResearchBot', 'Disallow: /nope'].join('\n')
+    expect(allows(text, '/nope')).toBe(false)
+    expect(allows(text, '/yes')).toBe(true)
+  })
+
+  it('treats an empty Disallow as allowing everything', () => {
+    expect(allows('User-agent: *\nDisallow:\n', '/anything')).toBe(true)
+  })
+
+  it('lets the longest match win, with Allow winning ties', () => {
+    const text = 'User-agent: *\nDisallow: /docs\nAllow: /docs/public\n'
+    expect(allows(text, '/docs/secret')).toBe(false)
+    expect(allows(text, '/docs/public/a')).toBe(true)
+
+    expect(allows('User-agent: *\nDisallow: /\nAllow: /\n', '/x')).toBe(true)
+  })
+
+  it('supports * wildcards and the $ anchor', () => {
+    expect(allows('User-agent: *\nDisallow: /*.pdf$\n', '/forms/application.pdf')).toBe(false)
+    expect(allows('User-agent: *\nDisallow: /*.pdf$\n', '/forms/application.pdf.html')).toBe(true)
+    expect(allows('User-agent: *\nDisallow: /a/*/c\n', '/a/b/c')).toBe(false)
+  })
+
+  it('ignores comments and malformed lines', () => {
+    const text = ['# comment', 'User-agent: *', 'Disallow: /x  # trailing', 'garbage line', 'Disallow /y'].join('\n')
+    expect(allows(text, '/x')).toBe(false)
+    expect(allows(text, '/y')).toBe(true)
+  })
+
+  it('reads crawl-delay', () => {
+    expect(parseRobots('User-agent: *\nCrawl-delay: 5\n', AGENT).crawlDelay).toBe(5)
+  })
+
+  it('allows everything for an empty file', () => {
+    expect(allows('', '/anything')).toBe(true)
+  })
+})
+
+describe('fetchRobots', () => {
+  function stubFetch(response) {
+    return async () => response
+  }
+
+  it('allows everything when robots.txt is absent', async () => {
+    const robots = await fetchRobots('https://example.com', {
+      fetchImpl: stubFetch(new Response('', { status: 404 })),
+    })
+    expect(robots.status).toBe('absent')
+    expect(robots.allowed('/anything')).toBe(true)
+  })
+
+  it('refuses everything when the server is failing', async () => {
+    const robots = await fetchRobots('https://example.com', {
+      fetchImpl: stubFetch(new Response('', { status: 503 })),
+    })
+    expect(robots.status).toBe('server_error')
+    expect(robots.allowed('/')).toBe(false)
+  })
+
+  it('refuses everything when robots.txt is unreachable', async () => {
+    const robots = await fetchRobots('https://example.com', {
+      fetchImpl: async () => {
+        throw new Error('network down')
+      },
+    })
+    expect(robots.status).toBe('unreachable')
+    expect(robots.allowed('/')).toBe(false)
+  })
+
+  it('applies rules from a served robots.txt', async () => {
+    const robots = await fetchRobots('https://example.com', {
+      fetchImpl: stubFetch(new Response('User-agent: *\nDisallow: /private\nCrawl-delay: 2\n', { status: 200 })),
+    })
+    expect(robots.allowed('/contact')).toBe(true)
+    expect(robots.allowed('/private/x')).toBe(false)
+    expect(robots.crawlDelayMs).toBe(2000)
+  })
+
+  it('caps an absurd crawl-delay rather than stalling a run', async () => {
+    const robots = await fetchRobots('https://example.com', {
+      fetchImpl: stubFetch(new Response('User-agent: *\nCrawl-delay: 86400\n', { status: 200 })),
+    })
+    expect(robots.crawlDelayMs).toBe(30_000)
+  })
+})
