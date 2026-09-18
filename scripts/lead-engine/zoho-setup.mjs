@@ -133,11 +133,13 @@ The URL will look like:
 
   ${redirectUri}?code=1000.abc123...&location=us&accounts-server=...
 
-Copy the value of "code". It expires in about 60 SECONDS, so have the next
-command ready before you approve.`)
+The code expires in about 60 SECONDS. Do not bother extracting it — paste the
+WHOLE URL, in quotes. The data centre is read from it too.`)
 
-  heading('3. Exchange it')
-  console.log(`\n  node scripts/lead-engine/zoho-setup.mjs exchange <CODE>\n`)
+  heading('3. Exchange it — have this ready BEFORE you approve')
+  console.log(`
+  node scripts/lead-engine/zoho-setup.mjs exchange "<paste the whole URL>"
+`)
 }
 
 /**
