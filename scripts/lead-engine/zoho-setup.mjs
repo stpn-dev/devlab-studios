@@ -64,11 +64,17 @@ function flag(name, fallback = null) {
   return match ? match.slice(name.length + 3) : fallback
 }
 
-const region = REGIONS[flag('region', 'com')]
-if (!region) {
+let detectedRegionKey = flag('region', 'com')
+if (!REGIONS[detectedRegionKey]) {
   console.error(`Unknown region. Use one of: ${Object.keys(REGIONS).join(', ')}`)
   process.exit(1)
 }
+
+/**
+ * Resolved through a call rather than captured once, because the callback URL
+ * carries the data centre and can correct the default after this point.
+ */
+const region = () => REGIONS[detectedRegionKey]
 
 const redirectUri = flag('redirect', DEFAULT_REDIRECT)
 const clientId = (process.env.ZOHO_OAUTH_CLIENT_ID || '').trim()
@@ -102,7 +108,7 @@ function heading(text) {
 function authUrl() {
   requireCredentials()
 
-  const url = new URL(`${region.accounts}/oauth/v2/auth`)
+  const url = new URL(`${region().accounts}/oauth/v2/auth`)
   url.searchParams.set('scope', SCOPES.join(','))
   url.searchParams.set('client_id', clientId)
   url.searchParams.set('response_type', 'code')
@@ -134,12 +140,50 @@ command ready before you approve.`)
   console.log(`\n  node scripts/lead-engine/zoho-setup.mjs exchange <CODE>\n`)
 }
 
+/**
+ * Accepts either the bare code or the whole callback URL.
+ *
+ * The code expires in about sixty seconds, and asking someone to extract one
+ * query parameter by hand inside that window is how a setup attempt gets
+ * burned. Copying the entire address bar is the natural thing to do under time
+ * pressure, so that works.
+ *
+ * @param {string|undefined} value
+ * @returns {string|null}
+ */
+function readCode(value) {
+  const raw = String(value ?? '').trim().replace(/^["']|["']$/g, '')
+  if (!raw) return null
+  if (!raw.includes('?') && !raw.includes('=')) return raw
+
+  try {
+    const url = new URL(raw.startsWith('http') ? raw : `https://example.invalid/?${raw.replace(/^[?]/, '')}`)
+
+    // The callback carries the data centre too. Reading it beats making someone
+    // remember a --region flag: a region mismatch otherwise surfaces as
+    // `invalid_client`, which reads exactly like a wrong secret.
+    const server = url.searchParams.get('accounts-server')
+    if (server && !args.some((arg) => arg.startsWith('--region='))) {
+      const matched = Object.entries(REGIONS).find(([, urls]) => server.startsWith(urls.accounts))
+      if (matched && matched[0] !== detectedRegionKey) {
+        detectedRegionKey = matched[0]
+        console.log(`
+Using the ${matched[0]} data centre, read from the callback URL.`)
+      }
+    }
+
+    return url.searchParams.get('code')
+  } catch {
+    return raw
+  }
+}
+
 async function exchange() {
   requireCredentials()
 
-  const code = positional[0]
+  const code = readCode(positional[0])
   if (!code) {
-    console.error('\nUsage: node scripts/lead-engine/zoho-setup.mjs exchange <CODE>\n')
+    console.error('\nUsage: node scripts/lead-engine/zoho-setup.mjs exchange <CODE or the whole callback URL>\n')
     process.exit(1)
   }
 
@@ -151,7 +195,7 @@ async function exchange() {
     code,
   })
 
-  const response = await fetch(`${region.accounts}/oauth/v2/token`, {
+  const response = await fetch(`${region().accounts}/oauth/v2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
@@ -194,7 +238,7 @@ Copy this now. It is shown ONCE and is long-lived — treat it like a password.
   // instead of a second hand-crafted request.
   heading('Looking up the account id')
 
-  const accountsResponse = await fetch(`${region.mail}/accounts`, {
+  const accountsResponse = await fetch(`${region().mail}/accounts`, {
     headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, Accept: 'application/json' },
   })
 
@@ -207,7 +251,7 @@ Could not read the account list (HTTP ${accountsResponse.status}).
 
 The refresh token above is still valid — keep it. Find the account id manually:
 
-  curl -H "Authorization: Zoho-oauthtoken <ACCESS_TOKEN>" ${region.mail}/accounts
+  curl -H "Authorization: Zoho-oauthtoken <ACCESS_TOKEN>" ${region().mail}/accounts
 `)
     process.exit(1)
   }
@@ -233,10 +277,10 @@ the preview environment instead of production.
   npx wrangler secret put ZOHO_ACCOUNT_ID       → ${primary.accountId}
   npx wrangler secret put ZOHO_USER_EMAIL       → ${primary.primaryEmailAddress || '<the mailbox address>'}
 ${
-  flag('region', 'com') === 'com'
+  detectedRegionKey === 'com'
     ? ''
-    : `  npx wrangler secret put ZOHO_ACCOUNTS_BASE_URL → ${region.accounts}
-  npx wrangler secret put ZOHO_API_BASE_URL     → ${region.mail}
+    : `  npx wrangler secret put ZOHO_ACCOUNTS_BASE_URL → ${region().accounts}
+  npx wrangler secret put ZOHO_API_BASE_URL     → ${region().mail}
 `
 }
 Then flip the flags in wrangler.jsonc (both environments) when you are ready:
@@ -264,9 +308,9 @@ async function verify() {
 
   heading('Configuration')
   console.log(`
-  region        : ${flag('region', 'com')}
-  accounts URL  : ${region.accounts}
-  mail API URL  : ${region.mail}
+  region        : ${detectedRegionKey}
+  accounts URL  : ${region().accounts}
+  mail API URL  : ${region().mail}
   client id     : ${fingerprint(clientId)}
   client secret : ${fingerprint(clientSecret)}
   refresh token : ${fingerprint(refreshToken)}
@@ -274,7 +318,7 @@ async function verify() {
 
   heading('Refreshing the access token')
 
-  const tokenResponse = await fetch(`${region.accounts}/oauth/v2/token`, {
+  const tokenResponse = await fetch(`${region().accounts}/oauth/v2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -298,21 +342,21 @@ async function verify() {
 
   /** Each check is the exact call a part of the engine makes. */
   const checks = [
-    ['accounts', `${region.mail}/accounts`, 'the settings-screen connectivity probe'],
+    ['accounts', `${region().mail}/accounts`, 'the settings-screen connectivity probe'],
   ]
 
   const accountId = (process.env.ZOHO_ACCOUNT_ID || '').trim()
   if (accountId) {
     checks.push(
-      [`account ${accountId}`, `${region.mail}/accounts/${accountId}`, 'checkConnection()'],
+      [`account ${accountId}`, `${region().mail}/accounts/${accountId}`, 'checkConnection()'],
       [
         'inbox view',
-        `${region.mail}/accounts/${accountId}/messages/view?folderName=Inbox&limit=1`,
+        `${region().mail}/accounts/${accountId}/messages/view?folderName=Inbox&limit=1`,
         'mailbox sync (Inbox)',
       ],
       [
         'sent view',
-        `${region.mail}/accounts/${accountId}/messages/view?folderName=Sent&limit=1`,
+        `${region().mail}/accounts/${accountId}/messages/view?folderName=Sent&limit=1`,
         'mailbox sync (Sent) — this is what detects a manual send',
       ],
     )
@@ -352,7 +396,7 @@ the "not verified against the live API" list in
 docs/lead-engine/zoho-integration.md. Get the folder ids with:
 
   curl -H "Authorization: Zoho-oauthtoken <ACCESS_TOKEN>" \\
-    ${region.mail}/accounts/${accountId || '<ACCOUNT_ID>'}/folders
+    ${region().mail}/accounts/${accountId || '<ACCOUNT_ID>'}/folders
 
 and tell me the result — listMessages() in src/lead-engine/zoho/client.js is
 the one place that needs changing.
