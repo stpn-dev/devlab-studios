@@ -52,6 +52,7 @@ decided against that surface specifically:
 ## [Unreleased]
 
 ### Fixed
+- **Facebook footer icon.** Facebook social links now render a recognizable Facebook glyph instead of falling back to the email envelope.
 - **Admin navigation state and density.** Exact route matching prevents the Lead CRM Dashboard and the selected child screen from appearing active together. Sidebar sections can now be expanded or collapsed, the current section opens automatically, and desktop users can persist an icon-only compact mode so the growing CMS navigation no longer dominates the workspace.
 
 ## [1.9.0] - 2026-09-18
