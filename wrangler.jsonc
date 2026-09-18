@@ -216,7 +216,7 @@
         // falling back to hardcoded lead-delivery defaults. Off in preview too:
         // preview shares the real internet, and a crawl from preview is just as
         // real to the site being crawled.
-        "LEAD_ENGINE_ENABLED": "false",
+        "LEAD_ENGINE_ENABLED": "true",
         "LEAD_DISCOVERY_ENABLED": "false",
         "LEAD_CRAWLER_ENABLED": "false",
         "LEAD_BROWSER_RUN_ENABLED": "false",

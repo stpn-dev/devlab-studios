@@ -107,17 +107,16 @@ describe('assertFlag', () => {
 describe('shipped configuration', () => {
   const wrangler = readFileSync(resolve(repoRoot, 'wrangler.jsonc'), 'utf8')
 
-  it('ships every flag as "false" in both environments', () => {
-    // The guarantee that deploying this branch changes nothing observable. If
-    // someone flips one of these on in a commit rather than as an operational
-    // decision, this fails.
+  it('keeps production inert and enables only the preview shell', () => {
+    // Production remains fully inert. Preview deliberately exposes the CRM
+    // shell while every capability stays off, so no discovery, crawl, AI call,
+    // mailbox operation or scheduled campaign can start.
     for (const key of Object.values(FLAG_KEYS)) {
       const occurrences = [...wrangler.matchAll(new RegExp(`"${key}"\\s*:\\s*"(\\w+)"`, 'g'))].map((m) => m[1])
 
       expect(occurrences.length, `${key} should appear in production and preview vars`).toBe(2)
-      for (const value of occurrences) {
-        expect(value, `${key} must ship as "false"`).toBe('false')
-      }
+      expect(occurrences[0], `${key} must stay off in production`).toBe('false')
+      expect(occurrences[1], `${key} has the wrong preview state`).toBe(key === FLAG_KEYS.engine ? 'true' : 'false')
     }
   })
 
