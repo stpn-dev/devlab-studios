@@ -1,12 +1,23 @@
 # Testing
 
 Written as part of Phase 6 (deployment & hardening) of the Astro/CMS
-rebuild program. There is no unit test suite — this project's test
-coverage is entirely Playwright end-to-end, deliberately: almost all of
-the actual logic worth verifying is the interaction between Astro
-SSR/middleware, D1, and the admin UI, which unit tests in isolation
-wouldn't catch (several real bugs this session were only found because a
-full e2e flow was exercised — see `docs/content-model.md`'s history and
+rebuild program.
+
+> **Out of date since this was written.** It said "there is no unit test
+> suite — this project's test coverage is entirely Playwright end-to-end".
+> That was true of the Phase 6 CMS work and is no longer true of the
+> repository: `npm run test:unit` runs over a thousand vitest tests covering
+> the inquiry pipeline, the Insights digest, the pickleball app and the Lead
+> Intelligence Engine. Run both suites. See
+> [docs/lead-engine/testing.md](lead-engine/testing.md) for that engine's
+> coverage specifically.
+
+The reasoning below still holds for the CMS surface, and is why the e2e
+suite exists alongside the unit tests rather than being replaced by them:
+almost all of the logic worth verifying there is the interaction between
+Astro SSR/middleware, D1, and the admin UI, which unit tests in isolation
+wouldn't catch (several real bugs during that phase were only found because
+a full e2e flow was exercised — see `docs/content-model.md`'s history and
 git log for specifics).
 
 ## Suite layout
@@ -16,8 +27,13 @@ projects, each against a different running server (`playwright.config.js`):
 
 | Project | Spec files | Server | Why |
 |---|---|---|---|
-| `static` | `public-pages.spec.js`, `contact-form.spec.js` | `astro build && astro preview` | These pages don't need the real auth/D1 CRUD path — `astro preview` is faster to boot and closer to a CDN-cached static response |
-| `worker` | `admin.spec.js` | `wrangler dev --local` | Exercises the real ported auth (`adminAuth.js`), D1 CRUD, and `waitUntil` background delivery — `astro preview` doesn't run a real `workerd` runtime, so this is the only way to test those for real |
+| `static` | `public-pages.spec.js`, `contact-form.spec.js`, `image-weight.spec.js` | `astro build && astro preview` | These pages don't need the real auth/D1 CRUD path — `astro preview` is faster to boot and closer to a CDN-cached static response |
+| `worker` | `admin.spec.js`, `digest.spec.js`, `lead-crm.spec.js`, `pickleball/*.spec.js` | `wrangler dev --local` | Exercises the real ported auth (`adminAuth.js`), D1 CRUD, and `waitUntil` background delivery — `astro preview` doesn't run a real `workerd` runtime, so this is the only way to test those for real |
+
+`desktop-safari` and `mobile-safari` re-run the `static` specs against those
+devices. A new spec file matches NO project until it is added to a
+`testMatch` in `playwright.config.js` — Playwright reports "No tests found"
+rather than an error, so a spec can silently never run.
 
 Run everything: `npx playwright test --workers=1`. `--workers=1` isn't
 required for correctness (tests are written to be independent) but keeps
