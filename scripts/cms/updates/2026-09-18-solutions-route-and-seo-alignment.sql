@@ -145,3 +145,31 @@ INSERT OR IGNORE INTO seo_metadata (
     'https://www.devlabstudios.com/devlabstudios-logo-only.png',
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   );
+
+-- 7. The Insights page's section headings are CMS values, so changing the code
+--    default was not enough: "Latest From the Feed" kept rendering from D1.
+--    The page is no longer a feed of recent posts — it is the full library of
+--    fifteen articles with topic filters — so the heading has to say that.
+UPDATE page_sections
+SET content_json = json_set(
+      json_set(content_json, '$.heading', 'All articles'),
+      '$.body',
+      'Guides, AI updates, and operational notes for modern workflows. Filter by what you need.'
+    ),
+    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE page_id = (SELECT id FROM pages WHERE slug = 'insights')
+  AND section_type = 'richText'
+  AND json_extract(content_json, '$.heading') = 'Latest From the Feed';
+
+-- The featured section keeps its name but should describe a pick from the
+-- library rather than a separate class of post.
+UPDATE page_sections
+SET content_json = json_set(
+      content_json,
+      '$.body',
+      'One article from the library, chosen as the best starting point right now.'
+    ),
+    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE page_id = (SELECT id FROM pages WHERE slug = 'insights')
+  AND section_type = 'richText'
+  AND json_extract(content_json, '$.heading') = 'Featured Insight';
