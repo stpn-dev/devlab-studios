@@ -40,7 +40,7 @@ disarmed.
 | [queues.md](queues.md) | The four queues, consumer settings, why they are not bound, and the D1 job ledger that makes them optional |
 | [operations.md](operations.md) | The daily working loop, reading the dashboard, usage guardrails, dead-lettered jobs, failed syncs, exhausted AI budget |
 | [environment.md](environment.md) | Every variable and secret, which is which, defaults, and what is optional |
-| [testing.md](testing.md) | The 426 unit tests, how to run them, and what is deliberately not covered |
+| [testing.md](testing.md) | The 497 unit tests, how to run them, and what is deliberately not covered |
 | [deployment.md](deployment.md) | How this ships inside the existing deploy process, the migration, and the ordered enable sequence |
 | [dry-run.md](dry-run.md) | The exact procedure for Discovery Campaign 001, and what to inspect before anyone is contacted |
 | [disaster-recovery.md](disaster-recovery.md) | What is in Git, what is only operational data, D1 backup/restore, and reconstruction |
