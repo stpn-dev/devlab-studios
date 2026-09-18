@@ -55,7 +55,16 @@ export default defineConfig({
     },
     {
       name: 'worker',
-      testMatch: [/admin\.spec\.js/, /digest\.spec\.js/, /pickleball[\\/].*\.spec\.js/],
+      // The Lead CRM suite belongs to the `worker` project, not `static`: it
+      // signs in, calls `/api/admin/*`, and exercises `/r/:token` — all of
+      // which need the wrangler dev worker with its D1 binding rather than the
+      // preview server.
+      testMatch: [
+        /admin\.spec\.js/,
+        /digest\.spec\.js/,
+        /lead-crm\.spec\.js/,
+        /pickleball[\\/].*\.spec\.js/,
+      ],
       use: { baseURL: 'http://localhost:8787' },
     },
     {

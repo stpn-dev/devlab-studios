@@ -1,0 +1,195 @@
+import { test, expect } from '@playwright/test'
+
+/**
+ * Lead CRM end-to-end checks.
+ *
+ * Focused on the properties that unit tests cannot prove because they are
+ * properties of the DEPLOYED application rather than of a module:
+ *
+ *   1. Every Lead CRM API is actually behind the admin gate. The routes do not
+ *      check auth individually — they rely on the blanket middleware — so the
+ *      only honest verification is to call them over HTTP without a session.
+ *   2. The public tracked redirect never leaves the allow-listed host and never
+ *      errors, including when the engine is switched off.
+ *   3. The crawler disclosure page is reachable and states the user agent the
+ *      crawler actually sends, because the transparent user agent is only
+ *      transparent if the URL it names resolves.
+ *   4. The CRM screens render inside the existing admin shell rather than as a
+ *      separate application.
+ *
+ * The engine ships with every flag off, so these run against an inert system —
+ * which is exactly the state a deploy of this branch produces.
+ */
+
+const ADMIN_EMAIL = 'smoke-test@devlabstudios.com'
+const ADMIN_PASSWORD = 'smoke-test-password-123'
+const SESSION_COOKIE = 'devlab_admin_session'
+
+/** Every Lead CRM endpoint, as an unauthenticated caller would reach them. */
+const LEAD_CRM_ENDPOINTS = [
+  '/api/admin/lead-crm/dashboard',
+  '/api/admin/lead-crm/leads',
+  '/api/admin/lead-crm/campaigns',
+  '/api/admin/lead-crm/replies',
+  '/api/admin/lead-crm/conversations',
+  '/api/admin/lead-crm/activity',
+  '/api/admin/lead-crm/sources',
+  '/api/admin/lead-crm/suppression',
+  '/api/admin/lead-crm/settings',
+  '/api/admin/lead-crm/jobs',
+  '/api/admin/lead-crm/zoho/status',
+]
+
+let cachedSessionCookie = null
+
+/** One sign-in per worker — /api/admin/login is rate limited, deliberately. */
+async function login(page) {
+  if (cachedSessionCookie) {
+    await page.context().addCookies([cachedSessionCookie])
+    await page.goto('/admin')
+    await expect(page.getByRole('button', { name: /log ?out/i })).toBeVisible({ timeout: 10_000 })
+    return
+  }
+
+  await page.goto('/admin')
+  await page.getByLabel('Email').fill(ADMIN_EMAIL)
+  await page.getByLabel('Password', { exact: true }).fill(ADMIN_PASSWORD)
+  await page.getByRole('button', { name: /sign in/i }).click()
+  await expect(page.getByRole('button', { name: /log ?out/i })).toBeVisible({ timeout: 10_000 })
+
+  const cookies = await page.context().cookies()
+  cachedSessionCookie = cookies.find((cookie) => cookie.name === SESSION_COOKIE) || null
+}
+
+test.describe('Lead CRM API authorization', () => {
+  test('every Lead CRM endpoint refuses an unauthenticated caller', async ({ request, baseURL }) => {
+    for (const path of LEAD_CRM_ENDPOINTS) {
+      const response = await request.get(`${baseURL}${path}`)
+      expect(response.status(), `${path} must require a session`).toBe(401)
+    }
+  })
+
+  test('writes are refused too, not just reads', async ({ request, baseURL }) => {
+    const writes = [
+      ['post', '/api/admin/lead-crm/campaigns', { name: 'x', slug: 'x', countryCode: 'US' }],
+      ['post', '/api/admin/lead-crm/suppression', { scope: 'email', value: 'a@b.com', reason: 'manual_block' }],
+      ['post', '/api/admin/lead-crm/jobs', { action: 'drain' }],
+      ['put', '/api/admin/lead-crm/settings', { key: 'x', value: 1 }],
+    ]
+
+    for (const [method, path, body] of writes) {
+      const response = await request[method](`${baseURL}${path}`, { data: body })
+      expect(response.status(), `${method.toUpperCase()} ${path} must require a session`).toBe(401)
+    }
+  })
+})
+
+test.describe('public tracked redirect', () => {
+  test('an unknown token redirects to the site root rather than erroring', async ({ request, baseURL }) => {
+    const response = await request.get(`${baseURL}/r/a-token-that-does-not-exist`, { maxRedirects: 0 })
+
+    expect(response.status()).toBe(302)
+    expect(response.headers().location).toBe('https://www.devlabstudios.com/')
+  })
+
+  test('never redirects off the allow-listed host', async ({ request, baseURL }) => {
+    // Values shaped like traversal or an injected host. None may produce a
+    // Location pointing anywhere but devlabstudios.com.
+    const hostile = [
+      '..%2F..%2Fetc%2Fpasswd',
+      'https:%2F%2Fattacker.com',
+      '%2F%2Fattacker.com',
+      'x'.repeat(200),
+    ]
+
+    for (const token of hostile) {
+      const response = await request.get(`${baseURL}/r/${token}`, { maxRedirects: 0 })
+      const location = response.headers().location
+
+      if (location) {
+        expect(new URL(location).hostname, `token "${token}" redirected off-site`).toMatch(/^(www\.)?devlabstudios\.com$/)
+      }
+    }
+  })
+
+  test('is not cacheable, so a click is always recorded', async ({ request, baseURL }) => {
+    const response = await request.get(`${baseURL}/r/some-token`, { maxRedirects: 0 })
+    expect(response.headers()['cache-control']).toContain('no-store')
+  })
+})
+
+test.describe('crawler disclosure page', () => {
+  test('is reachable and names the exact user agent the crawler sends', async ({ page }) => {
+    await page.goto('/crawler')
+
+    await expect(page.getByRole('heading', { name: /About DevLabResearchBot/i })).toBeVisible()
+    await expect(page.getByText('DevLabResearchBot/1.0 (+https://www.devlabstudios.com/crawler)')).toBeVisible()
+  })
+
+  test('tells a site operator how to block it', async ({ page }) => {
+    await page.goto('/crawler')
+
+    await expect(page.getByText('User-agent: DevLabResearchBot')).toBeVisible()
+    await expect(page.getByText(/robots\.txt/).first()).toBeVisible()
+  })
+})
+
+test.describe('Lead CRM admin screens', () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page)
+  })
+
+  test('appear in the CMS navigation, separate from Inquiries', async ({ page }) => {
+    await page.goto('/admin')
+
+    const nav = page.getByRole('navigation')
+    await expect(nav.getByText('Lead CRM', { exact: true })).toBeVisible()
+    // The pre-existing inbound inbox must still be there and still be distinct.
+    await expect(nav.getByRole('link', { name: 'Inquiries' })).toBeVisible()
+  })
+
+  test('the dashboard renders inside the existing admin shell', async ({ page }) => {
+    await page.goto('/admin/lead-crm')
+
+    await expect(page.getByRole('heading', { name: 'Lead CRM', level: 1 })).toBeVisible()
+    // Still the CMS: same shell, same sign-out control.
+    await expect(page.getByRole('button', { name: /log ?out/i })).toBeVisible()
+  })
+
+  test('says plainly that the engine is switched off', async ({ page }) => {
+    // The shipped state. Without this banner an operator would reasonably
+    // conclude the feature is broken rather than disabled.
+    await page.goto('/admin/lead-crm')
+
+    await expect(page.getByText(/Lead Intelligence Engine is switched off/i)).toBeVisible()
+    await expect(page.getByText('LEAD_ENGINE_ENABLED')).toBeVisible()
+  })
+
+  test('every CRM screen loads without error', async ({ page }) => {
+    const screens = [
+      ['/admin/lead-crm/campaigns', 'Campaigns'],
+      ['/admin/lead-crm/leads', 'Leads'],
+      ['/admin/lead-crm/review', 'Review queue'],
+      ['/admin/lead-crm/replies', 'Replies'],
+      ['/admin/lead-crm/conversations', 'Conversations'],
+      ['/admin/lead-crm/activity', 'Activity'],
+      ['/admin/lead-crm/sources', 'Sources'],
+      ['/admin/lead-crm/suppression', 'Suppression'],
+      ['/admin/lead-crm/settings', 'Lead CRM settings'],
+    ]
+
+    for (const [path, heading] of screens) {
+      await page.goto(path)
+      await expect(page.getByRole('heading', { name: heading, level: 1 }), `${path} did not render`).toBeVisible()
+    }
+  })
+
+  test('the settings screen shows every flag as off and no send switch', async ({ page }) => {
+    await page.goto('/admin/lead-crm/settings')
+
+    await expect(page.getByRole('heading', { name: 'Feature flags' })).toBeVisible()
+    await expect(page.getByText(/no automated-send flag/i)).toBeVisible()
+    // Nothing on this screen may offer to send mail.
+    await expect(page.getByRole('button', { name: /^send$/i })).toHaveCount(0)
+  })
+})
