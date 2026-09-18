@@ -199,6 +199,37 @@ function elementToRaw(element) {
 }
 
 /**
+ * Whether an Overpass response came from an instance that actually has data.
+ *
+ * MEASURED, not theoretical. On 18 September 2026 `overpass.osm.ch` answered
+ * **HTTP 200** with a well-formed body, an empty `elements` array, and
+ * `"timestamp_osm_base": "117103"` — which is not a timestamp. A health check
+ * written against status codes calls that mirror healthy, discovery reports
+ * success, and nothing is ever found. That is the same failure shape as reading
+ * the wrong mailbox folder: the wrong answer arrives looking like the right one.
+ *
+ * An EMPTY `elements` array is NOT unhealthy on its own — a bbox with no
+ * matching business is an ordinary, correct result. Only the envelope is
+ * judged, because only the envelope can distinguish "nothing is there" from
+ * "this instance cannot tell you what is there".
+ *
+ * @param {unknown} body
+ * @returns {boolean}
+ */
+export function hasUsableOverpassData(body) {
+  if (!body || typeof body !== 'object') return false
+  if (!Array.isArray(body.elements)) return false
+
+  const stamp = body.osm3s?.timestamp_osm_base
+  // A healthy instance reports when its data was last cut, as an ISO-8601
+  // instant. A bare integer, an empty string or a missing field all mean the
+  // instance cannot vouch for its own data.
+  if (typeof stamp !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(stamp)) return false
+
+  return !Number.isNaN(Date.parse(stamp))
+}
+
+/**
  * Classifies a failed response into a reason an operator can act on.
  *
  * @param {number} status
@@ -308,8 +339,16 @@ export async function discoverViaOverpass(options = {}) {
       return { candidates: collected, requests, error: 'overpass_invalid_json' }
     }
 
+    // Two distinct faults, kept distinct because they call for opposite fixes.
+    // A body with no `elements` array is malformed — the query or the server
+    // reply is wrong. A well-formed body from an instance that cannot vouch for
+    // its own data means change endpoint, not query.
     const elements = Array.isArray(body?.elements) ? body.elements : null
     if (!elements) return { candidates: collected, requests, error: 'overpass_malformed_response' }
+
+    if (!hasUsableOverpassData(body)) {
+      return { candidates: collected, requests, error: 'overpass_endpoint_unusable' }
+    }
 
     for (const element of elements) {
       if (collected.length >= target) break

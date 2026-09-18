@@ -64,6 +64,30 @@ const SOURCES = [
     ].join(' '),
   },
   {
+    slug: 'osm-nominatim',
+    name: 'OpenStreetMap (Nominatim search)',
+    // `search_api`, not a new `osm_nominatim` value, because migration 0012 is
+    // already applied to both databases and its CHECK constraint cannot be
+    // widened without rebuilding a table that lead_source_runs references by
+    // foreign key. The value is accurate anyway - Nominatim is a search API -
+    // and nothing dispatches on `type`; the adapter is chosen by `slug`.
+    type: 'search_api',
+    baseUrl: 'https://nominatim.openstreetmap.org/search',
+    policyNotes: [
+      'Free, keyless, ODbL-licensed, over the same OpenStreetMap data as Overpass but asking a',
+      'free-text question rather than a tag-and-bbox one. Before enabling, read the Nominatim',
+      'Usage Policy (https://operations.osmfoundation.org/policies/nominatim/): it caps automated',
+      'clients at ONE REQUEST PER SECOND as an absolute limit, requires an identifying',
+      'User-Agent, and asks heavy users to self-host. The adapter enforces the interval with a',
+      'real delay and keeps the per-run budget small, but that does not itself grant permission.',
+      'Note on query phrasing: Nominatim resolves OSM special phrases, so "dentist Austin TX"',
+      'and "law firm Houston" return results where "hvac contractor Phoenix" returns none. A',
+      'zero-result query is reported per query so it can be rewritten.',
+      'Attribution: OSM data must be credited where it is displayed publicly. It is not',
+      'displayed publicly here — it is internal research evidence only.',
+    ].join(' '),
+  },
+  {
     slug: 'brave-search',
     name: 'Brave Search API',
     type: 'search_api',
@@ -178,6 +202,28 @@ const CAMPAIGN = {
       ],
     },
 
+    /**
+     * MEASURED AGAINST THE LIVE API, 18 September 2026, and kept deliberately
+     * short as a result.
+     *
+     *   real estate agency Austin TX     0 results
+     *   property management Austin TX    0 results
+     *   estate agent Charlotte NC        0 results
+     *   real estate Charlotte NC         3 results, 1 with a website
+     *
+     * Nominatim resolves OSM special phrases, and this trade has almost no
+     * usable mapping. For THIS vertical the Overpass tag query
+     * (office=estate_agent) is the right instrument and Nominatim is close to
+     * useless — the opposite of the cross-industry campaigns below. Left in
+     * only so the per-query yield is visible in the run report rather than
+     * assumed.
+     */
+    nominatim: {
+      queries: ['real estate Charlotte NC', 'real estate Austin TX'],
+      countryCodes: 'us',
+      limit: 40,
+    },
+
     brave: {
       // One request each, and only used if a Brave key is configured.
       queries: [
@@ -192,6 +238,143 @@ const CAMPAIGN = {
     },
   },
 }
+
+/**
+ * Metro bounding boxes, shared by every campaign below.
+ *
+ * [south, west, north, east], deliberately tight - a loose box returns a
+ * state's worth of results and spends the candidate budget on businesses
+ * nowhere near the metro.
+ */
+const METROS = Object.freeze({
+  austin: { name: 'Austin, TX', bbox: [30.1, -97.94, 30.52, -97.56] },
+  dallas: { name: 'Dallas, TX', bbox: [32.62, -96.99, 32.99, -96.6] },
+  houston: { name: 'Houston, TX', bbox: [29.6, -95.55, 29.88, -95.2] },
+  phoenix: { name: 'Phoenix, AZ', bbox: [33.29, -112.32, 33.71, -111.92] },
+  charlotte: { name: 'Charlotte, NC', bbox: [35.1, -80.95, 35.39, -80.68] },
+})
+
+/**
+ * Cross-industry campaigns.
+ *
+ * WHY THESE EXIST, AND WHY THEIR QUERIES LOOK THE WAY THEY DO.
+ *
+ * The engine is vertical-agnostic - nothing about an industry lives in its
+ * source, only in these config rows. Campaign 001 above is property
+ * management, and measuring the free sources against it produced an
+ * uncomfortable result: Nominatim returns essentially nothing for that trade,
+ * because OSM has no special phrase for it. Restricting discovery to one
+ * vertical therefore also restricts it to the source that is hardest to reach
+ * for free.
+ *
+ * Every `nominatim.queries` entry below was RUN against the live API on
+ * 18 September 2026 and kept only if it returned businesses carrying a website
+ * tag, since a business with no website is dropped downstream. Measured yield,
+ * as results / with-a-website:
+ *
+ *   hotel Charlotte NC        40 / 26      law firm Houston      22 / 17
+ *   insurance Dallas TX       40 / 18      dentist Austin TX     26 / 14
+ *   pharmacy Austin TX        40 / 18      doctors Phoenix AZ    14 /  4
+ *   restaurant Austin TX      12 /  4      car repair Dallas TX   9 /  2
+ *
+ * Phrasings that measured ZERO were discarded rather than seeded hopefully:
+ * accountant, veterinary clinic, hairdresser, estate agent, hvac contractor,
+ * plumbing company. If a vertical you want is missing, measure it first - the
+ * adapter reports per-query yield precisely so this stays evidence-based.
+ *
+ * All seeded as DRAFT with schedules disarmed, exactly like Campaign 001.
+ * Activating one and arming its schedule remain separate, deliberate acts.
+ */
+const CROSS_INDUSTRY = [
+  {
+    name: 'US Legal & Professional Services',
+    slug: 'us-legal-professional-services',
+    industryLabel: 'Legal and professional services',
+    targetIndustries: ['law firm', 'attorney', 'legal services', 'litigation', 'law office'],
+    serviceTerms: ['free consultation', 'case evaluation', 'client intake', 'retainer', 'practice areas'],
+    disqualifyingKeywords: ['legal directory', 'find a lawyer', 'legal software', 'law school', 'bar association'],
+    nominatimQueries: ['law firm Houston', 'law firm Austin TX', 'law firm Dallas TX', 'law firm Charlotte NC'],
+    overpassTags: [{ key: 'office', value: 'lawyer' }],
+    metroKeys: ['houston', 'austin', 'dallas', 'charlotte'],
+  },
+  {
+    name: 'US Dental & Medical Practices',
+    slug: 'us-dental-medical-practices',
+    industryLabel: 'Dental and medical practices',
+    targetIndustries: ['dental practice', 'dentist', 'family medicine', 'clinic', 'medical practice'],
+    serviceTerms: ['book an appointment', 'new patient', 'patient portal', 'insurance accepted', 'emergency visit'],
+    disqualifyingKeywords: ['hospital system', 'medical school', 'practice management software', 'dental supplies'],
+    nominatimQueries: ['dentist Austin TX', 'dentist Dallas TX', 'dentist Charlotte NC', 'doctors Phoenix AZ'],
+    overpassTags: [
+      { key: 'amenity', value: 'dentist' },
+      { key: 'amenity', value: 'doctors' },
+    ],
+    metroKeys: ['austin', 'dallas', 'charlotte', 'phoenix'],
+  },
+  {
+    name: 'US Hospitality',
+    slug: 'us-hospitality',
+    industryLabel: 'Hotels and restaurants',
+    targetIndustries: ['hotel', 'inn', 'restaurant', 'bistro', 'hospitality'],
+    serviceTerms: ['book a table', 'reservations', 'check availability', 'menu', 'private events'],
+    disqualifyingKeywords: ['booking aggregator', 'restaurant directory', 'franchise opportunity', 'food delivery app'],
+    nominatimQueries: ['hotel Charlotte NC', 'hotel Austin TX', 'restaurant Austin TX', 'restaurant Charlotte NC'],
+    overpassTags: [
+      { key: 'tourism', value: 'hotel' },
+      { key: 'amenity', value: 'restaurant' },
+    ],
+    metroKeys: ['charlotte', 'austin', 'dallas', 'houston'],
+  },
+  {
+    name: 'US Local Services & Retail',
+    slug: 'us-local-services-retail',
+    industryLabel: 'Insurance, pharmacy and vehicle services',
+    targetIndustries: ['insurance agency', 'pharmacy', 'auto repair', 'service centre', 'independent agent'],
+    serviceTerms: ['get a quote', 'request an appointment', 'refill', 'schedule service', 'walk-ins welcome'],
+    disqualifyingKeywords: ['comparison site', 'insurance marketplace', 'lead generation', 'franchise opportunity'],
+    nominatimQueries: ['insurance Dallas TX', 'pharmacy Austin TX', 'insurance Charlotte NC', 'car repair Dallas TX'],
+    overpassTags: [
+      { key: 'office', value: 'insurance' },
+      { key: 'amenity', value: 'pharmacy' },
+      { key: 'shop', value: 'car_repair' },
+    ],
+    metroKeys: ['dallas', 'austin', 'charlotte', 'phoenix'],
+  },
+].map((entry) => ({
+  id: randomUUID(),
+  name: entry.name,
+  slug: entry.slug,
+  description: [
+    `Cross-industry discovery for ${entry.industryLabel.toLowerCase()}.`,
+    'Seeded as a DRAFT with its schedule disarmed, like Campaign 001: activating it and arming',
+    'the schedule are separate, deliberate actions. Nominatim queries were measured against the',
+    'live API before seeding and only phrasings that returned businesses with websites were kept.',
+  ].join(' '),
+  countryCode: 'US',
+  maxCandidates: 100,
+  maxAiReviews: 40,
+  config: {
+    industryLabel: entry.industryLabel,
+    targetIndustries: entry.targetIndustries,
+    serviceTerms: entry.serviceTerms,
+    disqualifyingKeywords: entry.disqualifyingKeywords,
+    metros: entry.metroKeys.map((key) => METROS[key].name.split(',')[0]),
+    overpass: {
+      areas: entry.metroKeys.map((key) => METROS[key]),
+      tags: entry.overpassTags,
+    },
+    nominatim: {
+      queries: entry.nominatimQueries,
+      countryCodes: 'us',
+      limit: 40,
+    },
+    // No `brave` block: these campaigns are designed to run without a paid
+    // search key at all. Adding one later is a config edit, not a code change.
+  },
+}))
+
+/** Campaign 001 first, because the dry-run documentation refers to it by name. */
+const CAMPAIGNS = [CAMPAIGN, ...CROSS_INDUSTRY]
 
 const lines = []
 
@@ -215,17 +398,22 @@ VALUES (${sql(randomUUID())}, ${sql(source.name)}, ${sql(source.slug)}, ${sql(so
   lines.push('')
 }
 
-lines.push(
-  `INSERT OR IGNORE INTO lead_campaigns
+// Every campaign is seeded 'draft' with schedule_enabled = 0. Neither value is
+// derived from the campaign definition, so no future edit to one of those
+// objects can arm a schedule by accident.
+for (const campaign of CAMPAIGNS) {
+  lines.push(
+    `INSERT OR IGNORE INTO lead_campaigns
   (id, name, slug, description, status, country_code, config_json,
    max_candidates, max_ai_reviews, schedule_enabled, schedule_cron,
    created_by, created_at, updated_at)
-VALUES (${sql(CAMPAIGN.id)}, ${sql(CAMPAIGN.name)}, ${sql(CAMPAIGN.slug)}, ${sql(CAMPAIGN.description)},
-        'draft', ${sql(CAMPAIGN.countryCode)}, ${sql(JSON.stringify(CAMPAIGN.config))},
-        ${CAMPAIGN.maxCandidates}, ${CAMPAIGN.maxAiReviews}, 0, NULL,
+VALUES (${sql(campaign.id)}, ${sql(campaign.name)}, ${sql(campaign.slug)}, ${sql(campaign.description)},
+        'draft', ${sql(campaign.countryCode)}, ${sql(JSON.stringify(campaign.config))},
+        ${campaign.maxCandidates}, ${campaign.maxAiReviews}, 0, NULL,
         'seed-script', ${sql(now)}, ${sql(now)});`,
-)
-lines.push('')
+  )
+  lines.push('')
+}
 
 /**
  * The business identity the US compliance profile requires.

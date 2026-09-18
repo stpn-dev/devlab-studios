@@ -16,6 +16,7 @@ import { assertFlag } from '../config/flags.js'
 import { withOperationalFlags } from '../config/operationalFlags.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { discoverViaBrave } from '../discovery/brave.js'
+import { discoverViaNominatim } from '../discovery/nominatim.js'
 import { discoverViaOverpass } from '../discovery/overpass.js'
 import { dedupeCandidates, normalizeCandidate } from '../discovery/normalize.js'
 import { recordActivity } from '../repositories/activity.js'
@@ -32,6 +33,10 @@ import { createLogger } from './log.js'
 /** Adapter slug → the registry slug it must be approved under. */
 const ADAPTERS = Object.freeze({
   'osm-overpass': { run: discoverViaOverpass, usageMetric: 'overpass_requests' },
+  // Free, keyless, and over the same OpenStreetMap data as Overpass but asking
+  // a free-text question instead of a tag-and-bbox one. Listed after Overpass
+  // so a campaign configured for both spends the precise source's budget first.
+  'osm-nominatim': { run: discoverViaNominatim, usageMetric: 'nominatim_requests' },
   'brave-search': { run: discoverViaBrave, usageMetric: 'brave_requests' },
 })
 

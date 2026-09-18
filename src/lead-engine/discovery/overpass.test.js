@@ -25,6 +25,23 @@ function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 }
 
+/**
+ * A response envelope shaped like a real Overpass instance's.
+ *
+ * `osm3s.timestamp_osm_base` is not decoration: a live mirror was observed
+ * answering 200 with an empty result and a bogus value there, and the adapter
+ * now uses it to tell a working instance from a broken one. Fixtures that omit
+ * it would test a response no real server sends.
+ */
+function overpass(elements, osm3s = {}) {
+  return {
+    version: 0.6,
+    generator: 'Overpass API 0.7.62.4 2390de5a',
+    osm3s: { timestamp_osm_base: '2026-09-18T14:59:21Z', ...osm3s },
+    elements,
+  }
+}
+
 function node(id, tags, extra = {}) {
   return { type: 'node', id, lat: 30.2, lon: -97.7, tags, ...extra }
 }
@@ -94,7 +111,7 @@ describe('discoverViaOverpass', () => {
   })
 
   it('identifies itself and posts the query as form data, as the service asks', async () => {
-    const { fetchImpl, calls } = stubFetch([json({ elements: [] })])
+    const { fetchImpl, calls } = stubFetch([json(overpass([]))])
 
     await discoverViaOverpass({
       campaign: campaignWith({ areas: [AUSTIN], tags: TAGS }),
@@ -111,22 +128,23 @@ describe('discoverViaOverpass', () => {
 
   it('reads the contact tags OSM actually uses, and keeps the raw tags as evidence', async () => {
     const { fetchImpl } = stubFetch([
-      json({
-        elements: [
-          node(1, {
-            name: 'Acme Property Management',
-            'contact:website': 'https://acme.com',
-            'contact:phone': '+1 512 555 0100',
-            'contact:email': 'hello@acme.com',
-            'addr:housenumber': '900',
-            'addr:street': 'Congress Ave',
-            'addr:city': 'Austin',
-            'addr:state': 'TX',
-            'addr:postcode': '78701',
-            office: 'estate_agent',
-          }),
-        ],
-      }),
+      json(
+        overpass([
+            node(1, {
+              name: 'Acme Property Management',
+              'contact:website': 'https://acme.com',
+              'contact:phone': '+1 512 555 0100',
+              'contact:email': 'hello@acme.com',
+              'addr:housenumber': '900',
+              'addr:street': 'Congress Ave',
+              'addr:city': 'Austin',
+              'addr:state': 'TX',
+              'addr:postcode': '78701',
+              office: 'estate_agent',
+            }),
+        ]
+        )
+      ),
     ])
 
     const { candidates, requests, error } = await discoverViaOverpass({
@@ -157,11 +175,12 @@ describe('discoverViaOverpass', () => {
 
   it('places a way or relation from the center point that "out center" provides', async () => {
     const { fetchImpl } = stubFetch([
-      json({
-        elements: [
-          { type: 'way', id: 7, center: { lat: 14.55, lon: 121.02 }, tags: { name: 'Acme', website: 'acme.ph' } },
-        ],
-      }),
+      json(
+        overpass([
+            { type: 'way', id: 7, center: { lat: 14.55, lon: 121.02 }, tags: { name: 'Acme', website: 'acme.ph' } },
+        ]
+        )
+      ),
     ])
 
     const { candidates } = await discoverViaOverpass({ campaign: campaignWith({ areas: [AUSTIN], tags: TAGS }), fetchImpl })
@@ -174,15 +193,16 @@ describe('discoverViaOverpass', () => {
     // The normal shape of OSM data: most entries have no website, and a good
     // number list a Facebook page.
     const { fetchImpl } = stubFetch([
-      json({
-        elements: [
-          node(1, { name: 'No website here' }),
-          node(2, { name: 'Social only', website: 'https://facebook.com/acme' }),
-          node(3, { name: 'Real', website: 'acme.com' }),
-          'not an element',
-          { type: 'note', id: 9, tags: { website: 'acme.com' } },
-        ],
-      }),
+      json(
+        overpass([
+            node(1, { name: 'No website here' }),
+            node(2, { name: 'Social only', website: 'https://facebook.com/acme' }),
+            node(3, { name: 'Real', website: 'acme.com' }),
+            'not an element',
+            { type: 'note', id: 9, tags: { website: 'acme.com' } },
+        ]
+        )
+      ),
     ])
 
     const { candidates, error } = await discoverViaOverpass({ campaign: campaignWith({ areas: [AUSTIN], tags: TAGS }), fetchImpl })
@@ -194,9 +214,9 @@ describe('discoverViaOverpass', () => {
   it('backs off after the first failure instead of hammering a donated service', async () => {
     const areas = [AUSTIN, { name: 'Dallas', bbox: [32.6, -97.0, 33.0, -96.6] }, { name: 'Houston', bbox: [29.6, -95.6, 30.0, -95.2] }]
     const { fetchImpl, calls } = stubFetch([
-      json({ elements: [node(1, { website: 'acme.com' })] }),
+      json(overpass([node(1, { website: 'acme.com' })])),
       new Response('', { status: 429 }),
-      json({ elements: [node(2, { website: 'second.com' })] }),
+      json(overpass([node(2, { website: 'second.com' })])),
     ])
 
     const { candidates, requests, error } = await discoverViaOverpass({ campaign: campaignWith({ areas, tags: TAGS }), fetchImpl })
@@ -221,6 +241,47 @@ describe('discoverViaOverpass', () => {
     expect(result).toEqual({ candidates: [], requests: 1, error: 'overpass_invalid_json' })
   })
 
+  it('refuses a mirror that answers 200 with a bogus data timestamp', async () => {
+    // Observed live on overpass.osm.ch, 18 September 2026: HTTP 200, a
+    // well-formed body, zero elements, and "timestamp_osm_base": "117103".
+    // Trusting the status code here means discovery reports success and finds
+    // nothing, for as long as nobody checks.
+    const { fetchImpl } = stubFetch([json(overpass([], { timestamp_osm_base: '117103' }))])
+
+    const result = await discoverViaOverpass({
+      campaign: campaignWith({ areas: [AUSTIN], tags: TAGS }),
+      fetchImpl,
+    })
+
+    expect(result.error).toBe('overpass_endpoint_unusable')
+    expect(result.candidates).toEqual([])
+  })
+
+  it('refuses a mirror that omits the data timestamp altogether', async () => {
+    const { fetchImpl } = stubFetch([json({ version: 0.6, elements: [] })])
+
+    const result = await discoverViaOverpass({
+      campaign: campaignWith({ areas: [AUSTIN], tags: TAGS }),
+      fetchImpl,
+    })
+
+    expect(result.error).toBe('overpass_endpoint_unusable')
+  })
+
+  it('accepts an empty result from a healthy instance, because that is a real answer', async () => {
+    // The distinction that makes the check safe: a bbox containing no matching
+    // business is correct and must not be mistaken for a broken mirror.
+    const { fetchImpl } = stubFetch([json(overpass([]))])
+
+    const result = await discoverViaOverpass({
+      campaign: campaignWith({ areas: [AUSTIN], tags: TAGS }),
+      fetchImpl,
+    })
+
+    expect(result.error).toBeNull()
+    expect(result.candidates).toEqual([])
+  })
+
   it('survives a JSON body with no elements array', async () => {
     const { fetchImpl } = stubFetch([json({ version: 0.6, remark: 'runtime error' })])
     const result = await discoverViaOverpass({ campaign: campaignWith({ areas: [AUSTIN], tags: TAGS }), fetchImpl })
@@ -238,7 +299,7 @@ describe('discoverViaOverpass', () => {
   })
 
   it('refuses a misconfigured area before spending a request on it', async () => {
-    const { fetchImpl, calls } = stubFetch([json({ elements: [] })])
+    const { fetchImpl, calls } = stubFetch([json(overpass([]))])
     const result = await discoverViaOverpass({
       campaign: campaignWith({ areas: [{ name: 'Austin', bbox: [1, 2, 3] }], tags: TAGS }),
       fetchImpl,
@@ -251,8 +312,8 @@ describe('discoverViaOverpass', () => {
   it('stops requesting areas once the candidate limit is reached', async () => {
     const areas = [AUSTIN, { name: 'Dallas', bbox: [32.6, -97.0, 33.0, -96.6] }]
     const { fetchImpl, calls } = stubFetch([
-      json({ elements: [node(1, { website: 'one.com' }), node(2, { website: 'two.com' })] }),
-      json({ elements: [node(3, { website: 'three.com' })] }),
+      json(overpass([node(1, { website: 'one.com' }), node(2, { website: 'two.com' })])),
+      json(overpass([node(3, { website: 'three.com' })])),
     ])
 
     const { candidates, requests } = await discoverViaOverpass({

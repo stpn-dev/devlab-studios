@@ -177,6 +177,12 @@ export const USAGE_LIMITS = Object.freeze({
   ai_neurons: 5_000,
   brave_requests: 100,
   overpass_requests: 40,
+  /**
+   * Low on purpose. Nominatim's usage policy caps automated clients at one
+   * request per second and asks heavy users to self-host, so this is a budget
+   * for a discovery run rather than for bulk geocoding.
+   */
+  nominatim_requests: 24,
   zoho_api_calls: 500,
 })
 
@@ -196,6 +202,9 @@ export const CONCURRENCY = Object.freeze({
   crawl: 2,
   ai: 1,
   overpass: 1,
+  // One at a time AND spaced by NOMINATIM.minRequestIntervalMs — the policy is
+  // one request per second, which concurrency alone cannot honour.
+  nominatim: 1,
   brave: 2,
   zoho: 1,
 })
