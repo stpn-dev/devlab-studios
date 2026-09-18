@@ -271,6 +271,74 @@ describe('folder resolution', () => {
     expect(lookups).toBe(1)
   })
 
+  /**
+   * The folder list from the first real mailbox this was connected to.
+   *
+   * Three folders carry folderType `Inbox` — the real one plus two sub-folders.
+   * A resolver that took the first type match would work here only because of
+   * the order Zoho happened to return, and would silently read `Notification`
+   * if that order ever changed.
+   */
+  const REAL_MAILBOX = [
+    { folderId: '2569717000000008014', folderName: 'Inbox', folderType: 'Inbox', path: '/Inbox' },
+    { folderId: '2569717000000008016', folderName: 'Drafts', folderType: 'Drafts', path: '/Drafts' },
+    { folderId: '2569717000000008018', folderName: 'Templates', folderType: 'Templates', path: '/Templates' },
+    { folderId: '2569717000000008020', folderName: 'Snoozed', folderType: 'Snoozed', path: '/Snoozed' },
+    { folderId: '2569717000000008022', folderName: 'Sent', folderType: 'Sent', path: '/Sent' },
+    { folderId: '2569717000000008024', folderName: 'Spam', folderType: 'Spam', path: '/Spam' },
+    { folderId: '2569717000000008026', folderName: 'Trash', folderType: 'Trash', path: '/Trash' },
+    { folderId: '2569717000000008028', folderName: 'Outbox', folderType: 'Outbox', path: '/Outbox' },
+    { folderId: '2569717000000009001', folderName: 'Notification', folderType: 'Inbox', path: '/Inbox/Notification' },
+    { folderId: '2569717000000009011', folderName: 'Newsletter', folderType: 'Inbox', path: '/Inbox/Newsletter' },
+    { folderId: '2569717000000009021', folderName: 'Archive', folderType: 'Archive', path: '/Archive' },
+  ]
+
+  it('picks the real Inbox when sub-folders share its type', async () => {
+    const fetchImpl = mailboxFetch(async () => json({ data: [] }), REAL_MAILBOX)
+
+    expect(await resolveFolderId(ENV, 'inbox', { fetchImpl })).toBe('2569717000000008014')
+    clearFolderCache()
+    expect(await resolveFolderId(ENV, 'sent', { fetchImpl })).toBe('2569717000000008022')
+  })
+
+  it('still picks the real Inbox when a sub-folder is returned first', async () => {
+    // The ordering that would have broken a first-type-match resolver. Nothing
+    // guarantees Zoho returns the canonical folder before its children.
+    const reordered = [
+      REAL_MAILBOX.find((folder) => folder.folderName === 'Notification'),
+      REAL_MAILBOX.find((folder) => folder.folderName === 'Newsletter'),
+      ...REAL_MAILBOX.filter((folder) => !['Notification', 'Newsletter'].includes(folder.folderName)),
+    ]
+    const fetchImpl = mailboxFetch(async () => json({ data: [] }), reordered)
+
+    expect(await resolveFolderId(ENV, 'inbox', { fetchImpl })).toBe('2569717000000008014')
+  })
+
+  it('uses the hierarchy when the name is localised and sub-folders share the type', async () => {
+    // A Spanish mailbox with a sub-folder: no folder is NAMED inbox, so the
+    // single top-level folder of that type is the only thing that identifies it.
+    const localised = [
+      { folderId: '9001', folderName: 'Boletines', folderType: 'Inbox', path: '/Bandeja de entrada/Boletines' },
+      { folderId: '100', folderName: 'Bandeja de entrada', folderType: 'Inbox', path: '/Bandeja de entrada' },
+    ]
+    const fetchImpl = mailboxFetch(async () => json({ data: [] }), localised)
+
+    expect(await resolveFolderId(ENV, 'inbox', { fetchImpl })).toBe('100')
+  })
+
+  it('refuses to guess when nothing distinguishes two candidates', async () => {
+    // No name match, no path to compare. Guessing here would mean silently
+    // syncing the wrong folder, which looks like an empty mailbox forever.
+    const ambiguous = [
+      { folderId: '1', folderName: 'Uno', folderType: 'Inbox', path: '' },
+      { folderId: '2', folderName: 'Dos', folderType: 'Inbox', path: '' },
+    ]
+    const fetchImpl = mailboxFetch(async () => json({ data: [] }), ambiguous)
+
+    await expect(resolveFolderId(ENV, 'inbox', { fetchImpl })).rejects.toThrow(/could not tell which is the real one/i)
+    await expect(resolveFolderId(ENV, 'inbox', { fetchImpl })).rejects.toThrow(/Uno, Dos/)
+  })
+
   it('fails with a message naming the folders it did find', async () => {
     const fetchImpl = mailboxFetch(async () => json({ data: [] }), [
       { folderId: '1', folderName: 'Archive', folderType: 'Archive' },

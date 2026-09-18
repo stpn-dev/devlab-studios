@@ -364,19 +364,39 @@ async function verify() {
       id: String(folder.folderId ?? folder.FolderID ?? ''),
       name: String(folder.folderName ?? folder.FolderName ?? ''),
       type: String(folder.folderType ?? folder.FolderType ?? ''),
+      path: String(folder.path ?? folder.Path ?? ''),
     }))
 
     heading(`Folders (${folders.length})`)
     console.log('')
+    console.log(`  ${'id'.padEnd(22)} ${'name'.padEnd(26)} ${'type'.padEnd(14)} path`)
     for (const folder of folders) {
-      console.log(`  ${folder.id.padEnd(22)} ${folder.name.padEnd(26)} ${folder.type}`)
+      console.log(`  ${folder.id.padEnd(22)} ${folder.name.padEnd(26)} ${folder.type.padEnd(14)} ${folder.path}`)
     }
     console.log('')
 
-    const findFolder = (wanted) =>
-      folders.find((folder) => folder.type.toLowerCase() === wanted)?.id ||
-      folders.find((folder) => folder.name.toLowerCase() === wanted)?.id ||
-      null
+    // Mirrors resolveFolderId() in src/lead-engine/zoho/client.js. A sub-folder
+    // INHERITS its parent's type, so a real mailbox has several folders typed
+    // `Inbox` and the type alone cannot identify the canonical one.
+    const findFolder = (wanted) => {
+      const candidates = folders.filter((folder) => folder.type.toLowerCase() === wanted)
+      const topLevel = (folder) => folder.path.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean).length === 1
+
+      if (candidates.length > 1) {
+        console.log(
+          `  ${candidates.length} folders are typed "${wanted}": ${candidates.map((f) => f.name).join(', ')} — ` +
+            'resolving by name, then by hierarchy.',
+        )
+      }
+
+      return (
+        candidates.find((folder) => folder.name.toLowerCase() === wanted)?.id ||
+        candidates.find(topLevel)?.id ||
+        (candidates.length === 1 ? candidates[0].id : null) ||
+        folders.find((folder) => folder.name.toLowerCase() === wanted)?.id ||
+        null
+      )
+    }
 
     for (const [wanted, label, why] of [
       ['inbox', 'inbox view', 'mailbox sync (Inbox)'],

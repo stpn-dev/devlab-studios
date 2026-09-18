@@ -251,16 +251,42 @@ export async function resolveFolderId(env, folder, options = {}) {
   const folders = await listFolders(env, options)
   const wanted = folder === 'sent' ? 'sent' : 'inbox'
 
+  // A SUB-FOLDER INHERITS ITS PARENT'S TYPE. A real mailbox has several folders
+  // typed `Inbox` — on the account this was first verified against, `Inbox`,
+  // `Notification` and `Newsletter` all carry folderType `Inbox`. Taking the
+  // first type match would therefore depend on the order Zoho happens to
+  // return, and picking `Notification` would make every sync succeed, import
+  // nothing, and lose every reply in silence. So the type narrows the
+  // candidates and something else decides between them.
+  const candidates = folders.filter((entry) => entry.folderType.toLowerCase() === wanted)
+
+  /** Top-level folders have a single path segment: `/Inbox`, not `/Inbox/Newsletter`. */
+  const isTopLevel = (entry) => {
+    const segments = entry.path.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean)
+    return segments.length === 1
+  }
+
   const match =
-    folders.find((entry) => entry.folderType.toLowerCase() === wanted) ||
+    // The canonical folder: right type AND the untranslated system name.
+    candidates.find((entry) => entry.folderName.toLowerCase() === wanted) ||
+    // Otherwise the only top-level folder of that type — which is what
+    // identifies the real one in a localised mailbox, where the name is
+    // translated but the hierarchy is not.
+    candidates.find(isTopLevel) ||
+    // A single candidate needs no tie-break.
+    (candidates.length === 1 ? candidates[0] : null) ||
+    // Last resorts for responses that omit folderType entirely.
     folders.find((entry) => entry.folderName.toLowerCase() === wanted) ||
     folders.find((entry) => entry.path.toLowerCase() === `/${wanted}`)
 
   if (!match?.folderId) {
+    const seen = folders.map((entry) => entry.folderName || entry.folderType).filter(Boolean).join(', ')
     throw new ZohoApiError(
-      `Could not find the ${folder} folder on this Zoho account. Found: ${
-        folders.map((entry) => entry.folderName || entry.folderType).filter(Boolean).join(', ') || 'nothing'
-      }.`,
+      candidates.length > 1
+        ? `Found ${candidates.length} folders typed "${wanted}" on this Zoho account and could not tell which is the real one: ${candidates
+            .map((entry) => entry.folderName || entry.folderId)
+            .join(', ')}. Refusing to guess.`
+        : `Could not find the ${folder} folder on this Zoho account. Found: ${seen || 'nothing'}.`,
       { status: 502, code: 'zoho_folder_not_found', retryable: false },
     )
   }

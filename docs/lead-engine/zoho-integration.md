@@ -552,15 +552,58 @@ making that a per-environment configuration value, `resolveFolderId()` in
 `zoho/client.js` looks it up from `GET /accounts/<id>/folders` and caches it for
 the life of the isolate — the same approach as the access-token cache.
 
-**Matching is by `folderType` first, not by name.** Zoho localises folder
-display names, so a mailbox whose interface language is not English has no
-folder called "Inbox" — but its type is still `Inbox`. Name and path are
-fallbacks for older API responses that omit the type.
+### The second thing the live mailbox exposed: the type is not unique
+
+Matching started as `folders.find(f => f.folderType === 'Inbox')`, because Zoho
+localises folder *display names* — a mailbox whose interface language is not
+English has no folder called "Inbox", but its type is still `Inbox`. Matching on
+the type is right. Taking the **first** match was not.
+
+The real mailbox returned eleven folders, and **three of them are typed
+`Inbox`**:
+
+| folderId | folderName | folderType | path |
+|---|---|---|---|
+| …0008014 | Inbox | Inbox | `/Inbox` |
+| …0009001 | Notification | Inbox | `/Inbox/Notification` |
+| …0009011 | Newsletter | Inbox | `/Inbox/Newsletter` |
+
+A sub-folder **inherits its parent's type**. So `folderType` alone identifies a
+sub-tree, not a folder, and `.find()` was picking whichever one Zoho happened to
+list first. It picked correctly on the day — and the failure mode if the order
+ever changed is the dangerous kind: sync would read `/Inbox/Notification`,
+report success, import nothing, and every prospect reply would silently vanish.
+No alert, because nothing errored.
+
+`resolveFolderId()` now filters by type and then disambiguates, in order:
+
+1. canonical English name (`folderName === 'inbox'`),
+2. top-level path — `/Inbox` has one segment, `/Inbox/Newsletter` has two,
+3. a single remaining candidate,
+4. name or path match ignoring the type, for responses that omit `folderType`.
+
+If none of those separates the candidates it **throws**, naming them, rather
+than guessing. A wrong folder here is silent data loss; a thrown error is a
+recorded sync failure on the dashboard.
+
+Step 2 is what carries the localised case: a Spanish mailbox has no folder
+named "Inbox", but its inbox is still the one at `/Recibidos` rather than
+`/Recibidos/Boletines`.
+
+The same resolution order is duplicated in `scripts/lead-engine/zoho-setup.mjs`
+so `verify` reports the folder the engine would actually use, and prints a note
+when it had to disambiguate.
+
+This is the clearest example in this integration of something no stub could have
+caught. The test fixture had one folder per type, because that is what a
+reasonable person invents. The regression tests in `zoho.test.js` now use the
+real eleven-folder list, plus a variant with the sub-folders reordered to the
+front, which fails against the old implementation.
 
 ## Honest notes: what has still not been verified
 
 The items below remain untested against a live mailbox. The rest of
-`zoho/zoho.test.js` (50 tests) runs against injected `fetchImpl` stubs.
+`zoho/zoho.test.js` (54 tests) runs against injected `fetchImpl` stubs.
 
 1. **Creating a draft.** `verify` deliberately does not exercise `createDraft`,
    because that writes into a real Drafts folder. It is left for the operator to
