@@ -169,10 +169,21 @@
     "LEAD_ENGINE_ENABLED": "true",
     "LEAD_DISCOVERY_ENABLED": "true",
     "LEAD_CRAWLER_ENABLED": "true",
-    "LEAD_BROWSER_RUN_ENABLED": "true",
+    // FALSE because its credentials do not exist. Browser rendering needs
+    // CLOUDFLARE_ACCOUNT_ID and BROWSER_RENDERING_API_TOKEN, neither of which is
+    // set on either worker. An open ceiling here would let the UI switch on a
+    // capability that then fails inside every research job. Set the two secrets
+    // first, then raise this.
+    "LEAD_BROWSER_RUN_ENABLED": "false",
     "LEAD_AI_ENABLED": "true",
     "LEAD_TRACKING_ENABLED": "true",
-    "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "true",
+    // FALSE deliberately, and the last ceiling that should ever be raised. This
+    // is the switch that makes campaigns run with nobody asking them to. The
+    // deployment guide holds it shut until a manual dry run AND a manual real
+    // run have both been inspected end to end; neither has happened yet. The
+    // per-campaign schedule_enabled column is a separate, independent switch -
+    // both are required, by design.
+    "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false",
     "ZOHO_MAIL_ENABLED": "true",
     "ZOHO_MAIL_SYNC_ENABLED": "true",
     "R2_PUBLIC_BASE_URL": "https://pub-401ca3448c3348158cdb3e4e9a9dcb20.r2.dev",
@@ -219,10 +230,13 @@
         "LEAD_ENGINE_ENABLED": "true",
         "LEAD_DISCOVERY_ENABLED": "true",
         "LEAD_CRAWLER_ENABLED": "true",
-        "LEAD_BROWSER_RUN_ENABLED": "true",
+            // False for the same reason as production: no credentials exist.
+        "LEAD_BROWSER_RUN_ENABLED": "false",
         "LEAD_AI_ENABLED": "true",
         "LEAD_TRACKING_ENABLED": "true",
-        "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "true",
+            // False for the same reason as production: unattended running is
+        // the last thing to enable, after both runs have been inspected.
+        "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false",
         "ZOHO_MAIL_ENABLED": "true",
         "ZOHO_MAIL_SYNC_ENABLED": "true"
       },

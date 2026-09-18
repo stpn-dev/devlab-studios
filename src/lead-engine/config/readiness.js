@@ -142,6 +142,19 @@ export function resolveReadiness(env, options = {}) {
       impact: 'No automated source is enabled and policy-approved. Approved manual import remains available.',
     },
     {
+      key: 'discovery_nominatim',
+      label: 'Discovery — OpenStreetMap free-text search',
+      importance: OPTIONAL,
+      flag: FLAG_KEYS.discovery,
+      enabled: isFlagOn(source[FLAG_KEYS.discovery]),
+      // Needs no credential of any kind. Listed anyway so the panel shows the
+      // free path exists, rather than leaving Brave as the only search-shaped
+      // row and implying discovery costs money.
+      configured: true,
+      missing: [],
+      impact: 'Free and keyless. Finds businesses Overpass tag queries miss. Needs campaign queries configured.',
+    },
+    {
       key: 'discovery_brave',
       label: 'Discovery — Brave Search',
       importance: OPTIONAL,
@@ -149,7 +162,7 @@ export function resolveReadiness(env, options = {}) {
       enabled: isFlagOn(source[FLAG_KEYS.discovery]),
       configured: present(source.BRAVE_SEARCH_API_KEY),
       missing: missingEnv(source, ['BRAVE_SEARCH_API_KEY']),
-      impact: 'A second discovery source. Overpass alone still finds businesses.',
+      impact: 'Optional and paid. The free sources cover discovery without it.',
     },
     {
       key: 'crawler',

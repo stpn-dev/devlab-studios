@@ -65,7 +65,9 @@ Brave key is configured.**
 Work through [deployment.md](deployment.md) steps 1–5 first. Confirm:
 
 - [ ] Migration 0012 applied (22 `lead_*` tables).
-- [ ] Seed applied (3 sources, 1 campaign, 1 settings row).
+- [ ] Seed applied (4 sources, 5 campaigns, 1 settings row). Campaign 001 is
+      the property-management one this document walks through; the other four
+      are cross-industry and equally inert as drafts.
 - [ ] Engine is on in CRM Settings. Every other operational switch is off.
 - [ ] `/admin/lead-crm` loads; the dashboard shows zeros.
 - [ ] `/crawler` renders and quotes the same user agent `CRAWLER.userAgent` sends.

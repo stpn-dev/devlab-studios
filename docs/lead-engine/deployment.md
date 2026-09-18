@@ -257,8 +257,9 @@ Any order, any time after step 7:
 | Flag | Also needs |
 |---|---|
 | `LEAD_TRACKING_ENABLED` | — |
-| `LEAD_BROWSER_RUN_ENABLED` | `CLOUDFLARE_ACCOUNT_ID` + `BROWSER_RENDERING_API_TOKEN` |
-| (Brave discovery) | `BRAVE_SEARCH_API_KEY` secret + the source enabled |
+| `LEAD_BROWSER_RUN_ENABLED` | `CLOUDFLARE_ACCOUNT_ID` + `BROWSER_RENDERING_API_TOKEN`. Its **ceiling ships `false`** precisely because neither secret exists; set them first, then raise it. |
+| (Nominatim discovery) | Nothing. Enable the `osm-nominatim` source after policy review — no key exists to set. |
+| (Brave discovery) | `BRAVE_SEARCH_API_KEY` secret + the source enabled. Optional; the free path does not use it. |
 
 ### Step 11 — schedules, last
 
@@ -291,7 +292,14 @@ npx playwright test --project=static
 Then confirm by reading the diff:
 
 - [ ] All nine deployment ceilings are explicit in `wrangler.jsonc` and
-      `env.preview.vars`; runtime state is reviewed in CRM Settings
+      `env.preview.vars`, and production and preview AGREE; runtime state is
+      reviewed in CRM Settings
+- [ ] `LEAD_CAMPAIGN_SCHEDULES_ENABLED` is still `"false"` in both. It is the
+      switch that makes campaigns run unattended, and it stays shut until a
+      manual dry run AND a manual real run have both been inspected end to end
+- [ ] `LEAD_BROWSER_RUN_ENABLED` is still `"false"` unless
+      `CLOUDFLARE_ACCOUNT_ID` and `BROWSER_RENDERING_API_TOKEN` are both set —
+      an open ceiling without them fails inside every research job it touches
 - [ ] The `queues` and `workflows` blocks are still commented out, or the
       resources genuinely exist
 - [ ] No secret is in `wrangler.jsonc`, `.env.example` or any committed file

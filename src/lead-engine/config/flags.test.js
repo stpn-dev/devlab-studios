@@ -108,16 +108,46 @@ describe('assertFlag', () => {
 describe('shipped configuration', () => {
   const wrangler = readFileSync(resolve(repoRoot, 'wrangler.jsonc'), 'utf8')
 
-  it('allows the admin control plane in both environments', () => {
-    // These vars are deployment ceilings, not the requested runtime state.
-    // Fresh D1 state keeps every effective capability off until an admin turns
-    // it on in CRM Settings.
-    for (const key of Object.values(FLAG_KEYS)) {
-      const occurrences = [...wrangler.matchAll(new RegExp(`"${key}"\\s*:\\s*"(\\w+)"`, 'g'))].map((m) => m[1])
+  /** Every flag's value in production and preview, in file order. */
+  const occurrencesOf = (key) =>
+    [...wrangler.matchAll(new RegExp(`"${key}"\\s*:\\s*"(\\w+)"`, 'g'))].map((match) => match[1])
 
-      expect(occurrences.length, `${key} should appear in production and preview vars`).toBe(2)
-      expect(occurrences, `${key} should permit UI control in both environments`).toEqual(['true', 'true'])
+  it('declares every flag in both environments', () => {
+    // Nothing at the top level is inherited by an environment. A flag named
+    // only in production leaves preview falling back to an unset var, which
+    // reads as off and looks like a bug in the engine rather than in config.
+    for (const key of Object.values(FLAG_KEYS)) {
+      expect(occurrencesOf(key).length, `${key} should appear in production and preview vars`).toBe(2)
     }
+  })
+
+  it('keeps production and preview in agreement', () => {
+    // Drift between the two is how a capability gets validated in preview and
+    // then silently behaves differently in production.
+    for (const key of Object.values(FLAG_KEYS)) {
+      const [production, preview] = occurrencesOf(key)
+
+      expect(preview, `${key} differs between production and preview`).toBe(production)
+    }
+  })
+
+  it('keeps unattended running shut', () => {
+    // These vars are deployment CEILINGS, not the requested runtime state: D1
+    // decides routine operation and can only turn an allowed capability off.
+    // That makes an open ceiling safe for most capabilities and unsafe for this
+    // one, which is what lets campaigns run with nobody asking them to. It stays
+    // false until a manual dry run AND a manual real run have both been
+    // inspected end to end. Raising it is a deliberate act, not a default.
+    expect(occurrencesOf(FLAG_KEYS.campaignSchedules)).toEqual(['false', 'false'])
+  })
+
+  it('keeps browser rendering shut while it has no credentials', () => {
+    // Browser rendering needs CLOUDFLARE_ACCOUNT_ID and
+    // BROWSER_RENDERING_API_TOKEN. Neither is set on either worker, so an open
+    // ceiling would let the UI switch on a capability that fails inside every
+    // research job it touches. A test cannot see the secret store, so this is a
+    // tripwire: set the secrets, then change this line on purpose.
+    expect(occurrencesOf(FLAG_KEYS.browserRun)).toEqual(['false', 'false'])
   })
 
   it('declares no auto-send flag anywhere', () => {

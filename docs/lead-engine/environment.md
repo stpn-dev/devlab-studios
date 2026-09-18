@@ -121,16 +121,30 @@ Scopes: `ZohoMail.messages.ALL`, `ZohoMail.accounts.READ`,
 
 ## Optional external services
 
+### Nominatim (OpenStreetMap)
+
+**No variable at all.** No key, no account, no card. The adapter needs only the
+User-Agent the crawler already sends, and a campaign with
+`config.nominatim.queries` configured.
+
+This is the source that makes free discovery real: with Overpass's default
+endpoint blocking us and Brave requiring a paid signup, Nominatim plus manual
+import is the whole free path. See
+[discovery.md](discovery.md#nominatim-openstreetmap) for the measured yield per
+query phrasing, which decides whether it returns anything at all.
+
 ### Brave Search
 
 | Variable | Kind | Default |
 |---|---|---|
 | `BRAVE_SEARCH_API_KEY` | **secret** | unset |
 
-Entirely optional. Unset → the adapter returns
-`{ candidates: [], error: 'brave_not_configured' }` and the run continues on
-Overpass and manual imports. **Nothing downstream treats the absence as a
-failure** — that is what keeps the pipeline runnable without a paid API.
+Entirely optional, and **not part of the free path**. Unset → the adapter
+returns `{ candidates: [], error: 'brave_not_configured' }` and the run
+continues on Overpass, Nominatim and manual imports. **Nothing downstream
+treats the absence as a failure** — that is what keeps the pipeline runnable
+without a paid API. The seeded cross-industry campaigns deliberately carry no
+`brave` block at all.
 
 ### Browser Rendering
 

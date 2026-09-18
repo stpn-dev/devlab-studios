@@ -128,6 +128,51 @@ function mapRow(row) {
 }
 
 /**
+ * The most recent content-safeguard record for one draft, or null.
+ *
+ * Asks the database for the row directly rather than paging activity and
+ * filtering in JavaScript. That distinction is the whole point of this
+ * function: the outreach gate previously scanned the lead's last 100 events,
+ * so on a lead with more history than that the record fell outside the window,
+ * the gate reported "no content-safeguard record", and its own advice —
+ * regenerate — appended two further events and pushed the record further out
+ * of reach. A busy lead could not be drafted to at all.
+ *
+ * `violations` is always an array when the record exists, including when it is
+ * empty. An ABSENT record and a record with zero violations mean opposite
+ * things and must never collapse into one another.
+ *
+ * One record per draft id is the norm, because createDraft mints a new id per
+ * generation and supersedes the previous row. The ordering is defensive only -
+ * it decides nothing in practice and exists so a duplicate could never be
+ * resolved arbitrarily.
+ *
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {string} draftId
+ * @returns {Promise<{ violations: Array<object> }|null>}
+ */
+export async function findDraftContentCheck(db, draftId) {
+  if (!draftId) return null
+
+  const row = await db
+    .prepare(
+      `SELECT metadata_json
+         FROM lead_activity
+        WHERE json_extract(metadata_json, '$.draftId') = ?
+          AND json_type(metadata_json, '$.violations') = 'array'
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1`,
+    )
+    .bind(draftId)
+    .first()
+
+  if (!row) return null
+
+  const metadata = parseJsonField(row.metadata_json, {})
+  return { violations: Array.isArray(metadata.violations) ? metadata.violations : [] }
+}
+
+/**
  * @param {import('@cloudflare/workers-types').D1Database} db
  * @param {{ leadId?: string|null, campaignId?: string|null, eventType?: string|null,
  *           since?: string|null, limit?: number, offset?: number }} [filters]

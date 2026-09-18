@@ -17,9 +17,10 @@ import { listContacts } from '../repositories/contacts.js'
 import { getCurrentScore } from '../repositories/scores.js'
 import { listSignals } from '../repositories/research.js'
 import { addSuppression } from '../repositories/suppression.js'
-import { getCurrentDraft } from '../repositories/drafts.js'
+import { createDraft, getCurrentDraft } from '../repositories/drafts.js'
 import { setSetting } from '../repositories/settings.js'
-import { listActivity } from '../repositories/activity.js'
+import { findDraftContentCheck, listActivity, recordActivity } from '../repositories/activity.js'
+import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 
 /**
@@ -662,6 +663,81 @@ describe('pushDraftToZoho', () => {
     const activity = await listActivity(db, { leadId: lead.id })
     const entry = activity.find((event) => event.eventType === 'ZOHO_DRAFT_CREATED')
     expect(entry.summary).toMatch(/Open Zoho to review and send it/i)
+  })
+
+  it('still finds the safeguard record on a lead with a long activity history', async () => {
+    // REGRESSION. The gate used to page the lead's last 100 activity events and
+    // look for the safeguard record among them. Past that many events the record
+    // fell outside the window, the gate reported "no content-safeguard record",
+    // and its own remedy — regenerate — appended two more events and pushed the
+    // record further out of reach. The lead became permanently undraftable.
+    const { lead, draft } = await readyToPush()
+
+    for (let index = 0; index < 150; index += 1) {
+      await recordActivity(db, {
+        leadId: lead.id,
+        campaignId: lead.campaignId,
+        eventType: ACTIVITY.NOTE_ADDED,
+        summary: `Filler activity ${index}.`,
+      })
+    }
+
+    const result = await pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, draft.id, {
+      fetchImpl: zohoFetch([]),
+    })
+
+    expect(result.status).toBe('ok')
+  })
+
+  it('refuses an AI draft whose safeguard record listed violations', async () => {
+    const { lead } = await readyToPush()
+
+    // A fresh draft id, because createDraft mints one per generation and
+    // supersedes the previous row - there is exactly one safeguard record per
+    // draft id, never a clean one and a dirty one competing.
+    const dirty = await createDraft(db, {
+      leadId: lead.id,
+      subject: 'Guaranteed results',
+      bodyText: 'We guarantee results.',
+      generatedBy: 'ai',
+    })
+
+    await recordActivity(db, {
+      leadId: lead.id,
+      campaignId: lead.campaignId,
+      eventType: ACTIVITY.OUTREACH_DRAFT_CREATED,
+      summary: 'Generated a draft that tripped the guard.',
+      metadata: { draftId: dirty.id, violations: [{ code: 'overclaim', description: 'Guaranteed results' }] },
+    })
+
+    await expect(
+      pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, dirty.id, { fetchImpl: zohoFetch([]) }),
+    ).rejects.toThrow(/failed content safeguards/i)
+  })
+
+  it('refuses an AI draft that has no safeguard record at all', async () => {
+    const { lead } = await readyToPush()
+
+    // Never checked is not the same as checked and clean. This is the case the
+    // gate exists for: a draft that reached the CRM without passing the guard.
+    const unchecked = await createDraft(db, {
+      leadId: lead.id,
+      subject: 'Hello',
+      bodyText: 'A perfectly ordinary message.',
+      generatedBy: 'ai',
+    })
+
+    await expect(
+      pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, unchecked.id, { fetchImpl: zohoFetch([]) }),
+    ).rejects.toThrow(/no content-safeguard record/i)
+  })
+
+  it('distinguishes an absent record from a record with no violations', async () => {
+    // These mean opposite things. Collapsing them would either block every
+    // clean draft or wave through one that was never checked.
+    const absent = await findDraftContentCheck(db, 'draft-that-does-not-exist')
+
+    expect(absent).toBeNull()
   })
 })
 

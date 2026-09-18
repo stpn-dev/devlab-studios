@@ -27,22 +27,29 @@ The columns that make up the gate:
 | `policy_notes` | What was checked and what was found. |
 | `last_policy_reviewed_at` / `_by` | Attribution for the review. |
 
-`scripts/lead-engine/seed.mjs` registers three sources with `enabled=0`,
+`scripts/lead-engine/seed.mjs` registers four sources with `enabled=0`,
 `automation_allowed=0`, `crawl_allowed=0` and `policy_status='unreviewed'`. The
 `policy_notes` it seeds are a **starting point for the review, not the review** —
 they say what to go and check. Enabling a source is a deliberate act in
 `/admin/lead-crm/sources`.
 
-### The three registered sources
+### The four registered sources
 
 | Slug | Type | What to check before enabling |
 |---|---|---|
 | `osm-overpass` | `osm_overpass` | The current [Overpass API usage policy](https://operations.osmfoundation.org/policies/api/), and that our volume is within it. ODbL attribution applies where data is *displayed publicly* — it is not displayed publicly here, it is internal research evidence. |
-| `brave-search` | `search_api` | The plan permits this use; note the request quota. |
+| `osm-nominatim` | `search_api` | The current [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/). It is stricter than the Overpass one: **one request per second, absolute**, an identifying User-Agent, and self-hosting expected of heavy users. Same ODbL note as Overpass. |
+| `brave-search` | `search_api` | The plan permits this use; note the request quota. **Not required** — the engine discovers for free without it. |
 | `manual-import` | `manual_import` | No third-party terms apply to the import itself, but **the source of the list does**. Do not import a purchased list. |
 
-Only `osm-overpass` and `brave-search` appear in the `ADAPTERS` map that the
-scheduled run iterates. `manual-import` is used by the import endpoint.
+`osm-nominatim` is typed `search_api` rather than a dedicated value because
+migration 0012's CHECK constraint is already applied to both databases and
+cannot be widened without rebuilding a table that `lead_source_runs`
+references. Nothing dispatches on `type`; the adapter is chosen by `slug`.
+
+`osm-overpass`, `osm-nominatim` and `brave-search` appear in the `ADAPTERS` map
+that the scheduled run iterates, in that order. `manual-import` is used by the
+import endpoint.
 
 ## Overpass (OpenStreetMap)
 
@@ -109,7 +116,110 @@ said.
 (429) · `overpass_query_timeout` (504 — the bbox or tag set was too broad, a
 config problem not an outage) · `overpass_http_<status>` · `overpass_timeout` ·
 `overpass_network_error` · `overpass_invalid_json` (Overpass serves an HTML error
-page when overloaded) · `overpass_malformed_response`.
+page when overloaded) · `overpass_malformed_response` ·
+`overpass_endpoint_unusable`.
+
+### `overpass_endpoint_unusable`, and why a 200 is not enough
+
+A public Overpass instance can answer **HTTP 200 with a well-formed body and no
+data**. Measured on 18 September 2026:
+
+| Endpoint | HTTP | Reality |
+|---|---|---|
+| `overpass-api.de` (the default) | **406** to every request, homepage included | An IP-level block, not an outage — the Apache banner answers |
+| `overpass.osm.ch` | **200** | Zero elements, and `"timestamp_osm_base": "117103"` — not a timestamp |
+| `maps.mail.ru/osm/tools/overpass` | 200 | Real data once, empty on repeat — it throttles |
+| `kumi.systems`, `private.coffee`, `openstreetmap.fr` | timeout / DNS failure | — |
+
+The `osm.ch` row is the dangerous one. A health check written against status
+codes calls that instance healthy, discovery reports success, and **nothing is
+ever found, indefinitely, with no error anywhere**.
+
+So `hasUsableOverpassData()` judges the **envelope**, not the status code: a
+healthy instance states when its data was last cut, as an ISO-8601 instant in
+`osm3s.timestamp_osm_base`. A bare integer, an empty string or a missing field
+all mean the instance cannot vouch for its own data.
+
+An **empty `elements` array is not unhealthy** on its own — a bounding box
+containing no matching business is a correct answer, and conflating the two
+would make the check worse than useless.
+
+The error is deliberately distinct from `overpass_malformed_response` because
+the two call for opposite fixes: *unusable* means change endpoint, *malformed*
+means change query.
+
+> Those measurements were taken from a single developer machine. A Cloudflare
+> Worker egresses from different addresses and may see different results —
+> worth one check from the deployed Worker before writing any endpoint off.
+
+## Nominatim (OpenStreetMap)
+
+`src/lead-engine/discovery/nominatim.js`.
+
+Free, keyless, no account and no card. Same OpenStreetMap data as Overpass,
+asked as a **free-text question** rather than a tag-and-bounding-box one, so
+businesses filed under several different tags surface from one query.
+
+The licence matters as much as the price. Every contact this engine records
+carries provenance, and "OpenStreetMap, ODbL, tag `contact:website`" is
+defensible where a scraped search-results page is not.
+
+### The usage policy is stricter than Overpass's
+
+| Rule | How it is enforced |
+|---|---|
+| One request per **second**, absolute | A real delay between requests (`NOMINATIM.minRequestIntervalMs`, 1200ms). Sequential execution alone does not satisfy this — one request *in flight* is not one request per second. |
+| Identifying User-Agent | `CRAWLER.userAgent`, the same identity the crawler sends. Nominatim blocks clients that omit it. |
+| No bulk geocoding | `nominatim_requests` is 24/day and `maxQueriesPerRun` is 8, deliberately small. The policy asks heavy users to self-host. |
+
+### Query phrasing decides whether it works at all
+
+Nominatim resolves OSM **special phrases**. A phrase with no mapping returns
+nothing — not an error, not a rate limit, simply no results. Measured against
+the live API on 18 September 2026, as results / carrying a website tag:
+
+| Query | Results | With a website |
+|---|---|---|
+| `hotel Charlotte NC` | 40 | 26 |
+| `insurance Dallas TX` | 40 | 18 |
+| `pharmacy Austin TX` | 40 | 18 |
+| `law firm Houston` | 22 | 17 |
+| `dentist Austin TX` | 26 | 14 |
+| `doctors Phoenix AZ` | 14 | 4 |
+| `restaurant Austin TX` | 12 | 4 |
+| `car repair Dallas TX` | 9 | 2 |
+| `accountant Dallas TX` | 1 | 0 |
+| `hairdresser Houston TX` | 1 | 0 |
+| `plumbing company Dallas` | **0** | 0 |
+| `hvac contractor Phoenix` | **0** | 0 |
+| `estate agent Charlotte NC` | **0** | 0 |
+| `property management Austin TX` | **0** | 0 |
+
+The last two are worth dwelling on: **property management, the vertical
+Campaign 001 targets, is the one Nominatim serves worst.** For that trade the
+Overpass tag query (`office=estate_agent`) is the right instrument. This is why
+the seed carries campaigns across several industries — narrowing to one
+vertical also narrows discovery to whichever source happens to cover it.
+
+Because phrasing is decisive, the adapter returns **`queryResults`**: one row
+per query with its place count and admitted-candidate count. A query that
+returns nothing is a query to rewrite, and an operator cannot rewrite what an
+aggregate total hides.
+
+### Failure modes, all non-throwing
+
+`nominatim_rate_limited` (429), `nominatim_forbidden` (403),
+`nominatim_http_<status>`, `nominatim_timeout`, `nominatim_network_error`,
+`nominatim_malformed_response` (HTML error page, or a JSON object where an
+array was promised), `nominatim_aborted`. Whatever was collected before the
+failure is returned alongside the error.
+
+### Honest limitation
+
+Coverage is only as good as OpenStreetMap's, and roughly half of returned
+places carry no website tag — those are dropped, because every downstream
+signal comes from crawling the site. A business with no website never enters
+the pipeline.
 
 ## Brave Search (optional)
 

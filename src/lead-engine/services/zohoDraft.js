@@ -17,7 +17,7 @@ import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 import { buildZohoUrl, createDraft as createZohoDraft } from '../zoho/client.js'
 import { readZohoConfig } from '../zoho/oauth.js'
-import { listActivity, recordActivity } from '../repositories/activity.js'
+import { findDraftContentCheck, recordActivity } from '../repositories/activity.js'
 import { getPrimaryContact } from '../repositories/contacts.js'
 import { ensureConversation } from '../repositories/conversations.js'
 import { getDraft, recordZohoDraftCreated, recordZohoDraftFailure } from '../repositories/drafts.js'
@@ -90,19 +90,18 @@ export async function pushDraftToZoho(env, draftId, options = {}) {
   // original remains visible for review, but a warning must be an actual gate,
   // not decoration that the next button silently ignores.
   if (draft.generatedBy === 'ai') {
-    const activity = await listActivity(db, { leadId: lead.id, limit: 100 })
-    const validationEvent = activity.find(
-      (event) =>
-        event.metadata?.draftId === draft.id &&
-        Array.isArray(event.metadata?.violations),
-    )
-    if (!validationEvent) {
+    // Looked up by draft id, not by paging the lead's activity: a lead with a
+    // long history would otherwise push its own safeguard record out of the
+    // window and become undraftable.
+    const contentCheck = await findDraftContentCheck(db, draft.id)
+
+    if (!contentCheck) {
       throw operationError(
         'This AI draft has no content-safeguard record. Regenerate it before creating a Zoho draft.',
         422,
       )
     }
-    if (validationEvent.metadata.violations.length > 0) {
+    if (contentCheck.violations.length > 0) {
       throw operationError(
         'This AI draft failed content safeguards. Edit and save it before creating a Zoho draft.',
         422,

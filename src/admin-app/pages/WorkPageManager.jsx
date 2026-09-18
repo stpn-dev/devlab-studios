@@ -113,7 +113,11 @@ export default function WorkPageManager() {
   const showcase = blockOf(page, 'workProjectShowcase')
   const caseStudies = blockOf(page, 'featuredCaseStudies')
   const cta = blockOf(page, 'cta')
-  const featuredItems = showcase?.props?.items || []
+  // Memoized on `showcase` rather than computed inline: `|| []` mints a fresh
+  // array on every render where the block has no items, which made the
+  // `selectedIds` memo below recompute every time and, through it, the
+  // `availableProjects` filter. The memo existed but never memoized anything.
+  const featuredItems = useMemo(() => showcase?.props?.items || [], [showcase])
   const projectsById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects])
   const selectedIds = useMemo(() => new Set(featuredItems.map((item) => item.projectId)), [featuredItems])
   const availableProjects = useMemo(() => {
