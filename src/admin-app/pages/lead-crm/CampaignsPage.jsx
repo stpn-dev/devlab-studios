@@ -130,9 +130,13 @@ function CampaignForm({ onCreated, onCancel }) {
   )
 }
 
-function CampaignRow({ campaign, onChanged }) {
+function CampaignRow({ campaign, onChanged, onImported }) {
   const [busy, setBusy] = useState(null)
   const [feedback, setFeedback] = useState(null)
+  const [showImport, setShowImport] = useState(false)
+  const [importFormat, setImportFormat] = useState('domains')
+  const [importContent, setImportContent] = useState('')
+  const [importFeedback, setImportFeedback] = useState(null)
 
   async function patch(changes, message) {
     setBusy('patch')
@@ -167,6 +171,30 @@ function CampaignRow({ campaign, onChanged }) {
     }
   }
 
+  async function importCandidates(event) {
+    event.preventDefault()
+    setBusy('import')
+    setImportFeedback(null)
+    try {
+      const result = await adminApi.post(`/api/admin/lead-crm/campaigns/${campaign.id}/import`, {
+        format: importFormat,
+        content: importContent,
+      })
+      const parseErrors = result.parseErrors?.length ?? 0
+      const rejected = (result.rejected ?? 0) + parseErrors
+      setImportFeedback({
+        tone: rejected > 0 ? 'warn' : 'ok',
+        message: `${result.created} new, ${result.duplicates} already known, ${rejected} rejected. Research remains queued until its capability is enabled.`,
+      })
+      if (rejected === 0) setImportContent('')
+      onImported()
+    } catch (error) {
+      setImportFeedback({ tone: 'error', message: error.message })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -189,8 +217,16 @@ function CampaignRow({ campaign, onChanged }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowImport((current) => !current)}
+            disabled={busy !== null}
+            className={primaryButtonClass}
+          >
+            {showImport ? 'Close import' : 'Import list'}
+          </button>
           <button type="button" onClick={() => run(true)} disabled={busy !== null} className={buttonClass}>
-            {busy === 'dry' ? 'Running…' : 'Dry run'}
+            {busy === 'dry' ? 'Running…' : 'Automated dry run'}
           </button>
           <button
             type="button"
@@ -224,6 +260,46 @@ function CampaignRow({ campaign, onChanged }) {
       </div>
 
       <Feedback feedback={feedback} />
+
+      {showImport ? (
+        <form onSubmit={importCandidates} className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="block text-sm">
+              <span className="text-slate-600">Import format</span>
+              <select
+                value={importFormat}
+                onChange={(event) => setImportFormat(event.target.value)}
+                className={`${inputClass} mt-1 w-full`}
+              >
+                <option value="domains">Domains or URLs</option>
+                <option value="csv">CSV</option>
+              </select>
+            </label>
+            <p className="max-w-2xl text-xs text-slate-500">
+              {importFormat === 'domains'
+                ? 'Enter one business domain or website URL per line. Blank lines and lines beginning with # are ignored.'
+                : 'Include a header row and a Website, URL, or Domain column. Optional columns include company name, email, phone, city, region, country, and category.'}
+            </p>
+          </div>
+          <textarea
+            required
+            rows={6}
+            value={importContent}
+            onChange={(event) => setImportContent(event.target.value)}
+            placeholder={importFormat === 'domains' ? 'example.com\nhttps://another-example.com' : 'Company,Website\nExample,example.com'}
+            className={`${inputClass} w-full font-mono text-xs`}
+          />
+          <Feedback feedback={importFeedback} />
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="submit" disabled={busy !== null || !importContent.trim()} className={primaryButtonClass}>
+              {busy === 'import' ? 'Importing…' : 'Import candidates'}
+            </button>
+            <span className="text-xs text-slate-500">
+              Importing creates lead records only. It does not crawl websites, run AI, create Zoho drafts, or send email.
+            </span>
+          </div>
+        </form>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-4 border-t border-slate-200 pt-3 text-xs">
         <label className="flex items-center gap-2">
@@ -299,7 +375,7 @@ function CampaignsPage() {
 
       <div className="space-y-3">
         {campaigns.map((campaign) => (
-          <CampaignRow key={campaign.id} campaign={campaign} onChanged={handleChanged} />
+          <CampaignRow key={campaign.id} campaign={campaign} onChanged={handleChanged} onImported={reload} />
         ))}
       </div>
     </div>
