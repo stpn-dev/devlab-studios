@@ -55,8 +55,28 @@ The reverse order, automating the send and adding review after something goes wr
 
 The measure of a working automation is not that it saves time this month. It is that the next person to own it can understand it without you. That means the trigger, the expected input, the model''s role, the validation, the destination, and the failure behaviour are all written down somewhere that is not a person''s memory.
 
-Automation that only its author understands is not an asset. It is a dependency.', '', '["AI Automation","Small Business","Workflow Mapping"]',
-  'DevLab Studios', '2026-07-18', 3,
+Automation that only its author understands is not an asset. It is a dependency.
+
+## Cost the workflow before you cost the tool
+
+The question "what will this cost" usually gets answered with a subscription price, which is the smallest part of it. The real figure is the build, plus the ongoing attention, plus what it costs when it is wrong.
+
+A more useful estimate has four lines. What the manual version costs per month in time. What building it costs once. What it will cost to keep working — credential renewals, upstream changes, the occasional investigation. And what a failure costs, multiplied by how often you expect one.
+
+That fourth line is the one that changes decisions. A workflow saving two hours a month that produces a customer-visible error twice a year is not a good trade, however cheap the platform is.
+
+## Start with one workflow and finish it
+
+The most common failure pattern is breadth: five workflows started, none finished, none trusted, all needing maintenance. It happens because starting is satisfying and finishing is not — finishing means error handling, the runbook, the monitoring, and the awkward edge cases.
+
+One workflow taken all the way to the point where someone else could own it is worth more than five that mostly work. It also teaches you what "all the way" costs in your environment, which is the number you need before committing to the next four.
+
+## What good looks like after six months
+
+A useful test, applied later rather than at launch: can someone who did not build it explain what it does, tell whether it ran today, and fix it when it breaks?
+
+If yes, the automation is infrastructure. If no, it is a person''s side project that happens to be load-bearing, and the business is exposed to whether that person is available. The difference is not in the code — it is in the documentation, the observability, and whether anyone else has ever touched it.', '', '["AI Automation","Small Business","Workflow Mapping"]',
+  'DevLab Studios', '2026-07-18', 4,
   1, 10, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -131,8 +151,32 @@ A rate limiter that fails closed will eventually take your contact form offline 
 
 The last item on the checklist is the one most often skipped: submit a real inquiry through the real form on the real site, and follow it all the way to where it is supposed to land. Do this after every change to the pipeline.
 
-An intake system that has never been tested end to end is not a system. It is a hypothesis.', '', '["Lead Intake","CRM","Automation Design"]',
-  'DevLab Studios', '2026-07-11', 3,
+An intake system that has never been tested end to end is not a system. It is a hypothesis.
+
+## Decide what the visitor is told, and when
+
+The confirmation message is part of the system''s contract, not a decoration. "Thanks, we''ll be in touch" implies a person will see this. If delivery failed silently and nobody does, the message was a promise the system did not keep.
+
+Say what is true at the moment you say it. If the submission is stored and a person reviews it within a working day, say that. If an automated reply is coming, say so and say roughly when. Vague reassurance is worse than a specific modest claim, because a specific claim can be verified and a vague one quietly erodes trust when it turns out to be untrue.
+
+## Keep the raw submission, not only the parsed one
+
+Normalizing input is necessary — trimming, formatting phone numbers, mapping a free-text field onto a known set. Keep what was actually typed as well.
+
+When something looks wrong three weeks later, the question is almost always "what did they actually send us", and a normalized record cannot answer it. The storage cost is trivial. The alternative is reconstructing intent from a value that has already been through two transformations.
+
+## Instrument the funnel across the seam
+
+Page analytics tell you how many people submitted. Pipeline logs tell you how many records were delivered. Neither answers the question that matters: of the people who tried, how many became something a person acted on?
+
+Carry one identifier from the form through to the delivery record. Without it a drop-off between the two halves is invisible, because each side reports itself as healthy and neither can see the other.
+
+## Review the failures on a schedule, not on complaint
+
+Put a recurring slot in the calendar to look at the failed and pending records. Ten minutes a fortnight is enough.
+
+This is the control that catches everything the other items miss — the failure nobody anticipated, the upstream that started rejecting a field, the gradual rise in one error type. Intake systems do not usually break all at once. They develop a small persistent leak, and the only thing that finds a leak is someone looking.', '', '["Lead Intake","CRM","Automation Design"]',
+  'DevLab Studios', '2026-07-11', 4,
   0, 20, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -202,8 +246,37 @@ Choosing a tool that assumes the wrong maintainer produces the same outcome eith
 
 Treat the platform as replaceable. Keep the business rules written down outside it, keep credentials in one place you control, and prefer plain HTTP calls to proprietary steps where the difference is small.
 
-None of that is free, but it is much cheaper than discovering that a year of process knowledge exists only as boxes and arrows inside a product you have outgrown.', '', '["Zapier","Make","n8n","Tooling"]',
-  'DevLab Studios', '2026-07-04', 3,
+None of that is free, but it is much cheaper than discovering that a year of process knowledge exists only as boxes and arrows inside a product you have outgrown.
+
+## Test the integration you are actually worried about
+
+Every platform''s connector list includes the tool you need. What the list does not tell you is whether that connector supports the specific operation you depend on, at the volume you need, with the fields you care about.
+
+Before committing, build the single riskiest step — the unusual API, the high-volume sync, the one with awkward pagination — on a trial account. An afternoon spent here answers a question no comparison article can, because the answer depends on your endpoint rather than on the platform in general.
+
+## Credentials and access are a security decision
+
+These platforms hold long-lived credentials to your business systems. That makes the platform part of your security surface, and worth the same questions you would ask of any vendor with that access.
+
+Who on your team can see or export stored credentials. Whether connections are made under a service account or a person''s login — the latter breaks when they leave, and takes the workflow with it. Whether audit history shows who changed a workflow and when. Whether data passing through is retained, and for how long.
+
+- Connect under service accounts, never a personal login
+- Keep an inventory of which workflows hold which credentials
+- Know the retention period for execution data containing customer information
+- Confirm you can revoke access quickly if you need to
+
+## Plan the exit before you need it
+
+Treat the platform as replaceable, because eventually it will be. Keep the business rules written down outside it, keep credentials in one place you control, and prefer plain HTTP calls to proprietary steps where the difference is small.
+
+Exports help less than people expect: most platforms export a workflow in their own format, which is useful for backup and useless for migration. The portable artifact is the written description of what the process does and why.
+
+## The honest summary
+
+For a handful of straightforward workflows maintained by a non-technical team, the hosted options are almost always right and the choice between them is close to arbitrary. For high volume, unusual integrations, or data that cannot leave your infrastructure, self-hosting starts to pay — provided somebody owns the server.
+
+The wrong answer is choosing on a feature matrix and discovering the real constraints six months later.', '', '["Zapier","Make","n8n","Tooling"]',
+  'DevLab Studios', '2026-07-04', 5,
   0, 30, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -272,8 +345,34 @@ The same goes for format: how many phone numbers are in a form your SMS provider
 
 Cleaning existing records is worth doing once. It is worth very little if the thing producing those records keeps producing them in the same shape.
 
-Most data quality problems are validation problems that happened earlier — a free-text field where a list belonged, an optional field that should have been required, a form that accepted anything because rejecting input felt unfriendly. Tighten the intake first, then clean up behind it. Otherwise you will be cleaning the same fields again next quarter.', '', '["Data Quality","CRM","Operations"]',
-  'DevLab Studios', '2026-06-27', 3,
+Most data quality problems are validation problems that happened earlier — a free-text field where a list belonged, an optional field that should have been required, a form that accepted anything because rejecting input felt unfriendly. Tighten the intake first, then clean up behind it. Otherwise you will be cleaning the same fields again next quarter.
+
+## Agree what a duplicate is before you deduplicate
+
+"Remove duplicates" sounds like a settled instruction and almost never is. Two records with the same email and different names might be one person who changed theirs, or two people sharing an inbox. Two companies with the same name at different addresses might be branches, or might be unrelated.
+
+Write the rule down as a decision someone made: these fields matching means the same entity, these fields matching means a probable match to review, everything else is distinct. Then automate against the rule rather than against an intuition, and keep probable matches in a queue rather than merging them silently.
+
+A wrong merge is much harder to undo than a missed one.
+
+## Decide what happens to history
+
+When a record changes, does the old value matter? For a status field the answer is usually yes — knowing something was proposed before it was approved is often the entire question. For a corrected typo, no.
+
+This decision determines whether you need an event log alongside the current state. Retrofitting one is expensive, because the history you wanted is exactly the history you did not keep. Deciding early costs almost nothing.
+
+## Test the migration on a copy, with the real data
+
+Cleaning scripts behave differently on real data than on samples, because real data contains the cases nobody thought of: the empty string that is not null, the date in a different century, the name with an unexpected character.
+
+Run the cleanup against a full copy first and count what changed. If the count is much larger or much smaller than expected, the rule is wrong — and finding that out on a copy is free.
+
+## Assign an owner per system, not per project
+
+Data quality is not a project that finishes. Fields drift, new integrations write new values, and somebody eventually needs a decision about whether a new status is legitimate.
+
+Name a person per system who owns those decisions. Without one, each integration makes its own choice and the definitions diverge again, usually within a year and usually invisibly until two reports disagree.', '', '["Data Quality","CRM","Operations"]',
+  'DevLab Studios', '2026-06-27', 4,
   0, 40, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -345,8 +444,34 @@ This gets most of the benefit of using a model while keeping the properties that
 
 Ask what happens when it gets it wrong, because it will. If the answer is "a person notices and fixes it in a minute", either shape is fine. If the answer is "a customer receives something incorrect" or "a record is changed and nobody knows", you want the fixed path, and you want a person in front of the irreversible step.
 
-Start with the workflow. Add the agent when you have a concrete case where enumerating the branches has actually become the problem.', '', '["AI Agents","Automation Design","Operations"]',
-  'DevLab Studios', '2026-06-20', 3,
+Start with the workflow. Add the agent when you have a concrete case where enumerating the branches has actually become the problem.
+
+## Cost is variable in a way a workflow''s is not
+
+A workflow''s cost is a known number per run. An agent''s is not: it depends on how many steps it chose to take, and that varies with the input. The same task can cost twice as much on a Tuesday because the phrasing was ambiguous.
+
+That matters for budgeting, and it matters more for the failure mode. An agent stuck in a loop — calling a tool, getting an unhelpful result, trying again — can spend a great deal before anything notices. A hard cap on steps and on total spend per run is not an optimisation; it is the thing standing between a bad input and a large bill.
+
+- Cap the number of steps per run, and log when the cap is hit
+- Cap total spend per run, and per day
+- Alert on runs that hit either cap, since that is where the pathologies live
+
+## Testing an agent is a different discipline
+
+A workflow is tested by asserting that a given input produces a given output. That works because the path is fixed.
+
+An agent''s path varies, so the same assertion style produces flaky tests that fail for reasons unrelated to correctness. What you can assert is the outcome: the record ended up in the right state, the answer contains the right facts, no forbidden tool was called. Build a set of real inputs with known-good outcomes and measure the pass rate rather than expecting determinism.
+
+A pass rate also gives you something a binary test cannot — the ability to tell whether a prompt change helped, which is otherwise guesswork.
+
+## The hybrid shape in practice
+
+Most useful systems are a fixed pipeline with a model at one or two specific points, and the interesting design work is deciding where those points are.
+
+A good rule: the model handles the step where the input is unstructured and the output is small and checkable. Everything around it — deciding what to do with that output, where it goes, what happens on failure — stays deterministic code you can read.
+
+That shape keeps the debuggable properties of a workflow while getting the part of the model that is genuinely hard to replace.', '', '["AI Agents","Automation Design","Operations"]',
+  'DevLab Studios', '2026-06-20', 4,
   0, 50, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -420,8 +545,32 @@ Include whether reprocessing is safe. If the workflow is idempotent, say so and 
 
 An unowned automation degrades quietly. APIs change, credentials expire, volumes grow past a tier. Put a name against it and a date to look at it again, and keep the runbook next to the code rather than in a document nobody opens.
 
-The runbook is not overhead on the build. It is the part that makes the build survivable.', '', '["Documentation","Handover","Operations"]',
-  'DevLab Studios', '2026-09-05', 3,
+The runbook is not overhead on the build. It is the part that makes the build survivable.
+
+## Write it while building, not afterwards
+
+A runbook written after the fact documents what you remember, which is the happy path. The awkward details — why that retry is three and not five, why that field is nullable, which upstream returns a 200 with an error body — are exactly the things that fade first and matter most.
+
+Keeping a running note while building costs almost nothing and captures decisions at the moment there is a reason for them. Tidy it at the end.
+
+## Record what you decided not to do
+
+A runbook that only describes the built thing invites the next person to "improve" it back into a problem you already solved.
+
+If you deliberately did not retry a class of failure, say so and say why. If a step is manual on purpose because the cost of being wrong is high, write that down. These notes prevent a specific and frustrating kind of regression: someone removing a safeguard because its reason was never recorded.
+
+## Include the queries, not just the advice
+
+"Check whether the sync ran" is advice. The exact query, with the table and the field, is a runbook.
+
+Paste the commands. The log filter that shows this workflow''s runs. The query that returns the last successful run. The call that re-triggers it. Someone debugging at an inconvenient hour should be copying and pasting, not reconstructing your reasoning.
+
+## Test the handover for real
+
+The only reliable check is to have someone else use it. Pick a colleague, give them a deliberately broken staging environment and the runbook, and stay out of the conversation.
+
+Everything they have to ask you is a gap. Write down the answer and the document improves permanently. Skip this and you have a document that is complete to its author, which is the only reader who did not need it.', '', '["Documentation","Handover","Operations"]',
+  'DevLab Studios', '2026-09-05', 4,
   0, 60, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -486,8 +635,44 @@ This has the larger practical effect on cost, because it applies to the high-vol
 
 Do not take the benchmark''s word for it. Keep a fixed set of twenty or thirty real inputs from your own workflow, with the answers you actually want. Run them against the current model and the candidate, and compare.
 
-This takes an hour to set up and turns model selection from a reading exercise into a measurement. It also catches the case nobody expects: an upgrade that improves general capability while regressing on the narrow thing your pipeline depends on.', '', '["AI News","Operations","Practical Use"]',
-  'DevLab Studios', '2026-07-05', 2,
+This takes an hour to set up and turns model selection from a reading exercise into a measurement. It also catches the case nobody expects: an upgrade that improves general capability while regressing on the narrow thing your pipeline depends on.
+
+## Cheaper is a capability change too
+
+Price drops get reported as a commercial story, but for operations they are a
+capability story. Work that was uneconomic at one price becomes routine at a
+tenth of it.
+
+Summarizing every inbound message rather than the flagged ones. Classifying an
+entire backlog rather than sampling it. Running a second model over the first
+one''s output as a check. None of these need any new capability — they were
+simply not worth the cost, and at some point they are.
+
+Worth revisiting periodically: the list of things you decided against on cost
+grounds. Some of them have quietly become sensible.
+
+## Deprecation is the risk nobody budgets for
+
+Models are retired. A pipeline pinned to a specific version will eventually get
+a notice with a date on it, and the replacement will behave slightly differently
+on your inputs even when it is better in general.
+
+The defence is the same evaluation set as above, plus keeping the model
+identifier in configuration rather than scattered through the code. With both,
+a deprecation is an afternoon. Without them, it is an unplanned project with an
+externally imposed deadline.
+
+## What to actually do when a new model ships
+
+Not much, immediately. Read what changed, and check the two things that affect
+you: whether your current model is now deprecated, and whether the price of the
+tier you use moved.
+
+Then, when there is a quiet hour, run your evaluation set against the new model
+and compare. Most of the time the answer is that nothing meaningful changed for
+your workload, and knowing that with evidence is worth more than the upgrade
+would have been.', '', '["AI News","Operations","Practical Use"]',
+  'DevLab Studios', '2026-07-05', 4,
   0, 70, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -556,8 +741,51 @@ Small models also make retries affordable. If a call is cheap and fast, you can 
 
 Whatever you pick, keep the model identifier in configuration rather than scattered through code, and keep the evaluation set. Models get deprecated, renamed, and repriced on someone else''s schedule.
 
-A pipeline that can swap models by changing one value, and prove the swap was safe by re-running thirty examples, treats that as routine maintenance. One that cannot treats it as a project.', '', '["AI News","Cost","Model Selection"]',
-  'DevLab Studios', '2026-08-14', 2,
+A pipeline that can swap models by changing one value, and prove the swap was safe by re-running thirty examples, treats that as routine maintenance. One that cannot treats it as a project.
+
+## Routing beats upgrading
+
+When a small model fails on part of your workload, the reflex is to move
+everything to a larger one. That pays the larger price on the majority of cases
+that were already fine.
+
+Routing is usually better: send the easy cases to the small model and the hard
+ones to the large one, on whatever property distinguishes them. Input length is
+often enough. So is a confidence signal, or a validation step that re-asks a
+stronger model when the first answer fails a check.
+
+The result costs close to the small model''s price with close to the large one''s
+accuracy, and it degrades sensibly — if the router is wrong, you have paid too
+much rather than got it wrong.
+
+## Prompt quality closes more of the gap than model size
+
+A small model with a clear, specific prompt and two examples routinely beats a
+larger one with a vague instruction. Examples matter disproportionately: they
+communicate format and edge-case handling more reliably than any description of
+them.
+
+This is worth trying before concluding a small model cannot do the job. The
+cheapest experiment in this whole area is rewriting the prompt and re-running
+the same thirty inputs.
+
+## Latency is a product decision, not just a number
+
+Where a person is waiting, model choice becomes a user experience decision
+rather than an infrastructure one. A form that takes four seconds to validate
+feels broken regardless of how good the validation is.
+
+Small models make interactive use realistic. They also make it feasible to run
+the call on every keystroke-pause rather than on submit, which changes what the
+feature can be — a different thing from doing the same feature more cheaply.
+
+## What to keep after choosing
+
+Whatever you land on, keep three artifacts: the evaluation set, the measured
+result per model, and the date. Together they are the answer to "why are we on
+this model", which someone will ask, and the starting point for re-checking when
+the next generation lands.', '', '["AI News","Cost","Model Selection"]',
+  'DevLab Studios', '2026-08-14', 4,
   0, 80, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -625,8 +853,48 @@ It also means the schema is worth reviewing with whoever owns the process, not o
 
 Structured output is a transport improvement, and a large one. It is not a correctness guarantee, and treating it as one replaces a loud failure with a quiet one.
 
-Keep the validation layer you wrote for the old world. It is doing a different job now — checking meaning rather than shape — and that job never went away.', '', '["AI News","Integration","Data"]',
-  'DevLab Studios', '2026-08-28', 2,
+Keep the validation layer you wrote for the old world. It is doing a different job now — checking meaning rather than shape — and that job never went away.
+
+## Null is a real answer and should be allowed to be one
+
+The single most useful schema habit is making a field nullable whenever "not
+present in the source" is a legitimate outcome, and then handling the null.
+
+It sounds obvious and is routinely skipped, because a required field feels more
+rigorous. It is not: it removes the model''s only honest option and forces a
+guess. A nullable field with an explicit downstream branch turns a silent
+fabrication into a visible decision.
+
+## Enumerations need an escape hatch
+
+A closed set of values is good schema design right up to the input that belongs
+to none of them. Without an escape, the model picks the nearest wrong option and
+the record looks fine.
+
+Include an "other" or "unknown" member, and route it somewhere a person sees.
+The count of items landing there is also a useful signal in itself: a rising
+number usually means the real world has developed a category your schema does
+not have yet.
+
+## Validate the meaning, not just the shape
+
+The schema checks types. Everything about whether the values make sense is still
+yours to check: dates within a plausible range, amounts matching their currency,
+identifiers matching a known format, totals equal to the sum of their parts.
+
+These checks are cheap and catch exactly the failures a schema cannot. They are
+also the natural place to decide what happens next — reject, queue for review,
+or accept with a flag — which is a business decision rather than a parsing one.
+
+## Keep the raw response
+
+Store what the model returned alongside the parsed record, at least for a while.
+
+When a value looks wrong later, the question is whether the model produced it or
+something downstream transformed it, and only the raw response answers that.
+It is also what you need to build an evaluation set from real traffic, which is
+much better than one assembled from imagination.', '', '["AI News","Integration","Data"]',
+  'DevLab Studios', '2026-08-28', 4,
   0, 90, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -694,8 +962,53 @@ The failure mode is worth designing deliberately. If the allowance is exhausted,
 
 ## A reasonable rule
 
-Use edge inference for high-volume, latency-sensitive, small-model work in the request path. Keep an external provider for the harder calls. Keep both behind one interface so the choice per task stays a configuration decision rather than a rewrite.', '', '["AI News","Edge","Architecture"]',
-  'DevLab Studios', '2026-09-10', 2,
+Use edge inference for high-volume, latency-sensitive, small-model work in the request path. Keep an external provider for the harder calls. Keep both behind one interface so the choice per task stays a configuration decision rather than a rewrite.
+
+## Design the degraded path first
+
+The most important decision is what happens when inference is unavailable, and
+it is best made before anything is built.
+
+There are only really three answers: fail the request, serve a fallback, or
+serve the result without the model''s contribution. Which is right depends on
+whether the model output is the feature or an enhancement to it. A translation
+feature without the model is broken. A summary line above a list of links is an
+enhancement, and the list is still worth serving.
+
+Whichever you choose, make it observable. A degraded path nobody can see becomes
+the permanent state, and nobody finds out until somebody asks why the summaries
+stopped appearing weeks ago.
+
+## Verify the response shape per model, not per platform
+
+Models on the same platform do not agree on their response format. Some return a
+simple text field, some return an OpenAI-style structure with the text nested
+several levels down.
+
+Reading only the shape you first encountered produces a failure that is
+genuinely hard to spot: the call succeeds, the usage is billed, and the result is
+discarded. The code looks correct and the logs say the model was unavailable.
+Handle the shapes you might receive, and log which one arrived.
+
+## Local development is not a rehearsal
+
+It is common for these bindings to be unavailable or to behave differently
+outside the deployed environment. That means local testing exercises the
+degraded path rather than the real one, and can give a false impression in either
+direction.
+
+Know which of the two you are looking at. If the local environment cannot reach
+the model at all, a green local run tells you the fallback works and nothing
+about the model call.
+
+## Measure usage from the first day
+
+Log whatever usage figure the platform reports, per run, from the beginning.
+
+It costs one field and converts every future capacity conversation from an
+argument into a query. It also makes the day you approach a limit a thing you
+notice in advance rather than a thing you discover from a failure.', '', '["AI News","Edge","Architecture"]',
+  'DevLab Studios', '2026-09-10', 4,
   0, 100, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -763,8 +1076,49 @@ It also constrains fabrication. A model asked to answer only from supplied passa
 
 Keep a set of real questions with the passages that should be retrieved for each. Then you can measure whether the right material was fetched, independently of what was written afterwards.
 
-Without that separation, every change is judged on the final answer, and you cannot tell whether a prompt tweak helped or an unrelated indexing change did. Retrieval quality is measurable on its own, and measuring it is what stops the whole system being tuned by feel.', '', '["AI News","Retrieval","Knowledge"]',
-  'DevLab Studios', '2026-09-12', 2,
+Without that separation, every change is judged on the final answer, and you cannot tell whether a prompt tweak helped or an unrelated indexing change did. Retrieval quality is measurable on its own, and measuring it is what stops the whole system being tuned by feel.
+
+## Metadata filtering removes more noise than better ranking
+
+A large share of "the answer was wrong" turns out to be the right answer from
+the wrong document — a superseded version, another customer''s, a different
+region''s.
+
+Storing structured metadata alongside each chunk and filtering before ranking
+removes that class entirely. Date, source, version, owner, visibility. It is
+less interesting than tuning similarity and it fixes more real failures,
+because it eliminates candidates rather than reordering them.
+
+## Decide what happens to stale content
+
+An index is a copy, and copies go out of date. The failure is quiet: confident
+answers from a document that was replaced last quarter.
+
+Decide up front how the index learns about changes, how quickly, and what
+happens to deleted sources. Then carry the source''s date into the answer, so a
+reader can see they are being told something from two years ago even when the
+retrieval did exactly what it was asked.
+
+## Test with the questions people actually ask
+
+Evaluation sets tend to be written by the person who built the system, which
+means they are phrased the way the system expects. Real questions are shorter,
+vaguer, full of internal shorthand, and often not questions at all.
+
+Collect real ones as soon as there are any, and evaluate against those. The
+first batch is usually humbling and always more useful than the imagined set.
+
+## Know when retrieval is the wrong tool
+
+Some questions cannot be answered by finding a passage: anything requiring a
+count, an aggregate, a comparison across many records, or a calculation. No
+amount of retrieval quality fixes "how many open tickets does this customer
+have", because the answer is not written down anywhere to retrieve.
+
+Those belong to a query against structured data. Recognising which kind of
+question you are handling — and routing accordingly — matters more than any
+tuning inside the retrieval path.', '', '["AI News","Retrieval","Knowledge"]',
+  'DevLab Studios', '2026-09-12', 4,
   0, 110, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -834,8 +1188,49 @@ Carrying one identifier from the form through to the delivery record makes that 
 
 The practical failure mode is organisational. When the page and the pipeline have different owners, the seam between them belongs to nobody, and that is exactly where the interesting bugs live.
 
-Someone should be able to answer what happens to a submission from keystroke to CRM record. If nobody can, the gap is not in the code.', '', '["Website Performance","Automation","Conversion"]',
-  'DevLab Studios', '2026-07-03', 2,
+Someone should be able to answer what happens to a submission from keystroke to CRM record. If nobody can, the gap is not in the code.
+
+## Third-party scripts are part of the pipeline now
+
+Analytics, chat widgets, tag managers and pixels all run in the same page as the
+form. Each is an external dependency in the critical path of a conversion, and
+each can be slow or unavailable independently of your own infrastructure.
+
+The failure is rarely total. It is a script that takes four seconds to load and
+blocks interaction while it does, on a page whose entire purpose is a form
+submission. Load them after the page is usable, and know which ones would take
+the form down with them if they failed.
+
+## Mobile is where the cost lands
+
+Most of the difference between a fast page and a slow one shows up on a phone on
+a mediocre connection, which is a large share of real traffic and almost none of
+the testing.
+
+Test the form on a throttled connection on an actual device. The gap between
+that experience and the one on a developer''s machine is usually where the
+abandoned submissions are, and it is invisible from the desk where the page was
+built.
+
+## Failure states deserve design attention
+
+Most forms are designed for the successful path. The interesting states are the
+others: what a validation error looks like, what happens when the network drops
+mid-submission, whether a retry produces a duplicate, whether the visitor can
+tell the difference between "still working" and "stopped".
+
+These are the moments where a person decides whether to try again or leave, and
+they are usually the least designed part of the page.
+
+## One owner, or the seam rots
+
+The practical failure mode is organisational. When the page and the pipeline
+have different owners, the seam between them belongs to nobody — and that is
+exactly where the interesting bugs live.
+
+Someone should be able to answer what happens to a submission from keystroke to
+CRM record. If nobody can, the gap is not in the code.', '', '["Website Performance","Automation","Conversion"]',
+  'DevLab Studios', '2026-07-03', 4,
   0, 120, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -907,8 +1302,51 @@ Guard against it by asserting expectations rather than only catching errors. If 
 
 ## Maintenance is a scheduled activity, not an event
 
-Every integration ages. Credentials, dependencies, plan limits, and upstream APIs all move. Automations that get looked at on a schedule degrade gracefully; ones that only get looked at when someone complains degrade until someone complains.', '', '["Reliability","Operations","Maintenance"]',
-  'DevLab Studios', '2026-08-21', 3,
+Every integration ages. Credentials, dependencies, plan limits, and upstream APIs all move. Automations that get looked at on a schedule degrade gracefully; ones that only get looked at when someone complains degrade until someone complains.
+
+## Retries can cause the damage they were meant to prevent
+
+Retrying a transient failure is correct. Retrying an operation that already
+partially succeeded is how one invoice becomes three.
+
+The distinction is idempotency: whether running the same operation twice
+produces the same result as running it once. Achieve it with a key derived from
+the operation itself, so a duplicate collapses into the original by construction
+rather than by a check that might race.
+
+Where you cannot make an operation idempotent, do not retry it automatically.
+Surface it for a person, who can look before deciding.
+
+## Partial failure is the normal case
+
+A workflow that touches four systems has, in practice, sixteen possible
+outcomes, not two. The interesting ones are in the middle: the CRM accepted it
+and the email failed, or the record was created and the status update was not.
+
+Decide what each partial state means. Which steps must succeed together, which
+can be retried independently, and what a half-completed run should leave behind.
+A workflow that only handles "all worked" and "nothing worked" will eventually
+leave a record in a state nobody designed, and someone will find it weeks later.
+
+## Watch the trend, not just the threshold
+
+Most monitoring alerts on a threshold: error rate above some number. That
+catches the cliff and misses the slope.
+
+A gradual rise in one error category over three weeks is usually the earliest
+signal of something real — a growing dataset, an upstream slowly changing, a
+limit being approached. Looking at counts by category over time, even briefly
+and manually, catches things no threshold would have fired on.
+
+## Keep a list of what could break
+
+Write down the integrations, their credentials, their expiry dates, their rate
+limits and their plan ceilings. Keep it with the runbook.
+
+It takes an hour and turns the most common class of outage — something expired,
+something hit a limit — from an investigation into a lookup. It also makes the
+question "what are we exposed to" answerable, which it otherwise is not.', '', '["Reliability","Operations","Maintenance"]',
+  'DevLab Studios', '2026-08-21', 4,
   0, 130, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -980,8 +1418,48 @@ The pattern that works: degrade in behaviour, but record that you degraded. The 
 
 Pick an automation and break it deliberately in a staging environment. Revoke a credential, empty the source, make the upstream return an unexpected shape.
 
-Then ask: how would we have found out? If the honest answer is a person eventually noticing something missing, that is the gap. It is far cheaper to find it on purpose than to find it in the middle of a month when nobody was looking.', '', '["Reliability","Monitoring","Operations"]',
-  'DevLab Studios', '2026-09-04', 3,
+Then ask: how would we have found out? If the honest answer is a person eventually noticing something missing, that is the gap. It is far cheaper to find it on purpose than to find it in the middle of a month when nobody was looking.
+
+## Freshness beats almost every other signal
+
+If you add only one check, add the timestamp of the last successful run, with a
+threshold for how old is too old.
+
+It catches every silent failure at once, including the ones nobody predicted: the
+trigger that stopped firing, the filter that now matches nothing, the credential
+that expired, the schedule that was quietly disabled. It requires no
+understanding of why something broke, only that it has not worked since Tuesday.
+
+## Put it where someone will actually see it
+
+An alert into a channel nobody reads is documentation, not monitoring. So is a
+dashboard opened once a quarter.
+
+Route it to where the affected work happens — the inbox of the person who
+depends on the output, the channel the team already watches. And make the
+message say what to do, not only what happened. An alert nobody knows how to act
+on gets muted, and a muted alert is worse than none because it creates the
+impression of coverage.
+
+## Count the fallbacks
+
+Every graceful degradation needs a counter. How many times today did the code
+take the safe path instead of the good one.
+
+Without it, degradation is indistinguishable from normal operation, and the
+fallback becomes permanent. With it, "the summaries have been empty for a week"
+is a number on a chart rather than something a person eventually notices.
+
+## Reconcile against the source occasionally
+
+For anything that syncs, periodically compare counts at both ends. How many
+records exist upstream, how many downstream, and does the difference have an
+explanation.
+
+This is the check that catches drift no per-run error handling can see, because
+every individual run succeeded. It is also the one that finds the records lost
+during an incident three months ago that nobody realised had been lost.', '', '["Reliability","Monitoring","Operations"]',
+  'DevLab Studios', '2026-09-04', 4,
   0, 140, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )
@@ -1049,8 +1527,49 @@ If nobody will own it after launch, it should not be built. Unowned automation d
 
 A written procedure with the exact steps, the actual field values, and the edge cases is fast to produce, needs no credentials, does not break when an API changes, and can be followed by anyone.
 
-For infrequent, unstable, or judgement-heavy work it is usually the better tool. Choosing it is not a failure to automate. It is the same analysis, reaching a different answer — and it leaves the automation budget for the workflows that will actually repay it.', '', '["Strategy","Operations","Decision Making"]',
-  'DevLab Studios', '2026-09-15', 2,
+For infrequent, unstable, or judgement-heavy work it is usually the better tool. Choosing it is not a failure to automate. It is the same analysis, reaching a different answer — and it leaves the automation budget for the workflows that will actually repay it.
+
+## Ask what the process is for before automating it
+
+Some steps exist because of a constraint that no longer applies — a system that
+was replaced, an approval for a risk that has passed, a report nobody reads.
+Automating those makes a redundant step permanent and harder to remove, because
+it is now in a tool rather than in a habit.
+
+Before building, ask what each step is for and who consumes its output. The
+answer is occasionally that nobody does, and deleting a step is a better outcome
+than automating it.
+
+## Partial automation is a real answer
+
+The choice is not between fully automated and fully manual. Most of the value
+often sits in the boring middle: gather the information, pre-fill the form,
+assemble the draft, then stop and let a person decide.
+
+This shape is cheaper to build, much cheaper to maintain, and keeps judgement
+where judgement belongs. It also tends to be where the actual time goes — the
+decision is usually quick, and the gathering is what takes twenty minutes.
+
+## Beware the process that is really a conversation
+
+Some workflows look like data movement and are actually negotiation: chasing a
+late invoice, handling a complaint, agreeing a delivery date. The steps can be
+described, but what makes them work is the person reading the situation.
+
+Automating the visible steps while removing the reading produces something
+technically correct and relationally wrong. Automate the record-keeping around
+the conversation instead, and leave the conversation alone.
+
+## Write the decision down either way
+
+Whichever way it goes, record it: what was considered, what was decided, and
+why. Otherwise the same proposal returns every six months and gets re-argued
+from scratch by people who do not know it was already examined.
+
+A short note saying "we looked at automating this in March and chose a checklist
+because it runs twice a year" saves that whole conversation, and makes it easy
+to revisit properly if the frequency changes.', '', '["Strategy","Operations","Decision Making"]',
+  'DevLab Studios', '2026-09-15', 4,
   0, 150, 'published',
   strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 )

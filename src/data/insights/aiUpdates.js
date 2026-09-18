@@ -54,7 +54,43 @@ This has the larger practical effect on cost, because it applies to the high-vol
 
 Do not take the benchmark's word for it. Keep a fixed set of twenty or thirty real inputs from your own workflow, with the answers you actually want. Run them against the current model and the candidate, and compare.
 
-This takes an hour to set up and turns model selection from a reading exercise into a measurement. It also catches the case nobody expects: an upgrade that improves general capability while regressing on the narrow thing your pipeline depends on.`,
+This takes an hour to set up and turns model selection from a reading exercise into a measurement. It also catches the case nobody expects: an upgrade that improves general capability while regressing on the narrow thing your pipeline depends on.
+
+## Cheaper is a capability change too
+
+Price drops get reported as a commercial story, but for operations they are a
+capability story. Work that was uneconomic at one price becomes routine at a
+tenth of it.
+
+Summarizing every inbound message rather than the flagged ones. Classifying an
+entire backlog rather than sampling it. Running a second model over the first
+one's output as a check. None of these need any new capability — they were
+simply not worth the cost, and at some point they are.
+
+Worth revisiting periodically: the list of things you decided against on cost
+grounds. Some of them have quietly become sensible.
+
+## Deprecation is the risk nobody budgets for
+
+Models are retired. A pipeline pinned to a specific version will eventually get
+a notice with a date on it, and the replacement will behave slightly differently
+on your inputs even when it is better in general.
+
+The defence is the same evaluation set as above, plus keeping the model
+identifier in configuration rather than scattered through the code. With both,
+a deprecation is an afternoon. Without them, it is an unplanned project with an
+externally imposed deadline.
+
+## What to actually do when a new model ships
+
+Not much, immediately. Read what changed, and check the two things that affect
+you: whether your current model is now deprecated, and whether the price of the
+tier you use moved.
+
+Then, when there is a quiet hour, run your evaluation set against the new model
+and compare. Most of the time the answer is that nothing meaningful changed for
+your workload, and knowing that with evidence is worth more than the upgrade
+would have been.`,
     coverImageUrl: '',
     authorName: 'DevLab Studios',
     publishedAt: '2026-07-05',
@@ -114,7 +150,50 @@ Small models also make retries affordable. If a call is cheap and fast, you can 
 
 Whatever you pick, keep the model identifier in configuration rather than scattered through code, and keep the evaluation set. Models get deprecated, renamed, and repriced on someone else's schedule.
 
-A pipeline that can swap models by changing one value, and prove the swap was safe by re-running thirty examples, treats that as routine maintenance. One that cannot treats it as a project.`,
+A pipeline that can swap models by changing one value, and prove the swap was safe by re-running thirty examples, treats that as routine maintenance. One that cannot treats it as a project.
+
+## Routing beats upgrading
+
+When a small model fails on part of your workload, the reflex is to move
+everything to a larger one. That pays the larger price on the majority of cases
+that were already fine.
+
+Routing is usually better: send the easy cases to the small model and the hard
+ones to the large one, on whatever property distinguishes them. Input length is
+often enough. So is a confidence signal, or a validation step that re-asks a
+stronger model when the first answer fails a check.
+
+The result costs close to the small model's price with close to the large one's
+accuracy, and it degrades sensibly — if the router is wrong, you have paid too
+much rather than got it wrong.
+
+## Prompt quality closes more of the gap than model size
+
+A small model with a clear, specific prompt and two examples routinely beats a
+larger one with a vague instruction. Examples matter disproportionately: they
+communicate format and edge-case handling more reliably than any description of
+them.
+
+This is worth trying before concluding a small model cannot do the job. The
+cheapest experiment in this whole area is rewriting the prompt and re-running
+the same thirty inputs.
+
+## Latency is a product decision, not just a number
+
+Where a person is waiting, model choice becomes a user experience decision
+rather than an infrastructure one. A form that takes four seconds to validate
+feels broken regardless of how good the validation is.
+
+Small models make interactive use realistic. They also make it feasible to run
+the call on every keystroke-pause rather than on submit, which changes what the
+feature can be — a different thing from doing the same feature more cheaply.
+
+## What to keep after choosing
+
+Whatever you land on, keep three artifacts: the evaluation set, the measured
+result per model, and the date. Together they are the answer to "why are we on
+this model", which someone will ask, and the starting point for re-checking when
+the next generation lands.`,
     coverImageUrl: '',
     authorName: 'DevLab Studios',
     publishedAt: '2026-08-14',
@@ -173,7 +252,47 @@ It also means the schema is worth reviewing with whoever owns the process, not o
 
 Structured output is a transport improvement, and a large one. It is not a correctness guarantee, and treating it as one replaces a loud failure with a quiet one.
 
-Keep the validation layer you wrote for the old world. It is doing a different job now — checking meaning rather than shape — and that job never went away.`,
+Keep the validation layer you wrote for the old world. It is doing a different job now — checking meaning rather than shape — and that job never went away.
+
+## Null is a real answer and should be allowed to be one
+
+The single most useful schema habit is making a field nullable whenever "not
+present in the source" is a legitimate outcome, and then handling the null.
+
+It sounds obvious and is routinely skipped, because a required field feels more
+rigorous. It is not: it removes the model's only honest option and forces a
+guess. A nullable field with an explicit downstream branch turns a silent
+fabrication into a visible decision.
+
+## Enumerations need an escape hatch
+
+A closed set of values is good schema design right up to the input that belongs
+to none of them. Without an escape, the model picks the nearest wrong option and
+the record looks fine.
+
+Include an "other" or "unknown" member, and route it somewhere a person sees.
+The count of items landing there is also a useful signal in itself: a rising
+number usually means the real world has developed a category your schema does
+not have yet.
+
+## Validate the meaning, not just the shape
+
+The schema checks types. Everything about whether the values make sense is still
+yours to check: dates within a plausible range, amounts matching their currency,
+identifiers matching a known format, totals equal to the sum of their parts.
+
+These checks are cheap and catch exactly the failures a schema cannot. They are
+also the natural place to decide what happens next — reject, queue for review,
+or accept with a flag — which is a business decision rather than a parsing one.
+
+## Keep the raw response
+
+Store what the model returned alongside the parsed record, at least for a while.
+
+When a value looks wrong later, the question is whether the model produced it or
+something downstream transformed it, and only the raw response answers that.
+It is also what you need to build an evaluation set from real traffic, which is
+much better than one assembled from imagination.`,
     coverImageUrl: '',
     authorName: 'DevLab Studios',
     publishedAt: '2026-08-28',
@@ -232,7 +351,52 @@ The failure mode is worth designing deliberately. If the allowance is exhausted,
 
 ## A reasonable rule
 
-Use edge inference for high-volume, latency-sensitive, small-model work in the request path. Keep an external provider for the harder calls. Keep both behind one interface so the choice per task stays a configuration decision rather than a rewrite.`,
+Use edge inference for high-volume, latency-sensitive, small-model work in the request path. Keep an external provider for the harder calls. Keep both behind one interface so the choice per task stays a configuration decision rather than a rewrite.
+
+## Design the degraded path first
+
+The most important decision is what happens when inference is unavailable, and
+it is best made before anything is built.
+
+There are only really three answers: fail the request, serve a fallback, or
+serve the result without the model's contribution. Which is right depends on
+whether the model output is the feature or an enhancement to it. A translation
+feature without the model is broken. A summary line above a list of links is an
+enhancement, and the list is still worth serving.
+
+Whichever you choose, make it observable. A degraded path nobody can see becomes
+the permanent state, and nobody finds out until somebody asks why the summaries
+stopped appearing weeks ago.
+
+## Verify the response shape per model, not per platform
+
+Models on the same platform do not agree on their response format. Some return a
+simple text field, some return an OpenAI-style structure with the text nested
+several levels down.
+
+Reading only the shape you first encountered produces a failure that is
+genuinely hard to spot: the call succeeds, the usage is billed, and the result is
+discarded. The code looks correct and the logs say the model was unavailable.
+Handle the shapes you might receive, and log which one arrived.
+
+## Local development is not a rehearsal
+
+It is common for these bindings to be unavailable or to behave differently
+outside the deployed environment. That means local testing exercises the
+degraded path rather than the real one, and can give a false impression in either
+direction.
+
+Know which of the two you are looking at. If the local environment cannot reach
+the model at all, a green local run tells you the fallback works and nothing
+about the model call.
+
+## Measure usage from the first day
+
+Log whatever usage figure the platform reports, per run, from the beginning.
+
+It costs one field and converts every future capacity conversation from an
+argument into a query. It also makes the day you approach a limit a thing you
+notice in advance rather than a thing you discover from a failure.`,
     coverImageUrl: '',
     authorName: 'DevLab Studios',
     publishedAt: '2026-09-10',
@@ -291,7 +455,48 @@ It also constrains fabrication. A model asked to answer only from supplied passa
 
 Keep a set of real questions with the passages that should be retrieved for each. Then you can measure whether the right material was fetched, independently of what was written afterwards.
 
-Without that separation, every change is judged on the final answer, and you cannot tell whether a prompt tweak helped or an unrelated indexing change did. Retrieval quality is measurable on its own, and measuring it is what stops the whole system being tuned by feel.`,
+Without that separation, every change is judged on the final answer, and you cannot tell whether a prompt tweak helped or an unrelated indexing change did. Retrieval quality is measurable on its own, and measuring it is what stops the whole system being tuned by feel.
+
+## Metadata filtering removes more noise than better ranking
+
+A large share of "the answer was wrong" turns out to be the right answer from
+the wrong document — a superseded version, another customer's, a different
+region's.
+
+Storing structured metadata alongside each chunk and filtering before ranking
+removes that class entirely. Date, source, version, owner, visibility. It is
+less interesting than tuning similarity and it fixes more real failures,
+because it eliminates candidates rather than reordering them.
+
+## Decide what happens to stale content
+
+An index is a copy, and copies go out of date. The failure is quiet: confident
+answers from a document that was replaced last quarter.
+
+Decide up front how the index learns about changes, how quickly, and what
+happens to deleted sources. Then carry the source's date into the answer, so a
+reader can see they are being told something from two years ago even when the
+retrieval did exactly what it was asked.
+
+## Test with the questions people actually ask
+
+Evaluation sets tend to be written by the person who built the system, which
+means they are phrased the way the system expects. Real questions are shorter,
+vaguer, full of internal shorthand, and often not questions at all.
+
+Collect real ones as soon as there are any, and evaluate against those. The
+first batch is usually humbling and always more useful than the imagined set.
+
+## Know when retrieval is the wrong tool
+
+Some questions cannot be answered by finding a passage: anything requiring a
+count, an aggregate, a comparison across many records, or a calculation. No
+amount of retrieval quality fixes "how many open tickets does this customer
+have", because the answer is not written down anywhere to retrieve.
+
+Those belong to a query against structured data. Recognising which kind of
+question you are handling — and routing accordingly — matters more than any
+tuning inside the retrieval path.`,
     coverImageUrl: '',
     authorName: 'DevLab Studios',
     publishedAt: '2026-09-12',

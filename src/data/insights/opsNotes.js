@@ -58,7 +58,48 @@ Carrying one identifier from the form through to the delivery record makes that 
 
 The practical failure mode is organisational. When the page and the pipeline have different owners, the seam between them belongs to nobody, and that is exactly where the interesting bugs live.
 
-Someone should be able to answer what happens to a submission from keystroke to CRM record. If nobody can, the gap is not in the code.`,
+Someone should be able to answer what happens to a submission from keystroke to CRM record. If nobody can, the gap is not in the code.
+
+## Third-party scripts are part of the pipeline now
+
+Analytics, chat widgets, tag managers and pixels all run in the same page as the
+form. Each is an external dependency in the critical path of a conversion, and
+each can be slow or unavailable independently of your own infrastructure.
+
+The failure is rarely total. It is a script that takes four seconds to load and
+blocks interaction while it does, on a page whose entire purpose is a form
+submission. Load them after the page is usable, and know which ones would take
+the form down with them if they failed.
+
+## Mobile is where the cost lands
+
+Most of the difference between a fast page and a slow one shows up on a phone on
+a mediocre connection, which is a large share of real traffic and almost none of
+the testing.
+
+Test the form on a throttled connection on an actual device. The gap between
+that experience and the one on a developer's machine is usually where the
+abandoned submissions are, and it is invisible from the desk where the page was
+built.
+
+## Failure states deserve design attention
+
+Most forms are designed for the successful path. The interesting states are the
+others: what a validation error looks like, what happens when the network drops
+mid-submission, whether a retry produces a duplicate, whether the visitor can
+tell the difference between "still working" and "stopped".
+
+These are the moments where a person decides whether to try again or leave, and
+they are usually the least designed part of the page.
+
+## One owner, or the seam rots
+
+The practical failure mode is organisational. When the page and the pipeline
+have different owners, the seam between them belongs to nobody — and that is
+exactly where the interesting bugs live.
+
+Someone should be able to answer what happens to a submission from keystroke to
+CRM record. If nobody can, the gap is not in the code.`,
     coverImageUrl: '',
     authorName: 'DevLab Studios',
     publishedAt: '2026-07-03',
@@ -121,7 +162,50 @@ Guard against it by asserting expectations rather than only catching errors. If 
 
 ## Maintenance is a scheduled activity, not an event
 
-Every integration ages. Credentials, dependencies, plan limits, and upstream APIs all move. Automations that get looked at on a schedule degrade gracefully; ones that only get looked at when someone complains degrade until someone complains.`,
+Every integration ages. Credentials, dependencies, plan limits, and upstream APIs all move. Automations that get looked at on a schedule degrade gracefully; ones that only get looked at when someone complains degrade until someone complains.
+
+## Retries can cause the damage they were meant to prevent
+
+Retrying a transient failure is correct. Retrying an operation that already
+partially succeeded is how one invoice becomes three.
+
+The distinction is idempotency: whether running the same operation twice
+produces the same result as running it once. Achieve it with a key derived from
+the operation itself, so a duplicate collapses into the original by construction
+rather than by a check that might race.
+
+Where you cannot make an operation idempotent, do not retry it automatically.
+Surface it for a person, who can look before deciding.
+
+## Partial failure is the normal case
+
+A workflow that touches four systems has, in practice, sixteen possible
+outcomes, not two. The interesting ones are in the middle: the CRM accepted it
+and the email failed, or the record was created and the status update was not.
+
+Decide what each partial state means. Which steps must succeed together, which
+can be retried independently, and what a half-completed run should leave behind.
+A workflow that only handles "all worked" and "nothing worked" will eventually
+leave a record in a state nobody designed, and someone will find it weeks later.
+
+## Watch the trend, not just the threshold
+
+Most monitoring alerts on a threshold: error rate above some number. That
+catches the cliff and misses the slope.
+
+A gradual rise in one error category over three weeks is usually the earliest
+signal of something real — a growing dataset, an upstream slowly changing, a
+limit being approached. Looking at counts by category over time, even briefly
+and manually, catches things no threshold would have fired on.
+
+## Keep a list of what could break
+
+Write down the integrations, their credentials, their expiry dates, their rate
+limits and their plan ceilings. Keep it with the runbook.
+
+It takes an hour and turns the most common class of outage — something expired,
+something hit a limit — from an investigation into a lookup. It also makes the
+question "what are we exposed to" answerable, which it otherwise is not.`,
     coverImageUrl: '',
     authorName: 'DevLab Studios',
     publishedAt: '2026-08-21',
@@ -184,7 +268,47 @@ The pattern that works: degrade in behaviour, but record that you degraded. The 
 
 Pick an automation and break it deliberately in a staging environment. Revoke a credential, empty the source, make the upstream return an unexpected shape.
 
-Then ask: how would we have found out? If the honest answer is a person eventually noticing something missing, that is the gap. It is far cheaper to find it on purpose than to find it in the middle of a month when nobody was looking.`,
+Then ask: how would we have found out? If the honest answer is a person eventually noticing something missing, that is the gap. It is far cheaper to find it on purpose than to find it in the middle of a month when nobody was looking.
+
+## Freshness beats almost every other signal
+
+If you add only one check, add the timestamp of the last successful run, with a
+threshold for how old is too old.
+
+It catches every silent failure at once, including the ones nobody predicted: the
+trigger that stopped firing, the filter that now matches nothing, the credential
+that expired, the schedule that was quietly disabled. It requires no
+understanding of why something broke, only that it has not worked since Tuesday.
+
+## Put it where someone will actually see it
+
+An alert into a channel nobody reads is documentation, not monitoring. So is a
+dashboard opened once a quarter.
+
+Route it to where the affected work happens — the inbox of the person who
+depends on the output, the channel the team already watches. And make the
+message say what to do, not only what happened. An alert nobody knows how to act
+on gets muted, and a muted alert is worse than none because it creates the
+impression of coverage.
+
+## Count the fallbacks
+
+Every graceful degradation needs a counter. How many times today did the code
+take the safe path instead of the good one.
+
+Without it, degradation is indistinguishable from normal operation, and the
+fallback becomes permanent. With it, "the summaries have been empty for a week"
+is a number on a chart rather than something a person eventually notices.
+
+## Reconcile against the source occasionally
+
+For anything that syncs, periodically compare counts at both ends. How many
+records exist upstream, how many downstream, and does the difference have an
+explanation.
+
+This is the check that catches drift no per-run error handling can see, because
+every individual run succeeded. It is also the one that finds the records lost
+during an incident three months ago that nobody realised had been lost.`,
     coverImageUrl: '',
     authorName: 'DevLab Studios',
     publishedAt: '2026-09-04',
@@ -243,7 +367,48 @@ If nobody will own it after launch, it should not be built. Unowned automation d
 
 A written procedure with the exact steps, the actual field values, and the edge cases is fast to produce, needs no credentials, does not break when an API changes, and can be followed by anyone.
 
-For infrequent, unstable, or judgement-heavy work it is usually the better tool. Choosing it is not a failure to automate. It is the same analysis, reaching a different answer — and it leaves the automation budget for the workflows that will actually repay it.`,
+For infrequent, unstable, or judgement-heavy work it is usually the better tool. Choosing it is not a failure to automate. It is the same analysis, reaching a different answer — and it leaves the automation budget for the workflows that will actually repay it.
+
+## Ask what the process is for before automating it
+
+Some steps exist because of a constraint that no longer applies — a system that
+was replaced, an approval for a risk that has passed, a report nobody reads.
+Automating those makes a redundant step permanent and harder to remove, because
+it is now in a tool rather than in a habit.
+
+Before building, ask what each step is for and who consumes its output. The
+answer is occasionally that nobody does, and deleting a step is a better outcome
+than automating it.
+
+## Partial automation is a real answer
+
+The choice is not between fully automated and fully manual. Most of the value
+often sits in the boring middle: gather the information, pre-fill the form,
+assemble the draft, then stop and let a person decide.
+
+This shape is cheaper to build, much cheaper to maintain, and keeps judgement
+where judgement belongs. It also tends to be where the actual time goes — the
+decision is usually quick, and the gathering is what takes twenty minutes.
+
+## Beware the process that is really a conversation
+
+Some workflows look like data movement and are actually negotiation: chasing a
+late invoice, handling a complaint, agreeing a delivery date. The steps can be
+described, but what makes them work is the person reading the situation.
+
+Automating the visible steps while removing the reading produces something
+technically correct and relationally wrong. Automate the record-keeping around
+the conversation instead, and leave the conversation alone.
+
+## Write the decision down either way
+
+Whichever way it goes, record it: what was considered, what was decided, and
+why. Otherwise the same proposal returns every six months and gets re-argued
+from scratch by people who do not know it was already examined.
+
+A short note saying "we looked at automating this in March and chose a checklist
+because it runs twice a year" saves that whole conversation, and makes it easy
+to revisit properly if the frequency changes.`,
     coverImageUrl: '',
     authorName: 'DevLab Studios',
     publishedAt: '2026-09-15',

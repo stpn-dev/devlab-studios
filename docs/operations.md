@@ -276,8 +276,12 @@ holds the fifteen articles; `src/data/resourcesContent.js` composes them and is
 also the static fallback. `npm run cms:seed:insights` generates an idempotent
 upsert from it:
 
+Redirect `node` directly, NOT `npm run` — `npm run` prints its own two-line
+banner to stdout, which lands at the top of the file and fails the import with
+`near ">": syntax error`.
+
 ```powershell
-npm run cms:seed:insights > scripts/cms/updates/2026-09-18-insights-library.sql
+node scripts/cms/generate-insights-seed.mjs > scripts/cms/updates/2026-09-18-insights-library.sql
 npx wrangler d1 execute DB --env preview --remote --file scripts/cms/updates/2026-09-18-insights-library.sql
 npx wrangler d1 execute DB --remote --file scripts/cms/updates/2026-09-18-insights-library.sql
 ```

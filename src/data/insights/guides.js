@@ -64,7 +64,27 @@ The reverse order, automating the send and adding review after something goes wr
 
 The measure of a working automation is not that it saves time this month. It is that the next person to own it can understand it without you. That means the trigger, the expected input, the model's role, the validation, the destination, and the failure behaviour are all written down somewhere that is not a person's memory.
 
-Automation that only its author understands is not an asset. It is a dependency.`,
+Automation that only its author understands is not an asset. It is a dependency.
+
+## Cost the workflow before you cost the tool
+
+The question "what will this cost" usually gets answered with a subscription price, which is the smallest part of it. The real figure is the build, plus the ongoing attention, plus what it costs when it is wrong.
+
+A more useful estimate has four lines. What the manual version costs per month in time. What building it costs once. What it will cost to keep working — credential renewals, upstream changes, the occasional investigation. And what a failure costs, multiplied by how often you expect one.
+
+That fourth line is the one that changes decisions. A workflow saving two hours a month that produces a customer-visible error twice a year is not a good trade, however cheap the platform is.
+
+## Start with one workflow and finish it
+
+The most common failure pattern is breadth: five workflows started, none finished, none trusted, all needing maintenance. It happens because starting is satisfying and finishing is not — finishing means error handling, the runbook, the monitoring, and the awkward edge cases.
+
+One workflow taken all the way to the point where someone else could own it is worth more than five that mostly work. It also teaches you what "all the way" costs in your environment, which is the number you need before committing to the next four.
+
+## What good looks like after six months
+
+A useful test, applied later rather than at launch: can someone who did not build it explain what it does, tell whether it ran today, and fix it when it breaks?
+
+If yes, the automation is infrastructure. If no, it is a person's side project that happens to be load-bearing, and the business is exposed to whether that person is available. The difference is not in the code — it is in the documentation, the observability, and whether anyone else has ever touched it.`,
       coverImageUrl: '',
       authorName: 'DevLab Studios',
       publishedAt: '2026-07-18',
@@ -130,7 +150,31 @@ A rate limiter that fails closed will eventually take your contact form offline 
 
 The last item on the checklist is the one most often skipped: submit a real inquiry through the real form on the real site, and follow it all the way to where it is supposed to land. Do this after every change to the pipeline.
 
-An intake system that has never been tested end to end is not a system. It is a hypothesis.`,
+An intake system that has never been tested end to end is not a system. It is a hypothesis.
+
+## Decide what the visitor is told, and when
+
+The confirmation message is part of the system's contract, not a decoration. "Thanks, we'll be in touch" implies a person will see this. If delivery failed silently and nobody does, the message was a promise the system did not keep.
+
+Say what is true at the moment you say it. If the submission is stored and a person reviews it within a working day, say that. If an automated reply is coming, say so and say roughly when. Vague reassurance is worse than a specific modest claim, because a specific claim can be verified and a vague one quietly erodes trust when it turns out to be untrue.
+
+## Keep the raw submission, not only the parsed one
+
+Normalizing input is necessary — trimming, formatting phone numbers, mapping a free-text field onto a known set. Keep what was actually typed as well.
+
+When something looks wrong three weeks later, the question is almost always "what did they actually send us", and a normalized record cannot answer it. The storage cost is trivial. The alternative is reconstructing intent from a value that has already been through two transformations.
+
+## Instrument the funnel across the seam
+
+Page analytics tell you how many people submitted. Pipeline logs tell you how many records were delivered. Neither answers the question that matters: of the people who tried, how many became something a person acted on?
+
+Carry one identifier from the form through to the delivery record. Without it a drop-off between the two halves is invisible, because each side reports itself as healthy and neither can see the other.
+
+## Review the failures on a schedule, not on complaint
+
+Put a recurring slot in the calendar to look at the failed and pending records. Ten minutes a fortnight is enough.
+
+This is the control that catches everything the other items miss — the failure nobody anticipated, the upstream that started rejecting a field, the gradual rise in one error type. Intake systems do not usually break all at once. They develop a small persistent leak, and the only thing that finds a leak is someone looking.`,
       coverImageUrl: '',
       authorName: 'DevLab Studios',
       publishedAt: '2026-07-11',
@@ -191,7 +235,36 @@ Choosing a tool that assumes the wrong maintainer produces the same outcome eith
 
 Treat the platform as replaceable. Keep the business rules written down outside it, keep credentials in one place you control, and prefer plain HTTP calls to proprietary steps where the difference is small.
 
-None of that is free, but it is much cheaper than discovering that a year of process knowledge exists only as boxes and arrows inside a product you have outgrown.`,
+None of that is free, but it is much cheaper than discovering that a year of process knowledge exists only as boxes and arrows inside a product you have outgrown.
+
+## Test the integration you are actually worried about
+
+Every platform's connector list includes the tool you need. What the list does not tell you is whether that connector supports the specific operation you depend on, at the volume you need, with the fields you care about.
+
+Before committing, build the single riskiest step — the unusual API, the high-volume sync, the one with awkward pagination — on a trial account. An afternoon spent here answers a question no comparison article can, because the answer depends on your endpoint rather than on the platform in general.
+
+## Credentials and access are a security decision
+
+These platforms hold long-lived credentials to your business systems. That makes the platform part of your security surface, and worth the same questions you would ask of any vendor with that access.
+
+Who on your team can see or export stored credentials. Whether connections are made under a service account or a person's login — the latter breaks when they leave, and takes the workflow with it. Whether audit history shows who changed a workflow and when. Whether data passing through is retained, and for how long.
+
+- Connect under service accounts, never a personal login
+- Keep an inventory of which workflows hold which credentials
+- Know the retention period for execution data containing customer information
+- Confirm you can revoke access quickly if you need to
+
+## Plan the exit before you need it
+
+Treat the platform as replaceable, because eventually it will be. Keep the business rules written down outside it, keep credentials in one place you control, and prefer plain HTTP calls to proprietary steps where the difference is small.
+
+Exports help less than people expect: most platforms export a workflow in their own format, which is useful for backup and useless for migration. The portable artifact is the written description of what the process does and why.
+
+## The honest summary
+
+For a handful of straightforward workflows maintained by a non-technical team, the hosted options are almost always right and the choice between them is close to arbitrary. For high volume, unusual integrations, or data that cannot leave your infrastructure, self-hosting starts to pay — provided somebody owns the server.
+
+The wrong answer is choosing on a feature matrix and discovering the real constraints six months later.`,
       coverImageUrl: '',
       authorName: 'DevLab Studios',
       publishedAt: '2026-07-04',
@@ -251,7 +324,33 @@ The same goes for format: how many phone numbers are in a form your SMS provider
 
 Cleaning existing records is worth doing once. It is worth very little if the thing producing those records keeps producing them in the same shape.
 
-Most data quality problems are validation problems that happened earlier — a free-text field where a list belonged, an optional field that should have been required, a form that accepted anything because rejecting input felt unfriendly. Tighten the intake first, then clean up behind it. Otherwise you will be cleaning the same fields again next quarter.`,
+Most data quality problems are validation problems that happened earlier — a free-text field where a list belonged, an optional field that should have been required, a form that accepted anything because rejecting input felt unfriendly. Tighten the intake first, then clean up behind it. Otherwise you will be cleaning the same fields again next quarter.
+
+## Agree what a duplicate is before you deduplicate
+
+"Remove duplicates" sounds like a settled instruction and almost never is. Two records with the same email and different names might be one person who changed theirs, or two people sharing an inbox. Two companies with the same name at different addresses might be branches, or might be unrelated.
+
+Write the rule down as a decision someone made: these fields matching means the same entity, these fields matching means a probable match to review, everything else is distinct. Then automate against the rule rather than against an intuition, and keep probable matches in a queue rather than merging them silently.
+
+A wrong merge is much harder to undo than a missed one.
+
+## Decide what happens to history
+
+When a record changes, does the old value matter? For a status field the answer is usually yes — knowing something was proposed before it was approved is often the entire question. For a corrected typo, no.
+
+This decision determines whether you need an event log alongside the current state. Retrofitting one is expensive, because the history you wanted is exactly the history you did not keep. Deciding early costs almost nothing.
+
+## Test the migration on a copy, with the real data
+
+Cleaning scripts behave differently on real data than on samples, because real data contains the cases nobody thought of: the empty string that is not null, the date in a different century, the name with an unexpected character.
+
+Run the cleanup against a full copy first and count what changed. If the count is much larger or much smaller than expected, the rule is wrong — and finding that out on a copy is free.
+
+## Assign an owner per system, not per project
+
+Data quality is not a project that finishes. Fields drift, new integrations write new values, and somebody eventually needs a decision about whether a new status is legitimate.
+
+Name a person per system who owns those decisions. Without one, each integration makes its own choice and the definitions diverge again, usually within a year and usually invisibly until two reports disagree.`,
       coverImageUrl: '',
       authorName: 'DevLab Studios',
       publishedAt: '2026-06-27',
@@ -314,7 +413,33 @@ This gets most of the benefit of using a model while keeping the properties that
 
 Ask what happens when it gets it wrong, because it will. If the answer is "a person notices and fixes it in a minute", either shape is fine. If the answer is "a customer receives something incorrect" or "a record is changed and nobody knows", you want the fixed path, and you want a person in front of the irreversible step.
 
-Start with the workflow. Add the agent when you have a concrete case where enumerating the branches has actually become the problem.`,
+Start with the workflow. Add the agent when you have a concrete case where enumerating the branches has actually become the problem.
+
+## Cost is variable in a way a workflow's is not
+
+A workflow's cost is a known number per run. An agent's is not: it depends on how many steps it chose to take, and that varies with the input. The same task can cost twice as much on a Tuesday because the phrasing was ambiguous.
+
+That matters for budgeting, and it matters more for the failure mode. An agent stuck in a loop — calling a tool, getting an unhelpful result, trying again — can spend a great deal before anything notices. A hard cap on steps and on total spend per run is not an optimisation; it is the thing standing between a bad input and a large bill.
+
+- Cap the number of steps per run, and log when the cap is hit
+- Cap total spend per run, and per day
+- Alert on runs that hit either cap, since that is where the pathologies live
+
+## Testing an agent is a different discipline
+
+A workflow is tested by asserting that a given input produces a given output. That works because the path is fixed.
+
+An agent's path varies, so the same assertion style produces flaky tests that fail for reasons unrelated to correctness. What you can assert is the outcome: the record ended up in the right state, the answer contains the right facts, no forbidden tool was called. Build a set of real inputs with known-good outcomes and measure the pass rate rather than expecting determinism.
+
+A pass rate also gives you something a binary test cannot — the ability to tell whether a prompt change helped, which is otherwise guesswork.
+
+## The hybrid shape in practice
+
+Most useful systems are a fixed pipeline with a model at one or two specific points, and the interesting design work is deciding where those points are.
+
+A good rule: the model handles the step where the input is unstructured and the output is small and checkable. Everything around it — deciding what to do with that output, where it goes, what happens on failure — stays deterministic code you can read.
+
+That shape keeps the debuggable properties of a workflow while getting the part of the model that is genuinely hard to replace.`,
       coverImageUrl: '',
       authorName: 'DevLab Studios',
       publishedAt: '2026-06-20',
@@ -379,7 +504,31 @@ Include whether reprocessing is safe. If the workflow is idempotent, say so and 
 
 An unowned automation degrades quietly. APIs change, credentials expire, volumes grow past a tier. Put a name against it and a date to look at it again, and keep the runbook next to the code rather than in a document nobody opens.
 
-The runbook is not overhead on the build. It is the part that makes the build survivable.`,
+The runbook is not overhead on the build. It is the part that makes the build survivable.
+
+## Write it while building, not afterwards
+
+A runbook written after the fact documents what you remember, which is the happy path. The awkward details — why that retry is three and not five, why that field is nullable, which upstream returns a 200 with an error body — are exactly the things that fade first and matter most.
+
+Keeping a running note while building costs almost nothing and captures decisions at the moment there is a reason for them. Tidy it at the end.
+
+## Record what you decided not to do
+
+A runbook that only describes the built thing invites the next person to "improve" it back into a problem you already solved.
+
+If you deliberately did not retry a class of failure, say so and say why. If a step is manual on purpose because the cost of being wrong is high, write that down. These notes prevent a specific and frustrating kind of regression: someone removing a safeguard because its reason was never recorded.
+
+## Include the queries, not just the advice
+
+"Check whether the sync ran" is advice. The exact query, with the table and the field, is a runbook.
+
+Paste the commands. The log filter that shows this workflow's runs. The query that returns the last successful run. The call that re-triggers it. Someone debugging at an inconvenient hour should be copying and pasting, not reconstructing your reasoning.
+
+## Test the handover for real
+
+The only reliable check is to have someone else use it. Pick a colleague, give them a deliberately broken staging environment and the runbook, and stay out of the conversation.
+
+Everything they have to ask you is a gap. Write down the answer and the document improves permanently. Skip this and you have a document that is complete to its author, which is the only reader who did not need it.`,
       coverImageUrl: '',
       authorName: 'DevLab Studios',
       publishedAt: '2026-09-05',

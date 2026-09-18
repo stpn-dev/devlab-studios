@@ -139,11 +139,8 @@ See [ADR 0008](architecture/decisions/0008-insights-daily-digest.md).
 - Playwright site + admin (`public-pages`, `contact-form`, `image-weight`,
   `admin`, `digest`) — 177 passing, 2 failing. Both failures are the
   pre-existing `site settings` parallel-write race; both pass with `--workers=1`
-- Playwright `pickleball` — **130 of 246 failing, and failing identically on an
-  unmodified tree** (verified with `git stash`). A local wrangler/miniflare
-  crash (`Uncaught Error: Network connection lost`, `D1_ERROR: internal error`)
-  kills the dev worker mid-suite and everything after it fails with
-  ECONNREFUSED. Pre-existing and unrelated to this work; see Known limitations
+- Playwright `pickleball` — **246 of 246 passing.** It was 117 of 246; see the
+  Known limitations entry for what was wrong and what fixed it
 - The AI summary fix was verified against the deployed preview Worker, not only
   in tests: `summarized: 10`, `model: @cf/meta/llama-3.1-8b-instruct-fp8`,
   `neurons: 36.3`
@@ -189,14 +186,21 @@ See [ADR 0008](architecture/decisions/0008-insights-daily-digest.md).
 - The `site settings save round-trip` admin e2e test races with the versioning
   test under parallel workers — both write the same global `site_settings` row.
   Pre-existing; reproduced on the unmodified spec. Passes serially.
-- `wrangler dev --local` (wrangler 4.116.0) dies mid-suite with
-  `Uncaught Error: Network connection lost` and `D1_ERROR: internal error`,
-  cascading into ECONNREFUSED across every remaining `worker`-project test. The
-  Pickleball suite is currently unrunnable locally because of it: 130 of 246
-  fail, and **the identical 130 fail on an unmodified tree**, confirmed by
-  stashing all local work and re-running. Not caused by application code. The
-  local Pickleball D1 had also grown to 92 MB from accumulated e2e runs and was
-  rebuilt; that was not the cause. Worth revisiting after a wrangler upgrade.
+- **Resolved.** The Pickleball suite used to fail ~130 of 246 locally, on an
+  unmodified tree as well (confirmed by stashing all work). Two causes, both in
+  test infrastructure, neither in application code:
+  1. A wrangler bug: the dev worker died inside wrangler's own `ProxyController`
+     with an empty error message, cascading into ECONNREFUSED. Upgrading
+     4.116.0 -> 4.134.0 took it to ~10 failures.
+  2. Three spec files each shelled out to `wrangler d1 execute --local` to
+     assert on tables with no read API. That second process opens the SQLite
+     file miniflare holds **read-write**, producing `SQLITE_BUSY` in the reader
+     and `D1_ERROR: internal error` inside the worker. Two of the three already
+     had a cross-process lock and a retry; neither helps, because the
+     contention is reader-vs-miniflare, not reader-vs-reader.
+     `tests/e2e/pickleball/d1Read.js` replaces all three with one read-only
+     `node:sqlite` connection — WAL allows concurrent readers alongside a
+     writer, so no second process and no lock. Now 246/246.
 - The admin login limiter (20/IP/15 min) bounds how often the e2e suite can be
   run. Two full runs inside the window exhaust it and every later test fails
   with a misleading "element not found". Locally, deleting
