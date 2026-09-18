@@ -169,6 +169,11 @@ export async function runAiTask(env, request) {
     if (parsed.ok) {
       outcome.status = 'ok'
       outcome.value = parsed.value
+      // A corrected retry is a successful run. Keep the attempt count and
+      // accumulated usage, but do not persist the first attempt's parse error
+      // beside an `ok` status where it looks like the accepted answer failed.
+      outcome.error = null
+      outcome.rawOutput = null
       outcome.durationMs = Date.now() - startedAt
       return outcome
     }

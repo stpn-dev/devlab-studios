@@ -16,7 +16,7 @@ import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 import { buildZohoUrl, createDraft as createZohoDraft } from '../zoho/client.js'
 import { readZohoConfig } from '../zoho/oauth.js'
-import { recordActivity } from '../repositories/activity.js'
+import { listActivity, recordActivity } from '../repositories/activity.js'
 import { getPrimaryContact } from '../repositories/contacts.js'
 import { ensureConversation } from '../repositories/conversations.js'
 import { getDraft, recordZohoDraftCreated, recordZohoDraftFailure } from '../repositories/drafts.js'
@@ -81,6 +81,31 @@ export async function pushDraftToZoho(env, draftId, options = {}) {
       `${contact.email} is suppressed (${suppression.entry?.reason?.replace(/_/g, ' ') || 'do not contact'}).`,
       409,
     )
+  }
+
+  // Generated drafts that tripped the deterministic content guard must be
+  // corrected and saved by a person before they can leave the CRM. The exact
+  // original remains visible for review, but a warning must be an actual gate,
+  // not decoration that the next button silently ignores.
+  if (draft.generatedBy === 'ai') {
+    const activity = await listActivity(db, { leadId: lead.id, limit: 100 })
+    const validationEvent = activity.find(
+      (event) =>
+        event.metadata?.draftId === draft.id &&
+        Array.isArray(event.metadata?.violations),
+    )
+    if (!validationEvent) {
+      throw operationError(
+        'This AI draft has no content-safeguard record. Regenerate it before creating a Zoho draft.',
+        422,
+      )
+    }
+    if (validationEvent.metadata.violations.length > 0) {
+      throw operationError(
+        'This AI draft failed content safeguards. Edit and save it before creating a Zoho draft.',
+        422,
+      )
+    }
   }
 
   const config = readZohoConfig(env)

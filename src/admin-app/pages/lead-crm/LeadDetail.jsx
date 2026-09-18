@@ -117,7 +117,7 @@ function SignalList({ signals }) {
   )
 }
 
-function DraftPanel({ draft, leadId, readiness, onChanged }) {
+function DraftPanel({ draft, leadId, readiness, validationViolations = [], onChanged }) {
   const [subject, setSubject] = useState(draft?.subject ?? '')
   const [body, setBody] = useState(draft?.bodyText ?? '')
   const [busy, setBusy] = useState(null)
@@ -231,6 +231,21 @@ function DraftPanel({ draft, leadId, readiness, onChanged }) {
 
       <Feedback feedback={feedback} />
 
+      {validationViolations.length > 0 ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          <p className="font-semibold">This AI draft failed content safeguards.</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs">
+            {validationViolations.map((violation, index) => (
+              <li key={`${violation.code}-${index}`}>
+                {humanize(violation.code)}: {violation.description}
+                {violation.excerpt ? ` — “${violation.excerpt}”` : ''}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs">Edit and save the draft to correct and acknowledge these issues before creating a Zoho draft.</p>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         {!isEditing && !inZoho ? (
           <button type="button" className={buttonClass} onClick={() => setIsEditing(true)}>
@@ -261,7 +276,7 @@ function DraftPanel({ draft, leadId, readiness, onChanged }) {
       <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
         <button
           type="button"
-          disabled={busy !== null || inZoho}
+          disabled={busy !== null || inZoho || validationViolations.length > 0}
           className={primaryButtonClass}
           onClick={() =>
             act('zoho', async () => {
@@ -309,6 +324,14 @@ function LeadDetail({ leadId, onChanged }) {
 
   const { lead, company, research, score, opportunity, contacts, compliance, drafts, messages, activity, readiness } = data
   const currentDraft = drafts.find((draft) => !['superseded', 'discarded'].includes(draft.status)) ?? null
+  const draftValidationEvent = currentDraft?.generatedBy === 'ai'
+    ? activity.find(
+        (event) =>
+          event.metadata?.draftId === currentDraft.id &&
+          Array.isArray(event.metadata?.violations),
+      )
+    : null
+  const draftValidationViolations = draftValidationEvent?.metadata?.violations ?? []
 
   async function runAction(action, extra = {}) {
     setBusy(action)
@@ -469,7 +492,13 @@ function LeadDetail({ leadId, onChanged }) {
       </Panel>
 
       <Panel title="Outreach">
-        <DraftPanel draft={currentDraft} leadId={leadId} readiness={readiness} onChanged={reload} />
+        <DraftPanel
+          draft={currentDraft}
+          leadId={leadId}
+          readiness={readiness}
+          validationViolations={draftValidationViolations}
+          onChanged={reload}
+        />
       </Panel>
 
       {messages.length > 0 ? (

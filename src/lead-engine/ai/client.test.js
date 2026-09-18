@@ -168,6 +168,8 @@ describe('runAiTask', () => {
 
     expect(result.status).toBe('ok')
     expect(result.attempts).toBe(2)
+    expect(result.error).toBeNull()
+    expect(result.rawOutput).toBeNull()
     expect(env.AI.run).toHaveBeenCalledTimes(2)
   })
 

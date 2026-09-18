@@ -107,11 +107,17 @@ describe('assertFlag', () => {
 describe('shipped configuration', () => {
   const wrangler = readFileSync(resolve(repoRoot, 'wrangler.jsonc'), 'utf8')
 
-  it('keeps production inert and enables only controlled preview research and AI review', () => {
+  it('keeps production inert and enables only controlled preview research, AI review and Zoho drafting', () => {
     // Production remains fully inert. Preview deliberately exposes the CRM
-    // shell and crawler for an operator-triggered test. Discovery, browser
-    // rendering, mailbox operations and schedules remain off.
-    const enabledInPreview = new Set([FLAG_KEYS.engine, FLAG_KEYS.crawler, FLAG_KEYS.ai])
+    // shell, crawler, AI review and draft-only Zoho handoff for an
+    // operator-triggered test. Discovery, browser rendering, mailbox sync and
+    // schedules remain off.
+    const enabledInPreview = new Set([
+      FLAG_KEYS.engine,
+      FLAG_KEYS.crawler,
+      FLAG_KEYS.ai,
+      FLAG_KEYS.zohoMail,
+    ])
 
     for (const key of Object.values(FLAG_KEYS)) {
       const occurrences = [...wrangler.matchAll(new RegExp(`"${key}"\\s*:\\s*"(\\w+)"`, 'g'))].map((m) => m[1])

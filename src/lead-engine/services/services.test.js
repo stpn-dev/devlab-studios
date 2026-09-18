@@ -575,6 +575,43 @@ describe('pushDraftToZoho', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
+  it('refuses to push an AI draft that failed the deterministic content safeguards', async () => {
+    const seeded = await seedLead()
+    const env = {
+      ...FLAGS,
+      DB: db,
+      AI: aiStub({
+        opportunity_review: QUALIFIED_REVIEW,
+        outreach_draft: {
+          subject: 'Save 40% today',
+          body: 'We charge $2,000 and worked with a similar firm.\n\nStephen',
+          referenced_observations: [],
+        },
+      }),
+    }
+    await researchLead(env, seeded.lead.id, { fetchImpl: siteFetch() })
+    await reviewLeadOpportunity(env, seeded.lead.id)
+    await setSetting(db, 'business.identity', {
+      legalName: 'DevLab Studios',
+      senderName: 'Stephen',
+      senderEmail: 'stephen@devlabstudios.com',
+      postalAddress: '1 Example Street',
+      city: 'Manila',
+      region: 'NCR',
+      postalCode: '1000',
+      countryCode: 'PH',
+      website: 'https://www.devlabstudios.com',
+    })
+    await generateOutreachDraft(env, seeded.lead.id)
+    const draft = await getCurrentDraft(db, seeded.lead.id)
+    const fetchImpl = vi.fn()
+
+    await expect(
+      pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, draft.id, { fetchImpl }),
+    ).rejects.toThrow(/failed content safeguards/i)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
   it('leaves the draft retryable and the lead untouched when Zoho fails', async () => {
     const { lead, draft } = await readyToPush()
 
