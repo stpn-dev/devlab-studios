@@ -836,8 +836,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_lead_sync_state_unique
 -- twice is a no-op while the first is still pending or running.
 CREATE TABLE IF NOT EXISTS lead_jobs (
   id TEXT PRIMARY KEY,
+  -- Every value here has a handler in src/lead-engine/jobs/handlers.js, and a
+  -- test asserts the two lists match. A job type the database accepts but
+  -- nothing serves would be enqueued, claimed, and dead-lettered with
+  -- "no handler" — silently losing the work.
+  --
+  -- Contact discovery is deliberately NOT a job type: it runs inline inside
+  -- lead_research, because contactability feeds the score and splitting it out
+  -- would mean scoring a lead before knowing whether it can be contacted.
   job_type TEXT NOT NULL CHECK (job_type IN (
-    'campaign_discovery', 'lead_research', 'ai_review', 'contact_discovery',
+    'campaign_discovery', 'lead_research', 'ai_review',
     'outreach_draft', 'mailbox_sync', 'reply_analysis', 'maintenance'
   )),
   status TEXT NOT NULL DEFAULT 'pending'
