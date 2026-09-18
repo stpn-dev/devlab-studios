@@ -156,24 +156,25 @@
 
   "vars": {
     "ADMIN_AUTH_MODE": "password",
-    // Lead Intelligence Engine. EVERY FLAG IS OFF, in both environments.
+    // Lead Intelligence Engine deployment ceilings. Runtime state starts OFF
+    // in D1 and is controlled from Lead CRM > CRM Settings.
     //
     // These are plain vars rather than secrets on purpose: they are operational
-    // switches, not credentials, and having them visible here is how an
-    // operator can see at a glance that the engine is inert. The Zoho
+    // safety ceilings, not credentials. Set a ceiling false and deploy for an
+    // independent emergency stop; routine operation happens in the UI. The Zoho
     // credentials and the Brave key are `wrangler secret put` and appear
     // nowhere in this file.
     //
     // There is no auto-send flag because there is no auto-send.
-    "LEAD_ENGINE_ENABLED": "false",
-    "LEAD_DISCOVERY_ENABLED": "false",
-    "LEAD_CRAWLER_ENABLED": "false",
-    "LEAD_BROWSER_RUN_ENABLED": "false",
-    "LEAD_AI_ENABLED": "false",
-    "LEAD_TRACKING_ENABLED": "false",
-    "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false",
-    "ZOHO_MAIL_ENABLED": "false",
-    "ZOHO_MAIL_SYNC_ENABLED": "false",
+    "LEAD_ENGINE_ENABLED": "true",
+    "LEAD_DISCOVERY_ENABLED": "true",
+    "LEAD_CRAWLER_ENABLED": "true",
+    "LEAD_BROWSER_RUN_ENABLED": "true",
+    "LEAD_AI_ENABLED": "true",
+    "LEAD_TRACKING_ENABLED": "true",
+    "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "true",
+    "ZOHO_MAIL_ENABLED": "true",
+    "ZOHO_MAIL_SYNC_ENABLED": "true",
     "R2_PUBLIC_BASE_URL": "https://pub-401ca3448c3348158cdb3e4e9a9dcb20.r2.dev",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAEO3GbzGXQvAtOdI",
     "RESEND_FROM_EMAIL": "hello@devlabstudios.com",
@@ -213,20 +214,17 @@
         "GOOGLE_OAUTH_CLIENT_ID": "623988421575-p6kvgpj2rhq7l59ovpg6ftbl1ha3bnib.apps.googleusercontent.com",
         // Repeated here because nothing at the top level is inherited by an
         // environment — the same omission that once left preview silently
-        // falling back to hardcoded lead-delivery defaults. Preview enables only
-        // the engine, crawler, Workers AI and draft-only Zoho handoff so an
-        // operator can manually import a controlled test domain and explicitly
-        // verify each pipeline stage. Discovery, browser rendering, tracking,
-        // mailbox sync and schedules remain off.
+        // falling back to hardcoded lead-delivery defaults. These values permit
+        // UI control; the isolated preview D1 stores the requested runtime state.
         "LEAD_ENGINE_ENABLED": "true",
-        "LEAD_DISCOVERY_ENABLED": "false",
+        "LEAD_DISCOVERY_ENABLED": "true",
         "LEAD_CRAWLER_ENABLED": "true",
-        "LEAD_BROWSER_RUN_ENABLED": "false",
+        "LEAD_BROWSER_RUN_ENABLED": "true",
         "LEAD_AI_ENABLED": "true",
-        "LEAD_TRACKING_ENABLED": "false",
-        "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false",
+        "LEAD_TRACKING_ENABLED": "true",
+        "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "true",
         "ZOHO_MAIL_ENABLED": "true",
-        "ZOHO_MAIL_SYNC_ENABLED": "false"
+        "ZOHO_MAIL_SYNC_ENABLED": "true"
       },
       // Also not inherited. Without it, optimizeImage() has no Images binding
       // on preview and responsive variants silently degrade there.

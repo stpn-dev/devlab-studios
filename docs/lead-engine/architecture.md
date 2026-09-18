@@ -215,7 +215,8 @@ is completely inert.
 
 | Layer | Shipped state |
 |---|---|
-| Feature flags in `wrangler.jsonc` `vars` (both environments) | All nine `false` |
+| Operational switches in D1 | All nine `false` until enabled in CRM Settings |
+| Deployment ceilings in `wrangler.jsonc` | Permit UI control; may be set `false` as an emergency stop |
 | `LEAD_ENGINE_ENABLED` | Master switch; every other flag is ANDed with it |
 | Seeded discovery sources | Registered, `enabled=0`, `automation_allowed=0`, `policy_status='unreviewed'` |
 | Seeded Campaign 001 | `status='draft'`, `schedule_enabled=0` |

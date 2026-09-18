@@ -270,7 +270,7 @@ reason about.
 
 | Variable | Kind | Where |
 |---|---|---|
-| `ZOHO_MAIL_ENABLED` | **var** | `wrangler.jsonc` `vars` (both environments), default `"false"` |
+| `ZOHO_MAIL_ENABLED` | **var** | Deployment ceiling in `wrangler.jsonc`; routine state is in CRM Settings |
 | `ZOHO_MAIL_SYNC_ENABLED` | **var** | Same |
 | `ZOHO_OAUTH_CLIENT_SECRET` | **secret** | `wrangler secret put`. Non-negotiable. |
 | `ZOHO_OAUTH_REFRESH_TOKEN` | **secret** | `wrangler secret put`. Non-negotiable — it is a long-lived credential to a live mailbox. |
@@ -279,18 +279,13 @@ reason about.
 | `ZOHO_USER_EMAIL` | secret (recommended) | Same |
 | `ZOHO_API_BASE_URL` / `ZOHO_ACCOUNTS_BASE_URL` | either | Optional; leave unset for `.com` |
 
-**Nothing Zoho-related belongs in `lead_settings`.** That table is for
-operational tunables. `repositories/settings.js` says so, and the migration says
-so.
+**No Zoho credential belongs in `lead_settings`.** The table holds tunables and
+the validated operational-switch row only; credentials remain Worker secrets.
 
 ## 1.7 Turn it on and verify
 
-```bash
-# Set the two vars to "true" in wrangler.jsonc (top level and env.preview),
-# commit, and deploy — see docs/lead-engine/deployment.md.
-```
-
-Then go to **`/admin/lead-crm/settings`**. It reads
+Go to **`/admin/lead-crm/settings`** and turn on Zoho Mail. Turn on mailbox sync
+separately only when polling should begin. The page reads
 `GET /api/admin/lead-crm/zoho/status`, which calls `checkConnection(env)` — a
 cheap `GET /accounts/<ACCOUNT_ID>`.
 

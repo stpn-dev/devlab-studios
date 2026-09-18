@@ -51,6 +51,9 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Fixed
+- **CRM switches are fully operable from the UI.** Fresh environments now start with every D1 operational switch off while deployment ceilings permit all controls, so admins can enable capabilities without a configuration commit; Worker vars remain an independent emergency stop.
+
 ## [1.10.0] - 2026-09-18
 
 ### Added

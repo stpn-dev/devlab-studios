@@ -33,10 +33,11 @@ All nine have a Worker var in **both** `wrangler.jsonc` `vars` and
 > master switch in CRM Settings AND deployment master allowance AND the
 > capability's CRM Settings switch AND its deployment allowance
 
-Before an admin first saves a switch, requested state is bootstrapped from the
-deployment vars so an upgrade preserves the deployed behavior. After that,
-changes in CRM Settings take effect immediately and are audited. If D1 cannot
-be read, all effective switches fail closed.
+Before an admin first saves a switch, every requested capability is off. The
+committed deployment ceilings permit UI control in both environments; changing
+a ceiling to `"false"` is an independent emergency stop. CRM Settings changes
+take effect immediately and are audited. If D1 cannot be read, all effective
+switches fail closed.
 
 | Var | Gates | Required |
 |---|---|---|

@@ -149,6 +149,18 @@ async function seedLead() {
 beforeEach(async () => {
   db = createTestD1([migration])
 
+  await setSetting(db, 'operations.flags', {
+    engine: true,
+    discovery: true,
+    crawler: true,
+    browserRun: true,
+    ai: true,
+    tracking: true,
+    campaignSchedules: true,
+    zohoMail: true,
+    zohoMailSync: true,
+  })
+
   // The crawler's per-domain pause is a real courtesy to the sites it visits,
   // and it is configuration rather than a constant precisely so a test can turn
   // it off. Without this the suite spends 20 seconds sleeping.

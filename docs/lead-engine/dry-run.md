@@ -66,7 +66,7 @@ Work through [deployment.md](deployment.md) steps 1–5 first. Confirm:
 
 - [ ] Migration 0012 applied (22 `lead_*` tables).
 - [ ] Seed applied (3 sources, 1 campaign, 1 settings row).
-- [ ] `LEAD_ENGINE_ENABLED = "true"`. Everything else still `"false"`.
+- [ ] Engine is on in CRM Settings. Every other operational switch is off.
 - [ ] `/admin/lead-crm` loads; the dashboard shows zeros.
 - [ ] `/crawler` renders and quotes the same user agent `CRAWLER.userAgent` sends.
 
@@ -107,8 +107,7 @@ cannot generate a usable draft, so fill it in before phase 4.
 
 ### 1.3 Turn on discovery
 
-Set `LEAD_DISCOVERY_ENABLED = "true"` in `wrangler.jsonc` (and
-`env.preview.vars`), commit, deploy.
+Turn on **Discovery** in CRM Settings.
 
 ### 1.4 Activate the campaign
 
@@ -210,8 +209,8 @@ phase 2. Nothing downstream improves a bad candidate list.
 
 ## Phase 3 — the first real run
 
-Set `LEAD_CRAWLER_ENABLED = "true"`, deploy. Then **Run discovery** (not Dry run)
-with a small limit.
+Turn on **Crawler** in CRM Settings. Then **Run discovery** (not Dry run) with a
+small limit.
 
 This is the first step that touches strangers' servers.
 
@@ -279,7 +278,7 @@ the first pass.
 
 ## Phase 4 — AI review
 
-Set `LEAD_AI_ENABLED = "true"`, deploy, drain again.
+Turn on **Workers AI** in CRM Settings, then drain again.
 
 ### Inspect: AI opportunity quality
 

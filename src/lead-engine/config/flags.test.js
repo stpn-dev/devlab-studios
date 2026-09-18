@@ -108,24 +108,15 @@ describe('assertFlag', () => {
 describe('shipped configuration', () => {
   const wrangler = readFileSync(resolve(repoRoot, 'wrangler.jsonc'), 'utf8')
 
-  it('keeps production inert and enables only controlled preview research, AI review and Zoho drafting', () => {
-    // Production remains fully inert. Preview deliberately exposes the CRM
-    // shell, crawler, AI review and draft-only Zoho handoff for an
-    // operator-triggered test. Discovery, browser rendering, mailbox sync and
-    // schedules remain off.
-    const enabledInPreview = new Set([
-      FLAG_KEYS.engine,
-      FLAG_KEYS.crawler,
-      FLAG_KEYS.ai,
-      FLAG_KEYS.zohoMail,
-    ])
-
+  it('allows the admin control plane in both environments', () => {
+    // These vars are deployment ceilings, not the requested runtime state.
+    // Fresh D1 state keeps every effective capability off until an admin turns
+    // it on in CRM Settings.
     for (const key of Object.values(FLAG_KEYS)) {
       const occurrences = [...wrangler.matchAll(new RegExp(`"${key}"\\s*:\\s*"(\\w+)"`, 'g'))].map((m) => m[1])
 
       expect(occurrences.length, `${key} should appear in production and preview vars`).toBe(2)
-      expect(occurrences[0], `${key} must stay off in production`).toBe('false')
-      expect(occurrences[1], `${key} has the wrong preview state`).toBe(enabledInPreview.has(key) ? 'true' : 'false')
+      expect(occurrences, `${key} should permit UI control in both environments`).toEqual(['true', 'true'])
     }
   })
 

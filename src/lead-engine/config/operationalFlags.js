@@ -7,7 +7,7 @@
  * effective capability is off for that operation.
  */
 
-import { FLAG_KEYS, isFlagOn, resolveFlags } from './flags.js'
+import { FLAG_KEYS, isFlagOn } from './flags.js'
 import { operationError, parseJsonField } from '../repositories/helpers.js'
 import { setSetting } from '../repositories/settings.js'
 
@@ -41,7 +41,7 @@ export function resolveDeploymentAllowances(env) {
  */
 export async function getOperationalFlagState(env) {
   const deployment = resolveDeploymentAllowances(env)
-  const bootstrap = resolveFlags(env)
+  const safeDefault = falseFlags()
 
   if (!env?.DB) {
     return {
@@ -61,7 +61,7 @@ export async function getOperationalFlagState(env) {
       .bind(OPERATIONAL_FLAGS_SETTING_KEY)
       .first()
     persisted = Boolean(row)
-    requested = normalizeFlags(parseJsonField(row?.value_json, null), bootstrap)
+    requested = normalizeFlags(parseJsonField(row?.value_json, null), safeDefault)
   } catch (error) {
     console.log(
       JSON.stringify({

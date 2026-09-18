@@ -228,8 +228,9 @@ test.describe('Lead CRM admin screens', () => {
 
     await expect(page.getByRole('heading', { name: 'Operational switches' })).toBeVisible()
     await expect(page.getByRole('switch')).toHaveCount(9)
-    await expect(page.getByRole('switch', { name: 'Engine (master switch) operational switch' })).toBeDisabled()
-    await expect(page.getByText(/locked by deployment configuration/i).first()).toBeVisible()
+    await expect(page.getByRole('switch', { name: 'Engine (master switch) operational switch' })).toBeEnabled()
+    await expect(page.getByRole('switch', { name: 'Engine (master switch) operational switch' })).not.toBeChecked()
+    await expect(page.getByText(/locked by deployment configuration/i)).toHaveCount(0)
     await expect(page.getByText(/no automated-send switch/i)).toBeVisible()
     // Nothing on this screen may offer to send mail.
     await expect(page.getByRole('button', { name: /^send$/i })).toHaveCount(0)

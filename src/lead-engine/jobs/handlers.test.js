@@ -11,7 +11,18 @@ function dbThatFailsAfterFlagRead(error) {
   return {
     prepare(sql) {
       if (sql.includes('FROM lead_settings')) {
-        return { bind: () => ({ first: async () => null }) }
+        return {
+          bind: () => ({
+            first: async () => ({
+              value_json: JSON.stringify({
+                engine: true,
+                crawler: true,
+                zohoMail: true,
+                zohoMailSync: true,
+              }),
+            }),
+          }),
+        }
       }
       throw error
     },

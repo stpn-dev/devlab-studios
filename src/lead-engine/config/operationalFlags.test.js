@@ -28,16 +28,19 @@ beforeEach(() => {
 })
 
 describe('operational feature flags', () => {
-  it('preserves deployed behavior until an administrator saves an override', async () => {
+  it('starts safely off until an administrator enables capabilities', async () => {
     const state = await getOperationalFlagState({ ...ALLOWED, DB: db })
 
     expect(state.persisted).toBe(false)
-    expect(state.effective).toMatchObject({ engine: true, crawler: true, ai: true, zohoMail: true })
+    expect(Object.values(state.requested).every((value) => value === false)).toBe(true)
+    expect(Object.values(state.effective).every((value) => value === false)).toBe(true)
   })
 
   it('turns an allowed capability off and back on immediately', async () => {
     const env = { ...ALLOWED, DB: db }
 
+    await updateOperationalFlag(env, 'engine', true, { actorEmail: 'admin@example.com' })
+    await updateOperationalFlag(env, 'ai', true, { actorEmail: 'admin@example.com' })
     await updateOperationalFlag(env, 'ai', false, { actorEmail: 'admin@example.com' })
     expect(resolveFlags(await withOperationalFlags(env)).ai).toBe(false)
 

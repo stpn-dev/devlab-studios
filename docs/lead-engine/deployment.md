@@ -117,12 +117,13 @@ review** — they say what to go and check.
 From fully-off to a dry run. **Do not skip ahead**, and do each step on preview
 before production.
 
-Each step is reversible by setting the var back to `"false"` and redeploying.
+Each routine step is reversible in CRM Settings. Deployment ceilings remain
+available for an incident-response stop that cannot be overridden in the UI.
 
 ### Step 0 — deploy, off
 
 The shipped state. Merge the branch through `development` to `main`. All nine
-flags are `"false"` in both environments.
+operational switches are off in D1; the deployment ceilings permit UI control.
 
 **Verify:** the public site is unaffected. `/admin/lead-crm` loads and shows a
 disabled state. The cron tick logs
@@ -134,16 +135,11 @@ disabled state. The cron tick logs
 Above. **Verify:** 22 tables, 3 source rows, 1 draft campaign, 1
 `business.identity` row.
 
-### Step 2 — permit and turn on the engine, nothing else
+### Step 2 — turn on the engine, nothing else
 
-```jsonc
-"LEAD_ENGINE_ENABLED": "true"
-```
-
-in the target environment's `vars`. Deploy, then turn on **Engine (master
-switch)** in **Lead CRM > CRM Settings**. On the first deployment of the
-UI-managed controls, the stored state bootstraps from these vars, so an already
-enabled engine stays enabled until an admin changes it.
+The committed deployment ceiling already permits the engine. Turn on **Engine
+(master switch)** in **Lead CRM > CRM Settings**. Fresh environments start with
+all operational switches off.
 
 **Verify:** `/admin/lead-crm` renders the dashboard with real (empty) counts.
 Sources, Campaigns, Settings all load. Nothing reaches the internet — every
@@ -294,8 +290,8 @@ npx playwright test --project=static
 
 Then confirm by reading the diff:
 
-- [ ] All nine flags are `"false"` in `wrangler.jsonc` **and** `env.preview.vars`
-      (unless you are deliberately enabling one)
+- [ ] All nine deployment ceilings are explicit in `wrangler.jsonc` and
+      `env.preview.vars`; runtime state is reviewed in CRM Settings
 - [ ] The `queues` and `workflows` blocks are still commented out, or the
       resources genuinely exist
 - [ ] No secret is in `wrangler.jsonc`, `.env.example` or any committed file
@@ -311,13 +307,12 @@ Then confirm by reading the diff:
 | **Seeded data** | Delete the rows directly. Nothing else references them. |
 | **Operational data** | See [disaster-recovery.md](disaster-recovery.md). |
 
-Code deployment does not promote D1 data. Turning the flags off in production
-requires a deploy; there is no runtime kill switch, deliberately — a flag that
-lived in D1 could not be used to stop an engine that is failing against D1.
+Code deployment does not promote D1 data. Routine switches live in D1 and fail
+closed when D1 is unavailable. Setting `LEAD_ENGINE_ENABLED = "false"` and
+deploying remains the independent emergency stop.
 
 ## Why the flags are in the committed config
 
-They are operational switches, not credentials, and having them visible in
-`wrangler.jsonc` is how an operator can see at a glance that the engine is inert.
-The cost is that changing one requires a commit and a deploy. That is an accepted
-trade: these are not switches anyone should be flipping casually.
+They are deployment safety ceilings, not credentials. Routine operational
+changes happen in CRM Settings; changing a ceiling requires a commit and deploy
+because it is reserved for incident response and hard environment policy.
