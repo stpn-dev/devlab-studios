@@ -64,7 +64,8 @@ export const GET: APIRoute = async ({ params, request }) =>
       listMessagesForLead(db, leadId),
       listActivity(db, { leadId, limit: 200 }),
       listTrackingTokens(db, leadId),
-      checkOutreachReadiness(database.env, leadId),
+      // `persist: false` — this is a GET, and displaying a lead must not write to it.
+      checkOutreachReadiness(database.env, leadId, { persist: false }),
     ])
 
     const sourceRecords = company ? await listSourceRecordsForCompany(db, company.id) : []

@@ -314,6 +314,10 @@ async function handleOutboundMessage(db, { leadId, conversationId, message, logg
  * check fired, the address is suppressed, the lead moves to a
  * compliance-terminal stage it cannot leave, and no AI analysis is queued —
  * there is nothing to decide.
+ *
+ * Returns nothing: every effect is a database write, and the reply-analysis job
+ * is enqueued by the caller's caller from a query rather than from a return
+ * value here.
  */
 async function handleInboundMessage(db, { leadId, conversationId, messageId, message, optOut, logger }) {
   const lead = await getLead(db, leadId)
@@ -357,7 +361,7 @@ async function handleInboundMessage(db, { leadId, conversationId, messageId, mes
     logger.log('opt_out_detected', { lead_id: leadId, stage: 'reply', result: 'suppressed', kind: optOut.kind })
     // No AI analysis. There is nothing for a model to add, and asking it would
     // only create the possibility of it disagreeing.
-    return { suppressed: true }
+    return
   }
 
   await transitionLead(db, leadId, STAGES.REPLIED, {
@@ -367,7 +371,10 @@ async function handleInboundMessage(db, { leadId, conversationId, messageId, mes
   await updateConversationStatus(db, conversationId, 'needs_attention')
   await refreshNextAction(db, leadId)
 
-  return { suppressed: false, needsAnalysis: true, messageId }
+  // Nothing is returned, and reply analysis is NOT enqueued from here. The
+  // mailbox_sync job handler queries for inbound messages with no analysis
+  // afterwards, so a sync that half-completed still gets its replies analysed
+  // on the next tick rather than losing them with the interrupted loop.
 }
 
 /**

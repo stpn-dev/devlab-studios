@@ -58,10 +58,15 @@ const DEVLAB_CAPABILITIES = Object.freeze([
  *
  * @param {Env} env
  * @param {string} leadId
+ * @param {{ persist?: boolean }} [options] `persist: false` evaluates compliance
+ *   without writing the result. The lead detail screen reads this on a GET, and
+ *   a GET that mutates the record it is displaying is both surprising and
+ *   wrong — viewing a lead should not change it. The write happens on the paths
+ *   that are about to act: draft generation and the Zoho push.
  * @returns {Promise<{ ready: boolean, blockers: Array<{ code: string, detail: string }>,
  *                     lead, company, contact, compliance }>}
  */
-export async function checkOutreachReadiness(env, leadId) {
+export async function checkOutreachReadiness(env, leadId, options = {}) {
   const db = env.DB
   const blockers = []
 
@@ -114,12 +119,14 @@ export async function checkOutreachReadiness(env, leadId) {
       review: storedReview,
     })
 
-    await recordComplianceEvaluation(db, leadId, {
-      countryCode: compliance.countryCode,
-      profileKey: compliance.profileKey,
-      state: compliance.state,
-      checks: compliance.checks,
-    })
+    if (options.persist !== false) {
+      await recordComplianceEvaluation(db, leadId, {
+        countryCode: compliance.countryCode,
+        profileKey: compliance.profileKey,
+        state: compliance.state,
+        checks: compliance.checks,
+      })
+    }
 
     if (suppression.suppressed) {
       blockers.push({
