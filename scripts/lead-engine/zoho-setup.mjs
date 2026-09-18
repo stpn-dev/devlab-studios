@@ -348,20 +348,53 @@ async function verify() {
   ]
 
   const accountId = (process.env.ZOHO_ACCOUNT_ID || '').trim()
+
   if (accountId) {
-    checks.push(
-      [`account ${accountId}`, `${region().mail}/accounts/${accountId}`, 'checkConnection()'],
-      [
-        'inbox view',
-        `${region().mail}/accounts/${accountId}/messages/view?folderName=Inbox&limit=1`,
-        'mailbox sync (Inbox)',
-      ],
-      [
-        'sent view',
-        `${region().mail}/accounts/${accountId}/messages/view?folderName=Sent&limit=1`,
-        'mailbox sync (Sent) — this is what detects a manual send',
-      ],
-    )
+    checks.push([`account ${accountId}`, `${region().mail}/accounts/${accountId}`, 'checkConnection()'])
+
+    // Resolve folder ids the same way resolveFolderId() in
+    // src/lead-engine/zoho/client.js does — by folderType FIRST, because Zoho
+    // localises display names. `/messages/view` rejects folderName outright
+    // with EXTRA_PARAM_FOUND, confirmed against a live account.
+    const folderResponse = await fetch(`${region().mail}/accounts/${accountId}/folders`, {
+      headers: { Authorization: `Zoho-oauthtoken ${accessToken}`, Accept: 'application/json' },
+    })
+    const folderPayload = await folderResponse.json().catch(() => null)
+    const folders = (Array.isArray(folderPayload?.data) ? folderPayload.data : []).map((folder) => ({
+      id: String(folder.folderId ?? folder.FolderID ?? ''),
+      name: String(folder.folderName ?? folder.FolderName ?? ''),
+      type: String(folder.folderType ?? folder.FolderType ?? ''),
+    }))
+
+    heading(`Folders (${folders.length})`)
+    console.log('')
+    for (const folder of folders) {
+      console.log(`  ${folder.id.padEnd(22)} ${folder.name.padEnd(26)} ${folder.type}`)
+    }
+    console.log('')
+
+    const findFolder = (wanted) =>
+      folders.find((folder) => folder.type.toLowerCase() === wanted)?.id ||
+      folders.find((folder) => folder.name.toLowerCase() === wanted)?.id ||
+      null
+
+    for (const [wanted, label, why] of [
+      ['inbox', 'inbox view', 'mailbox sync (Inbox)'],
+      ['sent', 'sent view', 'mailbox sync (Sent) — this is what detects a manual send'],
+    ]) {
+      const folderId = findFolder(wanted)
+
+      if (!folderId) {
+        console.log(`  Could not resolve the ${wanted} folder from the list above — skipping that check.`)
+        continue
+      }
+
+      checks.push([
+        label,
+        `${region().mail}/accounts/${accountId}/messages/view?folderId=${folderId}&limit=1`,
+        why,
+      ])
+    }
   }
 
   heading('Checking the endpoints the engine actually calls')
