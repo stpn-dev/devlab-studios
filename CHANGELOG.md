@@ -51,6 +51,8 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-09-18
+
 ### Added
 - **UI-managed Lead CRM operational switches.** Administrators can turn permitted engine capabilities on or off immediately from CRM Settings. Changes are validated and audited, deployment Worker vars remain hard safety ceilings, and a settings-store failure turns every capability off.
 
