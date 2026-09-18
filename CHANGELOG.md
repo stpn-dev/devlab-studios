@@ -51,6 +51,9 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Fixed
+- **Simplified Lead CRM source controls.** Sources now expose one task-oriented availability control instead of separate Enabled, Automation, and unused Crawl checkboxes. Manual import is clearly distinguished from automated API discovery, while website research remains governed by the Crawler switch in CRM Settings.
+
 ## [1.10.1] - 2026-09-18
 
 ### Fixed

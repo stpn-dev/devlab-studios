@@ -8,9 +8,8 @@ import { useResource } from './useResource'
  * The source registry.
  *
  * A source that is not a row here cannot be used by the engine at all. The
- * screen makes the three separate permissions visible — enabled, automation
- * allowed, crawl allowed — because they genuinely differ: a source may permit
- * programmatic API access while forbidding page crawling, or the reverse.
+ * database keeps separate fail-closed permissions, while this screen combines
+ * them into the single operator intent: may this source supply lead candidates?
  *
  * `policyStatus` records a HUMAN's reading of that source's terms. Automation
  * cannot be enabled until it says `approved`, and the API enforces that, not
@@ -29,6 +28,9 @@ function SourceRow({ source, onChanged }) {
   const [feedback, setFeedback] = useState(null)
   const [notes, setNotes] = useState(source.policyNotes ?? '')
   const [isEditing, setIsEditing] = useState(false)
+  const isManualImport = source.type === 'manual_import'
+  const isAvailable = source.enabled && source.automationAllowed
+  const controlLabel = isManualImport ? 'Allow manual lead import' : 'Use for automated lead discovery'
 
   async function patch(changes, message) {
     setBusy(true)
@@ -51,7 +53,7 @@ function SourceRow({ source, onChanged }) {
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-semibold text-slate-900">{source.name}</h3>
             <Badge value={source.policyStatus} tones={POLICY_TONES} />
-            {source.enabled ? <Badge value="enabled" tones={{ enabled: 'bg-slate-900 text-white' }} /> : null}
+            {isAvailable ? <Badge value="active" tones={{ active: 'bg-slate-900 text-white' }} /> : null}
           </div>
           <p className="mt-1 text-xs text-slate-500">
             {humanize(source.type)} · {source.recordCount ?? 0} records · parser v{source.parserVersion}
@@ -73,36 +75,31 @@ function SourceRow({ source, onChanged }) {
 
       <Feedback feedback={feedback} />
 
-      <div className="grid gap-2 border-t border-slate-200 pt-3 text-xs sm:grid-cols-3">
-        <label className="flex items-center gap-2">
+      <div className="border-t border-slate-200 pt-3">
+        <label className="flex items-start gap-3">
           <input
             type="checkbox"
-            checked={source.enabled}
-            disabled={busy}
-            onChange={(event) => patch({ enabled: event.target.checked }, event.target.checked ? 'Enabled.' : 'Disabled.')}
-          />
-          <span className="text-slate-600">Enabled</span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={source.automationAllowed}
+            className="mt-0.5"
+            checked={isAvailable}
             disabled={busy || source.policyStatus !== 'approved'}
-            onChange={(event) => patch({ automationAllowed: event.target.checked }, 'Automation permission updated.')}
+            onChange={(event) => {
+              const enabled = event.target.checked
+              patch(
+                { enabled, automationAllowed: enabled },
+                enabled ? `${controlLabel} enabled.` : `${controlLabel} disabled.`,
+              )
+            }}
           />
-          <span className="text-slate-600">
-            Automation allowed
-            {source.policyStatus !== 'approved' ? ' (needs policy approval)' : ''}
+          <span>
+            <span className="block text-xs font-medium text-slate-700">{controlLabel}</span>
+            <span className="mt-0.5 block text-xs text-slate-500">
+              {source.policyStatus !== 'approved'
+                ? 'Review and approve this source first.'
+                : isManualImport
+                  ? 'Lets an operator paste domains or upload a CSV. It does not run automatically.'
+                  : 'Lets active campaigns request lead candidates from this API.'}
+            </span>
           </span>
-        </label>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={source.crawlAllowed}
-            disabled={busy}
-            onChange={(event) => patch({ crawlAllowed: event.target.checked }, 'Crawl permission updated.')}
-          />
-          <span className="text-slate-600">Crawl allowed</span>
         </label>
       </div>
 
@@ -170,8 +167,11 @@ function SourcesPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Sources</h1>
         <p className="mt-1 text-sm text-slate-500">
-          The engine can only read from a source registered here. Automation stays off until someone records that they
-          read the source&apos;s terms.
+          Choose where lead candidates may come from. A source becomes available only after its policy has been reviewed
+          and approved.
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          Website research is controlled separately by the Crawler switch in CRM Settings.
         </p>
       </div>
 

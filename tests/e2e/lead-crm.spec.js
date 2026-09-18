@@ -235,4 +235,14 @@ test.describe('Lead CRM admin screens', () => {
     // Nothing on this screen may offer to send mail.
     await expect(page.getByRole('button', { name: /^send$/i })).toHaveCount(0)
   })
+
+  test('sources expose one lead-intake control instead of internal permission gates', async ({ page }) => {
+    await page.goto('/admin/lead-crm/sources')
+
+    await expect(page.getByText('Website research is controlled separately by the Crawler switch')).toBeVisible()
+    await expect(page.getByLabel('Allow manual lead import')).toBeVisible()
+    await expect(page.getByLabel('Use for automated lead discovery')).toHaveCount(2)
+    await expect(page.getByText('Automation allowed', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('Crawl allowed', { exact: true })).toHaveCount(0)
+  })
 })
