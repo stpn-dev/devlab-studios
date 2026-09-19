@@ -9,11 +9,6 @@ const FULLY_CONFIGURED = Object.freeze({
   BRAVE_SEARCH_API_KEY: 'brave-key',
   CLOUDFLARE_ACCOUNT_ID: 'account',
   BROWSER_RENDERING_API_TOKEN: 'token',
-  ZOHO_ACCOUNT_ID: '2569717000000008002',
-  ZOHO_USER_EMAIL: 'hello@example.com',
-  ZOHO_OAUTH_CLIENT_ID: '1000.client',
-  ZOHO_OAUTH_CLIENT_SECRET: 'secret',
-  ZOHO_OAUTH_REFRESH_TOKEN: 'refresh',
 })
 
 const COMPLETE_IDENTITY = Object.freeze(
@@ -103,16 +98,15 @@ describe('resolveReadiness', () => {
     expect(capability(result, 'outreach_identity').missing).toEqual(['business.identity.postalCode'])
   })
 
-  it('names every missing Zoho secret by its env var name', () => {
-    const result = resolveReadiness(
-      { ...FULLY_CONFIGURED, ZOHO_OAUTH_REFRESH_TOKEN: '', ZOHO_ACCOUNT_ID: '' },
-      configured(),
-    )
+  it('reports draft export as needing no credential at all', () => {
+    // The point of replacing the mailbox integration: nothing to configure,
+    // so nothing that can be misconfigured, and no provider that can block it.
+    const result = resolveReadiness(FULLY_CONFIGURED, { businessIdentity: COMPLETE_IDENTITY })
+    const exportRow = capability(result, 'outreach_export')
 
-    // Not the camelCase property names readZohoConfig reports — an operator
-    // types these into `wrangler secret put`.
-    expect(capability(result, 'zoho_draft').missing).toEqual(['ZOHO_ACCOUNT_ID', 'ZOHO_OAUTH_REFRESH_TOKEN'])
-    expect(result.blocking).toContain('zoho_draft')
+    expect(exportRow.configured).toBe(true)
+    expect(exportRow.missing).toEqual([])
+    expect(result.blocking).not.toContain('outreach_export')
   })
 
   it('treats a missing Workers AI binding as blocking', () => {

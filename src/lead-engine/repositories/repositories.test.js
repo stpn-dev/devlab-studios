@@ -14,7 +14,7 @@ import { claimJobs, completeJob, enqueueJob, failJob, reclaimStaleJobs, retryJob
 import { getPrimaryContact, upsertContact } from './contacts.js'
 import { getCurrentScore, listScoreHistory, recordScore } from './scores.js'
 import { ensureConversation, listUnansweredReplies, recordMessage } from './conversations.js'
-import { createDraft, getCurrentDraft, recordZohoDraftCreated } from './drafts.js'
+import { createDraft, getCurrentDraft, recordDraftExported } from './drafts.js'
 import { STAGES } from '../domain/pipeline.js'
 import { ACTIVITY } from '../domain/activity.js'
 
@@ -434,20 +434,22 @@ describe('contacts and drafts', () => {
     ).rejects.toThrow(/source URL/i)
   })
 
-  it('supersedes the previous draft but leaves one already pushed to Zoho alone', async () => {
+  it('supersedes the previous draft but leaves an exported one alone', async () => {
     const { lead } = await seedLead()
 
     const first = await createDraft(db, { leadId: lead.id, subject: 'A', bodyText: 'a' })
     await createDraft(db, { leadId: lead.id, subject: 'B', bodyText: 'b' })
     expect((await getCurrentDraft(db, lead.id)).subject).toBe('B')
 
-    await recordZohoDraftCreated(db, (await getCurrentDraft(db, lead.id)).id, { zohoDraftId: 'z1' })
+    await recordDraftExported(db, (await getCurrentDraft(db, lead.id)).id)
     await createDraft(db, { leadId: lead.id, subject: 'C', bodyText: 'c' })
 
-    // The one in the mailbox keeps its status — the CRM must not disagree with
-    // what is actually sitting in Zoho Drafts.
+    // An exported draft keeps its status. The operator may already have sent
+    // that exact text, and the CRM must not quietly claim it was superseded.
     const drafts = await listScoreHistoryless(db, lead.id)
-    expect(drafts.find((draft) => draft.subject === 'B').status).toBe('zoho_draft_created')
+    const exported = drafts.find((draft) => draft.subject === 'B')
+
+    expect(exported.exported).toBe(true)
     expect(drafts.find((draft) => draft.subject === 'A').status).toBe('superseded')
     expect(first.status).toBe('draft')
   })

@@ -247,7 +247,7 @@ Every threshold, weight, prompt and budget comes from code defaults.
 | Secret | How to get it again |
 |---|---|
 | `ZOHO_OAUTH_CLIENT_ID` / `_SECRET` | <https://api-console.zoho.com/> — the client still exists; the secret is re-readable there |
-| `ZOHO_OAUTH_REFRESH_TOKEN` | **Redo the authorization-code flow.** [zoho-integration.md](zoho-integration.md) 1.3–1.4. 10 minutes. |
+| `ZOHO_OAUTH_REFRESH_TOKEN` | **Redo the authorization-code flow.** [outreach-handoff.md](outreach-handoff.md) 1.3–1.4. 10 minutes. |
 | `ZOHO_ACCOUNT_ID` / `ZOHO_USER_EMAIL` | `GET https://mail.zoho.com/api/accounts` |
 | `BRAVE_SEARCH_API_KEY` | Brave dashboard, or regenerate |
 | `BROWSER_RENDERING_API_TOKEN` | Cloudflare → API Tokens, or create a new one |

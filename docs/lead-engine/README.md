@@ -34,7 +34,7 @@ disarmed.
 | [workers-ai.md](workers-ai.md) | Gating, payload minimization, the four versioned prompts, output validation, the invention guard, and the audit ledger |
 | [contacts.md](contacts.md) | Provenance as an admission requirement, no guessed addresses, and why MX presence is not mailbox verification |
 | [compliance.md](compliance.md) | Operational safeguards (not legal advice), the US and PH profiles, the human-review fallback, suppression, and opt-out detection |
-| [zoho-integration.md](zoho-integration.md) | The one-time Zoho API client setup, scopes, refresh token, secrets — then what Create Zoho Draft and mailbox sync do |
+| [outreach-handoff.md](outreach-handoff.md) | How an approved draft reaches a recipient: exported as a file you send yourself, why the mailbox integration was removed, and what the legacy schema names mean |
 | [conversations.md](conversations.md) | Thread matching order, why subject never decides alone, message immutability, and the reply copilot |
 | [cloudflare-workflows.md](cloudflare-workflows.md) | The five Workflow classes, why they are thin, why they are not bound, and what activation actually requires |
 | [queues.md](queues.md) | The four queues, consumer settings, why they are not bound, and the D1 job ledger that makes them optional |
@@ -50,7 +50,7 @@ disarmed.
 | Path | Contents |
 |---|---|
 | `migrations/0012_lead_intelligence_engine.sql` | The whole schema, heavily commented |
-| `src/lead-engine/` | The engine: config, domain, crawler, signals, scoring, ai, contacts, compliance, discovery, zoho, services, jobs, repositories |
+| `src/lead-engine/` | The engine: config, domain, crawler, signals, scoring, ai, contacts, compliance, discovery, mail, services, jobs, repositories |
 | `src/lead-engine/workflows/index.ts` | Cloudflare Workflow classes (exported, not bound) |
 | `src/lead-engine/queues/consumer.js` | Cloudflare Queues consumer (declared, not bound) |
 | `src/pages/api/admin/lead-crm/` | Admin API routes |

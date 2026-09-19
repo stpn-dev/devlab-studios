@@ -184,8 +184,6 @@
     // per-campaign schedule_enabled column is a separate, independent switch -
     // both are required, by design.
     "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false",
-    "ZOHO_MAIL_ENABLED": "true",
-    "ZOHO_MAIL_SYNC_ENABLED": "true",
     "R2_PUBLIC_BASE_URL": "https://pub-401ca3448c3348158cdb3e4e9a9dcb20.r2.dev",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAEO3GbzGXQvAtOdI",
     "RESEND_FROM_EMAIL": "hello@devlabstudios.com",
@@ -230,15 +228,13 @@
         "LEAD_ENGINE_ENABLED": "true",
         "LEAD_DISCOVERY_ENABLED": "true",
         "LEAD_CRAWLER_ENABLED": "true",
-            // False for the same reason as production: no credentials exist.
+        // False for the same reason as production: no credentials exist.
         "LEAD_BROWSER_RUN_ENABLED": "false",
         "LEAD_AI_ENABLED": "true",
         "LEAD_TRACKING_ENABLED": "true",
-            // False for the same reason as production: unattended running is
+        // False for the same reason as production: unattended running is
         // the last thing to enable, after both runs have been inspected.
-        "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false",
-        "ZOHO_MAIL_ENABLED": "true",
-        "ZOHO_MAIL_SYNC_ENABLED": "true"
+        "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false"
       },
       // Also not inherited. Without it, optimizeImage() has no Images binding
       // on preview and responsive variants silently degrade there.

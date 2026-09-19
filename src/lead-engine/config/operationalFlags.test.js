@@ -17,8 +17,6 @@ const ALLOWED = {
   LEAD_ENGINE_ENABLED: 'true',
   LEAD_CRAWLER_ENABLED: 'true',
   LEAD_AI_ENABLED: 'true',
-  ZOHO_MAIL_ENABLED: 'true',
-  ZOHO_MAIL_SYNC_ENABLED: 'true',
 }
 
 let db
@@ -54,14 +52,17 @@ describe('operational feature flags', () => {
     ).rejects.toMatchObject({ status: 409 })
   })
 
-  it('turning off Zoho Mail also turns off mailbox sync', async () => {
+  it('turning off the engine turns off everything under it', async () => {
+    // The master switch is the emergency stop. A capability left effective
+    // after it is thrown would make the stop a suggestion.
     const env = { ...ALLOWED, DB: db }
-    await updateOperationalFlag(env, 'zohoMail', false)
+    await updateOperationalFlag(env, 'engine', false)
     const state = await getOperationalFlagState(env)
 
-    expect(state.requested.zohoMail).toBe(false)
-    expect(state.requested.zohoMailSync).toBe(false)
-    expect(state.effective.zohoMailSync).toBe(false)
+    expect(state.effective.engine).toBe(false)
+    for (const [key, value] of Object.entries(state.effective)) {
+      expect(value, `${key} survived the master switch`).toBe(false)
+    }
   })
 
   it('fails closed when D1 cannot be read', async () => {

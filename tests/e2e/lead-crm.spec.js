@@ -38,7 +38,6 @@ const LEAD_CRM_ENDPOINTS = [
   '/api/admin/lead-crm/settings',
   '/api/admin/lead-crm/feature-flags',
   '/api/admin/lead-crm/jobs',
-  '/api/admin/lead-crm/zoho/status',
 ]
 
 let cachedSessionCookie = null

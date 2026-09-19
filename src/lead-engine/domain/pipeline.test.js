@@ -139,13 +139,15 @@ describe('describeNextAction', () => {
     expect(describeNextAction({ stage: STAGES.READY_FOR_REVIEW })).toMatch(/review/i)
   })
 
-  it('walks the operator through the Zoho handoff', () => {
+  it('walks the operator through the manual handoff', () => {
     expect(describeNextAction({ stage: STAGES.READY_TO_CONTACT, hasDraft: false })).toMatch(/generate/i)
-    expect(describeNextAction({ stage: STAGES.READY_TO_CONTACT, hasDraft: true, zohoDraftCreated: false })).toMatch(
-      /Zoho draft/i,
+    expect(describeNextAction({ stage: STAGES.READY_TO_CONTACT, hasDraft: true, draftExported: false })).toMatch(
+      /export/i,
     )
-    expect(describeNextAction({ stage: STAGES.READY_TO_CONTACT, hasDraft: true, zohoDraftCreated: true })).toMatch(
-      /send it manually|manually/i,
+    // The last step is always a person pressing Send. Nothing in this system
+    // does it, and the text must never imply otherwise.
+    expect(describeNextAction({ stage: STAGES.READY_TO_CONTACT, hasDraft: true, draftExported: true })).toMatch(
+      /send it yourself|manually/i,
     )
   })
 

@@ -8,7 +8,7 @@ import { useResource } from './useResource'
  * The replies queue — the reply copilot.
  *
  * A COPILOT, not an agent. It reads the message, says what it thinks was asked,
- * and proposes an answer. Nothing on this screen sends anything: "Create Zoho
+ * and proposes an answer. Nothing on this screen sends anything: the export
  * draft" puts text in a mailbox, and a person presses Send there.
  *
  * The prospect's own words are shown in full, above the AI's reading of them,
@@ -200,13 +200,13 @@ function ReplyCard({ reply, onChanged }) {
       <footer className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
         {draft && !isEditing ? (
           <>
-            {draft.status !== 'zoho_draft_created' ? (
+            {!draft.exported ? (
               <button type="button" className={buttonClass} onClick={() => setIsEditing(true)}>
                 Edit draft
               </button>
             ) : null}
 
-            {draft.status !== 'zoho_draft_created'
+            {!draft.exported
               ? REPLY_VARIANTS.map(([variant, label]) => (
                   <button
                     key={variant}
@@ -225,23 +225,28 @@ function ReplyCard({ reply, onChanged }) {
                 ))
               : null}
 
+            <a
+              href={`/api/admin/lead-crm/drafts/${draft.id}/export`}
+              className={primaryButtonClass}
+              download
+            >
+              {draft.exported ? 'Download again' : 'Download .eml'}
+            </a>
+
             <button
               type="button"
-              disabled={busy !== null || draft.status === 'zoho_draft_created'}
-              className={primaryButtonClass}
+              disabled={busy !== null}
+              className={buttonClass}
               onClick={() =>
-                act('zoho', async () => {
-                  const result = await adminApi.post(`/api/admin/lead-crm/drafts/${draft.id}/zoho-draft`, {})
-                  return result.instruction
+                act('copy', async () => {
+                  const result = await adminApi.post(`/api/admin/lead-crm/drafts/${draft.id}/export`, {})
+                  await navigator.clipboard.writeText(`${result.subject}\n\n${result.bodyText}`)
+                  return `Copied. Nothing has been sent — paste it into a reply to ${result.to} and send it yourself.`
                 })
               }
             >
-              {draft.status === 'zoho_draft_created' ? 'In Zoho Drafts' : busy === 'zoho' ? 'Saving…' : 'Create Zoho draft'}
+              {busy === 'copy' ? 'Copying…' : 'Copy subject & body'}
             </button>
-
-            <a href="https://mail.zoho.com/zm/#mail/folder/Drafts" target="_blank" rel="noreferrer" className={buttonClass}>
-              Open Zoho
-            </a>
           </>
         ) : null}
 
@@ -303,7 +308,7 @@ function RepliesPage() {
       {state === 'ready' && replies.length === 0 ? (
         <EmptyState
           title="No replies waiting."
-          hint="Replies appear here once Zoho synchronization imports a message from a known contact."
+          hint="Log a reply against its conversation and it appears here."
         />
       ) : null}
 

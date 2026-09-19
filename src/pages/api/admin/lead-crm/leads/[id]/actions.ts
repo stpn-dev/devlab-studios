@@ -28,6 +28,9 @@ const ACTION_TARGETS = {
   do_not_contact: { stage: STAGES.DO_NOT_CONTACT, event: ACTIVITY.DO_NOT_CONTACT },
   mark_won: { stage: STAGES.WON, event: ACTIVITY.WON },
   mark_lost: { stage: STAGES.LOST, event: ACTIVITY.LOST },
+  // Nothing observes the mailbox any more, so the only thing that knows a
+  // message actually went out is the person who pressed Send.
+  mark_contacted: { stage: STAGES.CONTACTED, event: ACTIVITY.OUTBOUND_SEND_CONFIRMED },
 } as const
 
 /**

@@ -190,7 +190,7 @@ export function canTransition(from, to, { allowComplianceOverride = false } = {}
  * as "waiting on the engine" rather than prompting a human.
  *
  * @param {{ stage: string, hasContact?: boolean, complianceState?: string|null,
- *           hasDraft?: boolean, zohoDraftCreated?: boolean, hasUnansweredReply?: boolean }} lead
+ *           hasDraft?: boolean, draftExported?: boolean, hasUnansweredReply?: boolean }} lead
  * @returns {string|null}
  */
 export function describeNextAction(lead) {
@@ -216,8 +216,8 @@ export function describeNextAction(lead) {
       return 'Review the opportunity and the suggested outreach draft.'
     case STAGES.READY_TO_CONTACT:
       if (!lead.hasDraft) return 'Generate an outreach draft.'
-      if (!lead.zohoDraftCreated) return 'Create the Zoho draft, then send it manually from Zoho.'
-      return 'Open Zoho and send the draft manually.'
+      if (!lead.draftExported) return 'Export the draft, then send it yourself from your mail client.'
+      return 'Send it yourself from your mail client, then mark the lead contacted.'
     case STAGES.CONTACTED:
     case STAGES.AWAITING_REPLY:
       return null

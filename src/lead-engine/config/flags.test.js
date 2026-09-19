@@ -64,16 +64,11 @@ describe('resolveFlags', () => {
     expect(flags.ai).toBe(false)
   })
 
-  it('requires the Zoho integration before mailbox sync can be on', () => {
-    const syncWithoutZoho = resolveFlags({ LEAD_ENGINE_ENABLED: 'true', ZOHO_MAIL_SYNC_ENABLED: 'true' })
-    expect(syncWithoutZoho.zohoMailSync).toBe(false)
-
-    const both = resolveFlags({
-      LEAD_ENGINE_ENABLED: 'true',
-      ZOHO_MAIL_ENABLED: 'true',
-      ZOHO_MAIL_SYNC_ENABLED: 'true',
-    })
-    expect(both.zohoMailSync).toBe(true)
+  it('declares no mail-provider flag, because there is no mail provider', () => {
+    // The mailbox integration was removed after a Worker's rotating egress IPs
+    // got the account blocked for suspicious logins. Drafts are exported as
+    // files now, which needs no provider and therefore no switch to gate.
+    expect(Object.keys(FLAG_KEYS).join(' ')).not.toMatch(/zoho|mailbox|smtp/i)
   })
 })
 

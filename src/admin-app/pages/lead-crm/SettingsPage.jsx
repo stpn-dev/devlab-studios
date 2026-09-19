@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { adminApi } from '../../lib/adminApi'
-import { buttonClass, formatDate, humanize, inputClass, primaryButtonClass, relativeTime } from './format'
+import { buttonClass, formatDate, inputClass, primaryButtonClass } from './format'
 import { Badge, Feedback, Panel } from './shared'
 import { useResource } from './useResource'
 
@@ -119,93 +119,6 @@ function SettingEditor({ settingKey, value, metadata, onSaved }) {
   )
 }
 
-function ZohoStatus() {
-  const { data, state, reload } = useResource('/api/admin/lead-crm/zoho/status')
-  const [busy, setBusy] = useState(false)
-  const [feedback, setFeedback] = useState(null)
-
-  if (state === 'loading') return <p className="text-sm text-slate-500">Checking Zoho…</p>
-  if (!data) return null
-
-  async function syncNow() {
-    setBusy(true)
-    setFeedback(null)
-    try {
-      const result = await adminApi.post('/api/admin/lead-crm/zoho/status', { action: 'sync_now' })
-      setFeedback({
-        tone: 'ok',
-        message: `Sent: ${result.sent.status} (${result.sent.imported} imported). Inbox: ${result.inbox.status} (${result.inbox.imported} imported).`,
-      })
-      reload()
-    } catch (error) {
-      setFeedback({ tone: 'error', message: error.message })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Panel
-      title="Zoho Mail"
-      description="The human-controlled communication interface. This application saves drafts; it has no send capability."
-      actions={
-        data.configured ? (
-          <button type="button" disabled={busy} className={buttonClass} onClick={syncNow}>
-            {busy ? 'Syncing…' : 'Sync now'}
-          </button>
-        ) : null
-      }
-    >
-      <div className="space-y-3 text-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge
-            value={data.connection.ok ? 'connected' : 'not_connected'}
-            tones={{ connected: 'bg-emerald-100 text-emerald-800', not_connected: 'bg-rose-100 text-rose-800' }}
-            label={data.connection.ok ? 'Connected' : 'Not connected'}
-          />
-          <Badge
-            value={data.flags.zohoMailSync ? 'sync_on' : 'sync_off'}
-            tones={{ sync_on: 'bg-emerald-100 text-emerald-800', sync_off: 'bg-slate-100 text-slate-500' }}
-            label={data.flags.zohoMailSync ? 'Sync enabled' : 'Sync disabled'}
-          />
-          {data.mailbox ? <span className="text-xs text-slate-500">{data.mailbox}</span> : null}
-        </div>
-
-        {!data.configured ? (
-          <p className="text-xs text-slate-500">
-            Missing configuration: <code className="rounded bg-slate-100 px-1">{data.missing.join(', ')}</code>. See
-            docs/lead-engine/zoho-integration.md for the one-time OAuth setup.
-          </p>
-        ) : null}
-
-        {!data.connection.ok && data.configured ? (
-          <p className="text-xs text-rose-600">{data.connection.detail}</p>
-        ) : null}
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          {data.syncState.map((sync) => (
-            <div key={`${sync.folder}`} className="rounded border border-slate-200 p-2 text-xs">
-              <p className="font-semibold text-slate-700">{humanize(sync.folder)}</p>
-              <p className="text-slate-500">Last success: {relativeTime(sync.lastSuccessAt)}</p>
-              <p className="text-slate-500">
-                {sync.messagesImported} imported of {sync.messagesSeen} examined
-              </p>
-              {sync.consecutiveFailures > 0 ? (
-                <p className="mt-1 text-rose-600">
-                  {sync.consecutiveFailures} consecutive failures — {sync.lastError}
-                </p>
-              ) : null}
-            </div>
-          ))}
-        </div>
-
-        <p className="text-xs text-slate-400">Messages imported today: {data.messagesImportedToday}</p>
-
-        <Feedback feedback={feedback} />
-      </div>
-    </Panel>
-  )
-}
 
 const FLAG_ROWS = [
   { key: 'engine', label: 'Engine (master switch)', varName: 'LEAD_ENGINE_ENABLED' },
@@ -215,8 +128,6 @@ const FLAG_ROWS = [
   { key: 'ai', label: 'Workers AI', varName: 'LEAD_AI_ENABLED' },
   { key: 'tracking', label: 'First-party tracking', varName: 'LEAD_TRACKING_ENABLED' },
   { key: 'campaignSchedules', label: 'Campaign schedules', varName: 'LEAD_CAMPAIGN_SCHEDULES_ENABLED', confirm: true },
-  { key: 'zohoMail', label: 'Zoho Mail', varName: 'ZOHO_MAIL_ENABLED' },
-  { key: 'zohoMailSync', label: 'Zoho mailbox sync', varName: 'ZOHO_MAIL_SYNC_ENABLED', confirm: true },
 ]
 
 function FlagRow({ item, state, busy, onToggle }) {
@@ -273,9 +184,7 @@ function FeatureFlagsPanel() {
       enabled &&
       item.confirm &&
       !window.confirm(
-        item.key === 'campaignSchedules'
-          ? 'Enable unattended campaign schedules? Individual campaigns must still be armed separately.'
-          : 'Enable mailbox synchronization? This reads the configured Zoho Inbox and Sent folders.',
+        'Enable unattended campaign schedules? Individual campaigns must still be armed separately.',
       )
     ) {
       return
@@ -309,8 +218,8 @@ function FeatureFlagsPanel() {
       ) : null}
       <Feedback feedback={feedback} />
       <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-500">
-        A deployment-locked switch cannot be enabled here. There is no automated-send switch: this system only
-        creates Zoho drafts, and a person sends them.
+        A deployment-locked switch cannot be enabled here. There is no automated-send switch, and no mail provider
+        to configure: this system writes drafts and hands them to you as files, and a person sends them.
       </p>
     </Panel>
   )
@@ -332,8 +241,6 @@ function SettingsPage() {
       </div>
 
       <FeatureFlagsPanel />
-
-      <ZohoStatus />
 
       <Panel
         title="Tunables"

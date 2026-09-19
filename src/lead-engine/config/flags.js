@@ -29,8 +29,6 @@ export const FLAG_KEYS = Object.freeze({
   browserRun: 'LEAD_BROWSER_RUN_ENABLED',
   ai: 'LEAD_AI_ENABLED',
   tracking: 'LEAD_TRACKING_ENABLED',
-  zohoMail: 'ZOHO_MAIL_ENABLED',
-  zohoMailSync: 'ZOHO_MAIL_SYNC_ENABLED',
   campaignSchedules: 'LEAD_CAMPAIGN_SCHEDULES_ENABLED',
 })
 
@@ -53,7 +51,7 @@ export function isFlagOn(value) {
  * @param {Env} env
  * @returns {{
  *   engine: boolean, discovery: boolean, crawler: boolean, browserRun: boolean,
- *   ai: boolean, tracking: boolean, zohoMail: boolean, zohoMailSync: boolean,
+ *   ai: boolean, tracking: boolean,
  *   campaignSchedules: boolean
  * }}
  */
@@ -73,10 +71,6 @@ export function resolveFlags(env) {
     browserRun: gated(FLAG_KEYS.browserRun),
     ai: gated(FLAG_KEYS.ai),
     tracking: gated(FLAG_KEYS.tracking),
-    zohoMail: gated(FLAG_KEYS.zohoMail),
-    // Sync additionally requires the Zoho integration itself: polling a mailbox
-    // we are not configured to talk to is not a meaningful state.
-    zohoMailSync: gated(FLAG_KEYS.zohoMail) && gated(FLAG_KEYS.zohoMailSync),
     campaignSchedules: gated(FLAG_KEYS.campaignSchedules),
   }
 }

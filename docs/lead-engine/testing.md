@@ -150,7 +150,7 @@ emails people is not a test suite.
 The consequence, stated plainly: **the tests prove the code handles the shapes we
 believe those APIs return. They do not prove those are the shapes.** See the
 "not verified against the live API" list in
-[zoho-integration.md](zoho-integration.md).
+[outreach-handoff.md](outreach-handoff.md).
 
 ### SQLite is not D1
 

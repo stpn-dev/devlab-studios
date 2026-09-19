@@ -26,7 +26,6 @@ import { handleQueueBatch } from './lead-engine/queues/consumer.js'
 import {
   CampaignDiscoveryWorkflow,
   LeadResearchWorkflow,
-  MailboxSyncWorkflow,
   MaintenanceWorkflow,
   ReplyAnalysisWorkflow,
 } from './lead-engine/workflows/index'
@@ -43,7 +42,6 @@ export { SessionCoordinatorDO, RateLimiterDO }
 export {
   CampaignDiscoveryWorkflow,
   LeadResearchWorkflow,
-  MailboxSyncWorkflow,
   ReplyAnalysisWorkflow,
   MaintenanceWorkflow,
 }

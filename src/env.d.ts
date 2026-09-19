@@ -49,8 +49,6 @@ interface Env {
   LEAD_AI_ENABLED?: string
   LEAD_TRACKING_ENABLED?: string
   LEAD_CAMPAIGN_SCHEDULES_ENABLED?: string
-  ZOHO_MAIL_ENABLED?: string
-  ZOHO_MAIL_SYNC_ENABLED?: string
 
   /** Optional discovery source. The engine works without it. */
   BRAVE_SEARCH_API_KEY?: string
@@ -59,14 +57,6 @@ interface Env {
   CLOUDFLARE_ACCOUNT_ID?: string
   BROWSER_RENDERING_API_TOKEN?: string
 
-  // Zoho Mail. SECRETS — set with `wrangler secret put`, never in wrangler.jsonc.
-  ZOHO_ACCOUNT_ID?: string
-  ZOHO_USER_EMAIL?: string
-  ZOHO_OAUTH_CLIENT_ID?: string
-  ZOHO_OAUTH_CLIENT_SECRET?: string
-  ZOHO_OAUTH_REFRESH_TOKEN?: string
-  ZOHO_API_BASE_URL?: string
-  ZOHO_ACCOUNTS_BASE_URL?: string
 
   // Optional Queue bindings. Absent by default — the D1 job ledger drains the
   // same work on the cron tick when they are not configured.

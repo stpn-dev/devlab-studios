@@ -30,7 +30,7 @@ function ReviewQueuePage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Review queue</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Qualified, contactable and drafted. Read the opportunity, edit the message, then create the Zoho draft and send
+          Qualified, contactable and drafted. Read the opportunity, edit the message, then export it and send
           it yourself.
         </p>
       </div>

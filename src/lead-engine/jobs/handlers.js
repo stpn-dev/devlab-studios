@@ -20,11 +20,9 @@ import { runCampaignDiscovery } from '../services/discovery.js'
 import { researchLead } from '../services/research.js'
 import { reviewLeadOpportunity } from '../services/aiReview.js'
 import { generateOutreachDraft } from '../services/outreach.js'
-import { syncMailbox } from '../services/mailboxSync.js'
 import { processInboundReply } from '../services/replyCopilot.js'
 import { pruneCompletedJobs, reclaimStaleJobs } from '../repositories/jobs.js'
 import { dispatchJob } from './dispatch.js'
-import { listLeadsInStage } from '../repositories/leads.js'
 
 /**
  * Errors that will not resolve themselves.
@@ -48,6 +46,27 @@ function isPermanent(error) {
  * Each handler receives `(env, job, options)` and returns an outcome object.
  * Throwing is also fine — the runner catches and classifies.
  */
+/**
+ * Job types the schema still accepts but nothing serves any more.
+ *
+ * `mailbox_sync` polled a Zoho mailbox. That integration is gone — a Worker
+ * has no stable egress IP, so the poll arrived from a different country each
+ * run and the provider blocked the account for suspicious logins. Drafts are
+ * exported as files now; see services/draftExport.js.
+ *
+ * The value stays in the schema's CHECK because 0012 is applied to live
+ * databases and widening a CHECK means rebuilding a table. Declaring it here
+ * rather than just deleting the handler is what keeps the coverage test
+ * honest: a type that is MISSING a handler still fails that test, while one
+ * that was deliberately retired is acknowledged in writing.
+ *
+ * A queued row of this type dead-letters with a reason that says so, instead
+ * of the generic "no handler" that would read like a bug.
+ */
+export const RETIRED_JOB_TYPES = Object.freeze({
+  mailbox_sync: 'Mailbox synchronization was removed; drafts are exported for manual sending.',
+})
+
 export const JOB_HANDLERS = Object.freeze({
   /**
    * Discovers candidates for one campaign and enqueues research for each new
@@ -134,8 +153,6 @@ export const JOB_HANDLERS = Object.freeze({
   /**
    * Synchronizes the Zoho Inbox and Sent folders, then enqueues analysis for
    * each inbound reply that needs it.
-   */
-  async mailbox_sync(env, job, options = {}) {
     const result = await syncMailbox(env, {
       fetchImpl: options.fetchImpl,
       correlationId: job.correlationId,
@@ -200,6 +217,13 @@ export const JOB_HANDLERS = Object.freeze({
  */
 export async function runJob(env, job, options = {}) {
   env = await withOperationalFlags(env)
+  const retired = RETIRED_JOB_TYPES[job.jobType]
+  if (retired) {
+    // Not retryable: no amount of waiting brings back a capability that was
+    // deliberately removed.
+    return { ok: false, error: retired, retryable: false }
+  }
+
   const handler = JOB_HANDLERS[job.jobType]
   if (!handler) {
     return { ok: false, error: `No handler for job type "${job.jobType}".`, retryable: false }

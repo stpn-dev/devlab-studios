@@ -116,7 +116,7 @@ export const updateCampaignSchema = z.object({
  */
 export const leadActionSchema = z
   .object({
-    action: z.enum(['set_stage', 'hold', 'resume', 'reject', 'archive', 'do_not_contact', 'mark_won', 'mark_lost', 'set_priority']),
+    action: z.enum(['set_stage', 'hold', 'resume', 'reject', 'archive', 'do_not_contact', 'mark_won', 'mark_lost', 'mark_contacted', 'set_priority']),
     stage: z.enum(ALL_STAGES as [string, ...string[]]).optional(),
     priority: z.enum(['low', 'normal', 'high']).optional(),
     reason: trimmed(500).optional(),
