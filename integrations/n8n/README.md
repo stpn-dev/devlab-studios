@@ -57,9 +57,28 @@ client mail and contact-form notifications down with it. Every cold-email
 platform does this the same way: a separate domain, SPF/DKIM/DMARC configured,
 warmed for about three weeks at 5–10 messages a day before going higher.
 
-The CRM's default cap is **10 a day**, set in `outreach.sending` under CRM
-Settings. It is deliberately below the 30–50 that guidance treats as steady
-state, because a domain with no sending history has to earn that.
+## The daily cap is ours, not the provider's
+
+The CRM defaults to **10 a day**. That is not any provider's limit — free
+Gmail allows roughly 500/day, and several ESP free tiers advertise 100/day or
+more. It is a warm-up figure, because the binding constraint is your domain's
+reputation rather than what the provider permits. A brand new domain sending
+100 a day immediately is the fastest way into spam folders, and reputation is
+much harder to regain than to protect.
+
+Raise it in **CRM Settings → `outreach.sending`**, and raise **both** values:
+
+```json
+{ "dailyLimit": 100, "maxPerCollection": 50 }
+```
+
+`dailyLimit` alone is not enough — `maxPerCollection` bounds each collection
+call, so with a once-a-day schedule it is the number that actually decides how
+many go out. Alternatively leave `maxPerCollection` low and run the schedule
+more often, which paces the sending out across the day and looks more human.
+
+Suggested ramp on a fresh domain: 5–10/day for the first week, 10–20 in the
+second, 20–35 in the third, and only then higher.
 
 ## How the two sides divide
 

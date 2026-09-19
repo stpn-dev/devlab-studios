@@ -757,6 +757,30 @@ describe('the outbox', () => {
     expect((await getLead(db, lead.id)).stage).toBe(STAGES.CONTACTED)
   })
 
+  it('honours a raised per-collection limit, not just a raised daily one', async () => {
+    // REGRESSION. maxPerCollection was read from the constant, so raising
+    // dailyLimit to 100 still handed out only 10 per call and a once-a-day
+    // schedule silently stayed at 10 - a cap that lied about its own value.
+    await readyToSend()
+    await setSetting(db, 'outreach.sending', { dailyLimit: 100, maxPerCollection: 50 })
+
+    const result = await collectOutbox({ ...FLAGS, DB: db }, {})
+
+    // Both figures come from settings now. Before the fix `dailyLimit` read
+    // 100 while the collection was still silently bounded at the constant.
+    expect(result.dailyLimit).toBe(100)
+    expect(result.remainingToday).toBe(100)
+    expect(result.messages.length).toBe(1)
+  })
+
+  it('still bounds a collection when settings ask for more than exists', async () => {
+    await readyToSend()
+    await setSetting(db, 'outreach.sending', { dailyLimit: 100, maxPerCollection: 50 })
+
+    // Asking for 40 with one draft available yields one, not an error.
+    expect((await collectOutbox({ ...FLAGS, DB: db }, { limit: 40 })).messages).toHaveLength(1)
+  })
+
   it('is idempotent on confirmation, so a sender retry is not a second send', async () => {
     await readyToSend()
     const env = { ...FLAGS, DB: db }

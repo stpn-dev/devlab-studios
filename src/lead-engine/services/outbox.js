@@ -95,10 +95,18 @@ export async function collectOutbox(env, options = {}) {
     return { remainingToday: 0, sentToday: already, dailyLimit, messages: [] }
   }
 
+  // Read from settings alongside the daily limit, not from the constant.
+  // Hard-coding this meant raising `dailyLimit` to 100 still handed out only
+  // 10 per call, so a once-a-day schedule silently stayed at 10 whatever the
+  // operator configured - a cap that lies about its own value.
+  const configuredPerCall = Number(settings['outreach.sending']?.maxPerCollection)
+  const perCollection =
+    Number.isFinite(configuredPerCall) && configuredPerCall > 0 ? configuredPerCall : OUTREACH.maxPerCollection
+
   const requested = Number.isFinite(Number(options.limit))
     ? Math.max(1, Math.trunc(Number(options.limit)))
-    : OUTREACH.maxPerCollection
-  const take = Math.min(requested, OUTREACH.maxPerCollection, remainingToday)
+    : perCollection
+  const take = Math.min(requested, perCollection, remainingToday)
 
   // Over-fetched deliberately: leads at this stage may have no current draft,
   // or one already handed out, and both are skipped below.

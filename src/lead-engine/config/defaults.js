@@ -337,7 +337,12 @@ export const BUSINESS_IDENTITY_FIELDS = Object.freeze({
  */
 export const OUTREACH = Object.freeze({
   dailySendLimit: 10,
-  /** Per collection call, however many the caller asks for. */
+  /**
+   * Per collection call, however many the caller asks for.
+   *
+   * Raise this WITH `dailySendLimit`, or a once-a-day schedule never reaches
+   * the daily figure. Both are overridable together under `outreach.sending`.
+   */
   maxPerCollection: 10,
 })
 
