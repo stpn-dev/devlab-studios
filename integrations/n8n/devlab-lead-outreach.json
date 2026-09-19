@@ -7,36 +7,30 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 9 * * 1-5"
+              "expression": "0 9,14 * * 1-5"
             }
           ]
         }
       },
       "id": "schedule",
-      "name": "Weekdays 09:00",
+      "name": "Weekdays 09:00 and 14:00",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-420, 0],
-      "notes": "Once a weekday morning. Not hourly: the CRM caps the daily volume anyway, and a business message arriving at 03:00 reads as automated."
+      "position": [-440, 0],
+      "notes": "Twice a weekday rather than once. The CRM caps the day; running twice spreads the allowance across working hours instead of emptying it in one burst at 09:00, which looks less automated. Raise maxPerCollection in CRM Settings if you want more per run."
     },
     {
       "parameters": {
         "url": "={{ $env.DEVLAB_BASE_URL }}/api/lead-engine/outbox",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": {
-          "response": {
-            "response": {
-              "neverError": false
-            }
-          }
-        }
+        "options": {}
       },
       "id": "collect",
       "name": "Collect approved drafts",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-200, 0],
+      "position": [-220, 0],
       "credentials": {
         "httpHeaderAuth": {
           "id": "devlab-outbox-token",
@@ -54,23 +48,17 @@
       "name": "One item per message",
       "type": "n8n-nodes-base.splitOut",
       "typeVersion": 1,
-      "position": [20, 0]
+      "position": [0, 0]
     },
     {
       "parameters": {
         "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "version": 2
-          },
+          "options": { "caseSensitive": true, "version": 2 },
           "conditions": [
             {
               "leftValue": "={{ $json.to }}",
               "rightValue": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
-              "operator": {
-                "type": "string",
-                "operation": "regex"
-              }
+              "operator": { "type": "string", "operation": "regex" }
             }
           ],
           "combinator": "and"
@@ -81,42 +69,44 @@
       "name": "Recipient looks deliverable",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.2,
-      "position": [240, 0],
-      "notes": "Belt and braces. The CRM already validated the address; this stops a malformed value reaching the sender and producing a hard bounce, which costs sending reputation."
+      "position": [220, 0],
+      "notes": "Belt and braces. The CRM already validated the address; this stops a malformed value reaching the MTA and producing a hard bounce, which costs reputation."
     },
     {
       "parameters": {
-        "amount": 45,
+        "amount": 90,
         "unit": "seconds"
       },
       "id": "pace",
       "name": "Pace between sends",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [460, 0],
+      "position": [440, 0],
       "webhookId": "devlab-outreach-pace",
-      "notes": "A burst of identical-looking messages within one second is a spam signature. Spacing them costs nothing at this volume."
+      "notes": "Smooth the queue rather than dumping the allowance at once. At this volume there is no advantage to concurrency, and a burst of similar messages is a spam signature."
     },
     {
       "parameters": {
-        "sendTo": "={{ $json.to }}",
+        "fromEmail": "={{ $env.DEVLAB_FROM_EMAIL }}",
+        "toEmail": "={{ $json.to }}",
         "subject": "={{ $json.subject }}",
-        "emailType": "text",
-        "message": "={{ $json.bodyText }}",
+        "emailFormat": "text",
+        "text": "={{ $json.bodyText }}",
         "options": {}
       },
       "id": "send",
-      "name": "Send message",
-      "type": "n8n-nodes-base.gmail",
+      "name": "Send via own SMTP",
+      "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [680, 0],
+      "position": [660, 0],
       "credentials": {
-        "gmailOAuth2": {
-          "id": "devlab-outreach-mailbox",
-          "name": "DevLab outreach mailbox"
+        "smtp": {
+          "id": "devlab-outreach-smtp",
+          "name": "DevLab outreach SMTP"
         }
       },
-      "notes": "USE A DEDICATED SENDING ACCOUNT ON A DEDICATED DOMAIN, not the account the business depends on. Cold outreach from a primary domain risks that domain's reputation, and a suspension takes client mail down with it. Swap this node for SMTP or an ESP if you prefer — nothing downstream cares which sent it."
+      "onError": "continueErrorOutput",
+      "notes": "YOUR OWN MTA on your own dedicated domain — Postfix/Exim or cPanel, on a host whose AUP permits this. NOT an ESP free tier: Brevo, Mailjet, Resend, SendGrid, Mailgun, SMTP2GO, Elastic Email, MailerSend, Mailtrap, SES, Postmark and ZeptoMail all prohibit cold outreach in their acceptable-use policies, and Gmail's program policies prohibit unsolicited commercial mail too. Let the MTA own queueing, retries and DSNs; this node only submits. The error output feeds the bounce reporter."
     },
     {
       "parameters": {
@@ -126,25 +116,49 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ providerMessageId: $json.id || null, sentAt: new Date().toISOString() }) }}",
+        "jsonBody": "={{ JSON.stringify({ providerMessageId: $json.messageId || null, sentAt: new Date().toISOString() }) }}",
         "options": {}
       },
       "id": "confirm",
       "name": "Confirm sent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [900, 0],
+      "position": [900, -100],
       "credentials": {
         "httpHeaderAuth": {
           "id": "devlab-outbox-token",
           "name": "DevLab outbox token"
         }
       },
-      "notes": "This is what moves the lead to CONTACTED and what the daily cap counts — confirmations are the ground truth, not collections. Idempotent on draft id, so a retry after a timeout is not recorded as a second send. If this call fails the message was still sent; re-running it is safe."
+      "notes": "This is what moves the lead to CONTACTED and what the daily cap counts — confirmations are the ground truth, not collections. Idempotent on draft id, so a retry after a timeout is not a second send. If this call fails the message was still sent; re-running it is safe."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DEVLAB_BASE_URL }}/api/lead-engine/outbox/{{ $json.draftId }}/bounced",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ kind: 'hard', diagnostic: String($json.error || '').slice(0, 1000) }) }}",
+        "options": {}
+      },
+      "id": "bounce",
+      "name": "Report failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 120],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "devlab-outbox-token",
+          "name": "DevLab outbox token"
+        }
+      },
+      "notes": "A hard bounce suppresses the address permanently and moves the lead to NO_CONTACT. Without this nothing ever learns an address is dead and every future campaign retries it, which is how sending reputation is lost. Change kind to 'soft' for temporary failures — a full mailbox is not a reason to stop contacting a business forever. Asynchronous DSNs that arrive later at your MTA should POST here too."
     }
   ],
   "connections": {
-    "Weekdays 09:00": {
+    "Weekdays 09:00 and 14:00": {
       "main": [[{ "node": "Collect approved drafts", "type": "main", "index": 0 }]]
     },
     "Collect approved drafts": {
@@ -157,10 +171,13 @@
       "main": [[{ "node": "Pace between sends", "type": "main", "index": 0 }]]
     },
     "Pace between sends": {
-      "main": [[{ "node": "Send message", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Send via own SMTP", "type": "main", "index": 0 }]]
     },
-    "Send message": {
-      "main": [[{ "node": "Confirm sent", "type": "main", "index": 0 }]]
+    "Send via own SMTP": {
+      "main": [
+        [{ "node": "Confirm sent", "type": "main", "index": 0 }],
+        [{ "node": "Report failure", "type": "main", "index": 0 }]
+      ]
     }
   },
   "settings": {
@@ -169,8 +186,6 @@
     "saveDataSuccessExecution": "all"
   },
   "pinData": {},
-  "meta": {
-    "templateCredsSetupCompleted": false
-  },
+  "meta": { "templateCredsSetupCompleted": false },
   "tags": []
 }

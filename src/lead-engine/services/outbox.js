@@ -36,7 +36,9 @@ import { OUTREACH } from '../config/defaults.js'
 import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 import { recordActivity } from '../repositories/activity.js'
+import { getPrimaryContact } from '../repositories/contacts.js'
 import { getCurrentDraft, getDraft } from '../repositories/drafts.js'
+import { addSuppression } from '../repositories/suppression.js'
 import { getLead, listLeadsInStage, refreshNextAction, transitionLead } from '../repositories/leads.js'
 import { resolveSettingsSafely } from '../repositories/settings.js'
 import { exportDraft } from './draftExport.js'
@@ -216,4 +218,83 @@ export async function confirmSent(env, draftId, options = {}) {
   logger.log('outbound_send_confirmed', { draft_id: draftId, duplicate: Boolean(existing) })
 
   return { status: existing ? 'already_confirmed' : 'ok', draftId, leadId: lead.id }
+}
+
+/**
+ * Records a delivery failure reported by the external sender.
+ *
+ * WITHOUT THIS THE SUPPRESSION LIST NEVER LEARNS ABOUT BOUNCES. Nothing reads
+ * a mailbox any more, so a dead address would be retried by every future
+ * campaign that matched it. Repeated hard bounces to the same address are one
+ * of the fastest ways to lose sending reputation, and reputation is far harder
+ * to regain than to protect.
+ *
+ * HARD suppresses; SOFT does not. A full mailbox or a temporary server failure
+ * is not a reason to stop contacting a business permanently, and treating it
+ * as one would quietly shrink the addressable market on every transient fault.
+ *
+ * @param {Env} env
+ * @param {string} draftId
+ * @param {{ kind?: 'hard'|'soft', diagnostic?: string|null, correlationId?: string }} [options]
+ */
+export async function recordBounce(env, draftId, options = {}) {
+  env = await withOperationalFlags(env)
+  assertFlag(env, 'engine')
+
+  const db = env.DB
+  const draft = await getDraft(db, draftId)
+  if (!draft) throw operationError('Draft not found.', 404)
+
+  const lead = await getLead(db, draft.leadId)
+  if (!lead) throw operationError('Lead not found.', 404)
+
+  const logger = createLogger({ correlationId: options.correlationId, leadId: lead.id })
+  const hard = (options.kind ?? 'hard') === 'hard'
+  const contact = await getPrimaryContact(db, lead.id)
+
+  await recordActivity(db, {
+    leadId: lead.id,
+    campaignId: lead.campaignId,
+    eventType: ACTIVITY.BOUNCED,
+    actor: 'system',
+    summary: hard
+      ? `Hard bounce from ${contact?.email ?? 'the recipient'}; the address is now suppressed.`
+      : `Soft bounce from ${contact?.email ?? 'the recipient'}; not suppressed.`,
+    metadata: { draftId, kind: hard ? 'hard' : 'soft', diagnostic: options.diagnostic ?? null },
+    // One record per draft per kind: a sender retrying its report must not
+    // produce a timeline full of the same failure.
+    dedupeKey: `bounce:${hard ? 'hard' : 'soft'}:${draftId}`,
+    correlationId: logger.correlationId,
+  })
+
+  if (!hard || !contact?.email) {
+    logger.log('bounce_recorded', { draft_id: draftId, kind: hard ? 'hard' : 'soft', suppressed: false })
+    return { status: 'ok', suppressed: false, kind: hard ? 'hard' : 'soft' }
+  }
+
+  await addSuppression(db, {
+    scope: 'email',
+    value: contact.email,
+    reason: 'hard_bounce',
+    // 'bounce', not a new value: lead_suppression.source has a CHECK and
+    // INSERT OR IGNORE would swallow anything else. addSuppression verifies
+    // the row landed and throws, which is what caught this.
+    source: 'bounce',
+    leadId: lead.id,
+    notes: (options.diagnostic ?? '').slice(0, 500),
+  })
+
+  // Out of the contactable set entirely. The address does not work; leaving
+  // the lead where it was would offer it to the next campaign that matched.
+  if (lead.stage !== STAGES.NO_CONTACT) {
+    await transitionLead(db, lead.id, STAGES.NO_CONTACT, {
+      summary: 'Hard bounce: the published address does not accept mail.',
+      correlationId: logger.correlationId,
+    })
+  }
+
+  await refreshNextAction(db, lead.id)
+  logger.log('bounce_recorded', { draft_id: draftId, kind: 'hard', suppressed: true })
+
+  return { status: 'ok', suppressed: true, kind: 'hard', email: contact.email }
 }

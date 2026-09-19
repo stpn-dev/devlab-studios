@@ -8,7 +8,7 @@ import { researchLead } from './research.js'
 import { reviewLeadOpportunity } from './aiReview.js'
 import { checkOutreachReadiness, generateOutreachDraft } from './outreach.js'
 import { exportDraft } from './draftExport.js'
-import { collectOutbox, confirmSent } from './outbox.js'
+import { collectOutbox, confirmSent, recordBounce } from './outbox.js'
 import { getDashboard } from './dashboard.js'
 import { importCandidates, runCampaignDiscovery } from './discovery.js'
 import { createCampaign } from '../repositories/campaigns.js'
@@ -17,7 +17,7 @@ import { getLead, transitionLead, upsertLead } from '../repositories/leads.js'
 import { listContacts } from '../repositories/contacts.js'
 import { getCurrentScore } from '../repositories/scores.js'
 import { listSignals } from '../repositories/research.js'
-import { addSuppression } from '../repositories/suppression.js'
+import { addSuppression, checkSuppression } from '../repositories/suppression.js'
 import { createDraft, getCurrentDraft } from '../repositories/drafts.js'
 import { setSetting } from '../repositories/settings.js'
 import { findDraftContentCheck, listActivity, recordActivity } from '../repositories/activity.js'
@@ -755,6 +755,54 @@ describe('the outbox', () => {
     await confirmSent(env, collected.messages[0].draftId, {})
     expect((await collectOutbox(env, {})).sentToday).toBe(1)
     expect((await getLead(db, lead.id)).stage).toBe(STAGES.CONTACTED)
+  })
+
+  it('suppresses the address on a hard bounce', async () => {
+    // Without this nothing ever learns an address is dead, and every future
+    // campaign that matched it would retry — which is how sending reputation
+    // is lost.
+    const { lead } = await readyToSend()
+    const env = { ...FLAGS, DB: db }
+    const collected = await collectOutbox(env, {})
+    const contacts = await listContacts(db, lead.id)
+
+    const result = await recordBounce(env, collected.messages[0].draftId, {
+      kind: 'hard',
+      diagnostic: '550 5.1.1 user unknown',
+    })
+
+    expect(result.suppressed).toBe(true)
+    expect((await checkSuppression(db, contacts[0].email)).suppressed).toBe(true)
+    expect((await getLead(db, lead.id)).stage).toBe(STAGES.NO_CONTACT)
+  })
+
+  it('does NOT suppress on a soft bounce', async () => {
+    // A full mailbox is not a reason to stop contacting a business forever.
+    const { lead } = await readyToSend()
+    const env = { ...FLAGS, DB: db }
+    const collected = await collectOutbox(env, {})
+    const contacts = await listContacts(db, lead.id)
+
+    const result = await recordBounce(env, collected.messages[0].draftId, { kind: 'soft' })
+
+    expect(result.suppressed).toBe(false)
+    expect((await checkSuppression(db, contacts[0].email)).suppressed).toBe(false)
+  })
+
+  it('will not hand out a draft for an address that hard bounced', async () => {
+    const { lead } = await readyToSend()
+    const env = { ...FLAGS, DB: db }
+    const collected = await collectOutbox(env, {})
+    await recordBounce(env, collected.messages[0].draftId, { kind: 'hard' })
+
+    // Regenerate so there is a fresh, unexported draft to be offered.
+    await generateOutreachDraft(
+      { ...FLAGS, DB: db, AI: aiStub({ opportunity_review: QUALIFIED_REVIEW, outreach_draft: GOOD_DRAFT }) },
+      lead.id,
+      { variant: 'shorter' },
+    )
+
+    expect((await collectOutbox(env, {})).messages).toHaveLength(0)
   })
 
   it('honours a raised per-collection limit, not just a raised daily one', async () => {

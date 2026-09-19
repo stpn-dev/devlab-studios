@@ -41,7 +41,7 @@ contact details to the internet on a deploy that forgot the secret.
 | Credential | Type | Value |
 |---|---|---|
 | `DevLab outbox token` | Header Auth | Name `Authorization`, Value `Bearer <your token>` |
-| `DevLab outreach mailbox` | Gmail OAuth2 (or SMTP) | **A dedicated sending account** — see below |
+| `DevLab outreach SMTP` | SMTP | Your own MTA on your own dedicated domain — see below |
 
 **4. Set `DEVLAB_BASE_URL`** in your n8n environment, e.g.
 `https://devlab-studios-preview.stpnrey-agustinez.workers.dev`.
@@ -49,13 +49,47 @@ contact details to the internet on a deploy that forgot the secret.
 **5. Import** `devlab-lead-outreach.json` and run it manually once before
 enabling the schedule.
 
-## Use a dedicated sending domain
+## Why this uses your own SMTP and not a free ESP
 
-Do not point the mail node at the account your business runs on. Cold outreach
-from a primary domain risks that domain's reputation, and a suspension takes
-client mail and contact-form notifications down with it. Every cold-email
-platform does this the same way: a separate domain, SPF/DKIM/DMARC configured,
-warmed for about three weeks at 5–10 messages a day before going higher.
+Researched 19 September 2026, across Brevo, Mailjet, Resend, SendGrid,
+Mailgun, Amazon SES, Postmark, SMTP2GO, Elastic Email, MailerSend, ZeptoMail,
+Scaleway TEM, Mailtrap, Gmail and Outlook.com.
+
+**Every one of them prohibits cold outreach in its acceptable-use policy.** Not
+the volume — the consent model. An address a business publishes on its own
+website is not treated as opt-in by any of them. Two are explicit:
+
+- **Resend** bans "unsolicited messages of any kind, including cold outreach".
+- **MailerSend** states that an address being publicly posted on a website
+  does not give permission to contact it.
+
+**Gmail is not an escape hatch either** — its program policies prohibit using
+Gmail to send unsolicited commercial mail, and free Gmail gives you no custom
+domain anyway.
+
+So the free tiers are not a cheap version of the right answer; they are the
+wrong answer that suspends your account later. The defensible option under a
+no-paid-subscription constraint is **your own MTA on your own domain**, where
+there is no acceptable-use contract between you and the receiving server —
+only your domain's reputation and the law.
+
+That trade is real: you now own IP reputation, PTR/rDNS, queueing, retries,
+bounces and blocklist handling. Let Postfix/Exim do that work; n8n only
+submits.
+
+**Check your host's AUP first.** Search it for `spam`, `UCE`, `unsolicited`,
+`bulk email`, `commercial email`, `port 25` and `mail server`. If it forbids
+unsolicited commercial email, this option is gone too and the honest next step
+is a paid provider whose contract expressly permits B2B prospecting.
+
+### Required before you send anything
+
+Clean static IP · outbound port 25 open · PTR/rDNS matching your mail
+hostname · matching EHLO/HELO · SPF · DKIM · DMARC · TLS · a working
+Return-Path so bounces reach you.
+
+Use a domain separate from `devlabstudios.com`. A blocklisting on your primary
+domain takes client mail and contact-form notifications with it.
 
 ## The daily cap is ours, not the provider's
 
@@ -77,8 +111,25 @@ call, so with a once-a-day schedule it is the number that actually decides how
 many go out. Alternatively leave `maxPerCollection` low and run the schedule
 more often, which paces the sending out across the day and looks more human.
 
-Suggested ramp on a fresh domain: 5–10/day for the first week, 10–20 in the
-second, 20–35 in the third, and only then higher.
+Suggested ramp on a fresh domain and a new sending IP — a conservative
+heuristic, not an approved formula:
+
+| Period | Daily cap |
+|---|---|
+| Days 1–7 | 10 |
+| Days 8–14 | 15–25 |
+| Days 15–21 | 25–40 |
+| Days 22–28 | 40–60 |
+| Weeks 5–6 | 60–100 |
+
+**Do not raise it just because a week passed.** Hold or reduce on abnormal
+hard bounces, blocklisting, sustained 4xx deferrals, DMARC failures or any
+complaint. At this volume one complaint is a large percentage.
+
+Google's bulk-sender rules start around 5,000/day to personal Gmail accounts,
+so they do not bind you at 50–100 — but SPF, DKIM, DMARC, rDNS and TLS are
+expected of every sender, and the under-0.3% complaint target applies
+regardless.
 
 ## How the two sides divide
 
@@ -110,7 +161,20 @@ GET  /api/lead-engine/outbox?limit=10
 POST /api/lead-engine/outbox/{draftId}/sent
      { providerMessageId?, sentAt? }
      → { status: 'ok' | 'already_confirmed', draftId, leadId }
+
+POST /api/lead-engine/outbox/{draftId}/bounced
+     { kind: 'hard' | 'soft', diagnostic? }
+     → { status: 'ok', suppressed: boolean, kind }
 ```
+
+A **hard** bounce suppresses the address permanently and moves the lead to
+`NO_CONTACT`. Without this nothing ever learns an address is dead, and every
+future campaign that matched it would retry — which is how sending reputation
+is lost. A **soft** bounce is recorded and does not suppress: a full mailbox
+is not a reason to stop contacting a business forever.
+
+The workflow's mail node routes its error output straight to this endpoint.
+Asynchronous DSNs that arrive at your MTA minutes later should POST here too.
 
 Both take `Authorization: Bearer <token>`. The confirm call is idempotent on
 draft id, so retrying after a timeout is safe and is not recorded as a second
