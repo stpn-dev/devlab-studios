@@ -33,6 +33,12 @@ verify on the live Preview Worker and Preview D1, then fast-forward `main`.
 
 ## The migration
 
+`migrations/0013_lead_usage_metric_nominatim.sql` widens
+`lead_usage_daily.metric` to admit `nominatim_requests`. **Without it discovery
+reports success and admits nothing** — the counter insert is `INSERT OR IGNORE`,
+so the CHECK rejection is swallowed and every budget reservation refuses on a
+database with zero usage. Apply it wherever 0012 is applied.
+
 `migrations/0012_lead_intelligence_engine.sql` — 22 tables, all prefixed `lead_`,
 in the existing `devlab-studios-cms` database.
 
@@ -303,7 +309,8 @@ Then confirm by reading the diff:
 - [ ] The `queues` and `workflows` blocks are still commented out, or the
       resources genuinely exist
 - [ ] No secret is in `wrangler.jsonc`, `.env.example` or any committed file
-- [ ] `migrations/0012` is unchanged if it has already been applied anywhere
+- [ ] `migrations/0012` and `0013` are unchanged if either has already been
+      applied anywhere — a correction is a new migration, never an edit
 
 ## Rollback
 
