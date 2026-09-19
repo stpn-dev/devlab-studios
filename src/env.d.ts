@@ -19,6 +19,10 @@ interface Env {
   ADMIN_EMAIL?: string
   ADMIN_PASSWORD_HASH?: string
   ADMIN_SESSION_SECRET?: string
+  // Bearer token for the outbox endpoints, which sit outside the admin session
+  // gate because an automation cannot hold a browser session. SECRET — set
+  // with `wrangler secret put`. Unset, the outbox refuses every request.
+  LEAD_OUTBOX_TOKEN?: string
   ADMIN_USERS?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string

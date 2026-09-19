@@ -1,0 +1,176 @@
+{
+  "name": "DevLab — Lead outreach sender",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Weekdays 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-420, 0],
+      "notes": "Once a weekday morning. Not hourly: the CRM caps the daily volume anyway, and a business message arriving at 03:00 reads as automated."
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.DEVLAB_BASE_URL }}/api/lead-engine/outbox",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": false
+            }
+          }
+        }
+      },
+      "id": "collect",
+      "name": "Collect approved drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-200, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "devlab-outbox-token",
+          "name": "DevLab outbox token"
+        }
+      },
+      "notes": "Returns only what the CRM's daily cap allows, with suppression re-checked at this moment and AI content safeguards enforced. A draft handed out here is NEVER offered again — if this workflow dies before sending, that message goes unsent rather than being mailed twice."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "messages",
+        "options": {}
+      },
+      "id": "split",
+      "name": "One item per message",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [20, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.to }}",
+              "rightValue": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "guard",
+      "name": "Recipient looks deliverable",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [240, 0],
+      "notes": "Belt and braces. The CRM already validated the address; this stops a malformed value reaching the sender and producing a hard bounce, which costs sending reputation."
+    },
+    {
+      "parameters": {
+        "amount": 45,
+        "unit": "seconds"
+      },
+      "id": "pace",
+      "name": "Pace between sends",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [460, 0],
+      "webhookId": "devlab-outreach-pace",
+      "notes": "A burst of identical-looking messages within one second is a spam signature. Spacing them costs nothing at this volume."
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.bodyText }}",
+        "options": {}
+      },
+      "id": "send",
+      "name": "Send message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [680, 0],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "devlab-outreach-mailbox",
+          "name": "DevLab outreach mailbox"
+        }
+      },
+      "notes": "USE A DEDICATED SENDING ACCOUNT ON A DEDICATED DOMAIN, not the account the business depends on. Cold outreach from a primary domain risks that domain's reputation, and a suspension takes client mail down with it. Swap this node for SMTP or an ESP if you prefer — nothing downstream cares which sent it."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DEVLAB_BASE_URL }}/api/lead-engine/outbox/{{ $json.draftId }}/sent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ providerMessageId: $json.id || null, sentAt: new Date().toISOString() }) }}",
+        "options": {}
+      },
+      "id": "confirm",
+      "name": "Confirm sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "devlab-outbox-token",
+          "name": "DevLab outbox token"
+        }
+      },
+      "notes": "This is what moves the lead to CONTACTED and what the daily cap counts — confirmations are the ground truth, not collections. Idempotent on draft id, so a retry after a timeout is not recorded as a second send. If this call fails the message was still sent; re-running it is safe."
+    }
+  ],
+  "connections": {
+    "Weekdays 09:00": {
+      "main": [[{ "node": "Collect approved drafts", "type": "main", "index": 0 }]]
+    },
+    "Collect approved drafts": {
+      "main": [[{ "node": "One item per message", "type": "main", "index": 0 }]]
+    },
+    "One item per message": {
+      "main": [[{ "node": "Recipient looks deliverable", "type": "main", "index": 0 }]]
+    },
+    "Recipient looks deliverable": {
+      "main": [[{ "node": "Pace between sends", "type": "main", "index": 0 }]]
+    },
+    "Pace between sends": {
+      "main": [[{ "node": "Send message", "type": "main", "index": 0 }]]
+    },
+    "Send message": {
+      "main": [[{ "node": "Confirm sent", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

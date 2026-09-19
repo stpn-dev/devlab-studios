@@ -1,5 +1,14 @@
 # Conversations
 
+> **Superseded in part.** The mailbox integration this describes was removed —
+> a Worker's rotating egress IPs got the provider account blocked for suspicious
+> logins. Drafts are exported as `.eml` files and replies are read by a person
+> in their own client. See [outreach-handoff.md](outreach-handoff.md).
+>
+> What remains accurate: the schema, the matching *order*, and the reasoning
+> behind both. The columns and their names are unchanged, deliberately.
+
+
 Code: `src/lead-engine/zoho/threadMatch.js` (matching), `zoho/normalize.js`
 (parsing), `services/mailboxSync.js` (import),
 `services/replyCopilot.js` (analysis and reply drafts),
@@ -43,7 +52,7 @@ anything without an `@` returns null.
 ### 3. Known contact address
 
 The fallback that **makes manual sends detectable**. An operator composing a
-fresh message in Zoho produces no thread we have seen, but the recipient is a
+fresh message in your mail client produces no thread we have seen, but the recipient is a
 contact we recorded.
 
 `counterpartAddresses()` picks the right side of the message — the sender for an
@@ -163,7 +172,7 @@ break a display name containing one. Each part goes through `normalizeEmail`.
 falling back to "find this lead's conversation", so a reply after an opt-out does
 not reopen a closed thread.
 
-A conversation is created lazily — by `pushDraftToZoho` when the first draft is
+A conversation is created lazily — by `exportDraft` when the first draft is
 saved, or by the sync when a matched message has no conversation yet.
 
 ## The reply copilot
@@ -205,7 +214,7 @@ Output fields: `intent` (10 values), `summary`, `question_type`,
    to draft from without knowing what was asked.
 3. Runs `reply_draft.v1`, schema-validated, then through the invention guard.
 4. Writes a `kind: 'reply'` draft with `in_reply_to_message_id` set, which is what
-   lets `pushDraftToZoho` supply the `inReplyTo` header so the operator's manual
+   lets `exportDraft` supply the `inReplyTo` header so the operator's manual
    send lands in the existing thread and the Sent sync can match it back.
 
 ### `processInboundReply(env, messageId)` — what the queue runs
@@ -236,7 +245,7 @@ the exact wording behind a button is version-controlled.
 | Failure | Symptom | Where to look |
 |---|---|---|
 | Zoho exposes no thread id and no `Message-ID` headers | Every match falls through to `contact_address`; threads still work but replies to a *forwarded* copy may miss | `lead_messages.internet_message_id` all null |
-| A prospect replies from a different address | `no_match` — the reply is never imported | Nothing in the CRM; it sits in Zoho unread by the engine. Add the address as a contact on the lead. |
+| A prospect replies from a different address | `no_match` — the reply is never imported | Nothing in the CRM; it sits in your mail client unread by the engine. Add the address as a contact on the lead. |
 | Two leads share a contact address | Matched to the most recently updated lead | `strategy` on the log line; the activity timeline of both leads |
 | A reply arrives months later | `contact_address_stale` | Matched and attached, flagged for a human |
 | A body cannot be fetched | Header row stored with an empty body | `message_body_fetch_failed` log line |

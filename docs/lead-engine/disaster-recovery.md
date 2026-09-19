@@ -1,5 +1,14 @@
 # Disaster recovery
 
+> **Superseded in part.** The mailbox integration this describes was removed —
+> a Worker's rotating egress IPs got the provider account blocked for suspicious
+> logins. Drafts are exported as `.eml` files and replies are read by a person
+> in their own client. See [outreach-handoff.md](outreach-handoff.md).
+>
+> What remains accurate: the schema, the matching *order*, and the reasoning
+> behind both. The columns and their names are unchanged, deliberately.
+
+
 ## The claim this document exists to make
 
 **No critical workflow in this system exists only in an external dashboard.**

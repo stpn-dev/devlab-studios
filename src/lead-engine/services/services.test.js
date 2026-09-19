@@ -8,11 +8,12 @@ import { researchLead } from './research.js'
 import { reviewLeadOpportunity } from './aiReview.js'
 import { checkOutreachReadiness, generateOutreachDraft } from './outreach.js'
 import { exportDraft } from './draftExport.js'
+import { collectOutbox, confirmSent } from './outbox.js'
 import { getDashboard } from './dashboard.js'
 import { importCandidates, runCampaignDiscovery } from './discovery.js'
 import { createCampaign } from '../repositories/campaigns.js'
 import { upsertCompany } from '../repositories/companies.js'
-import { getLead, upsertLead } from '../repositories/leads.js'
+import { getLead, transitionLead, upsertLead } from '../repositories/leads.js'
 import { listContacts } from '../repositories/contacts.js'
 import { getCurrentScore } from '../repositories/scores.js'
 import { listSignals } from '../repositories/research.js'
@@ -679,6 +680,96 @@ describe('exportDraft', () => {
   })
 })
 
+
+describe('the outbox', () => {
+  async function readyToSend() {
+    const seeded = await seedLead()
+    const env = { ...FLAGS, DB: db, AI: aiStub({ opportunity_review: QUALIFIED_REVIEW, outreach_draft: GOOD_DRAFT }) }
+
+    await researchLead(env, seeded.lead.id, { fetchImpl: siteFetch() })
+    await reviewLeadOpportunity(env, seeded.lead.id)
+    await setSetting(db, 'business.identity', {
+      legalName: 'DevLab Studios', senderName: 'Stephen', senderEmail: 'stephen@devlabstudios.com',
+      postalAddress: '1 Example Street', city: 'Manila', region: 'NCR', postalCode: '1000',
+      countryCode: 'PH', website: 'https://www.devlabstudios.com',
+    })
+    await generateOutreachDraft(env, seeded.lead.id)
+    await transitionLead(db, seeded.lead.id, STAGES.READY_TO_CONTACT, {})
+
+    return seeded
+  }
+
+  it('hands out an approved draft with its recipient and body', async () => {
+    await readyToSend()
+
+    const result = await collectOutbox({ ...FLAGS, DB: db }, {})
+
+    expect(result.messages).toHaveLength(1)
+    expect(result.messages[0].to).toMatch(/@/)
+    expect(result.messages[0].message).toMatch(/^To: /m)
+  })
+
+  it('NEVER hands the same draft out twice', async () => {
+    // Under-send rather than double-send. Mailing a stranger twice is
+    // unrecoverable; a message that goes unsent sits in the CRM for a person.
+    await readyToSend()
+    const env = { ...FLAGS, DB: db }
+
+    const first = await collectOutbox(env, {})
+    const second = await collectOutbox(env, {})
+
+    expect(first.messages).toHaveLength(1)
+    expect(second.messages).toHaveLength(0)
+  })
+
+  it('refuses to hand out a draft whose recipient became suppressed', async () => {
+    const { lead } = await readyToSend()
+    const contacts = await listContacts(db, lead.id)
+    await addSuppression(db, { value: contacts[0].email, reason: 'manual_block', scope: 'email' })
+
+    const result = await collectOutbox({ ...FLAGS, DB: db }, {})
+
+    // Skipped, not thrown: one suppressed lead must not stop the collection.
+    expect(result.messages).toHaveLength(0)
+  })
+
+  it('stops at the daily cap', async () => {
+    await readyToSend()
+    await setSetting(db, 'outreach.sending', { dailyLimit: 0 })
+
+    const result = await collectOutbox({ ...FLAGS, DB: db }, {})
+
+    expect(result.messages).toHaveLength(0)
+    expect(result.remainingToday).toBe(0)
+  })
+
+  it('counts confirmed sends against the cap, not collections', async () => {
+    // A draft collected and never transmitted consumed nothing real.
+    const { lead } = await readyToSend()
+    await setSetting(db, 'outreach.sending', { dailyLimit: 5 })
+    const env = { ...FLAGS, DB: db }
+
+    const collected = await collectOutbox(env, {})
+    expect((await collectOutbox(env, {})).sentToday).toBe(0)
+
+    await confirmSent(env, collected.messages[0].draftId, {})
+    expect((await collectOutbox(env, {})).sentToday).toBe(1)
+    expect((await getLead(db, lead.id)).stage).toBe(STAGES.CONTACTED)
+  })
+
+  it('is idempotent on confirmation, so a sender retry is not a second send', async () => {
+    await readyToSend()
+    const env = { ...FLAGS, DB: db }
+    const collected = await collectOutbox(env, {})
+    const draftId = collected.messages[0].draftId
+
+    await confirmSent(env, draftId, {})
+    const again = await confirmSent(env, draftId, {})
+
+    expect(again.status).toBe('already_confirmed')
+    expect((await collectOutbox(env, {})).sentToday).toBe(1)
+  })
+})
 
 describe('the dashboard', () => {
   it('reports an inert engine without failing on an empty database', async () => {

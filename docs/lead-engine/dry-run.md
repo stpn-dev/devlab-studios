@@ -382,7 +382,7 @@ Work through the screens as an operator:
 
 **The first run ends at `READY_TO_CONTACT`. No email is sent.**
 
-You may optionally exercise **Create Zoho Draft** on **one** lead, to verify the
+You may optionally exercise **Download .eml** on **one** lead, to verify the
 Zoho integration end to end. If you do:
 
 - [ ] Open Zoho and confirm the message is in **Drafts**.
