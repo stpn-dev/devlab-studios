@@ -113,12 +113,20 @@ dead-letters with a reason that says the capability was removed rather than the
 generic "no handler" that would read like a bug — and so the job-type coverage
 test still fails for a handler that is genuinely *missing*.
 
-## If you ever want automated sending
+## Automated sending — since decided, and reversed
 
-Do it properly rather than bolting it onto a personal mailbox: a dedicated
-domain separate from `devlabstudios.com`, SPF/DKIM/DMARC configured, warmed for
-three weeks at 5–10 messages a day rising to 30–50, sending through an ESP.
+The advice that used to close this document said: if you ever want automated
+sending, do it on a dedicated domain with SPF/DKIM/DMARC, warmed over three
+weeks, **through an ESP**.
 
-That is a deliberate reversal of the no-send rule in this engine's brief, and
-worth making as a decision rather than drifting into. The daily-budget machinery
-in `repositories/usage.js` would give you the volume cap; nothing else exists.
+That decision has since been made, and the ESP half of it was wrong. Research
+across fifteen providers found that **every one prohibits cold outreach in its
+acceptable-use policy** — on the consent model, not on volume. The path chosen
+instead is our own MTA on `devlabconnect.com`, with n8n doing the transmitting.
+
+The `.eml` export described above still works and is still the zero-risk option.
+It is not deprecated by this.
+
+See [outbound-mail-infrastructure.md](outbound-mail-infrastructure.md) for the
+sending architecture, what is verified, the legal position and what still
+blocks a first send.

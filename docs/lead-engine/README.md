@@ -35,6 +35,7 @@ disarmed.
 | [contacts.md](contacts.md) | Provenance as an admission requirement, no guessed addresses, and why MX presence is not mailbox verification |
 | [compliance.md](compliance.md) | Operational safeguards (not legal advice), the US and PH profiles, the human-review fallback, suppression, and opt-out detection |
 | [outreach-handoff.md](outreach-handoff.md) | How an approved draft reaches a recipient: exported as a file you send yourself, why the mailbox integration was removed, and what the legacy schema names mean |
+| [outbound-mail-infrastructure.md](outbound-mail-infrastructure.md) | The automated sending path: why no ESP will permit this workload, the own-MTA architecture, what is verified, the legal position, and what still blocks a first send |
 | [conversations.md](conversations.md) | Thread matching order, why subject never decides alone, message immutability, and the reply copilot |
 | [cloudflare-workflows.md](cloudflare-workflows.md) | The five Workflow classes, why they are thin, why they are not bound, and what activation actually requires |
 | [queues.md](queues.md) | The four queues, consumer settings, why they are not bound, and the D1 job ledger that makes them optional |
