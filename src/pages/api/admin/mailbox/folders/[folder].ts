@@ -30,6 +30,18 @@ export const prerender = false
  */
 
 const THREAD_FOLDERS = new Set(['inbox', 'archived', 'sent'])
+
+/**
+ * Machine-mail folders, each pinned to one mailbox.
+ *
+ * First-class routes rather than `inbox?mailbox=bounce`. The query form let two
+ * navigation items claim the same pathname and both render as selected; a
+ * folder that owns its own path cannot collide with another.
+ */
+const MACHINE_FOLDERS: Record<string, string> = {
+  bounces: MAILBOX.BOUNCE,
+  dmarc: MAILBOX.DMARC,
+}
 const OUTBOUND_FOLDERS: Record<string, string[]> = {
   drafts: ['draft'],
   outbox: ['queued', 'collected'],
@@ -53,6 +65,20 @@ export const GET: APIRoute = async ({ params, request, url }) =>
       return jsonResponse({
         folder,
         messages: await listOutboundByStatus(db, { statuses: OUTBOUND_FOLDERS[folder], limit }),
+        counts: await unreadCounts(db),
+        mailboxes: MAILBOX_LABELS,
+      })
+    }
+
+    if (MACHINE_FOLDERS[folder]) {
+      return jsonResponse({
+        folder,
+        threads: await listThreads(db, {
+          mailbox: MACHINE_FOLDERS[folder],
+          state: 'inbox',
+          search,
+          limit,
+        }),
         counts: await unreadCounts(db),
         mailboxes: MAILBOX_LABELS,
       })

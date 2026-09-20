@@ -334,3 +334,79 @@ export async function recordBounce(env, draftId, options = {}) {
 
   return { status: 'ok', suppressed: true, kind: 'hard', email: contact.email }
 }
+
+/**
+ * Records that the transmitter could not put a message on the wire.
+ *
+ * THIS IS NOT A BOUNCE, AND CONFLATING THE TWO IS DANGEROUS. The n8n workflow
+ * previously routed ANY error from its send node to `recordBounce` with
+ * `kind: 'hard'`, which permanently suppresses the address and moves the lead
+ * to NO_CONTACT. But the errors that node actually produces are overwhelmingly
+ * OURS, not the recipient's:
+ *
+ *   - `nodemailer` not importable (NODE_FUNCTION_ALLOW_EXTERNAL unset)
+ *   - Postfix down, restarting, or refusing the connection
+ *   - the CMS unreachable or the bearer token wrong
+ *   - a network fault or an n8n runtime error
+ *
+ * None of those say anything about whether the address exists. Treating them as
+ * hard bounces would delete perfectly good prospects from the addressable set,
+ * permanently, with an audit trail that reads exactly like a real bounce — and
+ * the more broken the infrastructure, the more prospects it would destroy.
+ *
+ * So this path NEVER suppresses and NEVER transitions the lead. It records what
+ * happened and leaves the lead where it is.
+ *
+ * ON `retryable`: it is recorded, not acted on. The draft stays marked exported
+ * and is not re-offered, which is the same under-send-rather-than-double-send
+ * rule `collectOutbox` is built around — a transmission that reported failure
+ * may still have reached an MTA, and re-offering it would risk mailing a
+ * stranger twice. Retrying is a human decision on the lead.
+ *
+ * @param {Env} env
+ * @param {string} draftId
+ * @param {{ error?: string|null, retryable?: boolean, failedAt?: string|null,
+ *           correlationId?: string }} [options]
+ */
+export async function recordTransmissionFailure(env, draftId, options = {}) {
+  env = await withOperationalFlags(env)
+  assertFlag(env, 'engine')
+
+  const db = env.DB
+  const draft = await getDraft(db, draftId)
+  if (!draft) throw operationError('Draft not found.', 404)
+
+  const lead = await getLead(db, draft.leadId)
+  if (!lead) throw operationError('Lead not found.', 404)
+
+  const logger = createLogger({ correlationId: options.correlationId, leadId: lead.id })
+  const retryable = Boolean(options.retryable)
+
+  await recordActivity(db, {
+    leadId: lead.id,
+    campaignId: lead.campaignId,
+    eventType: ACTIVITY.OUTBOUND_SEND_FAILED,
+    actor: 'system',
+    summary: retryable
+      ? 'The external sender could not transmit this message; it reported the failure as temporary.'
+      : 'The external sender could not transmit this message.',
+    metadata: {
+      draftId,
+      error: (options.error ?? '').slice(0, 1000),
+      retryable,
+      failedAt: options.failedAt ?? null,
+      // Stated in the record itself, so nobody reading this timeline later
+      // mistakes it for evidence about the address.
+      note: 'Transmission failure on our side. This says nothing about whether the address is valid.',
+    },
+    // One row per draft per attempt outcome, so a transmitter retrying its
+    // report does not fill the timeline with the same failure.
+    dedupeKey: `send_failed:${draftId}`,
+    correlationId: logger.correlationId,
+  })
+
+  await refreshNextAction(db, lead.id)
+  logger.log('outbound_send_failed', { draft_id: draftId, retryable, suppressed: false })
+
+  return { status: 'ok', draftId, leadId: lead.id, retryable, suppressed: false }
+}

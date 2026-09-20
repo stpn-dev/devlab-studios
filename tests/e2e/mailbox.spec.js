@@ -36,6 +36,8 @@ const ADMIN_ENDPOINTS = [
   '/api/admin/mailbox/folders/outbox',
   '/api/admin/mailbox/folders/sent',
   '/api/admin/mailbox/folders/archived',
+  '/api/admin/mailbox/folders/bounces',
+  '/api/admin/mailbox/folders/dmarc',
   '/api/admin/mailbox/threads/any-thread-id',
   '/api/admin/mailbox/messages/any-message-id/raw',
   '/api/admin/mailbox/attachments/any-attachment-id',
@@ -204,6 +206,66 @@ test.describe('mailbox screens', () => {
 
     await page.goForward()
     await expect(page).toHaveURL(/\/admin\/mailbox\/outbox$/)
+  })
+
+  test('exactly one folder is highlighted, on every section', async ({ page }) => {
+    // THE DOUBLE-HIGHLIGHT REGRESSION TEST. Machine mail used to be reached as
+    // `/inbox?mailbox=bounce`, and NavLink decides active state from the
+    // pathname alone — so Inbox matched and Bounces matched the same pathname,
+    // and both rendered dark. Active state now comes from one resolver.
+    const sections = ['inbox', 'drafts', 'outbox', 'sent', 'failed', 'archived', 'bounces', 'dmarc', 'diagnostics']
+
+    for (const section of sections) {
+      await page.goto(`/admin/mailbox/${section}`)
+      const rail = page.getByRole('navigation', { name: 'Mailbox folders' })
+      await expect(rail).toBeVisible()
+      await expect(rail.locator('[aria-current="page"]'), `${section} must light exactly one entry`).toHaveCount(1)
+    }
+  })
+
+  test('Bounces highlights Bounces, not Inbox', async ({ page }) => {
+    await page.goto('/admin/mailbox/bounces')
+    const rail = page.getByRole('navigation', { name: 'Mailbox folders' })
+
+    await expect(rail.getByRole('link', { name: 'Bounces', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(rail.getByRole('link', { name: 'Inbox', exact: true })).not.toHaveAttribute('aria-current', 'page')
+  })
+
+  test('DMARC highlights DMARC, not Inbox', async ({ page }) => {
+    await page.goto('/admin/mailbox/dmarc')
+    const rail = page.getByRole('navigation', { name: 'Mailbox folders' })
+
+    await expect(rail.getByRole('link', { name: 'DMARC reports', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(rail.getByRole('link', { name: 'Inbox', exact: true })).not.toHaveAttribute('aria-current', 'page')
+  })
+
+  test('the old query URL still works and still lights only one entry', async ({ page }) => {
+    // Bookmarks and anything already linked must keep working, and must not
+    // reintroduce the two-highlight state they caused.
+    await page.goto('/admin/mailbox/inbox?mailbox=bounce')
+    const rail = page.getByRole('navigation', { name: 'Mailbox folders' })
+
+    await expect(rail.locator('[aria-current="page"]')).toHaveCount(1)
+    await expect(rail.getByRole('link', { name: 'Bounces', exact: true })).toHaveAttribute('aria-current', 'page')
+  })
+
+  test('Diagnostics stays inside the mail client shell', async ({ page }) => {
+    await page.goto('/admin/mailbox/diagnostics')
+
+    // The rail is still there, so returning to the Inbox is one click and the
+    // shell never unmounts.
+    await expect(page.getByRole('navigation', { name: 'Mailbox folders' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Mailbox diagnostics/i })).toBeVisible()
+
+    await page.evaluate(() => {
+      window.__diagProbe = 'alive'
+    })
+    await page
+      .getByRole('navigation', { name: 'Mailbox folders' })
+      .getByRole('link', { name: 'Inbox', exact: true })
+      .click()
+    await expect(page).toHaveURL(/\/admin\/mailbox\/inbox$/)
+    expect(await page.evaluate(() => window.__diagProbe)).toBe('alive')
   })
 
   test('a folder URL can be opened directly', async ({ page }) => {

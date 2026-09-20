@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import { formatDate, relativeTime } from '../lead-crm/format'
 import { EmptyState, Panel } from '../lead-crm/shared'
 import { useResource } from '../lead-crm/useResource'
@@ -57,7 +56,7 @@ function DiagnosticsPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Mailbox diagnostics</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Operational state of hello@devlabconnect.com. <Link className="underline" to="/admin/mailbox/inbox">Back to the inbox</Link>.
+          Operational state of hello@devlabconnect.com.
         </p>
       </div>
 

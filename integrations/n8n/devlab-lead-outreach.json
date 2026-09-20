@@ -152,12 +152,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.DEVLAB_BASE_URL }}/api/lead-engine/outbox/{{ $json.draftId }}/bounced",
+        "url": "={{ $env.DEVLAB_BASE_URL }}/api/lead-engine/outbox/{{ $json.draftId }}/failed",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ kind: 'hard', diagnostic: String($json.error || '').slice(0, 1000) }) }}",
+        "jsonBody": "={{ JSON.stringify({ error: String($json.error && $json.error.message || $json.error || 'Submission failed').slice(0, 900), retryable: false }) }}",
         "options": {}
       },
       "id": "bounce",
@@ -174,7 +174,7 @@
           "name": "DevLab outbox token"
         }
       },
-      "notes": "A hard bounce suppresses the address permanently and moves the lead to NO_CONTACT. Without this nothing ever learns an address is dead and every future campaign retries it, which is how sending reputation is lost. Change kind to 'soft' for temporary failures — a full mailbox is not a reason to stop contacting a business forever. Asynchronous DSNs that arrive later at your MTA should POST here too."
+      "notes": "Reports a TRANSMISSION failure, not a bounce. An error from the send node means OUR side failed -- nodemailer missing, Postfix down, CMS unreachable -- none of which says the address is invalid. Routing these to /bounced with kind:hard would permanently suppress valid prospects, and the more broken the infrastructure the more of them. /bounced stays for real SMTP rejections and asynchronous DSNs only."
     }
   ],
   "connections": {

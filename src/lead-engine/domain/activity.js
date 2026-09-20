@@ -42,6 +42,16 @@ export const ACTIVITY = Object.freeze({
   OUTREACH_DRAFT_REGENERATED: 'OUTREACH_DRAFT_REGENERATED',
   OUTREACH_DRAFT_EXPORTED: 'OUTREACH_DRAFT_EXPORTED',
   OUTBOUND_SEND_CONFIRMED: 'OUTBOUND_SEND_CONFIRMED',
+  /**
+   * The transmitter could not put the message on the wire AT ALL.
+   *
+   * Deliberately distinct from BOUNCED. A bounce is the recipient's mail system
+   * refusing a message that reached it; this is our own side failing before it
+   * ever left -- nodemailer missing, Postfix down, the CMS unreachable, a
+   * runtime error. Neither proves anything about the address, so this must
+   * never reach suppression.
+   */
+  OUTBOUND_SEND_FAILED: 'OUTBOUND_SEND_FAILED',
 
   OUTBOUND_MESSAGE_SENT: 'OUTBOUND_MESSAGE_SENT',
   AWAITING_REPLY: 'AWAITING_REPLY',
@@ -117,6 +127,7 @@ export const ACTIVITY_LABELS = Object.freeze({
   OUTREACH_DRAFT_REGENERATED: 'Outreach draft regenerated',
   OUTREACH_DRAFT_EXPORTED: 'Draft exported for manual sending',
   OUTBOUND_SEND_CONFIRMED: 'Operator confirmed the message was sent',
+  OUTBOUND_SEND_FAILED: 'The sender could not transmit the message',
   OUTBOUND_MESSAGE_SENT: 'Message sent manually from Zoho',
   AWAITING_REPLY: 'Awaiting reply',
   INBOUND_REPLY: 'Reply received',
