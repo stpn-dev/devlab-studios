@@ -51,6 +51,27 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Added
+- **A production mailbox for `hello@devlabconnect.com`, inside the Admin CMS.** Mail arrives through Cloudflare Email Routing into an `email()` handler in the existing Worker and is stored in D1 and a private R2 bucket; an operator reads and answers it at `/admin/mailbox`. Inbox, thread view, read/unread, archive, attachments, search, reply and a diagnostics screen. Replies go out as `hello@devlabconnect.com` through the existing n8n → private Postfix path — there is still no SMTP client in this codebase, and the Email Worker cannot originate arbitrary mail.
+- **Inbound mail is never silently discarded.** A message too large to parse, one whose MIME is malformed, or one that arrives while R2 is unavailable each produce a stored row saying so, with the original preserved where possible and listed on the diagnostics screen.
+- **Bounce and DSN ingestion, wired into the existing CRM.** A delivery report resolves to a draft by one of three routes — a VERP tag, our own `Message-ID` echoed in the report's returned headers, or the failed recipient address — and is handed to the lead engine's existing `recordBounce`. Null-sender (`MAIL FROM:<>`) reports are handled, which is what every real bounce arrives as.
+- **Migration `0014_mailbox.sql`** adds `mailbox_threads`, `mailbox_messages`, `mailbox_attachments` and `mailbox_outbound`. Additive only; nothing existing changes shape.
+- **Mailbox outbox endpoints** (`/api/mailbox/outbox`, `.../sent`, `.../failed`) for the external sender, behind a bearer token that fails closed when unconfigured, plus `integrations/n8n/devlab-mailbox-outbound.json`.
+- **Outreach outbox endpoints and an n8n sending workflow** (`/api/lead-engine/outbox`, `.../sent`, `.../bounced`). Automated sending now exists in the operator's stack; it still does not exist in this application.
+
+### Changed
+- **Approved outreach drafts are exported as `.eml` files** instead of being written into a Zoho mailbox. The mailbox integration was removed: a Worker has no stable egress IP, so its scheduled calls arrived from a different country each run and the provider read that as a compromised account.
+- **Outreach sends over our own MTA rather than an ESP free tier.** Fifteen providers were checked and every one prohibits cold outreach in its acceptable-use policy — on the consent model, not on volume.
+- **Only a bounce identifier we issued may suppress an address.** A delivery report cannot be authenticated, so a report matched solely by the recipient address it names is now recorded without suppressing. This closes an unauthenticated remote path by which any sender could permanently suppress an arbitrary prospect; it also means outreach bounces no longer auto-suppress until the outreach path emits our `Message-ID` and VERP address.
+- **`outreach.sending.maxPerCollection` is configurable**, so raising the daily limit is no longer silently capped at ten per collection call.
+
+### Fixed
+- **JSON-LD blocks larger than 20,000 characters are read** during lead research rather than truncated.
+
+### Security
+- **Inbound email HTML is sanitized by an allowlist at ingest and rendered in a sandboxed iframe** with no `allow-scripts` and no `allow-same-origin`. Every remote reference is stripped, so nothing in a rendered message causes a request — which also means a tracking pixel cannot report that a message was opened.
+- **Attachment storage keys are generated, never derived from a filename**, and downloads re-derive their content type through an allowlist rather than trusting the stored object.
+
 ## [1.10.2] - 2026-09-18
 
 ### Fixed
