@@ -1,9 +1,18 @@
 # The devlabconnect.com mailbox
 
-**Status as of 2026-09-20.** Built and tested against the real schema. The R2
-buckets exist and their bindings are declared; **the Worker is not yet deployed
-and nothing receives mail yet** — Email Routing and the DNS steps in
-[Bringing it up](#bringing-it-up) are outstanding.
+**Status as of 2026-09-20.** Deployed to preview and production, and verified:
+`wrangler versions view` reports `Handlers: fetch, scheduled, email, queue` and
+`MAILBOX_BUCKET` bound to its own bucket per environment, migration 0014 is
+applied on both remote databases, and Email Routing is active with MX published.
+
+**Nothing receives mail yet**, because no routing rule points an address at the
+Worker. That is the remaining step, plus `MAILBOX_OUTBOX_TOKEN` before a reply
+can be transmitted. See [Bringing it up](#bringing-it-up).
+
+⚠️ **Production is running code that is not on `main`.** It was deployed by hand
+from the feature branch. Until the branch reaches `main`, a Workers Builds
+rebuild of `main` would roll production back to a Worker with no `email()`
+handler — inbound mail would start failing with nothing to explain why.
 
 This document covers *inbound mail and replies*. The outbound prospecting path
 is [outbound-mail-infrastructure.md](outbound-mail-infrastructure.md); how a
@@ -157,47 +166,63 @@ Two rules apply here, and both matter:
 
 ## DNS
 
-### What to add
+### Published state, 2026-09-20
 
-| Record | Type | Value |
-|---|---|---|
-| `devlabconnect.com` | MX | `route1.mx.cloudflare.net` (added by Email Routing) |
-| `devlabconnect.com` | MX | `route2.mx.cloudflare.net` |
-| `devlabconnect.com` | MX | `route3.mx.cloudflare.net` |
-| `_dmarc.devlabconnect.com` | TXT | `v=DMARC1; p=none; adkim=s; aspf=s; rua=mailto:dmarc@devlabconnect.com` |
+| Record | Type | Value | |
+|---|---|---|---|
+| `devlabconnect.com` | MX | `route1/2/3.mx.cloudflare.net` | Added by Email Routing. Priorities are assigned arbitrarily by Cloudflare; only their relative order matters |
+| `devlabconnect.com` | TXT | `v=spf1 ip4:37.60.237.227 include:_spf.mx.cloudflare.net ~all` | Merged — both senders authorised. See below |
+| `cf2024-1._domainkey` | TXT | Cloudflare's DKIM key | Added by Email Routing. Does **not** collide with our `s202609`; a domain may publish many selectors, and each signature names the one it used |
+| `s202609._domainkey` | TXT | our OpenDKIM key | Unchanged |
+| `_dmarc.devlabconnect.com` | TXT | `v=DMARC1; p=none; adkim=s; aspf=s` | Still no `rua` — add it once `dmarc@` receives |
 
-### SPF: do not let the wizard decide
+### SPF: merged, deliberately
 
-**The final SPF record stays exactly as it is:**
+**The published record, as activated on 2026-09-20:**
 
 ```
-v=spf1 ip4:37.60.237.227 -all
+v=spf1 ip4:37.60.237.227 include:_spf.mx.cloudflare.net ~all
 ```
 
-Enabling Email Routing offers to add `v=spf1 include:_spf.mx.cloudflare.net ~all`.
-**Decline it.** A domain may publish only one SPF record, and accepting that
-value would do two things at once: drop `ip4:37.60.237.227`, so our own MTA is
-no longer authorised, and weaken `-all` to `~all`, so a forgery soft-fails
-instead of hard-failing. Outbound authentication would silently degrade and
-nothing would report it.
+Cloudflare's Email Routing onboarding merged its include into the existing
+record rather than replacing it, and the operator chose to keep both
+authorisations. That is a deliberate decision and this record is correct as it
+stands: our own MTA (`ip4:37.60.237.227`) and Cloudflare are both authorised to
+send as `devlabconnect.com`.
 
-The reasoning, because it is worth being able to re-derive: **SPF authorises
-sending hosts.** Cloudflare's include exists for Email Routing's *forwarding*
-behaviour — when it re-sends mail onward using our domain. This design forwards
-nothing: delivery terminates in the Worker, in our own storage. Cloudflare never
-emits mail as `devlabconnect.com`, so it does not need to be authorised to.
-
-This is a constraint on the design, not just on the DNS record. **If a
-forwarding rule is ever added** — to a personal mailbox as a safety net, say —
-revisit this before enabling it.
-
-Verify the published value with a real query afterwards rather than trusting the
-dashboard:
+**What to watch, because the failure mode here is silent.** A domain may
+publish only ONE SPF record. Two of them is not "both apply" — it is a
+`permerror`, and SPF then fails for every receiver. So when anything touches
+this record, the check is not "is my value present" but "is mine the only one":
 
 ```powershell
 nslookup -type=TXT devlabconnect.com
 nslookup -type=MX devlabconnect.com
 ```
+
+Verify from a resolver, not from the dashboard.
+
+**On `~all` versus `-all`.** The original record ended `-all` (hard fail); the
+merged one ends `~all` (soft fail), which is what Cloudflare's suggested value
+carried. Keeping the include does not require keeping the soft fail — this is
+also valid, and restores the stricter policy:
+
+```
+v=spf1 ip4:37.60.237.227 include:_spf.mx.cloudflare.net -all
+```
+
+Left as `~all` by operator decision. Worth revisiting once the domain has
+sending history and DMARC aggregate reports show no legitimate source is being
+missed; tightening to `-all` before that risks hard-failing a path nobody
+remembered.
+
+**Why the include is not strictly required by this design.** SPF authorises
+*sending* hosts, and Cloudflare's include exists for Email Routing's
+*forwarding* behaviour — when it re-sends mail onward using our domain. This
+design forwards nothing: delivery terminates in the Worker, in our own storage.
+So the include is headroom rather than a dependency. It becomes a real
+requirement the moment a forwarding rule is added, which is the likely reason to
+keep it.
 
 ### DMARC
 
@@ -443,10 +468,11 @@ Steps 1–4 are account/DNS actions. **Nothing receives mail until they are done
    by hand.
 2. **Apply the migration** and **deploy** (see [deployment.md](deployment.md)).
    The Email Worker must be deployed before a routing rule can point at it.
-3. **Enable Email Routing** for `devlabconnect.com` — Cloudflare dashboard →
-   Email → Email Routing. Let it add the three MX records. **Decline the SPF
-   record**, then re-check that `v=spf1 ip4:37.60.237.227 -all` is still the
-   only SPF TXT present.
+3. ~~**Enable Email Routing**~~ **Done 2026-09-20.** MX published; Cloudflare
+   merged its include into the existing SPF record rather than replacing it,
+   and both senders are authorised. Whenever this record is touched again, the
+   check is that ours is the ONLY SPF TXT — two records is a `permerror`, not
+   "both apply".
 4. **Add the routing rules**, each action "Send to a Worker" → `devlab-studios`:
    `hello@`, `bounce@`, `dmarc@`, `postmaster@`, `abuse@`, plus **catch-all**.
 5. **Set the token** on both environments:

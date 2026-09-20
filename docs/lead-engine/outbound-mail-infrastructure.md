@@ -138,10 +138,10 @@ Zoho on unrelated IPs.
 |---|---|---|
 | `mail.devlabconnect.com` → A | `37.60.237.227` | OK |
 | `37.60.237.227` → PTR | `mail.devlabconnect.com` | OK — FCrDNS matches bidirectionally |
-| SPF | `v=spf1 ip4:37.60.237.227 -all` | OK — hard fail, single authorised sender |
+| SPF | `v=spf1 ip4:37.60.237.227 include:_spf.mx.cloudflare.net ~all` | Merged 2026-09-20 when Email Routing was activated — our MTA and Cloudflare both authorised. Now a SOFT fail; see mailbox.md |
 | DKIM `s202609` | `v=DKIM1; h=sha256; k=rsa; p=…` | OK — valid 2048-bit RSA, parses cleanly |
 | DMARC | `v=DMARC1; p=none; adkim=s; aspf=s` | No `rua` — no aggregate telemetry |
-| MX | **none** | BLOCKING |
+| MX | `route1/2/3.mx.cloudflare.net` | Published 2026-09-20 — no longer blocking |
 | Apex A/AAAA | **none** | See below |
 
 DKIM notes: `h=sha256` pins the hash and blocks a SHA-1 downgrade. **No `t=y`**,
@@ -248,8 +248,12 @@ is tested). Closing that is a contained change described in
 
 ## Next steps, in order
 
-1. Configure Cloudflare Email Routing; publish MX. **Decline the SPF record it
-   offers** — see [mailbox.md](mailbox.md#spf-do-not-let-the-wizard-decide).
+1. ~~Configure Cloudflare Email Routing; publish MX.~~ **Done 2026-09-20.** MX
+   published, Cloudflare DKIM selector `cf2024-1` added alongside our
+   `s202609`, and SPF merged to
+   `v=spf1 ip4:37.60.237.227 include:_spf.mx.cloudflare.net ~all` — both
+   senders authorised. See [mailbox.md](mailbox.md#spf-merged-deliberately);
+   note the record now ends `~all` rather than `-all`.
 2. Test plus-addressing and null-sender DSN delivery deliberately.
 3. Add `rua` to DMARC now that a receiving address exists.
 4. ~~Resolve the envelope-sender question and settle bounce ingestion.~~ Done —
