@@ -68,6 +68,30 @@ interface Env {
   LEAD_AI_REVIEW_QUEUE?: Queue
   LEAD_MAILBOX_QUEUE?: Queue
 
+  // ---------------------------------------------------------------------
+  // Mailbox (hello@devlabconnect.com)
+  // ---------------------------------------------------------------------
+  /**
+   * Private R2 bucket holding raw .eml originals and attachments.
+   *
+   * DELIBERATELY NOT `MEDIA_BUCKET`. That bucket is served publicly through
+   * R2_PUBLIC_BASE_URL (a pub-*.r2.dev origin), and putting other people's
+   * correspondence behind a public URL would be a data breach rather than a
+   * configuration choice. This bucket has no public access and is only ever
+   * read through an authenticated admin route.
+   *
+   * Optional in the type so the Worker still builds and serves before the
+   * bucket exists; ingest records `raw_unavailable` rather than losing mail if
+   * it is missing.
+   */
+  MAILBOX_BUCKET?: R2Bucket
+  /**
+   * Bearer token for the mailbox outbox endpoints, which sit outside the admin
+   * session gate because an automation cannot hold a browser session. SECRET.
+   * Unset, those endpoints refuse every request.
+   */
+  MAILBOX_OUTBOX_TOKEN?: string
+
   // Optional Workflow bindings, likewise absent by default.
   LEAD_CAMPAIGN_DISCOVERY_WORKFLOW?: Workflow
   LEAD_RESEARCH_WORKFLOW?: Workflow

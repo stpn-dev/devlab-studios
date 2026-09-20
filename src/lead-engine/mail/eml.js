@@ -93,9 +93,15 @@ export function formatDate(date) {
  * into something unclickable — an over-long line is a formatting problem, a
  * broken link is a dead call to action.
  *
+ * Exported for src/mailbox/outbound/buildMessage.js, which assembles a message
+ * for TRANSMISSION rather than for download and so cannot use
+ * `buildEmlMessage` (that one emits `X-Unsent: 1`, which makes Outlook treat a
+ * received message as an unsent draft). The wrapping rule is the same, and one
+ * copy of it is better than two that drift.
+ *
  * @param {string} body
  */
-function wrapBody(body) {
+export function wrapBody(body) {
   const out = []
 
   for (const line of String(body ?? '').split(/\r?\n/)) {

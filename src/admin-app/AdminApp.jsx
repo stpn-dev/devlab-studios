@@ -22,6 +22,8 @@ import LeadCrmActivityPage from './pages/lead-crm/ActivityPage'
 import LeadCrmSourcesPage from './pages/lead-crm/SourcesPage'
 import LeadCrmSuppressionPage from './pages/lead-crm/SuppressionPage'
 import LeadCrmSettingsPage from './pages/lead-crm/SettingsPage'
+import MailboxInboxPage from './pages/mailbox/InboxPage'
+import MailboxDiagnosticsPage from './pages/mailbox/DiagnosticsPage'
 
 function buildRouter(session, onLogout) {
   return createBrowserRouter([
@@ -52,6 +54,13 @@ function buildRouter(session, onLogout) {
         { path: 'lead-crm/sources', element: <LeadCrmSourcesPage /> },
         { path: 'lead-crm/suppression', element: <LeadCrmSuppressionPage /> },
         { path: 'lead-crm/settings', element: <LeadCrmSettingsPage /> },
+
+        // The devlabconnect.com mailbox. A section of this CMS rather than a
+        // separate application, for the same reasons the Lead CRM is: same
+        // router, same shell, same admin session, same API client. There is
+        // deliberately no separately exposed mailbox app to authenticate.
+        { path: 'mailbox', element: <MailboxInboxPage /> },
+        { path: 'mailbox/diagnostics', element: <MailboxDiagnosticsPage /> },
       ],
     },
   ])

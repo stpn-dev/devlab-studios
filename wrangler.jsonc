@@ -48,6 +48,32 @@
       "binding": "MEDIA_BUCKET",
       "bucket_name": "devlab-studios"
     }
+    // The mailbox's private bucket is DELIBERATELY NOT DECLARED YET.
+    //
+    // An r2_buckets entry naming a bucket that does not exist fails
+    // `wrangler deploy` for the ENTIRE Worker — the public site, the Admin CMS
+    // and the pickleball app included — which is the same trap the Queues and
+    // Workflows blocks above are commented out to avoid.
+    //
+    // To enable raw-message storage:
+    //   1. npx wrangler r2 bucket create devlab-mailbox
+    //      npx wrangler r2 bucket create devlab-mailbox-preview
+    //   2. Uncomment the entry below (and the matching one under env.preview).
+    //   3. Deploy.
+    //
+    // It must NOT be the MEDIA_BUCKET: that one is served publicly through
+    // R2_PUBLIC_BASE_URL, and other people's correspondence behind a public
+    // r2.dev URL would be a data breach rather than a configuration choice.
+    // Do not enable public access on this bucket.
+    //
+    // Until it exists the mailbox still works: ingest records every message
+    // with parse_status 'raw_unavailable' and the diagnostics screen says so,
+    // rather than losing mail.
+    //
+    // ,{
+    //   "binding": "MAILBOX_BUCKET",
+    //   "bucket_name": "devlab-mailbox"
+    // }
   ],
   // One Durable Object per Open Play session, keyed by session id, so two
   // simultaneous court assignments are serialized by construction rather than
@@ -270,6 +296,14 @@
           "binding": "MEDIA_BUCKET",
           "bucket_name": "devlab-studios-preview"
         }
+        // See the note at the top level. Nothing here is inherited from it, so
+        // the mailbox bucket has to be repeated — the same omission that once
+        // left preview silently enforcing no rate limits at all.
+        //
+        // ,{
+        //   "binding": "MAILBOX_BUCKET",
+        //   "bucket_name": "devlab-mailbox-preview"
+        // }
       ],
       // Unlike D1/R2, a Durable Object needs no separate physical resource per
       // environment: the same class_name is correct here, and Cloudflare keeps

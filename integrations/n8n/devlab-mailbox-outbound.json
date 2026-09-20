@@ -1,0 +1,148 @@
+{
+  "name": "DevLab — Mailbox reply sender",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-360, 0],
+      "notes": "Replies are answers to a person who is waiting, so this runs far more often than the outreach sender. It is NOT a prospecting schedule: it only transmits messages a human has already written and queued, and it sends nothing when the queue is empty."
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.DEVLAB_BASE_URL }}/api/mailbox/outbox",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": false
+            }
+          }
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Collect queued replies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-140, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "DevLab mailbox outbox token"
+        }
+      },
+      "notes": "Each reply is handed out ONCE and marked collected in the same step. If this workflow dies before submitting, that reply is not sent and sits in the CMS for a person — rather than being mailed twice, which cannot be undone."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "messages",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "One item per reply",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [80, 0]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Submits the message the CRM already built, unchanged.\n//\n// WHY THIS IS A CODE NODE AND NOT THE \"Send Email\" NODE.\n//\n// n8n's emailSend node cannot do three things this reply path requires, and\n// its own documentation says so: it \"does not support setting headers like\n// In-Reply-To and References, which are required for email threading\", it\n// exposes no way to set a Message-ID, and it gives nodemailer no `envelope`,\n// so MAIL FROM is always derived from the From: header.\n//\n// Using it would produce replies that arrive as a NEW conversation in the\n// recipient's client, and bounces that come back with no identifier attached\n// and therefore correlate to nothing. Both failures are invisible from this\n// side: the send succeeds, and nothing reports that threading was lost.\n//\n// So the CRM builds the complete RFC 5322 message and hands over the envelope\n// separately. This node's entire job is MAIL FROM, RCPT TO, DATA.\n//\n// REQUIRES on the n8n container (or on the Task Runner, if you use one):\n//   NODE_FUNCTION_ALLOW_EXTERNAL=nodemailer\n// Without it, `require` is blocked and this node fails closed — which is the\n// right direction: nothing is sent and the reply stays queued.\n\nconst nodemailer = require('nodemailer')\n\nconst reply = $input.item.json\n\n// The private Docker mail network. Postfix trusts ONLY this n8n container's IP\n// plus localhost, and has no listener reachable from the internet. Do not point\n// this at a public address, and do not widen Postfix's mynetworks to make it\n// work from somewhere else.\nconst transporter = nodemailer.createTransport({\n  host: $env.DEVLAB_SMTP_HOST || '172.19.0.1',\n  port: Number($env.DEVLAB_SMTP_PORT || 25),\n  secure: false,\n  // The hop to Postfix is over a private Docker network on the same host, and\n  // Postfix presents a self-signed certificate there. TLS to the RECIPIENT is\n  // negotiated by Postfix itself and is unaffected by this.\n  tls: { rejectUnauthorized: false },\n})\n\nconst info = await transporter.sendMail({\n  // Both are required together. nodemailer does not parse the envelope out of\n  // a raw message, and this envelope sender is the per-message VERP address\n  // that lets a bounce find its way back to the right conversation.\n  envelope: { from: reply.envelope.from, to: reply.envelope.to },\n  raw: reply.raw,\n})\n\nreturn {\n  json: {\n    id: reply.id,\n    providerMessageId: info.messageId || null,\n    accepted: info.accepted || [],\n    rejected: info.rejected || [],\n  },\n}"
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Submit to private Postfix",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 0],
+      "onError": "continueErrorOutput",
+      "notes": "Needs NODE_FUNCTION_ALLOW_EXTERNAL=nodemailer on the n8n container. Without it this node fails and the reply is reported failed rather than silently lost."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DEVLAB_BASE_URL }}/api/mailbox/outbox/{{ $json.id }}/sent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ providerMessageId: $json.providerMessageId }) }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Confirm sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, -100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "DevLab mailbox outbox token"
+        }
+      },
+      "notes": "This is also what puts the reply into the thread the operator reads. Recording it at compose time would show a message as sent that may never have been transmitted."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DEVLAB_BASE_URL }}/api/mailbox/outbox/{{ $json.id }}/failed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ error: String($json.error && $json.error.message || $json.error || 'Submission failed').slice(0, 900), retryable: false }) }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Report failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "DevLab mailbox outbox token"
+        }
+      },
+      "notes": "retryable:false on purpose. A reply that silently re-queued forever would mail the same person repeatedly the moment a fault cleared. A failed reply is visible in the CMS and a person decides."
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {
+      "main": [[{ "node": "Collect queued replies", "type": "main", "index": 0 }]]
+    },
+    "Collect queued replies": {
+      "main": [[{ "node": "One item per reply", "type": "main", "index": 0 }]]
+    },
+    "One item per reply": {
+      "main": [[{ "node": "Submit to private Postfix", "type": "main", "index": 0 }]]
+    },
+    "Submit to private Postfix": {
+      "main": [
+        [{ "node": "Confirm sent", "type": "main", "index": 0 }],
+        [{ "node": "Report failure", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

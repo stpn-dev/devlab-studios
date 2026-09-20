@@ -55,27 +55,34 @@ export function readBearerToken(request) {
 }
 
 /**
- * Whether this request may use the outbox.
+ * Whether this request carries the bearer token named by `variable`.
+ *
+ * Parameterized by variable name so the mailbox's outbox endpoints
+ * (MAILBOX_OUTBOX_TOKEN) reuse this exact check rather than shipping a second
+ * copy. Two hand-written constant-time comparisons in one codebase is one more
+ * than should exist — the copy is the one that eventually gets "simplified"
+ * back to `===`.
  *
  * @param {Env} env
  * @param {Request} request
+ * @param {string} variable the env var holding the expected token
  * @returns {{ ok: true } | { ok: false, status: number, error: string }}
  */
-export function authorizeOutbox(env, request) {
-  const expected = String(env?.LEAD_OUTBOX_TOKEN ?? '').trim()
+export function authorizeBearer(env, request, variable) {
+  const expected = String(env?.[variable] ?? '').trim()
 
   if (!expected) {
     // 503, not 401: the caller's credentials are not the problem, and saying
     // "unauthorized" would send an operator hunting for a token that the
     // deployment never had.
-    return { ok: false, status: 503, error: 'The outbox is not configured. Set LEAD_OUTBOX_TOKEN.' }
+    return { ok: false, status: 503, error: `This endpoint is not configured. Set ${variable}.` }
   }
 
   if (expected.length < MIN_TOKEN_LENGTH) {
     return {
       ok: false,
       status: 503,
-      error: `LEAD_OUTBOX_TOKEN is too short to be safe. Use at least ${MIN_TOKEN_LENGTH} random characters.`,
+      error: `${variable} is too short to be safe. Use at least ${MIN_TOKEN_LENGTH} random characters.`,
     }
   }
 
@@ -84,4 +91,15 @@ export function authorizeOutbox(env, request) {
   }
 
   return { ok: true }
+}
+
+/**
+ * Whether this request may use the lead engine's outbox.
+ *
+ * @param {Env} env
+ * @param {Request} request
+ * @returns {{ ok: true } | { ok: false, status: number, error: string }}
+ */
+export function authorizeOutbox(env, request) {
+  return authorizeBearer(env, request, 'LEAD_OUTBOX_TOKEN')
 }

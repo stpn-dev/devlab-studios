@@ -95,6 +95,17 @@ const NAV_GROUPS = [
       { label: 'CRM Settings', to: '/admin/lead-crm/settings', icon: Settings },
     ],
   },
+  {
+    // The mailbox is its own group rather than an item under Lead CRM: it
+    // receives mail from anyone, not only from leads, and filing it under
+    // outbound prospecting would imply otherwise.
+    key: 'mailbox',
+    heading: 'Mailbox',
+    items: [
+      { label: 'Inbox', to: '/admin/mailbox', icon: Mail, end: true },
+      { label: 'Diagnostics', to: '/admin/mailbox/diagnostics', icon: Activity },
+    ],
+  },
 ]
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'admin-sidebar-collapsed'
