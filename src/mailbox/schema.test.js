@@ -28,6 +28,11 @@ const HERE = fileURLToPath(new URL('.', import.meta.url))
 const ROOT = join(HERE, '..', '..')
 const MIGRATIONS = join(ROOT, 'migrations')
 const mailboxSql = readFileSync(join(MIGRATIONS, '0014_mailbox.sql'), 'utf8')
+// 0015 rebuilt mailbox_outbound to widen its status CHECK, so THAT file is the
+// current definition of the column. Asserting against 0014 would pass while the
+// live schema said something else, which is the whole failure this suite exists
+// to catch.
+const outboundSql = readFileSync(join(MIGRATIONS, '0015_mailbox_drafts.sql'), 'utf8')
 const leadEngineSql = readFileSync(join(MIGRATIONS, '0012_lead_intelligence_engine.sql'), 'utf8')
 
 /** Reads the allowed values out of a `CHECK (col IN ('a', 'b'))` for one column. */
@@ -84,9 +89,13 @@ describe('mailbox column vocabularies', () => {
     expect(checkValues(mailboxSql, 'parse_status')).toEqual(
       ['failed', 'ok', 'partial', 'raw_unavailable', 'skipped_too_large'],
     )
-    expect(checkValues(mailboxSql, 'status')).toEqual(
-      ['cancelled', 'collected', 'failed', 'queued', 'sent'],
+    expect(checkValues(outboundSql, 'status')).toEqual(
+      ['cancelled', 'collected', 'draft', 'failed', 'queued', 'sent'],
     )
+    // 'draft' must be present, because the Drafts folder writes it and a
+    // rejected value behind the wrong insert is how this schema has lost rows
+    // three times before.
+    expect(checkValues(outboundSql, 'status')).toContain('draft')
   })
 })
 

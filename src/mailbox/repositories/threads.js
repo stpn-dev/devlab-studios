@@ -288,6 +288,40 @@ export async function listThreads(db, filters = {}) {
 }
 
 /**
+ * Threads containing a message we actually transmitted — the Sent folder.
+ *
+ * Driven by `mailbox_messages.direction = 'outbound'`, which is written only
+ * when the transmitter confirms the send, NOT by `mailbox_outbound`. A reply
+ * that is written, queued and never transmitted must not appear here: the whole
+ * value of a Sent folder is that it answers "did this person receive it", and a
+ * folder that answered "did I write it" would be worse than having none.
+ *
+ * Ordered by the outbound timestamp rather than last activity, because Sent is
+ * a log of what we did, read in the order we did it.
+ *
+ * @param {D1Database} db
+ * @param {{ limit?: number }} [options]
+ * @returns {Promise<any[]>}
+ */
+export async function listSentThreads(db, { limit = 50 } = {}) {
+  const result = await db
+    .prepare(
+      `${THREAD_SELECT}
+       WHERE t.state != 'trash'
+         AND EXISTS (
+           SELECT 1 FROM mailbox_messages m
+           WHERE m.thread_id = t.id AND m.direction = 'outbound' AND m.state != 'trash'
+         )
+       ORDER BY t.last_outbound_at DESC NULLS LAST
+       LIMIT ?`,
+    )
+    .bind(clampLimit(limit, 50, 200))
+    .all()
+
+  return (result.results || []).map(mapThread)
+}
+
+/**
  * Per-mailbox unread totals for the navigation.
  *
  * @param {D1Database} db

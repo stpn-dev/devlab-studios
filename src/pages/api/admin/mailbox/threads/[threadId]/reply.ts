@@ -13,7 +13,9 @@ import {
 export const prerender = false
 
 const replySchema = z.object({
-  bodyText: z.string().trim().min(1).max(100_000),
+  bodyText: z.string().trim().max(100_000),
+  /** Save without handing it to the transmitter — the Drafts folder. */
+  asDraft: z.boolean().default(false),
   subject: z.string().trim().max(500).optional().nullable(),
   /** The specific message being answered. Defaults to the latest inbound one. */
   inReplyToMessageId: z.string().trim().max(100).optional().nullable(),
@@ -43,6 +45,7 @@ export const POST: APIRoute = async (context) =>
     const queued = await composeReply(database.env, {
       threadId: context.params.threadId!,
       bodyText: body.data.bodyText,
+      asDraft: body.data.asDraft,
       subject: body.data.subject ?? null,
       inReplyToMessageId: body.data.inReplyToMessageId ?? null,
       toAddress: body.data.toAddress ?? null,
@@ -55,6 +58,8 @@ export const POST: APIRoute = async (context) =>
       // Stated in the payload because this is the single most misreadable
       // thing about the screen: pressing Reply does not send.
       sent: false,
-      instruction: 'Queued. The configured external sender transmits it on its next run.',
+      instruction: body.data.asDraft
+        ? 'Saved to Drafts. Nothing will be transmitted until you send it.'
+        : 'Queued. The configured external sender transmits it on its next run.',
     })
   })

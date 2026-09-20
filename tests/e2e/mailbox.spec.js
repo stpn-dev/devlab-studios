@@ -31,6 +31,10 @@ const SESSION_COOKIE = 'devlab_admin_session'
 const ADMIN_ENDPOINTS = [
   '/api/admin/mailbox/threads',
   '/api/admin/mailbox/diagnostics',
+  '/api/admin/mailbox/folders/inbox',
+  '/api/admin/mailbox/folders/drafts',
+  '/api/admin/mailbox/folders/outbox',
+  '/api/admin/mailbox/folders/sent',
   '/api/admin/mailbox/threads/any-thread-id',
   '/api/admin/mailbox/messages/any-message-id/raw',
   '/api/admin/mailbox/attachments/any-attachment-id',
@@ -82,6 +86,26 @@ test.describe('mailbox admin API authorization', () => {
       expect(response.status(), `POST ${path} must require a session`).toBe(401)
     }
   })
+
+  test('draft editing and deletion are gated too', async ({ request, baseURL }) => {
+    // These edit and destroy a reply, so an unauthenticated caller reaching
+    // them would be worse than reading the inbox.
+    //
+    // 401 OR 403, because TWO layers refuse these and which one fires first
+    // depends on the request. The session gate in src/middleware.ts answers
+    // 401; Astro's own `security.checkOrigin` CSRF protection answers 403
+    // BEFORE middleware for an unsafe method with no matching Origin, which is
+    // what a bare DELETE from a test client looks like. Asserting one exact
+    // code would make this test fail if either layer changed, while proving
+    // nothing extra — what matters is that neither request is served.
+    const patch = await request.patch(`${baseURL}/api/admin/mailbox/outbound/any-id`, {
+      data: { bodyText: 'x', send: true },
+    })
+    expect([401, 403], 'PATCH must be refused').toContain(patch.status())
+
+    const remove = await request.delete(`${baseURL}/api/admin/mailbox/outbound/any-id`)
+    expect([401, 403], 'DELETE must be refused').toContain(remove.status())
+  })
 })
 
 test.describe('the transmitter API is not public', () => {
@@ -132,11 +156,29 @@ test.describe('mailbox screens', () => {
     await expect(page.getByRole('button', { name: /log ?out/i })).toBeVisible()
   })
 
-  test('says plainly that replying does not send', async ({ page }) => {
-    // Every other mail client in the world sends on Reply. This one queues for
-    // an external sender, and the screen has to say so or it is misleading.
+  test('offers the folders a mail client is expected to have', async ({ page }) => {
     await page.goto('/admin/mailbox')
-    await expect(page.getByText(/queued for the external sender/i)).toBeVisible()
+    const rail = page.getByRole('navigation', { name: 'Mailbox folders' })
+
+    for (const folder of ['Inbox', 'Drafts', 'Outbox', 'Sent', 'Archive']) {
+      await expect(rail.getByRole('link', { name: folder, exact: true })).toBeVisible()
+    }
+  })
+
+  test('distinguishes the Outbox from Sent, rather than claiming a queued reply left', async ({ page }) => {
+    // The transmitter is a separate system that may not have run. Collapsing
+    // these would tell the operator a prospect had been answered when nothing
+    // had left the building.
+    await page.goto('/admin/mailbox/outbox')
+    await expect(page.getByText(/Waiting for the external sender/i)).toBeVisible()
+
+    await page.goto('/admin/mailbox/sent')
+    await expect(page.getByText(/Confirmed transmitted/i)).toBeVisible()
+  })
+
+  test('a draft is described as not handed over', async ({ page }) => {
+    await page.goto('/admin/mailbox/drafts')
+    await expect(page.getByText(/Nothing here has been handed to the sender/i)).toBeVisible()
   })
 
   test('an empty mailbox explains itself rather than looking broken', async ({ page }) => {
@@ -163,7 +205,7 @@ test.describe('mailbox screens', () => {
       .getByRole('link', { name: 'Inbox', exact: true })
       .click()
 
-    await expect(page).toHaveURL(/\/admin\/mailbox$/)
+    await expect(page).toHaveURL(/\/admin\/mailbox\/inbox$/)
     await expect(page.getByRole('heading', { name: 'Mailbox', level: 1 })).toBeVisible()
   })
 })

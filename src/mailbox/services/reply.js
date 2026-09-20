@@ -32,9 +32,14 @@ import { createLogger } from '../../lead-engine/services/log.js'
  * boundary is that they run when it matters rather than when it was convenient.
  *
  * @param {Env} env
+ * `asDraft` saves it without handing it over, which is what the Drafts folder
+ * writes. Suppression is still checked at THIS point rather than at send time:
+ * refusing early tells the operator before they spend effort writing, and the
+ * check runs again nowhere else because a draft is promoted, not re-composed.
+ *
  * @param {{ threadId: string, inReplyToMessageId?: string|null, bodyText: string,
  *           subject?: string|null, toAddress?: string|null, actorEmail?: string|null,
- *           correlationId?: string }} input
+ *           asDraft?: boolean, correlationId?: string }} input
  */
 export async function composeReply(env, input) {
   const db = env.DB
@@ -61,7 +66,8 @@ export async function composeReply(env, input) {
   if (!recipient) throw operationError('This thread has no address to reply to.', 400)
 
   const body = String(input.bodyText ?? '').trim()
-  if (!body) throw operationError('A reply needs a body.', 422)
+  // A draft may be empty — that is what a draft is. A reply being sent may not.
+  if (!body && !input.asDraft) throw operationError('A reply needs a body.', 422)
 
   // `checkSuppression` covers the address AND its domain in one query, and
   // returns the matching entry so the refusal can say which rule applied.
@@ -96,11 +102,12 @@ export async function composeReply(env, input) {
     inReplyTo: parent?.messageId ?? null,
     references: references.length > 0 ? references.map((id) => `<${id}>`).join(' ') : null,
     envelopeFrom: verpAddress(KIND_OUTBOUND, outboundId),
+    status: input.asDraft ? 'draft' : 'queued',
     leadId: thread.leadId ?? null,
     createdBy: input.actorEmail ?? null,
   })
 
-  logger.log('mailbox.reply_queued', {
+  logger.log(input.asDraft ? 'mailbox.reply_drafted' : 'mailbox.reply_queued', {
     outbound_id: outboundId,
     thread_id: thread.id,
     lead_id: thread.leadId ?? null,

@@ -22,7 +22,7 @@ import LeadCrmActivityPage from './pages/lead-crm/ActivityPage'
 import LeadCrmSourcesPage from './pages/lead-crm/SourcesPage'
 import LeadCrmSuppressionPage from './pages/lead-crm/SuppressionPage'
 import LeadCrmSettingsPage from './pages/lead-crm/SettingsPage'
-import MailboxInboxPage from './pages/mailbox/InboxPage'
+import MailboxPage from './pages/mailbox/MailboxPage'
 import MailboxDiagnosticsPage from './pages/mailbox/DiagnosticsPage'
 
 function buildRouter(session, onLogout) {
@@ -59,8 +59,11 @@ function buildRouter(session, onLogout) {
         // separate application, for the same reasons the Lead CRM is: same
         // router, same shell, same admin session, same API client. There is
         // deliberately no separately exposed mailbox app to authenticate.
-        { path: 'mailbox', element: <MailboxInboxPage /> },
+        // Diagnostics is declared BEFORE the `:folder` route, or it would be
+        // matched as a folder named "diagnostics" and 404 from the API.
         { path: 'mailbox/diagnostics', element: <MailboxDiagnosticsPage /> },
+        { path: 'mailbox', element: <MailboxPage /> },
+        { path: 'mailbox/:folder', element: <MailboxPage /> },
       ],
     },
   ])

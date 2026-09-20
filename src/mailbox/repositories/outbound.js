@@ -62,7 +62,7 @@ export async function queueOutbound(db, input) {
          (id, thread_id, in_reply_to_message_id, mailbox, to_address, to_name, subject, body_text,
           message_id, in_reply_to, references_header, envelope_from,
           status, lead_id, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -77,6 +77,9 @@ export async function queueOutbound(db, input) {
       input.inReplyTo ?? null,
       input.references ? bounded(input.references, 4_000) : null,
       input.envelopeFrom,
+      // 'draft' keeps it out of the transmitter's reach by construction:
+      // collectQueued selects WHERE status = 'queued'.
+      input.status === 'draft' ? 'draft' : 'queued',
       input.leadId ?? null,
       input.createdBy ?? null,
       now,
@@ -200,6 +203,123 @@ export async function cancelOutbound(db, id) {
     .run()
 
   return getOutbound(db, id)
+}
+
+/**
+ * Saves a reply without handing it to the transmitter.
+ *
+ * A draft is invisible to the sender BY CONSTRUCTION, not by a filter someone
+ * has to remember: `collectQueued` selects `WHERE status = 'queued'`, so a
+ * draft is never offered. Promoting it is the explicit act of sending.
+ *
+ * @param {D1Database} db
+ * @param {string} id
+ * @param {{ subject?: string, bodyText?: string, toAddress?: string }} input
+ */
+export async function updateDraft(db, id, input) {
+  const row = await getOutbound(db, id)
+  if (!row) throw operationError('Draft not found.', 404)
+  // Only while it is still a draft. Editing a message that has been handed out
+  // would change what the CMS shows without changing what was transmitted.
+  if (row.status !== 'draft') {
+    throw operationError(`This reply is ${row.status} and can no longer be edited.`, 409)
+  }
+
+  await db
+    .prepare(
+      `UPDATE mailbox_outbound
+       SET subject = COALESCE(?, subject),
+           body_text = COALESCE(?, body_text),
+           to_address = COALESCE(?, to_address),
+           updated_at = ?
+       WHERE id = ? AND status = 'draft'`,
+    )
+    .bind(
+      input.subject === undefined ? null : bounded(input.subject, 500),
+      input.bodyText === undefined ? null : bounded(input.bodyText, 100_000),
+      input.toAddress === undefined ? null : String(input.toAddress).toLowerCase(),
+      nowIso(),
+      id,
+    )
+    .run()
+
+  return getOutbound(db, id)
+}
+
+/**
+ * Hands a draft to the transmitter.
+ *
+ * `WHERE status = 'draft'` in the UPDATE, so pressing Send twice queues once.
+ *
+ * @param {D1Database} db
+ * @param {string} id
+ */
+export async function promoteDraft(db, id) {
+  const row = await getOutbound(db, id)
+  if (!row) throw operationError('Draft not found.', 404)
+  if (row.status === 'queued') return row
+  if (row.status !== 'draft') {
+    throw operationError(`This reply is already ${row.status}.`, 409)
+  }
+
+  const now = nowIso()
+  await db
+    .prepare("UPDATE mailbox_outbound SET status = 'queued', updated_at = ? WHERE id = ? AND status = 'draft'")
+    .bind(now, id)
+    .run()
+
+  return getOutbound(db, id)
+}
+
+/**
+ * Discards a draft.
+ *
+ * A real DELETE, unlike a thread's `trash` state. Nothing was transmitted and
+ * nobody else has seen it, so there is no record to preserve — and leaving
+ * abandoned drafts around forever is how a Drafts folder becomes useless.
+ *
+ * @param {D1Database} db
+ * @param {string} id
+ */
+export async function deleteDraft(db, id) {
+  const row = await getOutbound(db, id)
+  if (!row) throw operationError('Draft not found.', 404)
+  if (row.status !== 'draft') {
+    throw operationError(`This reply is ${row.status} and cannot be deleted.`, 409)
+  }
+
+  await db.prepare("DELETE FROM mailbox_outbound WHERE id = ? AND status = 'draft'").bind(id).run()
+  return { status: 'deleted', id }
+}
+
+/**
+ * Outbound rows in the given states, newest first — the Drafts and Outbox
+ * folders.
+ *
+ * @param {D1Database} db
+ * @param {{ statuses: string[], limit?: number }} filters
+ * @returns {Promise<any[]>}
+ */
+export async function listOutboundByStatus(db, { statuses, limit = 100 }) {
+  const wanted = (statuses || []).filter(Boolean)
+  if (wanted.length === 0) return []
+
+  const result = await db
+    .prepare(
+      `SELECT o.*, t.correspondent_name, t.lead_id AS thread_lead_id
+       FROM mailbox_outbound o
+       JOIN mailbox_threads t ON t.id = o.thread_id
+       WHERE o.status IN (${wanted.map(() => '?').join(', ')})
+       ORDER BY o.updated_at DESC
+       LIMIT ?`,
+    )
+    .bind(...wanted, clampLimit(limit, 100, 200))
+    .all()
+
+  return (result.results || []).map((row) => ({
+    ...mapOutbound(row),
+    correspondentName: row.correspondent_name ?? null,
+  }))
 }
 
 /** @param {D1Database} db */

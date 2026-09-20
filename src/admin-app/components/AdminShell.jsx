@@ -102,7 +102,10 @@ const NAV_GROUPS = [
     key: 'mailbox',
     heading: 'Mailbox',
     items: [
-      { label: 'Inbox', to: '/admin/mailbox', icon: Mail, end: true },
+      { label: 'Inbox', to: '/admin/mailbox/inbox', icon: Mail },
+      { label: 'Drafts', to: '/admin/mailbox/drafts', icon: FileText },
+      { label: 'Outbox', to: '/admin/mailbox/outbox', icon: Inbox },
+      { label: 'Sent', to: '/admin/mailbox/sent', icon: MessageSquare },
       { label: 'Diagnostics', to: '/admin/mailbox/diagnostics', icon: Activity },
     ],
   },

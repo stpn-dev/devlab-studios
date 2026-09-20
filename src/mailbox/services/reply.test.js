@@ -28,6 +28,10 @@ const schema = [
   readFileSync(join(MIGRATIONS, '0012_lead_intelligence_engine.sql'), 'utf8'),
   readFileSync(join(MIGRATIONS, '0013_lead_usage_metric_nominatim.sql'), 'utf8'),
   readFileSync(join(MIGRATIONS, '0014_mailbox.sql'), 'utf8'),
+  // 0015 widens mailbox_outbound.status to admit 'draft'. Applied here so the
+  // draft cases run against the REAL constraint — the fourth CHECK widening in
+  // this schema, and the first three each silently discarded rows first.
+  readFileSync(join(MIGRATIONS, '0015_mailbox_drafts.sql'), 'utf8'),
 ]
 
 const INBOUND = [
@@ -177,6 +181,96 @@ describe('renderOutbound', () => {
     // whether a real header was injected.
     const headerBlock = rendered.raw.split('\r\n\r\n')[0]
     expect(headerBlock.split('\r\n').some((line) => /^bcc:/i.test(line))).toBe(false)
+  })
+})
+
+describe('drafts', () => {
+  it('saves without handing the reply to the transmitter', async () => {
+    const draft = await composeReply(env, { bodyText: 'Half a thought', threadId, asDraft: true })
+
+    expect(draft.status).toBe('draft')
+    // The guarantee is structural, not a filter someone has to remember:
+    // collectQueued selects WHERE status = 'queued'.
+    expect(await collectQueued(env.DB)).toHaveLength(0)
+  })
+
+  it('accepts an empty body, because that is what a draft is', async () => {
+    const draft = await composeReply(env, { bodyText: '   ', threadId, asDraft: true })
+    expect(draft.status).toBe('draft')
+
+    // But an empty reply may not be sent.
+    await expect(composeReply(env, { bodyText: '   ', threadId })).rejects.toThrow(/body/i)
+  })
+
+  it('can be edited, then sent', async () => {
+    const { promoteDraft, updateDraft } = await import('../repositories/outbound.js')
+    const draft = await composeReply(env, { bodyText: 'first pass', threadId, asDraft: true })
+
+    const edited = await updateDraft(env.DB, draft.id, { bodyText: 'second pass', subject: 'Re: revised' })
+    expect(edited.bodyText).toBe('second pass')
+    expect(edited.subject).toBe('Re: revised')
+    // Still not collectable while it is a draft.
+    expect(await collectQueued(env.DB)).toHaveLength(0)
+
+    await promoteDraft(env.DB, draft.id)
+    const collected = await collectQueued(env.DB)
+    expect(collected).toHaveLength(1)
+    expect(collected[0].bodyText).toBe('second pass')
+  })
+
+  it('keeps its Message-ID and VERP return path across the edit', async () => {
+    // The identifiers are generated at compose time, so editing must not
+    // regenerate them — a bounce correlates on the Message-ID we already
+    // committed to.
+    const { promoteDraft, updateDraft } = await import('../repositories/outbound.js')
+    const draft = await composeReply(env, { bodyText: 'x', threadId, asDraft: true })
+
+    await updateDraft(env.DB, draft.id, { bodyText: 'y' })
+    const sentReady = await promoteDraft(env.DB, draft.id)
+
+    expect(sentReady.messageId).toBe(draft.messageId)
+    expect(sentReady.envelopeFrom).toBe(draft.envelopeFrom)
+  })
+
+  it('refuses to edit or delete a reply that has already been handed over', async () => {
+    const { deleteDraft, updateDraft } = await import('../repositories/outbound.js')
+    const queued = await composeReply(env, { bodyText: 'x', threadId })
+
+    // Editing a collected message would change what the CMS shows without
+    // changing what went on the wire.
+    await expect(updateDraft(env.DB, queued.id, { bodyText: 'y' })).rejects.toThrow(/no longer be edited/i)
+    await expect(deleteDraft(env.DB, queued.id)).rejects.toThrow(/cannot be deleted/i)
+  })
+
+  it('promoting twice queues once', async () => {
+    const { promoteDraft } = await import('../repositories/outbound.js')
+    const draft = await composeReply(env, { bodyText: 'x', threadId, asDraft: true })
+
+    await promoteDraft(env.DB, draft.id)
+    await promoteDraft(env.DB, draft.id)
+
+    expect(await collectQueued(env.DB)).toHaveLength(1)
+  })
+
+  it('discards a draft outright, since nothing was transmitted', async () => {
+    const { deleteDraft, getOutbound } = await import('../repositories/outbound.js')
+    const draft = await composeReply(env, { bodyText: 'x', threadId, asDraft: true })
+
+    await deleteDraft(env.DB, draft.id)
+    expect(await getOutbound(env.DB, draft.id)).toBeNull()
+  })
+
+  it('still refuses a suppressed recipient', async () => {
+    await addSuppression(env.DB, {
+      scope: 'email',
+      value: 'jane@prospect.example',
+      reason: 'unsubscribe',
+      source: 'inbound_reply',
+    })
+
+    // Checked at compose time, so the operator is told before writing rather
+    // than after — and a draft cannot smuggle past the gate later.
+    await expect(composeReply(env, { bodyText: 'x', threadId, asDraft: true })).rejects.toThrow(/suppressed/i)
   })
 })
 
