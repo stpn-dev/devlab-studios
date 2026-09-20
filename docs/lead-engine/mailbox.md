@@ -1,8 +1,9 @@
 # The devlabconnect.com mailbox
 
-**Status as of 2026-09-20.** Built, tested against the real schema, **not yet
-deployed and not yet receiving mail** — the Cloudflare and DNS steps in
-[Bringing it up](#bringing-it-up) have not been performed.
+**Status as of 2026-09-20.** Built and tested against the real schema. The R2
+buckets exist and their bindings are declared; **the Worker is not yet deployed
+and nothing receives mail yet** — Email Routing and the DNS steps in
+[Bringing it up](#bringing-it-up) are outstanding.
 
 This document covers *inbound mail and replies*. The outbound prospecting path
 is [outbound-mail-infrastructure.md](outbound-mail-infrastructure.md); how a
@@ -427,13 +428,19 @@ what happened, and the Diagnostics screen lists them.
 
 Steps 1–4 are account/DNS actions. **Nothing receives mail until they are done.**
 
-1. **Create the R2 buckets** and uncomment the two `MAILBOX_BUCKET` entries in
-   `wrangler.jsonc`:
-   ```powershell
-   npx wrangler r2 bucket create devlab-mailbox
-   npx wrangler r2 bucket create devlab-mailbox-preview
-   ```
-   Do not enable public access on either.
+1. ~~**Create the R2 buckets.**~~ **Done 2026-09-20** — `devlab-mailbox` and
+   `devlab-mailbox-preview` exist, and both `MAILBOX_BUCKET` bindings are
+   declared in `wrangler.jsonc`. Do not enable public access on either.
+
+   Note for anyone repeating this: `wrangler r2 bucket create` offers to edit
+   the config on your behalf, and its offer is wrong here in three ways. It
+   names the binding after the bucket (`devlab_mailbox`), which nothing in the
+   code reads; it puts BOTH buckets at the top level, which would give
+   production a binding to the preview bucket and leave preview with none,
+   because nothing at the top level is inherited by an environment; and it
+   offers to point local dev at the remote bucket, which would write test
+   objects into the real mailbox store. Decline all three and write the entries
+   by hand.
 2. **Apply the migration** and **deploy** (see [deployment.md](deployment.md)).
    The Email Worker must be deployed before a routing rule can point at it.
 3. **Enable Email Routing** for `devlabconnect.com` — Cloudflare dashboard →
