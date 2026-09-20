@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { adminApi } from '../../lib/adminApi'
 import { buttonClass, dangerButtonClass, formatDate, inputClass, primaryButtonClass } from '../lead-crm/format'
 import { Badge, EmptyState, Feedback } from '../lead-crm/shared'
@@ -172,9 +173,12 @@ function OutboundList({ folder, messages, onChanged }) {
               </div>
             ) : null}
 
-            <a href={`/admin/mailbox?thread=${item.threadId}`} className="mt-2 inline-block text-xs text-slate-500 underline">
+            <Link
+              to={`/admin/mailbox/inbox?thread=${item.threadId}`}
+              className="mt-2 inline-block text-xs text-slate-500 underline"
+            >
               Open the conversation
-            </a>
+            </Link>
           </li>
         )
       })}

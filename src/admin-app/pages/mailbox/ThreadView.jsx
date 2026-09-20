@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { adminApi } from '../../lib/adminApi'
 import { buttonClass, formatDate, inputClass, primaryButtonClass } from '../lead-crm/format'
 import { EmptyState, Feedback } from '../lead-crm/shared'
@@ -199,9 +200,9 @@ function ThreadView({ threadId, onChanged }) {
       {thread.leadId ? (
         <p className="text-xs text-slate-500">
           Linked to a lead —{' '}
-          <a className="font-semibold underline" href={`/admin/lead-crm/leads?lead=${thread.leadId}`}>
+          <Link className="font-semibold underline" to={`/admin/lead-crm/leads?lead=${thread.leadId}`}>
             open in Lead CRM
-          </a>
+          </Link>
           . This message also appears in the CRM&apos;s Conversations and Replies queue.
         </p>
       ) : null}
@@ -223,9 +224,9 @@ function ThreadView({ threadId, onChanged }) {
       {drafts.length > 0 ? (
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
           {drafts.length} unsent draft{drafts.length === 1 ? '' : 's'} on this thread —{' '}
-          <a className="font-semibold underline" href="/admin/mailbox/drafts">
+          <Link className="font-semibold underline" to="/admin/mailbox/drafts">
             open Drafts
-          </a>
+          </Link>
           .
         </div>
       ) : null}
@@ -268,9 +269,9 @@ function ThreadView({ threadId, onChanged }) {
                     <span className="block text-rose-600">
                       Matched by recipient address only, which any sender can assert — recorded, but nothing was
                       suppressed. If this is genuine, suppress the address on the{' '}
-                      <a className="underline" href="/admin/lead-crm/suppression">
+                      <Link className="underline" to="/admin/lead-crm/suppression">
                         Suppression screen
-                      </a>
+                      </Link>
                       .
                     </span>
                   ) : (

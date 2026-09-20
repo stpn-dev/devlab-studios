@@ -42,6 +42,14 @@ import { addSuppression } from '../repositories/suppression.js'
 import { getLead, listLeadsInStage, refreshNextAction, transitionLead } from '../repositories/leads.js'
 import { resolveSettingsSafely } from '../repositories/settings.js'
 import { exportDraft } from './draftExport.js'
+// The mailbox owns the canonical RFC 5322 builder and the VERP/Message-ID
+// vocabulary. Importing them here rather than growing a second copy is what
+// keeps outreach bounces and mailbox-reply bounces correlating through the
+// SAME three routes; a parallel implementation is how the two would silently
+// drift into only one of them working.
+import { buildOutboundMessage } from '../../mailbox/outbound/buildMessage.js'
+import { KIND_DRAFT, buildMessageId } from '../../mailbox/domain/messageId.js'
+import { verpAddressForDraft } from '../../mailbox/domain/mailboxes.js'
 import { createLogger } from './log.js'
 import { operationError } from '../repositories/helpers.js'
 
@@ -133,13 +141,41 @@ export async function collectOutbox(env, options = {}) {
         now,
       })
 
+      // A COMPLETE MESSAGE PLUS AN EXPLICIT ENVELOPE, exactly as the mailbox
+      // outbox hands over — because the transmitter cannot reconstruct either.
+      //
+      // n8n's Send Email node sets no Message-ID, no In-Reply-To/References,
+      // and derives MAIL FROM from the From: header. Handing it loose fields
+      // therefore produces outreach whose bounces carry no identifier we
+      // issued, so a DSN can only ever be matched by the recipient address it
+      // names — and an address is an assertion any sender can make, so it is
+      // not trusted to suppress. That is precisely why outreach hard bounces
+      // currently need a human. Emitting `raw` and `envelope` here is what
+      // moves outreach onto the VERP and Message-ID routes.
+      const messageId = buildMessageId({ kind: KIND_DRAFT, id: draft.id })
+      const envelopeFrom = verpAddressForDraft(draft.id)
+
       messages.push({
         draftId: draft.id,
         leadId: lead.id,
         to: exported.to,
         subject: exported.subject,
         bodyText: exported.bodyText,
+        // Retained for the existing workflow, which reads these. The `.eml`
+        // here is the DOWNLOAD form and carries `X-Unsent: 1`, which makes
+        // Outlook treat a received message as an unsent draft — so it must
+        // never be what gets transmitted. `raw` below is the send form.
         message: exported.message,
+        messageId,
+        envelope: { from: envelopeFrom, to: [exported.to] },
+        raw: buildOutboundMessage({
+          to: { email: exported.to, name: exported.toName ?? null },
+          from: exported.from,
+          subject: exported.subject,
+          bodyText: exported.bodyText,
+          messageId,
+          date: now,
+        }),
       })
     } catch (error) {
       logger.log('outbox_skipped', {

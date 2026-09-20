@@ -163,6 +163,13 @@ export async function exportDraft(env, draftId, options = {}) {
     contentType: 'message/rfc822',
     message,
     to: contact.email,
+    toName: contact.fullName ?? null,
+    // The configured sender identity, so the outbox can build a transmittable
+    // message with the same From the download asserts. Null when unconfigured,
+    // which the compliance gate already refuses to let through.
+    from: identity.senderEmail
+      ? { email: identity.senderEmail, name: identity.senderName || null }
+      : null,
     subject: draft.subject,
     bodyText: draft.bodyText,
   }

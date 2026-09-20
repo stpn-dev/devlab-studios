@@ -101,13 +101,11 @@ const NAV_GROUPS = [
     // outbound prospecting would imply otherwise.
     key: 'mailbox',
     heading: 'Mailbox',
-    items: [
-      { label: 'Inbox', to: '/admin/mailbox/inbox', icon: Mail },
-      { label: 'Drafts', to: '/admin/mailbox/drafts', icon: FileText },
-      { label: 'Outbox', to: '/admin/mailbox/outbox', icon: Inbox },
-      { label: 'Sent', to: '/admin/mailbox/sent', icon: MessageSquare },
-      { label: 'Diagnostics', to: '/admin/mailbox/diagnostics', icon: Activity },
-    ],
+    // ONE entry. The folders (Inbox, Drafts, Outbox, Sent, Archive,
+    // Diagnostics) live inside the mail client itself, where a mail client's
+    // folders belong — duplicating them in the global sidebar made the same
+    // navigation exist in two places with two different behaviours.
+    items: [{ label: 'Mailbox', to: '/admin/mailbox', icon: Mail }],
   },
 ]
 

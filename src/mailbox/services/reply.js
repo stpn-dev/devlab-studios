@@ -11,13 +11,13 @@
  */
 
 import { PRIMARY_ADDRESS } from '../config.js'
-import { verpAddress } from '../domain/mailboxes.js'
+import { MAILBOX, verpAddress } from '../domain/mailboxes.js'
 import { KIND_OUTBOUND, buildMessageId, buildReferenceChain, parseReferences } from '../domain/messageId.js'
 import { buildOutboundMessage, replySubject } from '../outbound/buildMessage.js'
 import { newId, operationError } from '../repositories/helpers.js'
 import { getMessage, listMessagesForThread } from '../repositories/messages.js'
 import { queueOutbound } from '../repositories/outbound.js'
-import { getThread } from '../repositories/threads.js'
+import { createThread, getThread } from '../repositories/threads.js'
 import { checkSuppression } from '../../lead-engine/repositories/suppression.js'
 import { normalizeEmail } from '../../lead-engine/domain/domains.js'
 import { createLogger } from '../../lead-engine/services/log.js'
@@ -115,6 +115,81 @@ export async function composeReply(env, input) {
   })
 
   return queued
+}
+
+/**
+ * Starts a NEW conversation — the Compose button.
+ *
+ * Every other path in this file answers something that already arrived, so it
+ * has a thread to attach to. Compose does not, and inventing one lazily at send
+ * time would leave the message unattached in the UI until the recipient
+ * replied. So a thread is created up front, which also means a reply from them
+ * threads onto it by the ordinary rules.
+ *
+ * SAME GATES AS A REPLY, deliberately: suppression is checked here, the VERP
+ * return path and Message-ID are generated here, and nothing is transmitted by
+ * this application. A new message is not a lesser act than a reply — if
+ * anything it is riskier, because nobody wrote to us first.
+ *
+ * @param {Env} env
+ * @param {{ toAddress: string, subject?: string|null, bodyText: string,
+ *           asDraft?: boolean, actorEmail?: string|null, correlationId?: string }} input
+ */
+export async function composeNew(env, input) {
+  const db = env.DB
+  const logger = createLogger({ correlationId: input.correlationId })
+
+  const recipient = normalizeEmail(input.toAddress)
+  if (!recipient) throw operationError('A valid recipient address is required.', 422)
+
+  const body = String(input.bodyText ?? '').trim()
+  if (!body && !input.asDraft) throw operationError('A message needs a body.', 422)
+
+  const suppression = await checkSuppression(db, recipient)
+  if (suppression.suppressed) {
+    throw operationError(
+      `That address is suppressed${suppression.entry?.reason ? ` (${suppression.entry.reason})` : ''}. ` +
+        'Remove it on the Suppression screen first if this is deliberate.',
+      409,
+    )
+  }
+
+  const subject = String(input.subject ?? '').trim()
+  const thread = await createThread(db, {
+    mailbox: MAILBOX.HELLO,
+    subject,
+    correspondent: recipient,
+  })
+
+  const outboundId = newId()
+
+  const queued = await queueOutbound(db, {
+    id: outboundId,
+    threadId: thread.id,
+    inReplyToMessageId: null,
+    mailbox: MAILBOX.HELLO,
+    toAddress: recipient,
+    toName: null,
+    subject,
+    bodyText: body,
+    messageId: buildMessageId({ kind: KIND_OUTBOUND, id: outboundId }),
+    // No In-Reply-To or References: this starts a thread rather than joining
+    // one, and inventing either would make the recipient's client file it under
+    // a conversation that does not exist.
+    inReplyTo: null,
+    references: null,
+    envelopeFrom: verpAddress(KIND_OUTBOUND, outboundId),
+    status: input.asDraft ? 'draft' : 'queued',
+    leadId: null,
+    createdBy: input.actorEmail ?? null,
+  })
+
+  logger.log(input.asDraft ? 'mailbox.compose_drafted' : 'mailbox.compose_queued', {
+    outbound_id: outboundId,
+    thread_id: thread.id,
+  })
+
+  return { outbound: queued, threadId: thread.id }
 }
 
 /**

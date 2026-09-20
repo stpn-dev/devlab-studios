@@ -4,11 +4,11 @@ import { fileURLToPath } from 'node:url'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createTestD1 } from '../../worker/repositories/testSupport/d1Sqlite.js'
 import { ingestEmail } from '../inbound/ingest.js'
-import { composeReply, renderOutbound } from './reply.js'
+import { composeNew, composeReply, renderOutbound } from './reply.js'
 import { MAILBOX } from '../domain/mailboxes.js'
 import { parseMessageId } from '../domain/messageId.js'
 import { collectQueued, getOutbound, markSent } from '../repositories/outbound.js'
-import { listThreads } from '../repositories/threads.js'
+import { getThread, listThreads } from '../repositories/threads.js'
 import { addSuppression } from '../../lead-engine/repositories/suppression.js'
 
 /**
@@ -181,6 +181,63 @@ describe('renderOutbound', () => {
     // whether a real header was injected.
     const headerBlock = rendered.raw.split('\r\n\r\n')[0]
     expect(headerBlock.split('\r\n').some((line) => /^bcc:/i.test(line))).toBe(false)
+  })
+})
+
+describe('composeNew', () => {
+  it('starts a thread and queues the message', async () => {
+    const result = await composeNew(env, {
+      toAddress: 'New Person <new@elsewhere.example>',
+      subject: 'Hello there',
+      bodyText: 'First contact.',
+      actorEmail: 'admin@devlabstudios.com',
+    })
+
+    expect(result.outbound.status).toBe('queued')
+    expect(result.outbound.toAddress).toBe('new@elsewhere.example')
+    expect(result.outbound.subject).toBe('Hello there')
+    // A NEW conversation, so no threading headers — inventing either would
+    // make the recipient's client file it under a thread that does not exist.
+    expect(result.outbound.inReplyTo).toBeNull()
+    expect(result.outbound.references).toBeNull()
+
+    // The thread exists up front, so the message is attached in the UI rather
+    // than floating until they reply.
+    const thread = await getThread(env.DB, result.threadId)
+    expect(thread.correspondent).toBe('new@elsewhere.example')
+    expect(thread.mailbox).toBe(MAILBOX.HELLO)
+  })
+
+  it('gets the same identifiers a reply does', async () => {
+    const { outbound } = await composeNew(env, { toAddress: 'x@y.example', bodyText: 'hi' })
+
+    expect(parseMessageId(outbound.messageId)).toEqual({ kind: 'o', id: outbound.id })
+    expect(outbound.envelopeFrom).toBe(`bounce+o-${outbound.id}@devlabconnect.com`)
+  })
+
+  it('can be saved as a draft instead', async () => {
+    const { outbound } = await composeNew(env, { toAddress: 'x@y.example', bodyText: '', asDraft: true })
+
+    expect(outbound.status).toBe('draft')
+    expect(await collectQueued(env.DB)).toHaveLength(0)
+  })
+
+  it('refuses a suppressed recipient and an unusable address', async () => {
+    // A new message gets the SAME gates as a reply. Arguably it needs them
+    // more: nobody wrote to us first.
+    await addSuppression(env.DB, {
+      scope: 'email',
+      value: 'blocked@elsewhere.example',
+      reason: 'unsubscribe',
+      source: 'inbound_reply',
+    })
+
+    await expect(
+      composeNew(env, { toAddress: 'blocked@elsewhere.example', bodyText: 'hi' }),
+    ).rejects.toThrow(/suppressed/i)
+
+    await expect(composeNew(env, { toAddress: 'not-an-address', bodyText: 'hi' })).rejects.toThrow(/valid recipient/i)
+    await expect(composeNew(env, { toAddress: 'x@y.example', bodyText: '  ' })).rejects.toThrow(/body/i)
   })
 })
 

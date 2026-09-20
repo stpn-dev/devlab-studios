@@ -35,6 +35,7 @@ const ADMIN_ENDPOINTS = [
   '/api/admin/mailbox/folders/drafts',
   '/api/admin/mailbox/folders/outbox',
   '/api/admin/mailbox/folders/sent',
+  '/api/admin/mailbox/folders/archived',
   '/api/admin/mailbox/threads/any-thread-id',
   '/api/admin/mailbox/messages/any-message-id/raw',
   '/api/admin/mailbox/attachments/any-attachment-id',
@@ -79,6 +80,7 @@ test.describe('mailbox admin API authorization', () => {
       ['/api/admin/mailbox/threads/any-id/reply', { bodyText: 'hello' }],
       ['/api/admin/mailbox/threads/any-id/state', { state: 'archived' }],
       ['/api/admin/mailbox/outbound/any-id/cancel', {}],
+      ['/api/admin/mailbox/compose', { toAddress: 'a@b.com', bodyText: 'x' }],
     ]
 
     for (const [path, body] of writes) {
@@ -147,10 +149,11 @@ test.describe('mailbox screens', () => {
     await login(page)
   })
 
-  test('the inbox is a section of the existing admin shell', async ({ page }) => {
+  test('the mail client sits inside the existing admin shell', async ({ page }) => {
     await page.goto('/admin/mailbox')
 
-    await expect(page.getByRole('heading', { name: 'Mailbox', level: 1 })).toBeVisible()
+    await expect(page.getByText('hello@devlabconnect.com').first()).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Mailbox folders' })).toBeVisible()
     // The shell, not a separate application: same nav, same session.
     await expect(page.getByRole('navigation', { name: 'Admin navigation' })).toBeVisible()
     await expect(page.getByRole('button', { name: /log ?out/i })).toBeVisible()
@@ -160,9 +163,77 @@ test.describe('mailbox screens', () => {
     await page.goto('/admin/mailbox')
     const rail = page.getByRole('navigation', { name: 'Mailbox folders' })
 
-    for (const folder of ['Inbox', 'Drafts', 'Outbox', 'Sent', 'Archive']) {
+    for (const folder of ['Inbox', 'Drafts', 'Outbox', 'Sent', 'Failed', 'Archive']) {
       await expect(rail.getByRole('link', { name: folder, exact: true })).toBeVisible()
     }
+    for (const machine of ['Bounces', 'DMARC reports', 'Diagnostics']) {
+      await expect(rail.getByRole('link', { name: machine, exact: true })).toBeVisible()
+    }
+  })
+
+  test('folder navigation does not reload the page', async ({ page }) => {
+    // THE FLICKER REGRESSION TEST. The admin is one `client:only` React island;
+    // a plain <a href> is a full document navigation that remounts it, which is
+    // exactly what the flicker was. A marker set on `window` survives
+    // client-side routing and does not survive a reload, so this fails if the
+    // rail ever goes back to anchors.
+    await page.goto('/admin/mailbox/inbox')
+    await page.evaluate(() => {
+      window.__mailboxNavProbe = 'alive'
+    })
+
+    const rail = page.getByRole('navigation', { name: 'Mailbox folders' })
+    await rail.getByRole('link', { name: 'Drafts', exact: true }).click()
+    await expect(page).toHaveURL(/\/admin\/mailbox\/drafts$/)
+
+    await rail.getByRole('link', { name: 'Sent', exact: true }).click()
+    await expect(page).toHaveURL(/\/admin\/mailbox\/sent$/)
+
+    expect(await page.evaluate(() => window.__mailboxNavProbe)).toBe('alive')
+  })
+
+  test('back and forward still work across folders', async ({ page }) => {
+    await page.goto('/admin/mailbox/inbox')
+    const rail = page.getByRole('navigation', { name: 'Mailbox folders' })
+
+    await rail.getByRole('link', { name: 'Outbox', exact: true }).click()
+    await expect(page).toHaveURL(/\/admin\/mailbox\/outbox$/)
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/admin\/mailbox\/inbox$/)
+
+    await page.goForward()
+    await expect(page).toHaveURL(/\/admin\/mailbox\/outbox$/)
+  })
+
+  test('a folder URL can be opened directly', async ({ page }) => {
+    await page.goto('/admin/mailbox/sent')
+    await expect(page.getByRole('navigation', { name: 'Mailbox folders' })).toBeVisible()
+    await expect(page.getByText(/Confirmed transmitted/i)).toBeVisible()
+  })
+
+  test('offers Compose', async ({ page }) => {
+    await page.goto('/admin/mailbox/inbox')
+    await page.getByRole('button', { name: 'Compose' }).click()
+
+    const dialog = page.getByRole('dialog', { name: 'New message' })
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByLabel('To')).toBeVisible()
+    await expect(dialog.getByLabel('Subject')).toBeVisible()
+    // Cc/Bcc and outbound attachments are absent on purpose: mailbox_outbound
+    // has no columns for them, so offering them would drop content silently.
+    await expect(dialog.getByText(/are not supported on the way/i)).toBeVisible()
+  })
+
+  test('is usable at phone width: the rail is a drawer, not a squeezed column', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 780 })
+    await page.goto('/admin/mailbox/inbox')
+
+    const rail = page.getByRole('navigation', { name: 'Mailbox folders' })
+    await expect(rail).toBeHidden()
+
+    await page.getByRole('button', { name: 'Folders' }).click()
+    await expect(rail).toBeVisible()
   })
 
   test('distinguishes the Outbox from Sent, rather than claiming a queued reply left', async ({ page }) => {
@@ -196,16 +267,22 @@ test.describe('mailbox screens', () => {
     await expect(page.getByText(/Original messages are not being stored|Unread/i).first()).toBeVisible()
   })
 
-  test('is reachable from the admin navigation', async ({ page }) => {
+  test('the global sidebar has ONE mailbox entry, not a duplicate folder list', async ({ page }) => {
     await page.goto('/admin')
     await openAdminNavGroup(page, 'Mailbox')
 
-    await page
-      .getByRole('navigation', { name: 'Admin navigation' })
-      .getByRole('link', { name: 'Inbox', exact: true })
-      .click()
+    const sidebar = page.getByRole('navigation', { name: 'Admin navigation' })
+    await expect(sidebar.getByRole('link', { name: 'Mailbox', exact: true })).toBeVisible()
 
-    await expect(page).toHaveURL(/\/admin\/mailbox\/inbox$/)
-    await expect(page.getByRole('heading', { name: 'Mailbox', level: 1 })).toBeVisible()
+    // The folders belong to the mail client. Duplicating them in the global
+    // sidebar put the same navigation in two places with two behaviours — the
+    // dark one routed client-side, the white one reloaded the document.
+    for (const folder of ['Inbox', 'Drafts', 'Outbox', 'Sent']) {
+      await expect(sidebar.getByRole('link', { name: folder, exact: true })).toHaveCount(0)
+    }
+
+    await sidebar.getByRole('link', { name: 'Mailbox', exact: true }).click()
+    await expect(page).toHaveURL(/\/admin\/mailbox/)
+    await expect(page.getByRole('navigation', { name: 'Mailbox folders' })).toBeVisible()
   })
 })
