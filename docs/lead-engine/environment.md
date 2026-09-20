@@ -90,9 +90,21 @@ and `wrangler.jsonc`.
 | Cron trigger | — | For background work | `0 22 * * *` production, `30 22 * * *` preview. Drives `runScheduledTick`. |
 | `LEAD_RESEARCH_QUEUE`, `LEAD_AI_REVIEW_QUEUE`, `LEAD_MAILBOX_QUEUE` | Queues | **No** | Commented out. See [queues.md](queues.md). |
 | `LEAD_*_WORKFLOW` (×5) | Workflows | **No** | Commented out. See [cloudflare-workflows.md](cloudflare-workflows.md). |
+| `MAILBOX_BUCKET` | R2 | For the mailbox | `devlab-mailbox` / `devlab-mailbox-preview`. Raw `.eml` and attachments. **Private — never the public `MEDIA_BUCKET`.** Commented out until the buckets exist; absent, mail is still stored and Diagnostics reports that originals are not. See [mailbox.md](mailbox.md). |
 
-`IMAGES`, `MEDIA_BUCKET` (R2), `PICKLEBALL_DB`, `SESSION_COORDINATOR` and
-`RATE_LIMITER` exist on the Worker but are not used by this engine.
+`IMAGES`, `MEDIA_BUCKET` (R2), `PICKLEBALL_DB` and `SESSION_COORDINATOR` exist
+on the Worker but are not used by this engine. `RATE_LIMITER` is used by the
+outbox endpoints.
+
+### The mailbox secret
+
+| Name | Kind | Required | Note |
+|---|---|---|---|
+| `MAILBOX_OUTBOX_TOKEN` | **Secret** | To send replies | At least 32 random characters. The mailbox outbox endpoints sit outside the admin session gate because an automation cannot hold a browser session, so they carry their own bearer check — which **fails closed when unset**, refusing every request with 503. Set with `wrangler versions secret put`. |
+
+There is deliberately no mailbox *inbound* credential. Cloudflare pushes each
+message to the Worker; nothing polls a provider, so there is no OAuth token and
+no API key that an email provider can revoke.
 
 ## Outreach handoff
 

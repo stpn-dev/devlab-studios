@@ -153,6 +153,16 @@ key; a botched split would have failed to parse.
 Not verifiable from outside: that OpenDKIM is signing with this selector and the
 matching private key. That shows up on the first real message.
 
+## The blocking item: no inbound mail — NOW BUILT, NOT YET LIVE
+
+> **Update, 2026-09-20.** The mailbox described below as "proposed" has been
+> built: Cloudflare Email Routing into an Email Worker in the existing Worker,
+> storing to D1 and R2, read and answered inside the Admin CMS. It is **not yet
+> deployed and not yet receiving mail** — the Cloudflare and DNS steps are
+> outstanding. See [mailbox.md](mailbox.md) for the architecture, the SPF
+> decision and the bring-up steps. The section below records why it was
+> blocking, which has not changed.
+
 ## The blocking item: no inbound mail
 
 There is no MX **and no apex address record**. Under RFC 5321 a sender with no
@@ -206,23 +216,44 @@ telemetry — which is most needed during warm-up on a fresh IP.
 
 ## Open questions
 
-| Question | Owner |
-|---|---|
-| German UWG applicability to mail sent from Germany to US recipients | legal advice |
-| Cloudflare plus-addressing and null-sender DSN behaviour | empirical test |
-| `recordBounce` is keyed on `draftId`, not recipient address | application |
-| Can n8n's `emailSend` node set the envelope sender independently of `From`? | application |
+| Question | Owner | Status |
+|---|---|---|
+| German UWG applicability to mail sent from Germany to US recipients | legal advice | **STILL OPEN.** Building the mailbox did not touch it |
+| Cloudflare plus-addressing and null-sender DSN behaviour | empirical test | Plus-addressing confirmed from current Cloudflare docs; null-sender handled and unit-tested, **still to be confirmed against a real MTA** |
+| `recordBounce` is keyed on `draftId`, not recipient address | application | **RESOLVED.** Three routes now resolve a `draftId`, so that single path stays the only one — see [mailbox.md](mailbox.md) |
+| Can n8n's `emailSend` node set the envelope sender independently of `From`? | application | **RESOLVED: no.** See below |
 
-The last two decide the shape of bounce ingestion. If the n8n node cannot set
-the envelope sender, either Postfix must do it or the endpoint needs an
-address-keyed path. Neither depends on infrastructure work.
+### The n8n envelope-sender question, answered
+
+Checked against n8n's source and its own documentation. The `emailSend` node
+**cannot** set the envelope sender, and the limitation is broader than that: it
+exposes exactly seven options, hands nodemailer a hard-coded object built only
+from those, and n8n's documentation states outright that it "does not support
+setting headers like `In-Reply-To` and `References`, which are required for
+email threading. As a result, each email is treated as a new conversation."
+`MAIL FROM` is always derived from the `From:` header.
+
+So VERP through that node is impossible, and so is threaded replying.
+
+The design was **not** bent around it. The application now builds the complete
+RFC 5322 message and hands the envelope over separately, and the transmitter's
+only job is `MAIL FROM`, `RCPT TO`, `DATA` — which a Code node using
+nodemailer's `raw` + `envelope` does. That also makes the application
+independent of which transmitter is used.
+
+**The outreach path has not been converted yet.** It still uses the `emailSend`
+node, so outreach bounces correlate by recipient address only (which works, and
+is tested). Closing that is a contained change described in
+[mailbox.md](mailbox.md#known-limitation-outreach-bounces-use-route-3-only).
 
 ## Next steps, in order
 
-1. Configure Cloudflare Email Routing; publish MX.
+1. Configure Cloudflare Email Routing; publish MX. **Decline the SPF record it
+   offers** — see [mailbox.md](mailbox.md#spf-do-not-let-the-wizard-decide).
 2. Test plus-addressing and null-sender DSN delivery deliberately.
 3. Add `rua` to DMARC now that a receiving address exists.
-4. Resolve the envelope-sender question and settle bounce ingestion.
+4. ~~Resolve the envelope-sender question and settle bounce ingestion.~~ Done —
+   see the table above and [mailbox.md](mailbox.md).
 5. Send a first real test to a controlled mailbox; verify SPF, DKIM and DMARC
    all pass at the receiver, and check mail-tester.com.
 6. Register with Google Postmaster Tools before volume rises.

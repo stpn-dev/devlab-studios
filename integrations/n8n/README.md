@@ -1,6 +1,14 @@
 # n8n integration
 
-`devlab-lead-outreach.json` — imports into n8n and sends approved drafts.
+Two workflows import into n8n:
+
+- **`devlab-lead-outreach.json`** — sends approved outreach drafts.
+- **`devlab-mailbox-outbound.json`** — sends replies written in the CMS mailbox.
+
+The first is documented immediately below; the second has its own section at
+the end.
+
+# `devlab-lead-outreach.json` — outreach sender
 
 ## What this changes, stated plainly
 
@@ -183,13 +191,117 @@ send.
 `GET` is rate limited to 10 calls a minute per IP — a misconfigured schedule
 polling every second would otherwise walk the pipeline on every call.
 
-## Replies
+## Replies — now handled by the mailbox
 
-This workflow does not read your mailbox, deliberately. Polling a personal
-mailbox from an automation is what got the previous Zoho integration's account
-blocked — though from n8n's stable IP that specific failure would not recur.
-Replies arrive in the sending account's inbox; log them against the
-conversation in the CRM.
+**Superseded as of 2026-09-20.** This workflow still does not read a mailbox,
+and it still should not: polling a personal mailbox from an automation is what
+got the previous Zoho integration's account blocked.
 
-If you want that automated later, the same pattern applies: n8n reads, and
-POSTs to the CRM. Do not put mailbox polling back into the Worker.
+Replies no longer need to be logged by hand. `hello@devlabconnect.com` now
+receives through Cloudflare Email Routing into an Email Worker, and an inbound
+message that correlates to a lead is written into the CRM's own conversation
+tables — so the Conversations screen and the Replies queue populate again. See
+[`docs/lead-engine/mailbox.md`](../../docs/lead-engine/mailbox.md).
+
+Note the shape of that: **nothing polls a mailbox.** Cloudflare pushes each
+message to the Worker as it arrives. There is no mailbox API, no OAuth token and
+no credential that an email provider can revoke.
+
+`devlab-mailbox-outbound.json` is the second workflow in this directory — it
+transmits replies a person writes in the CMS.
+
+---
+
+# `devlab-mailbox-outbound.json` — mailbox reply sender
+
+Sends replies composed at `/admin/mailbox`, as `hello@devlabconnect.com`,
+through the same private Postfix path.
+
+## It does NOT use the Send Email node, and that is the point
+
+Checked against n8n's source and documentation, the `emailSend` node cannot do
+three things a threaded reply requires:
+
+- **No custom headers.** n8n's documentation states it "does not support setting
+  headers like `In-Reply-To` and `References`, which are required for email
+  threading. As a result, each email is treated as a new conversation."
+- **No `Message-ID` control.** nodemailer generates one; we cannot pin it. That
+  matters because our own Message-ID is what a DSN echoes back, and it is how a
+  bounce finds the conversation it belongs to.
+- **No `envelope`.** `MAIL FROM` is always derived from the `From:` header, so
+  a per-message VERP return path is impossible through that node.
+
+Every one of those failures is invisible from the sending side: the send
+succeeds, and nothing reports that threading was lost or that the bounce path
+was severed.
+
+So the CRM builds the **complete RFC 5322 message** and hands the **envelope
+over separately**, and this workflow's Code node does nothing but
+`MAIL FROM`, `RCPT TO`, `DATA`:
+
+```js
+await transporter.sendMail({
+  envelope: { from: reply.envelope.from, to: reply.envelope.to },
+  raw: reply.raw,
+})
+```
+
+Both fields are required together — nodemailer does not parse the envelope out
+of a raw message.
+
+## Setup
+
+**1. Generate a token** and set it on the Worker, both environments:
+
+```powershell
+node -e "console.log(crypto.randomUUID().replace(/-/g,'') + crypto.randomUUID().replace(/-/g,''))"
+npx wrangler versions secret put MAILBOX_OUTBOX_TOKEN
+npx wrangler versions secret put MAILBOX_OUTBOX_TOKEN --env preview
+```
+
+Unset, the outbox **refuses every request** with a 503.
+
+**2. Allow the Code node to load nodemailer.** On the n8n container — or on the
+**Task Runner**, if you use one:
+
+```
+NODE_FUNCTION_ALLOW_EXTERNAL=nodemailer
+```
+
+Without it the node fails closed: nothing is sent and the reply stays queued,
+which is the right direction to fail in.
+
+**3. Create the credential** `DevLab mailbox outbox token` (Header Auth, name
+`Authorization`, value `Bearer <your token>`), import the workflow, and run it
+manually once before enabling the schedule.
+
+Optional: `DEVLAB_SMTP_HOST` / `DEVLAB_SMTP_PORT`, defaulting to
+`172.19.0.1:25` — the existing private Docker mail network. **Do not point this
+at a public address and do not widen Postfix's `mynetworks` to make it work
+from somewhere else.**
+
+## The endpoints
+
+```
+GET  /api/mailbox/outbox?limit=10
+     → { messages: [{ id, envelope: { from, to }, raw, fallback }], sent: false }
+
+POST /api/mailbox/outbox/{id}/sent
+     { providerMessageId?, sentAt? }
+     → { status: 'ok' | 'already_sent', outbound }
+
+POST /api/mailbox/outbox/{id}/failed
+     { error?, retryable? }
+     → { status: 'ok', outbound }
+```
+
+A reply is handed out **once** and marked collected in the same step. If the
+workflow dies between collecting and submitting, that reply is not sent and
+sits in the CMS for a person — rather than being mailed twice.
+
+`retryable` defaults to **false**. A reply that silently re-queued forever would
+mail the same person repeatedly the moment a fault cleared; a failed reply is
+visible in the CMS and a person decides.
+
+Confirming is what puts the reply into the thread the operator reads. Recording
+it at compose time would show a message as sent that may never have left.
