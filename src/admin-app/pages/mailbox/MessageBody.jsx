@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { buildCidMap, hasDeferredRemoteImages, resolveMessageHtml } from './resolveImages'
 
 /**
  * Renders the body of an inbound message.
@@ -23,8 +24,23 @@ import { useMemo, useState } from 'react'
  * pixel cannot report that the message was opened.
  */
 
-const FRAME_CSP =
-  "default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'"
+/**
+ * Only `img-src` ever moves.
+ *
+ * `default-src 'none'` stays put in both states, which is what keeps a CSS
+ * `url()`, an `@import`, a font and a frame dead even after the operator has
+ * agreed to load images. Relaxing the whole policy to show a picture would hand
+ * back every fetch the sanitizer spent its effort removing.
+ *
+ * `data:` is always allowed because inline images arrive that way -- the parent
+ * fetched them with the admin session, which this frame does not have.
+ *
+ * @param {boolean} loadRemote
+ */
+function frameCsp(loadRemote) {
+  const img = loadRemote ? 'data: https:' : 'data:'
+  return `default-src 'none'; style-src 'unsafe-inline'; img-src ${img}; frame-src 'none'; form-action 'none'; base-uri 'none'`
+}
 
 /** Styling for the framed document. Kept minimal — this is someone else's mail. */
 const FRAME_STYLE = `
@@ -49,7 +65,7 @@ const FRAME_STYLE = `
   pre { white-space: pre-wrap; }
 `
 
-function HtmlFrame({ html }) {
+function HtmlFrame({ html, loadRemote }) {
   const [expanded, setExpanded] = useState(false)
 
   // The whole document is assembled here rather than letting the iframe inherit
@@ -60,13 +76,13 @@ function HtmlFrame({ html }) {
     () =>
       [
         '<!doctype html><html><head><meta charset="utf-8">',
-        `<meta http-equiv="Content-Security-Policy" content="${FRAME_CSP}">`,
+        `<meta http-equiv="Content-Security-Policy" content="${frameCsp(loadRemote)}">`,
         `<style>${FRAME_STYLE}</style>`,
         '</head><body>',
         html,
         '</body></html>',
       ].join(''),
-    [html],
+    [html, loadRemote],
   )
 
   return (
@@ -92,14 +108,110 @@ function HtmlFrame({ html }) {
   )
 }
 
+/** Larger than any signature logo; a bigger part is a document, not decoration. */
+const MAX_INLINE_IMAGE_BYTES = 2 * 1024 * 1024
+
+/**
+ * Fetches this message's inline images and returns them as `data:` URLs.
+ *
+ * Done in the parent rather than in the frame because the admin session cookie
+ * is SameSite=Strict: a request issued by a `sandbox=""` iframe carries no
+ * session and comes back 401. The parent is same-site, so it can.
+ *
+ * @param {object} message
+ * @param {boolean} active whether the formatted view is actually being shown
+ */
+function useInlineImages(message, active) {
+  const [cidSrc, setCidSrc] = useState(() => new Map())
+
+  const wanted = useMemo(() => {
+    if (!active || !message.bodyHtml) return []
+    const map = buildCidMap(message.attachments)
+    if (map.size === 0) return []
+
+    // Only the parts the body actually references are fetched. A message can
+    // carry attachments that no <img> points at, and those are downloads, not
+    // decoration.
+    const referenced = new Set(
+      Array.from(String(message.bodyHtml).matchAll(/\sdata-cid="([^"]*)"/gi), (match) =>
+        match[1].trim().toLowerCase(),
+      ),
+    )
+
+    return (message.attachments ?? [])
+      .filter((attachment) => attachment.size <= MAX_INLINE_IMAGE_BYTES)
+      .map((attachment) => {
+        const cid = String(attachment.contentId ?? '')
+          .trim()
+          .replace(/^<|>$/g, '')
+          .toLowerCase()
+        return { cid, id: attachment.id }
+      })
+      .filter((entry) => entry.cid && referenced.has(entry.cid))
+  }, [active, message.bodyHtml, message.attachments])
+
+  const key = wanted.map((entry) => entry.id).join(',')
+
+  useEffect(() => {
+    if (wanted.length === 0) return undefined
+
+    let cancelled = false
+
+    async function load() {
+      const resolved = new Map()
+
+      for (const entry of wanted) {
+        try {
+          const response = await fetch(`/api/admin/mailbox/attachments/${entry.id}`, {
+            credentials: 'same-origin',
+          })
+          if (!response.ok) continue
+
+          const blob = await response.blob()
+          const dataUrl = await new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(String(reader.result ?? ''))
+            reader.onerror = () => resolve('')
+            reader.readAsDataURL(blob)
+          })
+          if (dataUrl) resolved.set(entry.cid, dataUrl)
+        } catch {
+          // An image that will not load is not an error worth showing. The
+          // sanitizer kept the alt text for exactly this case.
+        }
+      }
+
+      if (!cancelled) setCidSrc(resolved)
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  return cidSrc
+}
+
 /**
  * @param {{ message: object }} props
  */
 function MessageBody({ message }) {
   const [showHtml, setShowHtml] = useState(Boolean(message.bodyHtml))
+  // Per message, per viewing. Deliberately not remembered anywhere: a sticky
+  // "always load images" is how tracking protection quietly stops existing.
+  const [loadRemote, setLoadRemote] = useState(false)
 
   const hasHtml = Boolean(message.bodyHtml)
   const hasText = Boolean(message.bodyText)
+
+  const cidSrc = useInlineImages(message, showHtml && hasHtml)
+  const resolvedHtml = useMemo(
+    () => resolveMessageHtml(message.bodyHtml, { cidSrc, loadRemote }),
+    [message.bodyHtml, cidSrc, loadRemote],
+  )
+  const canLoadRemote = hasHtml && hasDeferredRemoteImages(message.bodyHtml)
 
   return (
     <div className="space-y-2">
@@ -123,7 +235,7 @@ function MessageBody({ message }) {
       ) : null}
 
       {showHtml && hasHtml ? (
-        <HtmlFrame html={message.bodyHtml} />
+        <HtmlFrame html={resolvedHtml} loadRemote={loadRemote} />
       ) : hasText ? (
         <pre className="whitespace-pre-wrap break-words font-sans text-sm text-slate-700">{message.bodyText}</pre>
       ) : (
@@ -133,13 +245,33 @@ function MessageBody({ message }) {
         </p>
       )}
 
-      {message.strippedRemoteContent ? (
+      {message.strippedRemoteContent && showHtml ? (
         // Said out loud, because a message missing its images otherwise reads
-        // as broken rather than as edited.
-        <p className="text-xs text-amber-700">
-          Images and other remote content were removed when this message arrived. Nothing here loads from the
-          internet, so the sender cannot tell that you opened it.
-        </p>
+        // as broken rather than as edited -- and because loading them is a
+        // decision with a consequence, which the operator should be told before
+        // making rather than after.
+        <div className="space-y-1 text-xs text-amber-700">
+          {loadRemote ? (
+            <p>
+              Remote images are loading for this message. The sender can now tell that you opened it. This resets
+              when you leave the message.
+            </p>
+          ) : (
+            <p>
+              Remote images were held back. Nothing here loads from the internet, so the sender cannot tell that you
+              opened it.
+            </p>
+          )}
+          {canLoadRemote && !loadRemote ? (
+            <button
+              type="button"
+              onClick={() => setLoadRemote(true)}
+              className="font-semibold text-amber-800 underline"
+            >
+              Load remote images for this message
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       {message.bodyTruncated ? (

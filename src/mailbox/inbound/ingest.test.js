@@ -235,9 +235,14 @@ describe('HTML mail', () => {
 
     expect(stored.bodyHtml).toContain('<b>there</b>')
     expect(stored.bodyHtml).not.toContain('script')
-    expect(stored.bodyHtml).not.toContain('tracker.example')
-    // A tracking pixel is remote content, so removing it also means the sender
-    // cannot tell the message was opened.
+
+    // The pixel's URL IS retained, parked on data-remote-src, because the
+    // operator may deliberately ask to see a message's images. What must never
+    // survive is a `src` — that is the attribute a browser acts on, and for a
+    // tracking pixel the request itself is the payload. Storing an inert URL
+    // costs nothing; emitting a live one costs the read receipt.
+    expect(stored.bodyHtml).not.toMatch(/\ssrc=/i)
+    expect(stored.bodyHtml).toContain('data-remote-src="https://tracker.example/p.gif"')
     expect(stored.strippedRemoteContent).toBe(true)
   })
 })

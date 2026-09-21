@@ -31,6 +31,7 @@
  */
 
 import { LIMITS } from '../config.js'
+import { sanitizeStyleAttribute } from './sanitizeStyle.js'
 
 /**
  * Elements that survive, with the attributes each may keep.
@@ -40,10 +41,10 @@ import { LIMITS } from '../config.js'
  * people actually send.
  */
 const ALLOWED = new Map([
-  ['p', []],
+  ['p', ['align']],
   ['br', []],
   ['hr', []],
-  ['div', []],
+  ['div', ['align']],
   ['span', []],
   ['a', ['href', 'title']],
   ['b', []],
@@ -75,14 +76,14 @@ const ALLOWED = new Map([
   ['h4', []],
   ['h5', []],
   ['h6', []],
-  ['table', []],
+  ['table', ['align', 'bgcolor', 'width', 'height']],
   ['thead', []],
   ['tbody', []],
   ['tfoot', []],
   ['caption', []],
-  ['tr', []],
-  ['td', ['colspan', 'rowspan']],
-  ['th', ['colspan', 'rowspan', 'scope']],
+  ['tr', ['align', 'valign', 'bgcolor', 'height']],
+  ['td', ['colspan', 'rowspan', 'align', 'valign', 'bgcolor', 'width', 'height']],
+  ['th', ['colspan', 'rowspan', 'scope', 'align', 'valign', 'bgcolor', 'width', 'height']],
 ])
 
 /** Emitted without a closing tag. */
@@ -116,6 +117,44 @@ const REMOTE = new Set(['img', 'video', 'audio', 'source', 'picture', 'track', '
 const DROPPED_VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'])
 
 const URL_SCHEMES = new Set(['http:', 'https:', 'mailto:'])
+
+/**
+ * Legacy presentational attributes, kept because templated mail still emits
+ * them and frequently emits NOTHING ELSE. A campaign built in Mailchimp or
+ * HubSpot lays itself out with `<table bgcolor align width>`; drop those and
+ * the message renders as a single unstyled column, which is the complaint this
+ * allowlist exists to answer.
+ *
+ * Each is re-emitted from a validated token rather than copied, so none of them
+ * can carry a value the CSS allowlist would have refused.
+ */
+const PRESENTATIONAL = new Set(['align', 'valign', 'bgcolor', 'width', 'height'])
+
+const ALIGN_VALUES = new Set(['left', 'right', 'center', 'justify'])
+const VALIGN_VALUES = new Set(['top', 'middle', 'bottom', 'baseline'])
+
+/** `#rgb`, `#rrggbb` or a bare colour keyword. Nothing that could hold a url(). */
+const COLOR_VALUE = /^(?:#[0-9a-f]{3}|#[0-9a-f]{6}|[a-z]{3,20})$/i
+
+/** A CSS length as an HTML attribute writes it: `600`, `600px`, `100%`. */
+const LENGTH_VALUE = /^\d{1,5}(?:px|%)?$/i
+
+/**
+ * @param {string} key
+ * @param {string} value
+ * @returns {string|null} the value to emit, or null to drop the attribute
+ */
+function presentationalValue(key, value) {
+  const bare = String(value ?? '').trim()
+  if (!bare) return null
+
+  if (key === 'align') return ALIGN_VALUES.has(bare.toLowerCase()) ? bare.toLowerCase() : null
+  if (key === 'valign') return VALIGN_VALUES.has(bare.toLowerCase()) ? bare.toLowerCase() : null
+  if (key === 'bgcolor') return COLOR_VALUE.test(bare) ? bare : null
+  if (key === 'width' || key === 'height') return LENGTH_VALUE.test(bare) ? bare : null
+
+  return null
+}
 
 /**
  * How deeply elements may nest before further ones are unwrapped.
@@ -368,14 +407,55 @@ export function sanitizeEmailHtml(input, options = {}) {
     const parsed = readAttributes(source, cursor)
     index = parsed.end
 
+    if (name === 'img') {
+      // NO `src` IS EVER EMITTED HERE. The element is preserved with the
+      // information needed to resolve it later, and the renderer decides
+      // whether to turn that into a real `src`:
+      //
+      //   cid:xxx        -> data-cid, resolved from R2 against this message's
+      //                     own attachments. Renders with no network request at
+      //                     all, so a logo costs the sender no read receipt.
+      //   http(s)://...  -> data-remote-src, inert until the operator asks for
+      //                     it. This is the tracking pixel, and the decision to
+      //                     fire it is theirs and per-message.
+      //
+      // Emitting the attribute rather than a second sanitized copy of the body
+      // is what keeps one row of HTML able to render both ways.
+      const attributes = new Map(parsed.attributes)
+      const src = String(attributes.get('src') ?? '').trim()
+      const alt = attributes.get('alt')
+      const rendered = ['img']
+
+      if (src.toLowerCase().startsWith('cid:')) {
+        const cid = src.slice(4).replace(/^<|>$/g, '').trim()
+        if (cid) rendered.push(`data-cid="${escapeAttribute(cid)}"`)
+      } else {
+        const url = safeUrl(src)
+        if (url && !url.toLowerCase().startsWith('mailto:')) {
+          strippedRemoteContent = true
+          rendered.push(`data-remote-src="${escapeAttribute(url)}"`)
+        }
+      }
+
+      // Alt survives regardless. A picture-led newsletter whose images are not
+      // loaded still has to say something.
+      if (alt) rendered.push(`alt="${escapeAttribute(alt)}"`)
+
+      for (const key of ['width', 'height']) {
+        const safe = presentationalValue(key, attributes.get(key))
+        if (safe) rendered.push(`${key}="${escapeAttribute(safe)}"`)
+      }
+
+      const style = sanitizeStyleAttribute(attributes.get('style'))
+      if (style) rendered.push(`style="${escapeAttribute(style)}"`)
+
+      // An <img> carrying neither a source nor alt text is nothing at all.
+      if (rendered.length > 1) emit(`<${rendered.join(' ')}>`)
+      continue
+    }
+
     if (REMOTE.has(name)) {
       strippedRemoteContent = true
-      // An image's alt text is often the only content of a picture-led
-      // newsletter. Keeping it means the message still says something.
-      if (name === 'img') {
-        const alt = parsed.attributes.find(([key]) => key === 'alt')?.[1]
-        if (alt) emit(escapeText(alt))
-      }
       if (!DROPPED_VOID.has(name) && !parsed.selfClosing) {
         index = skipSubtree(source, index, name, RAW_TEXT.has(name))
       }
@@ -399,6 +479,23 @@ export function sanitizeEmailHtml(input, options = {}) {
 
     const rendered = [name]
     for (const [key, value] of parsed.attributes) {
+      // `style` is universally allowed rather than listed per element, because
+      // every element mail styles is already in ALLOWED and repeating it 40
+      // times is 40 chances to leave one out. The VALUE is what is filtered,
+      // by sanitizeStyleAttribute, and an attribute that survives nothing is
+      // omitted rather than emitted empty.
+      if (key === 'style') {
+        const style = sanitizeStyleAttribute(value)
+        if (style) rendered.push(`style="${escapeAttribute(style)}"`)
+        continue
+      }
+
+      if (PRESENTATIONAL.has(key) && allowedAttributes.includes(key)) {
+        const safe = presentationalValue(key, value)
+        if (safe) rendered.push(`${key}="${escapeAttribute(safe)}"`)
+        continue
+      }
+
       if (!allowedAttributes.includes(key)) continue
 
       if (key === 'href') {

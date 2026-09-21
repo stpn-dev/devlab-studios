@@ -80,16 +80,52 @@ describe('sanitizeEmailHtml — script execution', () => {
 })
 
 describe('sanitizeEmailHtml — remote content', () => {
-  it('removes images and reports it', () => {
+  it('defers a remote image instead of loading it, and reports it', () => {
     const result = sanitizeEmailHtml('<p>hi</p><img src="https://tracker.example/pixel.gif" width="1">')
-    expect(result.html).toBe('<p>hi</p>')
+    // The element survives so the operator can choose to load it; the URL is
+    // parked on data-remote-src, which no browser fetches.
+    expect(result.html).toBe('<p>hi</p><img data-remote-src="https://tracker.example/pixel.gif" width="1">')
     expect(result.strippedRemoteContent).toBe(true)
+  })
+
+  it('NEVER emits a src attribute, whatever the input', () => {
+    // The single invariant this whole design rests on. A `src` reaching the
+    // rendered document is a request leaving the machine, and for a tracking
+    // pixel that request IS the payload.
+    for (const input of [
+      '<img src="https://x/y.png">',
+      '<img SRC="HTTPS://X/Y.PNG">',
+      '<img src="cid:logo123">',
+      '<img src="data:image/png;base64,AAAA">',
+      '<img src="javascript:alert(1)">',
+      '<img src="/relative.png">',
+    ]) {
+      expect(sanitizeEmailHtml(input).html).not.toMatch(/\ssrc=/i)
+    }
   })
 
   it('keeps an image alt text, so a picture-led message still says something', () => {
     const result = sanitizeEmailHtml('<img src="https://x/y.png" alt="Quarterly results">')
-    expect(result.html).toBe('Quarterly results')
+    expect(result.html).toBe('<img data-remote-src="https://x/y.png" alt="Quarterly results">')
     expect(result.strippedRemoteContent).toBe(true)
+  })
+
+  it('keeps an inline cid image without calling it remote content', () => {
+    // A cid: image is already in our own R2 bucket, so rendering it costs no
+    // network request and leaks nothing. Reporting it as stripped remote
+    // content would make the UI warn about a privacy risk that is not there.
+    const result = sanitizeEmailHtml('<img src="cid:f_mub9j9ol0" alt="Logo" width="120">')
+    expect(result.html).toBe('<img data-cid="f_mub9j9ol0" alt="Logo" width="120">')
+    expect(result.strippedRemoteContent).toBe(false)
+  })
+
+  it('tolerates the angle brackets some senders wrap a cid in', () => {
+    expect(sanitizeEmailHtml('<img src="cid:<f_abc>">').html).toBe('<img data-cid="f_abc">')
+  })
+
+  it('drops an image that carries neither a usable source nor alt text', () => {
+    expect(sanitizeEmailHtml('<img src="data:image/png;base64,AAAA">').html).toBe('')
+    expect(sanitizeEmailHtml('<img>').html).toBe('')
   })
 
   it('removes media, link and meta elements', () => {
@@ -196,5 +232,41 @@ describe('sanitizeEmailHtml — size', () => {
     const result = sanitizeEmailHtml('<p>short</p>', { maxLength: 200 })
     expect(result.truncated).toBe(false)
     expect(result.html).toBe('<p>short</p>')
+  })
+})
+
+describe('sanitizeEmailHtml - sender formatting', () => {
+  it('keeps an inline style, so a branded message still looks like itself', () => {
+    expect(clean('<p style="color:#c00;font-size:18px">Heading</p>')).toBe(
+      '<p style="color: #c00; font-size: 18px">Heading</p>',
+    )
+  })
+
+  it('drops the attribute entirely when nothing in it survives', () => {
+    // Not `style=""`. An empty attribute is noise in every later diff.
+    expect(clean('<p style="position:fixed">hi</p>')).toBe('<p>hi</p>')
+  })
+
+  it('refuses the whole attribute when a value tries to smuggle a fetch', () => {
+    // Failing closed: the legal-looking `color` beside it is not salvaged,
+    // because a message doing this is not one whose styling to trust.
+    expect(clean('<p style="color:red;background-color:url(https://t/p.gif)">hi</p>')).toBe('<p>hi</p>')
+  })
+
+  it('keeps the table attributes templated mail lays itself out with', () => {
+    expect(clean('<table align="center" bgcolor="#f5f5f5" width="600"><tr><td valign="top">x</td></tr></table>')).toBe(
+      '<table align="center" bgcolor="#f5f5f5" width="600"><tr><td valign="top">x</td></tr></table>',
+    )
+  })
+
+  it('re-emits presentational values from a validated token, never from source', () => {
+    expect(clean('<td bgcolor="url(https://t/p.gif)">x</td>')).toBe('<td>x</td>')
+    expect(clean('<td align="center;position:fixed">x</td>')).toBe('<td>x</td>')
+    expect(clean('<table width="600px">x</table>')).toBe('<table width="600px">x</table>')
+    expect(clean('<table width="expression(alert(1))">x</table>')).toBe('<table>x</table>')
+  })
+
+  it('still strips script and handlers from an element that carries style', () => {
+    expect(clean('<p style="color:red" onclick="alert(1)">hi</p>')).toBe('<p style="color: red">hi</p>')
   })
 })
