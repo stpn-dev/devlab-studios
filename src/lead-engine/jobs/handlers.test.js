@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { JOB_HANDLERS, runJob } from './handlers.js'
+import { JOB_HANDLERS, RETIRED_JOB_TYPES, runJob } from './handlers.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../../..')
@@ -17,8 +17,6 @@ function dbThatFailsAfterFlagRead(error) {
               value_json: JSON.stringify({
                 engine: true,
                 crawler: true,
-                zohoMail: true,
-                zohoMailSync: true,
               }),
             }),
           }),
@@ -86,17 +84,14 @@ describe('runJob', () => {
     expect((await runJob(env, { jobType: 'lead_research', payload: { leadId: 'x' } })).retryable).toBe(true)
   })
 
-  it('classifies a dead Zoho refresh token as permanent — it needs a human', async () => {
+  it('classifies a 401 as permanent — a credential problem needs a human', async () => {
     const env = {
       LEAD_ENGINE_ENABLED: 'true',
-      ZOHO_MAIL_ENABLED: 'true',
-      ZOHO_MAIL_SYNC_ENABLED: 'true',
-      DB: dbThatFailsAfterFlagRead(
-        Object.assign(new Error('reauthorize'), { code: 'zoho_reauthorization_required', status: 401 }),
-      ),
+      LEAD_CRAWLER_ENABLED: 'true',
+      DB: dbThatFailsAfterFlagRead(Object.assign(new Error('unauthorized'), { status: 401 })),
     }
 
-    expect((await runJob(env, { jobType: 'mailbox_sync', payload: {} })).retryable).toBe(false)
+    expect((await runJob(env, { jobType: 'lead_research', payload: { leadId: 'x' } })).retryable).toBe(false)
   })
 
   it('respects an explicit retryable:false on the error', async () => {
@@ -124,7 +119,20 @@ describe('job handler coverage', () => {
     const inSchema = new Set([...checkBlock.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]))
 
     expect(inSchema.size).toBeGreaterThan(0)
-    expect(new Set(Object.keys(JOB_HANDLERS))).toEqual(inSchema)
+    // Served OR explicitly retired. A type that is merely missing still fails
+    // here; one that was deliberately removed has to be declared as such, so
+    // "we deleted the handler" cannot pass as "we thought about it".
+    const accounted = new Set([...Object.keys(JOB_HANDLERS), ...Object.keys(RETIRED_JOB_TYPES)])
+
+    expect(accounted).toEqual(inSchema)
+  })
+
+  it('dead-letters a retired job type with a reason, not a generic "no handler"', async () => {
+    const result = await runJob({ DB: null }, { jobType: 'mailbox_sync', payload: {} })
+
+    expect(result.ok).toBe(false)
+    expect(result.retryable).toBe(false)
+    expect(result.error).toMatch(/exported for manual sending/i)
   })
 })
 

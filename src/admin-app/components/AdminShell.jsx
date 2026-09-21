@@ -95,6 +95,18 @@ const NAV_GROUPS = [
       { label: 'CRM Settings', to: '/admin/lead-crm/settings', icon: Settings },
     ],
   },
+  {
+    // The mailbox is its own group rather than an item under Lead CRM: it
+    // receives mail from anyone, not only from leads, and filing it under
+    // outbound prospecting would imply otherwise.
+    key: 'mailbox',
+    heading: 'Mailbox',
+    // ONE entry. The folders (Inbox, Drafts, Outbox, Sent, Archive,
+    // Diagnostics) live inside the mail client itself, where a mail client's
+    // folders belong — duplicating them in the global sidebar made the same
+    // navigation exist in two places with two different behaviours.
+    items: [{ label: 'Mailbox', to: '/admin/mailbox', icon: Mail }],
+  },
 ]
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'admin-sidebar-collapsed'

@@ -54,18 +54,18 @@ something a person does, not a number.
 - Then: approve, regenerate with a variant (`shorter`, `more_technical`,
   `suggest_call`, `no_cta`, `regenerate`), edit by hand, hold, or reject.
 
-Approving is what moves a lead toward Zoho. It does not send anything.
+Approving is what makes a lead exportable. It does not send anything.
 
-### 3. Create the Zoho draft → open Zoho → send by hand
+### 3. Export the draft → send it by hand
 
-On the lead detail screen, **Create Zoho Draft** saves the message into your Zoho
+On the lead detail screen, **Download .eml** hands you the message as a file your
 Drafts folder and moves the lead to `READY_TO_CONTACT`. Pressing it twice is safe
 (it returns the existing draft).
 
 **Open Zoho** opens the Drafts folder. Zoho does not document a stable
 per-message deep link, so the UI tells you which draft to look for.
 
-Then **you** read it in Zoho and press Send. That is the only way a prospect is
+Then **you** open the file, read it, and press Send. That is the only way a prospect is
 ever emailed.
 
 The lead becomes `CONTACTED` on the next mailbox sync, when the engine sees the
@@ -80,8 +80,8 @@ actually left.
 - If `needs_human_attention` is set, **there is no suggested reply**, by design:
   the model said the situation is unclear, and drafting confidently on top of that
   is the wrong response to uncertainty. Write this one yourself.
-- Otherwise read the suggested reply, edit it, and create the Zoho reply draft.
-- Send it from Zoho. The lead moves to `CONVERSATION` on the next sync.
+- Otherwise read the suggested reply, edit it, and export the reply draft.
+- Send it yourself, then log the exchange against the conversation.
 
 Replies that are opt-outs never reach this screen. They were suppressed
 deterministically at import, the lead is compliance-terminal, and no model was
@@ -151,7 +151,6 @@ already in flight.
 | `ai_neurons` | 5000 | Advisory only — see below |
 | `brave_requests` | 100 | Each Brave HTTP call |
 | `overpass_requests` | 40 | Each Overpass HTTP call |
-| `zoho_api_calls` | 500 | Each Zoho HTTP call, **including a 401 retry** — the budget is about load on Zoho, not logical operations |
 
 Plus `MONTHLY_DISCOVERY_LIMIT` = 3000, summed across the month's global daily
 rows.
@@ -206,8 +205,6 @@ what failed and the thing an operator retries.
 |---|---|---|
 | `This capability is disabled. Enable it in Lead CRM Settings; LEAD_… must also permit it.` | The UI switch or its deployment ceiling is off | Check CRM Settings first. If deployment-locked, set the Worker var and redeploy. **Do not retry first** — it will fail identically. |
 | `robots_disallowed` | The site refused us | Correct. Nothing to fix. Reject or archive the lead. |
-| `Zoho is not fully configured. Missing: …` | Secrets absent | [zoho-integration.md](zoho-integration.md) Part 1.6 |
-| `zoho_reauthorization_required` / `invalid_grant` | Refresh token revoked | Redo the auth-code flow |
 | `Workers AI call failed` | Allocation exhausted, or a transient outage | Wait for tomorrow, or check Cloudflare status |
 | `Lead not found` / `Campaign not found` | Something was deleted | Nothing to retry |
 | A network/timeout message | Transient | Retry |
@@ -240,9 +237,9 @@ becomes visible and runnable again before anything else runs.
 
 - Dashboard **Mailbox problems** card is non-zero (threshold: 2 consecutive
   failures).
-- `/admin/lead-crm/settings` shows the Zoho status.
+- `/admin/lead-crm/settings` shows the operational switches.
 - A `MAILBOX_SYNC_FAILED` activity row with the redacted error.
-- Leads stuck at `READY_TO_CONTACT` after you sent from Zoho — the engine has not
+- Leads stuck at `READY_TO_CONTACT` after you sent the message — nothing observes your mailbox, so
   seen the Sent message.
 
 ### Diagnose
@@ -253,10 +250,6 @@ found nothing" from "has not succeeded since Tuesday".
 
 | `last_error` | Cause | Fix |
 |---|---|---|
-| `Zoho is not fully configured. Missing: …` | A secret is absent | Set it |
-| `invalid_grant` / `zoho_reauthorization_required` | Token revoked — password change, app removed in the API console, or Zoho's 20-token limit evicted it | Redo [zoho-integration.md](zoho-integration.md) 1.3–1.4 and `wrangler secret put ZOHO_OAUTH_REFRESH_TOKEN` |
-| `Zoho API error: …` 4xx | Wrong account id, wrong scope, or a wrong endpoint shape | Check the account id; see the "not verified against the live API" list in [zoho-integration.md](zoho-integration.md) |
-| `Zoho request timed out.` | Transient | It retries |
 | Sync succeeds but imports nothing | The folder-name query or thread matching | Same list |
 
 ### Backoff
@@ -284,7 +277,7 @@ npx wrangler d1 execute devlab-studios-cms --remote \
   --command "UPDATE lead_sync_state SET cursor = NULL WHERE folder = 'inbox'"
 ```
 
-Safe by construction, but it costs Zoho API calls.
+Safe by construction.
 
 ## When the AI budget runs out
 
@@ -343,7 +336,7 @@ Common events: `scheduled_tick`, `discovery_source_completed`,
 `discovery_completed`, `crawl_started`, `crawl_finished`, `browser_run`,
 `research_completed`, `ai_review_completed`, `ai_review_deferred`,
 `ai_review_failed`, `outreach_draft_created`, `outreach_draft_blocked`,
-`zoho_draft_created`, `zoho_draft_failed`, `mailbox_sync_completed`,
+`outreach_draft_exported`, `outbound_send_confirmed`,
 `mailbox_sync_failed`, `opt_out_detected`, `reply_analyzed`, `job_completed`,
 `job_failed`, `job_batch_completed`, `queue_publish_failed`.
 

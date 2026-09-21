@@ -19,7 +19,7 @@ write that fails at 3am rather than in CI.
 | `AI_QUALIFIED` | AI qualified | `services/aiReview.js` on a qualifying answer |
 | `CONTACT_FOUND` | Contact found | `services/aiReview.js` when a contact exists |
 | `READY_FOR_REVIEW` | Ready for review | `services/outreach.js` after a draft is generated |
-| `READY_TO_CONTACT` | Ready to contact | `services/zohoDraft.js` after the Zoho draft is saved |
+| `READY_TO_CONTACT` | Ready to contact | `services/draftExport.js` after the draft is exported |
 | `CONTACTED` | Contacted | **Only** `services/mailboxSync.js` on seeing the message in Sent |
 | `AWAITING_REPLY` | Awaiting reply | `services/mailboxSync.js`, immediately after `CONTACTED` |
 | `REPLIED` | Replied | `services/mailboxSync.js` on an inbound message |
@@ -122,11 +122,11 @@ An unanswered reply short-circuits everything else.
 | `CONTACT_FOUND` needing compliance review | Complete the compliance review for this lead. |
 | `READY_FOR_REVIEW` | Review the opportunity and the suggested outreach draft. |
 | `READY_TO_CONTACT`, no draft | Generate an outreach draft. |
-| `READY_TO_CONTACT`, no Zoho draft | Create the Zoho draft, then send it manually from Zoho. |
-| `READY_TO_CONTACT`, Zoho draft exists | Open Zoho and send the draft manually. |
+| `READY_TO_CONTACT`, no Zoho draft | Export the draft, then send it yourself from your mail client. |
+| `READY_TO_CONTACT`, Zoho draft exists | Send it yourself, then mark the lead contacted. |
 | `CONTACTED`, `AWAITING_REPLY` | *(null)* |
 | `REPLIED` | Review the reply and the suggested response. |
-| `CONVERSATION` | Continue the conversation in Zoho. |
+| `CONVERSATION` | Continue the conversation in your own mail client. |
 | `MEETING` | Hold the meeting and record the outcome. |
 | `PROPOSAL` | Follow up on the proposal. |
 | `HOLD` | Decide whether to resume or reject this lead. |
@@ -163,13 +163,13 @@ back to its own code.
 
 ### Outreach
 `OUTREACH_DRAFT_CREATED` · `OUTREACH_DRAFT_EDITED` · `OUTREACH_DRAFT_REGENERATED` ·
-`ZOHO_DRAFT_CREATED` ("Saved to Zoho Drafts") · `ZOHO_DRAFT_FAILED` ·
-`ZOHO_DRAFT_OPENED` ("Opened in Zoho")
+`OUTREACH_DRAFT_EXPORTED` ("Draft exported for manual sending") ·
+`OUTBOUND_SEND_CONFIRMED` ("Operator confirmed the message was sent")
 
 ### Conversation
-`OUTBOUND_MESSAGE_SENT` ("Message sent manually from Zoho") · `AWAITING_REPLY` ·
+`OUTBOUND_MESSAGE_SENT` ("Message sent by hand") · `AWAITING_REPLY` ·
 `INBOUND_REPLY` · `REPLY_ANALYZED` · `REPLY_DRAFT_CREATED` ·
-`ZOHO_REPLY_DRAFT_CREATED` · `MANUAL_REPLY_SENT`
+`REPLY_DRAFT_EXPORTED` · `MANUAL_REPLY_SENT`
 
 ### Outcome
 `MEETING_BOOKED` · `PROPOSAL_SENT` · `WON` · `LOST`

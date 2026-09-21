@@ -6,11 +6,13 @@
  *
  *   1. Maintenance — reclaim stranded jobs, so work lost to a dead Worker
  *      becomes visible and runnable again before anything else runs.
- *   2. Mailbox sync — enqueued FIRST among the real work, because a reply
- *      sitting unread is the most time-sensitive thing this system handles.
- *   3. Campaign schedules — only campaigns that are BOTH active and have their
+ *   2. Campaign schedules — only campaigns that are BOTH active and have their
  *      schedule armed.
- *   4. Drain — process whatever is now queued, bounded.
+ *   3. Drain — process whatever is now queued, bounded.
+ *
+ * There is no mailbox step. Polling a personal mailbox from a Worker's
+ * rotating egress IPs is what got the provider account blocked; replies are
+ * read by a person in their own client now.
  *
  * Nothing here activates anything. A campaign that nobody armed stays idle
  * forever, and with the feature flags at their shipped defaults this function
@@ -21,36 +23,10 @@ import { resolveFlags } from '../config/flags.js'
 import { withOperationalFlags } from '../config/operationalFlags.js'
 import { dispatchJob } from './dispatch.js'
 import { listScheduledCampaigns } from '../repositories/campaigns.js'
-import { getSyncState } from '../repositories/syncState.js'
-import { readZohoConfig } from '../zoho/oauth.js'
 import { createLogger } from '../services/log.js'
 import { drainJobs } from './runner.js'
 import { utcDateKey } from '../repositories/helpers.js'
 
-/** Consecutive failures after which the mailbox is polled less often. */
-const SYNC_BACKOFF_THRESHOLD = 5
-
-/**
- * Whether a mailbox sync should be enqueued on this tick.
- *
- * Backs off after repeated failures rather than hammering a mailbox that is
- * refusing us — usually because the refresh token needs re-authorizing, which
- * no amount of retrying fixes.
- */
-async function shouldSyncMailbox(db, mailbox) {
-  const [inbox, sent] = await Promise.all([
-    getSyncState(db, { mailbox, folder: 'inbox' }),
-    getSyncState(db, { mailbox, folder: 'sent' }),
-  ])
-
-  const failures = Math.max(inbox?.consecutiveFailures ?? 0, sent?.consecutiveFailures ?? 0)
-  if (failures < SYNC_BACKOFF_THRESHOLD) return true
-
-  // Once backed off, try roughly once an hour instead of every tick.
-  const lastAttempt = [inbox?.lastSyncAt, sent?.lastSyncAt].filter(Boolean).sort().pop()
-  if (!lastAttempt) return true
-  return Date.now() - new Date(lastAttempt).getTime() > 60 * 60 * 1000
-}
 
 /**
  * One scheduled tick.
@@ -72,7 +48,7 @@ export async function runScheduledTick(env, options = {}) {
   if (!env?.DB) return { status: 'no_database' }
 
   const db = env.DB
-  const summary = { enqueued: 0, campaigns: 0, mailboxSync: false }
+  const summary = { enqueued: 0, campaigns: 0 }
 
   try {
     await dispatchJob(env, {
@@ -84,21 +60,6 @@ export async function runScheduledTick(env, options = {}) {
       dedupeKey: `maintenance:${utcDateKey()}`,
     })
 
-    if (flags.zohoMailSync) {
-      const config = readZohoConfig(env)
-      if (config.isConfigured && (await shouldSyncMailbox(db, config.userEmail))) {
-        const { created } = await dispatchJob(env, {
-          jobType: 'mailbox_sync',
-          payload: { mailbox: config.userEmail },
-          priority: 15,
-          // One outstanding sync at a time. A second would read the same window
-          // and import nothing.
-          dedupeKey: 'mailbox_sync',
-        })
-        summary.mailboxSync = created
-        if (created) summary.enqueued += 1
-      }
-    }
 
     if (flags.discovery && flags.campaignSchedules) {
       // BOTH switches, on both the flag and the campaign. Neither this

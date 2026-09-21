@@ -22,6 +22,7 @@ import LeadCrmActivityPage from './pages/lead-crm/ActivityPage'
 import LeadCrmSourcesPage from './pages/lead-crm/SourcesPage'
 import LeadCrmSuppressionPage from './pages/lead-crm/SuppressionPage'
 import LeadCrmSettingsPage from './pages/lead-crm/SettingsPage'
+import MailboxPage from './pages/mailbox/MailboxPage'
 
 function buildRouter(session, onLogout) {
   return createBrowserRouter([
@@ -52,6 +53,19 @@ function buildRouter(session, onLogout) {
         { path: 'lead-crm/sources', element: <LeadCrmSourcesPage /> },
         { path: 'lead-crm/suppression', element: <LeadCrmSuppressionPage /> },
         { path: 'lead-crm/settings', element: <LeadCrmSettingsPage /> },
+
+        // The devlabconnect.com mailbox. A section of this CMS rather than a
+        // separate application, for the same reasons the Lead CRM is: same
+        // router, same shell, same admin session, same API client. There is
+        // deliberately no separately exposed mailbox app to authenticate.
+        // Every mailbox section renders the SAME element, including
+        // diagnostics. That is what keeps the mail-client shell and its folder
+        // rail mounted across navigation: react-router only swaps the routed
+        // element, and if that element is unchanged it simply re-renders.
+        // Giving diagnostics its own element would tear the shell down and
+        // rebuild it, which is the flicker in a different costume.
+        { path: 'mailbox', element: <MailboxPage /> },
+        { path: 'mailbox/:section', element: <MailboxPage /> },
       ],
     },
   ])

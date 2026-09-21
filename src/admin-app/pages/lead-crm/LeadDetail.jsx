@@ -173,7 +173,9 @@ function DraftPanel({ draft, leadId, readiness, validationViolations = [], onCha
     )
   }
 
-  const inZoho = draft.status === 'zoho_draft_created'
+  // `exported` is mapped in the drafts repository from a legacy stored
+  // status; the mailbox integration it was named for no longer exists.
+  const isExported = Boolean(draft.exported)
 
   return (
     <div className="space-y-3">
@@ -183,8 +185,8 @@ function DraftPanel({ draft, leadId, readiness, validationViolations = [], onCha
           tones={{
             draft: 'bg-slate-100 text-slate-700',
             edited: 'bg-sky-100 text-sky-800',
+            // Legacy stored value; the badge reads from draft.status.
             zoho_draft_created: 'bg-emerald-100 text-emerald-800',
-            zoho_draft_failed: 'bg-rose-100 text-rose-800',
           }}
         />
         <span className="text-xs text-slate-400">
@@ -242,18 +244,18 @@ function DraftPanel({ draft, leadId, readiness, validationViolations = [], onCha
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs">Edit and save the draft to correct and acknowledge these issues before creating a Zoho draft.</p>
+          <p className="mt-2 text-xs">Edit and save the draft to correct and acknowledge these issues before exporting it.</p>
         </div>
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        {!isEditing && !inZoho ? (
+        {!isEditing && !isExported ? (
           <button type="button" className={buttonClass} onClick={() => setIsEditing(true)}>
             Edit draft
           </button>
         ) : null}
 
-        {!inZoho
+        {!isExported
           ? DRAFT_VARIANTS.map(([variant, label]) => (
               <button
                 key={variant}
@@ -274,39 +276,51 @@ function DraftPanel({ draft, leadId, readiness, validationViolations = [], onCha
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
+        <a
+          href={`/api/admin/lead-crm/drafts/${draft.id}/export`}
+          className={validationViolations.length > 0 ? `${buttonClass} pointer-events-none opacity-50` : primaryButtonClass}
+          // A plain link, not a fetch: the browser handles the download and the
+          // file lands where the operator expects it. The server runs the same
+          // gate chain either way.
+          download
+        >
+          {isExported ? 'Download again' : 'Download .eml'}
+        </a>
+
         <button
           type="button"
-          disabled={busy !== null || inZoho || validationViolations.length > 0}
-          className={primaryButtonClass}
+          disabled={busy !== null || validationViolations.length > 0}
+          className={buttonClass}
           onClick={() =>
-            act('zoho', async () => {
-              const result = await adminApi.post(`/api/admin/lead-crm/drafts/${draft.id}/zoho-draft`, {})
-              return result.instruction
+            act('copy', async () => {
+              const result = await adminApi.post(`/api/admin/lead-crm/drafts/${draft.id}/export`, {})
+              await navigator.clipboard.writeText(`${result.subject}\n\n${result.bodyText}`)
+              return `Copied. Nothing has been sent — paste it into a message to ${result.to} and send it yourself.`
             })
           }
         >
-          {inZoho ? 'Already in Zoho Drafts' : busy === 'zoho' ? 'Saving…' : 'Create Zoho draft'}
+          {busy === 'copy' ? 'Copying…' : 'Copy subject & body'}
         </button>
 
-        {inZoho ? (
-          <a
-            href="https://mail.zoho.com/zm/#mail/folder/Drafts"
-            target="_blank"
-            rel="noreferrer"
-            className={buttonClass}
-            onClick={() => adminApi.put(`/api/admin/lead-crm/drafts/${draft.id}/zoho-draft`, {}).catch(() => {})}
-          >
-            Open Zoho
-          </a>
-        ) : null}
+        <button
+          type="button"
+          disabled={busy !== null}
+          className={buttonClass}
+          onClick={() =>
+            act('contacted', async () => {
+              await adminApi.post(`/api/admin/lead-crm/leads/${draft.leadId}/actions`, { action: 'mark_contacted' })
+              return 'Marked contacted.'
+            })
+          }
+        >
+          {busy === 'contacted' ? '…' : 'I sent this'}
+        </button>
       </div>
 
       <p className="text-xs text-slate-500">
-        Creating a Zoho draft saves the message to your Drafts folder. It does not send it — open Zoho, read it, and
-        press Send yourself.
+        Nothing here sends. The download opens as an unsent draft in your mail client — read it, edit it if you want,
+        and press Send yourself. Then use <strong>I sent this</strong>, because nothing observes your mailbox any more.
       </p>
-
-      {draft.zohoError ? <p className="text-xs text-rose-600">Last Zoho error: {draft.zohoError}</p> : null}
     </div>
   )
 }
@@ -511,7 +525,7 @@ function LeadDetail({ leadId, onChanged }) {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-slate-700">
-                    {message.direction === 'inbound' ? message.fromAddress : 'DevLab (sent from Zoho)'}
+                    {message.direction === 'inbound' ? message.fromAddress : 'DevLab (sent by hand)'}
                   </span>
                   <span className="text-xs text-slate-400">{formatDate(message.receivedAt || message.sentAt)}</span>
                 </div>

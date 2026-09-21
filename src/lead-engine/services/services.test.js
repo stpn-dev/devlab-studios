@@ -7,16 +7,17 @@ import { createTestD1 } from '../../worker/repositories/testSupport/d1Sqlite.js'
 import { researchLead } from './research.js'
 import { reviewLeadOpportunity } from './aiReview.js'
 import { checkOutreachReadiness, generateOutreachDraft } from './outreach.js'
-import { pushDraftToZoho } from './zohoDraft.js'
+import { exportDraft } from './draftExport.js'
+import { collectOutbox, confirmSent, recordBounce } from './outbox.js'
 import { getDashboard } from './dashboard.js'
 import { importCandidates, runCampaignDiscovery } from './discovery.js'
 import { createCampaign } from '../repositories/campaigns.js'
 import { upsertCompany } from '../repositories/companies.js'
-import { getLead, upsertLead } from '../repositories/leads.js'
+import { getLead, transitionLead, upsertLead } from '../repositories/leads.js'
 import { listContacts } from '../repositories/contacts.js'
 import { getCurrentScore } from '../repositories/scores.js'
 import { listSignals } from '../repositories/research.js'
-import { addSuppression } from '../repositories/suppression.js'
+import { addSuppression, checkSuppression } from '../repositories/suppression.js'
 import { createDraft, getCurrentDraft } from '../repositories/drafts.js'
 import { setSetting } from '../repositories/settings.js'
 import { findDraftContentCheck, listActivity, recordActivity } from '../repositories/activity.js'
@@ -158,8 +159,6 @@ beforeEach(async () => {
     ai: true,
     tracking: true,
     campaignSchedules: true,
-    zohoMail: true,
-    zohoMailSync: true,
   })
 
   // The crawler's per-domain pause is a real courtesy to the sites it visits,
@@ -522,8 +521,8 @@ See https://www.devlabstudios.com/case-studies`,
   })
 })
 
-describe('pushDraftToZoho', () => {
-  async function readyToPush() {
+describe('exportDraft', () => {
+  async function readyToExport() {
     const seeded = await seedLead()
     const env = { ...FLAGS, DB: db, AI: aiStub({ opportunity_review: QUALIFIED_REVIEW, outreach_draft: GOOD_DRAFT }) }
 
@@ -539,162 +538,93 @@ describe('pushDraftToZoho', () => {
     return { ...seeded, draft: await getCurrentDraft(db, seeded.lead.id) }
   }
 
-  const ZOHO_ENV = {
-    ZOHO_MAIL_ENABLED: 'true',
-    ZOHO_ACCOUNT_ID: 'acct-1',
-    ZOHO_USER_EMAIL: 'stephen@devlabstudios.com',
-    ZOHO_OAUTH_CLIENT_ID: 'client-1',
-    ZOHO_OAUTH_CLIENT_SECRET: 'secret-1',
-    ZOHO_OAUTH_REFRESH_TOKEN: '1000.refresh',
-  }
+  it('produces a message file and does NOT mark the lead contacted', async () => {
+    const { lead, draft } = await readyToExport()
 
-  function zohoFetch(captured) {
-    return vi.fn(async (url, init) => {
-      if (String(url).includes('/oauth/v2/token')) {
-        return new Response(JSON.stringify({ access_token: '1000.a', expires_in: 3600 }), { status: 200 })
-      }
-      captured.push(JSON.parse(init.body))
-      return new Response(JSON.stringify({ data: { draftId: 'z-1', messageId: 'm-1' } }), { status: 200 })
-    })
-  }
-
-  it('saves a draft and does NOT mark the lead contacted', async () => {
-    const { lead, draft } = await readyToPush()
-    const captured = []
-
-    const result = await pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, draft.id, {
-      fetchImpl: zohoFetch(captured),
-      actorEmail: 'stephen@devlabstudios.com',
-    })
+    const result = await exportDraft({ ...FLAGS, DB: db }, draft.id, { actorEmail: 'admin@example.com' })
 
     expect(result.status).toBe('ok')
-    expect(captured[0].mode).toBe('draft')
+    expect(result.contentType).toBe('message/rfc822')
+    expect(result.message).toMatch(/^To: /m)
+    expect(result.message).toMatch(/^Subject: /m)
 
-    // The whole point: a draft in a mailbox is not a contacted prospect.
-    expect((await getLead(db, lead.id)).stage).toBe(STAGES.READY_TO_CONTACT)
-    expect((await getLead(db, lead.id)).stage).not.toBe(STAGES.CONTACTED)
+    // A file on somebody's disk is not a contacted prospect. Nothing observes
+    // the send any more, so CONTACTED is an explicit act by the person.
+    const after = await getLead(db, lead.id)
+    expect(after.stage).toBe(STAGES.READY_TO_CONTACT)
   })
 
-  it('re-checks suppression at the moment of the push, not just at render time', async () => {
-    const { draft } = await readyToPush()
-    // Added AFTER the screen would have rendered as ready.
-    await addSuppression(db, { scope: 'email', value: 'hello@acme.com', reason: 'unsubscribe' })
-
+  it('needs no credential, no provider and no network call', async () => {
+    // The whole reason the mailbox integration was removed: a Worker polling a
+    // personal mailbox from rotating egress IPs got the account blocked. An
+    // export touches nothing external, so there is nothing left to block.
+    const { draft } = await readyToExport()
     const fetchImpl = vi.fn()
-    await expect(
-      pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, draft.id, { fetchImpl }),
-    ).rejects.toThrow(/suppressed/i)
+
+    await exportDraft({ ...FLAGS, DB: db, fetchImpl }, draft.id, {})
 
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
-  it('refuses to push an AI draft that failed the deterministic content safeguards', async () => {
-    const seeded = await seedLead()
-    const env = {
-      ...FLAGS,
-      DB: db,
-      AI: aiStub({
-        opportunity_review: QUALIFIED_REVIEW,
-        outreach_draft: {
-          subject: 'Save 40% today',
-          body: 'We charge $2,000 and worked with a similar firm.\n\nStephen',
-          referenced_observations: [],
-        },
-      }),
-    }
-    await researchLead(env, seeded.lead.id, { fetchImpl: siteFetch() })
-    await reviewLeadOpportunity(env, seeded.lead.id)
-    await setSetting(db, 'business.identity', {
-      legalName: 'DevLab Studios',
-      senderName: 'Stephen',
-      senderEmail: 'stephen@devlabstudios.com',
-      postalAddress: '1 Example Street',
-      city: 'Manila',
-      region: 'NCR',
-      postalCode: '1000',
-      countryCode: 'PH',
-      website: 'https://www.devlabstudios.com',
-    })
-    await generateOutreachDraft(env, seeded.lead.id)
-    const draft = await getCurrentDraft(db, seeded.lead.id)
-    const fetchImpl = vi.fn()
+  it('addresses the message to the discovered contact', async () => {
+    const { lead, draft } = await readyToExport()
+    const contacts = await listContacts(db, lead.id)
 
-    await expect(
-      pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, draft.id, { fetchImpl }),
-    ).rejects.toThrow(/failed content safeguards/i)
-    expect(fetchImpl).not.toHaveBeenCalled()
+    const result = await exportDraft({ ...FLAGS, DB: db }, draft.id, {})
+
+    expect(result.to).toBe(contacts[0].email)
+    expect(result.message).toContain(contacts[0].email)
   })
 
-  it('leaves the draft retryable and the lead untouched when Zoho fails', async () => {
-    const { lead, draft } = await readyToPush()
+  it('carries the configured sender identity', async () => {
+    const { draft } = await readyToExport()
 
-    await expect(
-      pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, draft.id, {
-        fetchImpl: vi.fn(async (url) =>
-          String(url).includes('/oauth/v2/token')
-            ? new Response(JSON.stringify({ access_token: 'a', expires_in: 3600 }), { status: 200 })
-            : new Response(JSON.stringify({ message: 'upstream down' }), { status: 503 }),
-        ),
-      }),
-    ).rejects.toThrow()
+    const result = await exportDraft({ ...FLAGS, DB: db }, draft.id, {})
 
-    const stored = await db.prepare('SELECT status FROM lead_outreach_drafts WHERE id = ?').bind(draft.id).first()
-    expect(stored.status).toBe('zoho_draft_failed')
-    // Not contacted, and the generated text is not lost.
-    expect((await getLead(db, lead.id)).stage).toBe(STAGES.READY_FOR_REVIEW)
+    expect(result.message).toMatch(/^From: .*stephen@devlabstudios\.com/m)
   })
 
-  it('is idempotent — a second push does not create a second mailbox draft', async () => {
-    const { draft } = await readyToPush()
-    const captured = []
-    const env = { ...FLAGS, ...ZOHO_ENV, DB: db }
+  it('refuses when the recipient became suppressed after the screen rendered', async () => {
+    const { lead, draft } = await readyToExport()
+    const contacts = await listContacts(db, lead.id)
+    await addSuppression(db, { value: contacts[0].email, reason: 'manual_block', scope: 'email' })
 
-    await pushDraftToZoho(env, draft.id, { fetchImpl: zohoFetch(captured) })
-    const again = await pushDraftToZoho(env, draft.id, { fetchImpl: zohoFetch(captured) })
-
-    expect(again.status).toBe('already_created')
-    expect(captured).toHaveLength(1)
+    await expect(exportDraft({ ...FLAGS, DB: db }, draft.id, {})).rejects.toThrow(/suppressed/i)
   })
 
-  it('records the Zoho draft in the activity timeline', async () => {
-    const { lead, draft } = await readyToPush()
-    await pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, draft.id, { fetchImpl: zohoFetch([]) })
+  it('refuses a superseded draft rather than exporting stale text', async () => {
+    const { lead, draft } = await readyToExport()
+    const env = { ...FLAGS, DB: db, AI: aiStub({ opportunity_review: QUALIFIED_REVIEW, outreach_draft: GOOD_DRAFT }) }
+    await generateOutreachDraft(env, lead.id, { variant: 'shorter' })
+
+    await expect(exportDraft({ ...FLAGS, DB: db }, draft.id, {})).rejects.toThrow(/no longer current/i)
+  })
+
+  it('can be exported more than once, because a lost file is not an error', async () => {
+    const { draft } = await readyToExport()
+    const env = { ...FLAGS, DB: db }
+
+    const first = await exportDraft(env, draft.id, {})
+    const second = await exportDraft(env, draft.id, {})
+
+    expect(first.message).toBe(second.message.replace(/^Date: .*$/m, first.message.match(/^Date: .*$/m)[0]))
+    expect(second.status).toBe('ok')
+  })
+
+  it('records the export in the activity timeline', async () => {
+    const { lead, draft } = await readyToExport()
+    await exportDraft({ ...FLAGS, DB: db }, draft.id, {})
 
     const activity = await listActivity(db, { leadId: lead.id })
-    const entry = activity.find((event) => event.eventType === 'ZOHO_DRAFT_CREATED')
-    expect(entry.summary).toMatch(/Open Zoho to review and send it/i)
-  })
+    const entry = activity.find((event) => event.eventType === ACTIVITY.OUTREACH_DRAFT_EXPORTED)
 
-  it('still finds the safeguard record on a lead with a long activity history', async () => {
-    // REGRESSION. The gate used to page the lead's last 100 activity events and
-    // look for the safeguard record among them. Past that many events the record
-    // fell outside the window, the gate reported "no content-safeguard record",
-    // and its own remedy — regenerate — appended two more events and pushed the
-    // record further out of reach. The lead became permanently undraftable.
-    const { lead, draft } = await readyToPush()
-
-    for (let index = 0; index < 150; index += 1) {
-      await recordActivity(db, {
-        leadId: lead.id,
-        campaignId: lead.campaignId,
-        eventType: ACTIVITY.NOTE_ADDED,
-        summary: `Filler activity ${index}.`,
-      })
-    }
-
-    const result = await pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, draft.id, {
-      fetchImpl: zohoFetch([]),
-    })
-
-    expect(result.status).toBe('ok')
+    expect(entry).toBeTruthy()
+    expect(entry.summary).toMatch(/send/i)
   })
 
   it('refuses an AI draft whose safeguard record listed violations', async () => {
-    const { lead } = await readyToPush()
+    const { lead } = await readyToExport()
 
-    // A fresh draft id, because createDraft mints one per generation and
-    // supersedes the previous row - there is exactly one safeguard record per
-    // draft id, never a clean one and a dirty one competing.
     const dirty = await createDraft(db, {
       leadId: lead.id,
       subject: 'Guaranteed results',
@@ -710,16 +640,13 @@ describe('pushDraftToZoho', () => {
       metadata: { draftId: dirty.id, violations: [{ code: 'overclaim', description: 'Guaranteed results' }] },
     })
 
-    await expect(
-      pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, dirty.id, { fetchImpl: zohoFetch([]) }),
-    ).rejects.toThrow(/failed content safeguards/i)
+    await expect(exportDraft({ ...FLAGS, DB: db }, dirty.id, {})).rejects.toThrow(/failed content safeguards/i)
   })
 
   it('refuses an AI draft that has no safeguard record at all', async () => {
-    const { lead } = await readyToPush()
+    const { lead } = await readyToExport()
 
-    // Never checked is not the same as checked and clean. This is the case the
-    // gate exists for: a draft that reached the CRM without passing the guard.
+    // Never checked is not the same as checked and clean.
     const unchecked = await createDraft(db, {
       leadId: lead.id,
       subject: 'Hello',
@@ -727,17 +654,192 @@ describe('pushDraftToZoho', () => {
       generatedBy: 'ai',
     })
 
-    await expect(
-      pushDraftToZoho({ ...FLAGS, ...ZOHO_ENV, DB: db }, unchecked.id, { fetchImpl: zohoFetch([]) }),
-    ).rejects.toThrow(/no content-safeguard record/i)
+    await expect(exportDraft({ ...FLAGS, DB: db }, unchecked.id, {})).rejects.toThrow(/no content-safeguard record/i)
   })
 
-  it('distinguishes an absent record from a record with no violations', async () => {
-    // These mean opposite things. Collapsing them would either block every
-    // clean draft or wave through one that was never checked.
-    const absent = await findDraftContentCheck(db, 'draft-that-does-not-exist')
+  it('still finds the safeguard record on a lead with a long activity history', async () => {
+    // REGRESSION. The gate used to page the lead's last 100 activity events and
+    // look for the safeguard record among them; past that many it fell outside
+    // the window and the lead became permanently undraftable.
+    const { lead, draft } = await readyToExport()
 
-    expect(absent).toBeNull()
+    for (let index = 0; index < 150; index += 1) {
+      await recordActivity(db, {
+        leadId: lead.id,
+        campaignId: lead.campaignId,
+        eventType: ACTIVITY.NOTE_ADDED,
+        summary: `Filler activity ${index}.`,
+      })
+    }
+
+    expect((await exportDraft({ ...FLAGS, DB: db }, draft.id, {})).status).toBe('ok')
+  })
+
+  it('distinguishes an absent safeguard record from a clean one', async () => {
+    expect(await findDraftContentCheck(db, 'draft-that-does-not-exist')).toBeNull()
+  })
+})
+
+
+describe('the outbox', () => {
+  async function readyToSend() {
+    const seeded = await seedLead()
+    const env = { ...FLAGS, DB: db, AI: aiStub({ opportunity_review: QUALIFIED_REVIEW, outreach_draft: GOOD_DRAFT }) }
+
+    await researchLead(env, seeded.lead.id, { fetchImpl: siteFetch() })
+    await reviewLeadOpportunity(env, seeded.lead.id)
+    await setSetting(db, 'business.identity', {
+      legalName: 'DevLab Studios', senderName: 'Stephen', senderEmail: 'stephen@devlabstudios.com',
+      postalAddress: '1 Example Street', city: 'Manila', region: 'NCR', postalCode: '1000',
+      countryCode: 'PH', website: 'https://www.devlabstudios.com',
+    })
+    await generateOutreachDraft(env, seeded.lead.id)
+    await transitionLead(db, seeded.lead.id, STAGES.READY_TO_CONTACT, {})
+
+    return seeded
+  }
+
+  it('hands out an approved draft with its recipient and body', async () => {
+    await readyToSend()
+
+    const result = await collectOutbox({ ...FLAGS, DB: db }, {})
+
+    expect(result.messages).toHaveLength(1)
+    expect(result.messages[0].to).toMatch(/@/)
+    expect(result.messages[0].message).toMatch(/^To: /m)
+  })
+
+  it('NEVER hands the same draft out twice', async () => {
+    // Under-send rather than double-send. Mailing a stranger twice is
+    // unrecoverable; a message that goes unsent sits in the CRM for a person.
+    await readyToSend()
+    const env = { ...FLAGS, DB: db }
+
+    const first = await collectOutbox(env, {})
+    const second = await collectOutbox(env, {})
+
+    expect(first.messages).toHaveLength(1)
+    expect(second.messages).toHaveLength(0)
+  })
+
+  it('refuses to hand out a draft whose recipient became suppressed', async () => {
+    const { lead } = await readyToSend()
+    const contacts = await listContacts(db, lead.id)
+    await addSuppression(db, { value: contacts[0].email, reason: 'manual_block', scope: 'email' })
+
+    const result = await collectOutbox({ ...FLAGS, DB: db }, {})
+
+    // Skipped, not thrown: one suppressed lead must not stop the collection.
+    expect(result.messages).toHaveLength(0)
+  })
+
+  it('stops at the daily cap', async () => {
+    await readyToSend()
+    await setSetting(db, 'outreach.sending', { dailyLimit: 0 })
+
+    const result = await collectOutbox({ ...FLAGS, DB: db }, {})
+
+    expect(result.messages).toHaveLength(0)
+    expect(result.remainingToday).toBe(0)
+  })
+
+  it('counts confirmed sends against the cap, not collections', async () => {
+    // A draft collected and never transmitted consumed nothing real.
+    const { lead } = await readyToSend()
+    await setSetting(db, 'outreach.sending', { dailyLimit: 5 })
+    const env = { ...FLAGS, DB: db }
+
+    const collected = await collectOutbox(env, {})
+    expect((await collectOutbox(env, {})).sentToday).toBe(0)
+
+    await confirmSent(env, collected.messages[0].draftId, {})
+    expect((await collectOutbox(env, {})).sentToday).toBe(1)
+    expect((await getLead(db, lead.id)).stage).toBe(STAGES.CONTACTED)
+  })
+
+  it('suppresses the address on a hard bounce', async () => {
+    // Without this nothing ever learns an address is dead, and every future
+    // campaign that matched it would retry — which is how sending reputation
+    // is lost.
+    const { lead } = await readyToSend()
+    const env = { ...FLAGS, DB: db }
+    const collected = await collectOutbox(env, {})
+    const contacts = await listContacts(db, lead.id)
+
+    const result = await recordBounce(env, collected.messages[0].draftId, {
+      kind: 'hard',
+      diagnostic: '550 5.1.1 user unknown',
+    })
+
+    expect(result.suppressed).toBe(true)
+    expect((await checkSuppression(db, contacts[0].email)).suppressed).toBe(true)
+    expect((await getLead(db, lead.id)).stage).toBe(STAGES.NO_CONTACT)
+  })
+
+  it('does NOT suppress on a soft bounce', async () => {
+    // A full mailbox is not a reason to stop contacting a business forever.
+    const { lead } = await readyToSend()
+    const env = { ...FLAGS, DB: db }
+    const collected = await collectOutbox(env, {})
+    const contacts = await listContacts(db, lead.id)
+
+    const result = await recordBounce(env, collected.messages[0].draftId, { kind: 'soft' })
+
+    expect(result.suppressed).toBe(false)
+    expect((await checkSuppression(db, contacts[0].email)).suppressed).toBe(false)
+  })
+
+  it('will not hand out a draft for an address that hard bounced', async () => {
+    const { lead } = await readyToSend()
+    const env = { ...FLAGS, DB: db }
+    const collected = await collectOutbox(env, {})
+    await recordBounce(env, collected.messages[0].draftId, { kind: 'hard' })
+
+    // Regenerate so there is a fresh, unexported draft to be offered.
+    await generateOutreachDraft(
+      { ...FLAGS, DB: db, AI: aiStub({ opportunity_review: QUALIFIED_REVIEW, outreach_draft: GOOD_DRAFT }) },
+      lead.id,
+      { variant: 'shorter' },
+    )
+
+    expect((await collectOutbox(env, {})).messages).toHaveLength(0)
+  })
+
+  it('honours a raised per-collection limit, not just a raised daily one', async () => {
+    // REGRESSION. maxPerCollection was read from the constant, so raising
+    // dailyLimit to 100 still handed out only 10 per call and a once-a-day
+    // schedule silently stayed at 10 - a cap that lied about its own value.
+    await readyToSend()
+    await setSetting(db, 'outreach.sending', { dailyLimit: 100, maxPerCollection: 50 })
+
+    const result = await collectOutbox({ ...FLAGS, DB: db }, {})
+
+    // Both figures come from settings now. Before the fix `dailyLimit` read
+    // 100 while the collection was still silently bounded at the constant.
+    expect(result.dailyLimit).toBe(100)
+    expect(result.remainingToday).toBe(100)
+    expect(result.messages.length).toBe(1)
+  })
+
+  it('still bounds a collection when settings ask for more than exists', async () => {
+    await readyToSend()
+    await setSetting(db, 'outreach.sending', { dailyLimit: 100, maxPerCollection: 50 })
+
+    // Asking for 40 with one draft available yields one, not an error.
+    expect((await collectOutbox({ ...FLAGS, DB: db }, { limit: 40 })).messages).toHaveLength(1)
+  })
+
+  it('is idempotent on confirmation, so a sender retry is not a second send', async () => {
+    await readyToSend()
+    const env = { ...FLAGS, DB: db }
+    const collected = await collectOutbox(env, {})
+    const draftId = collected.messages[0].draftId
+
+    await confirmSent(env, draftId, {})
+    const again = await confirmSent(env, draftId, {})
+
+    expect(again.status).toBe('already_confirmed')
+    expect((await collectOutbox(env, {})).sentToday).toBe(1)
   })
 })
 
@@ -748,7 +850,9 @@ describe('the dashboard', () => {
     expect(dashboard.flags.engine).toBe(false)
     expect(dashboard.totals.discovered).toBe(0)
     expect(dashboard.actionable.newReplies.count).toBe(0)
-    expect(dashboard.zoho.configured).toBe(false)
+    // No mail-provider panel any more: drafts are exported as files, so
+    // there is no integration whose configuration could be reported.
+    expect(dashboard.zoho).toBeUndefined()
   })
 
   it('reports readiness against a real settings row, not just the flags', async () => {

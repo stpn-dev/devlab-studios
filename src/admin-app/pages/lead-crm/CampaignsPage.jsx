@@ -307,7 +307,7 @@ function CampaignRow({ campaign, flags, onChanged, onImported }) {
               {busy === 'import' ? 'Importing…' : 'Import candidates'}
             </button>
             <span className="text-xs text-slate-500">
-              Importing creates lead records only. It does not crawl websites, run AI, create Zoho drafts, or send email.
+              Importing creates lead records only. It does not crawl websites, run AI, prepare drafts, or send email.
             </span>
           </div>
         </form>

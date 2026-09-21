@@ -27,19 +27,6 @@ function present(value) {
   return String(value ?? '').trim().length > 0
 }
 
-/**
- * Env var names behind each capability, as an operator would type them into
- * `wrangler secret put`. `readZohoConfig` reports the same gaps under camelCase
- * property names, which is right for its callers and wrong for this one.
- */
-const ZOHO_SECRETS = Object.freeze([
-  'ZOHO_ACCOUNT_ID',
-  'ZOHO_USER_EMAIL',
-  'ZOHO_OAUTH_CLIENT_ID',
-  'ZOHO_OAUTH_CLIENT_SECRET',
-  'ZOHO_OAUTH_REFRESH_TOKEN',
-])
-
 const BROWSER_RUN_SECRETS = Object.freeze(['CLOUDFLARE_ACCOUNT_ID', 'BROWSER_RENDERING_API_TOKEN'])
 
 /**
@@ -205,24 +192,18 @@ export function resolveReadiness(env, options = {}) {
       impact: 'The US profile blocks every lead at review until this is complete. No draft can be generated.',
     },
     {
-      key: 'zoho_draft',
-      label: 'Zoho drafts',
+      key: 'outreach_export',
+      label: 'Draft export',
       importance: REQUIRED,
-      flag: FLAG_KEYS.zohoMail,
-      enabled: isFlagOn(source[FLAG_KEYS.zohoMail]),
-      configured: missingEnv(source, ZOHO_SECRETS).length === 0,
-      missing: missingEnv(source, ZOHO_SECRETS),
-      impact: 'Drafts are prepared in the CRM but cannot be placed in the mailbox. You still send them yourself.',
-    },
-    {
-      key: 'zoho_sync',
-      label: 'Zoho mailbox sync',
-      importance: OPTIONAL,
-      flag: FLAG_KEYS.zohoMailSync,
-      enabled: isFlagOn(source[FLAG_KEYS.zohoMailSync]),
-      configured: missingEnv(source, ZOHO_SECRETS).length === 0,
-      missing: missingEnv(source, ZOHO_SECRETS),
-      impact: 'Replies are not imported, so conversations must be tracked by hand.',
+      flag: null,
+      enabled: true,
+      // Needs no credential, no provider and no network call: the draft is
+      // built in the Worker and downloaded. That is the whole point of it
+      // replacing the mailbox integration, which got an account blocked for
+      // logging in from a Worker's rotating egress IPs.
+      configured: true,
+      missing: [],
+      impact: 'Approved drafts download as a file you open in your own mail client and send yourself.',
     },
     {
       key: 'tracking',

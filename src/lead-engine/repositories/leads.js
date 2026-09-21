@@ -245,7 +245,8 @@ export async function refreshNextAction(db, leadId) {
     hasContact: Number(row.contact_count) > 0,
     complianceState: row.compliance_state,
     hasDraft: Number(row.draft_count) > 0,
-    zohoDraftCreated: Number(row.zoho_count) > 0,
+    // Legacy column name; the status it counts now means "exported".
+    draftExported: Number(row.zoho_count) > 0,
     hasUnansweredReply: Number(row.unanswered_inbound) > 0,
   })
 

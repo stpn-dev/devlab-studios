@@ -201,7 +201,7 @@ post's footer is weaker evidence of "this is how to reach us", even though it is
 the same string.
 
 At most `CONTACTS.maxContactsPerLead` (5) are kept. The first becomes
-`is_primary`, and `getPrimaryContact` is what the outreach gate and the Zoho draft
+`is_primary`, and `getPrimaryContact` is what the outreach gate and the exported draft
 action read.
 
 `selectContacts()` puts site-observed addresses **before** `sourceRecordEmails`,
@@ -266,7 +266,7 @@ archive"), not a way around the rules.
 - **Bounces are not detected automatically.** `lead_suppression` has a
   `hard_bounce` reason and the pipeline has a `BOUNCED` stage, but nothing parses
   bounce messages from the Zoho inbox. A bounce is currently something the
-  operator notices in Zoho and records by hand (Suppression screen, or the lead's
+  operator notices in your mail client and records by hand (Suppression screen, or the lead's
   `do_not_contact` action). Anything claiming automatic bounce handling would be
   wrong.
 - **The MX check is per contact at discovery time.** It is not re-run on a

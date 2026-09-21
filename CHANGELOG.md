@@ -51,6 +51,41 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Added
+- **The mailbox is a three-pane mail client**: folder rail, message list and reading pane, with a header carrying the address, search and Compose. Responsive rather than shrunk — on a phone the rail becomes a drawer and the list and reading pane take turns. Compose starts a new conversation; Cc, Bcc and outbound attachments are deliberately absent because `mailbox_outbound` has no columns for them and a field that is accepted then dropped is worse than one that is not offered.
+- **Outreach now emits a complete RFC 5322 message and an explicit envelope**, the same mechanism mailbox replies use, so outreach bounces can be matched by the VERP return path and by our own `Message-ID` rather than only by the recipient address a stranger asserts. `integrations/n8n/devlab-lead-outreach.json` submits it through the private Postfix path instead of an SMTP/Gmail node.
+
+### Fixed
+- **A failed outreach draft is retained with its error, and never silently re-queued.** `recordTransmissionFailure` writes the error onto the draft while leaving its status `exported`, so `collectOutbox` will not offer it again — a transmission that reported failure may still have reached an MTA, and re-offering it would mail a stranger twice. Retrying stays a human decision.
+- **A transmission failure is no longer reported as a hard bounce.** The outreach workflow routed *any* error from its send node to `/bounced` with `kind: hard`, which suppresses the address permanently and moves the lead to `NO_CONTACT`. But those errors are almost all ours — `nodemailer` not importable, Postfix down, the CMS unreachable — and none says anything about the recipient. A missing npm module would have quietly destroyed prospects, and the more broken the infrastructure the more of them. New `POST /api/lead-engine/outbox/{draftId}/failed` records the failure under its own `OUTBOUND_SEND_FAILED` event and suppresses nothing; `/bounced` stays for real SMTP rejections and asynchronous DSNs.
+- **Only one mailbox folder is highlighted at a time.** Machine mail was reached as `/mailbox/inbox?mailbox=bounce`, and react-router's `NavLink` derives active state from the pathname alone — so Inbox matched and Bounces matched the same pathname, and both rendered selected. Bounces and DMARC now have first-class routes, and every rail entry takes its highlight from one resolver instead of deciding for itself. Old query URLs still resolve to the same section.
+- **Diagnostics stays inside the mail client** rather than replacing it, so the folder rail never unmounts and returning to the Inbox is one click.
+- **Mailbox folder navigation no longer reloads the page.** The rail used plain anchors, and the admin is a single `client:only` React island — so every folder click was a full document navigation that re-downloaded and re-hydrated the island, re-ran the session check and rebuilt the router. It now uses react-router links, so the CMS shell, the mail client and the rail stay mounted while URLs, history and back/forward keep working.
+- **The global sidebar no longer duplicates the mailbox folders.** It has one Mailbox entry; the folders belong to the mail client, where they behave consistently.
+
+### Added (continued)
+- **The mailbox reads as a mail client: Inbox, Drafts, Outbox, Sent, Failed and Archive.** Replies to leads are answered here alongside everything else, so the folders are the ones people already know. **Outbox and Sent are deliberately separate** — the thing that transmits mail is a separate system that may not have run, so a reply sits in Outbox until it confirms and only then moves to Sent; collapsing them would say a prospect had been answered when nothing had left. A draft can be edited and sent or discarded; once queued it can be neither, because editing then would change what the CMS shows without changing what went on the wire.
+- **Migration `0015_mailbox_drafts.sql`** widens `mailbox_outbound.status` to admit `draft`. Drafts are invisible to the sender by construction rather than by a filter: `collectQueued` selects `WHERE status = 'queued'`.
+- **A production mailbox for `hello@devlabconnect.com`, inside the Admin CMS.** Mail arrives through Cloudflare Email Routing into an `email()` handler in the existing Worker and is stored in D1 and a private R2 bucket; an operator reads and answers it at `/admin/mailbox`. Inbox, thread view, read/unread, archive, attachments, search, reply and a diagnostics screen. Replies go out as `hello@devlabconnect.com` through the existing n8n → private Postfix path — there is still no SMTP client in this codebase, and the Email Worker cannot originate arbitrary mail.
+- **Inbound mail is never silently discarded.** A message too large to parse, one whose MIME is malformed, or one that arrives while R2 is unavailable each produce a stored row saying so, with the original preserved where possible and listed on the diagnostics screen.
+- **Bounce and DSN ingestion, wired into the existing CRM.** A delivery report resolves to a draft by one of three routes — a VERP tag, our own `Message-ID` echoed in the report's returned headers, or the failed recipient address — and is handed to the lead engine's existing `recordBounce`. Null-sender (`MAIL FROM:<>`) reports are handled, which is what every real bounce arrives as.
+- **Migration `0014_mailbox.sql`** adds `mailbox_threads`, `mailbox_messages`, `mailbox_attachments` and `mailbox_outbound`. Additive only; nothing existing changes shape.
+- **Mailbox outbox endpoints** (`/api/mailbox/outbox`, `.../sent`, `.../failed`) for the external sender, behind a bearer token that fails closed when unconfigured, plus `integrations/n8n/devlab-mailbox-outbound.json`.
+- **Outreach outbox endpoints and an n8n sending workflow** (`/api/lead-engine/outbox`, `.../sent`, `.../bounced`). Automated sending now exists in the operator's stack; it still does not exist in this application.
+
+### Changed
+- **Approved outreach drafts are exported as `.eml` files** instead of being written into a Zoho mailbox. The mailbox integration was removed: a Worker has no stable egress IP, so its scheduled calls arrived from a different country each run and the provider read that as a compromised account.
+- **Outreach sends over our own MTA rather than an ESP free tier.** Fifteen providers were checked and every one prohibits cold outreach in its acceptable-use policy — on the consent model, not on volume.
+- **Only a bounce identifier we issued may suppress an address.** A delivery report cannot be authenticated, so a report matched solely by the recipient address it names is now recorded without suppressing. This closes an unauthenticated remote path by which any sender could permanently suppress an arbitrary prospect; it also means outreach bounces no longer auto-suppress until the outreach path emits our `Message-ID` and VERP address.
+- **`outreach.sending.maxPerCollection` is configurable**, so raising the daily limit is no longer silently capped at ten per collection call.
+
+### Fixed
+- **JSON-LD blocks larger than 20,000 characters are read** during lead research rather than truncated.
+
+### Security
+- **Inbound email HTML is sanitized by an allowlist at ingest and rendered in a sandboxed iframe** with no `allow-scripts` and no `allow-same-origin`. Every remote reference is stripped, so nothing in a rendered message causes a request — which also means a tracking pixel cannot report that a message was opened.
+- **Attachment storage keys are generated, never derived from a filename**, and downloads re-derive their content type through an allowlist rather than trusting the stored object.
+
 ## [1.10.2] - 2026-09-18
 
 ### Fixed

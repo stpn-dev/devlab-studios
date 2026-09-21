@@ -8,7 +8,7 @@ import { useResource } from './useResource'
  *
  * Read-only. Nothing on this screen edits a message, because the thread is a
  * record of what was actually said and its value comes entirely from being
- * exactly that. Replying happens in the Replies queue and, ultimately, in Zoho.
+ * exactly that. Replying happens in the Replies queue and, ultimately, in your own mail client.
  */
 
 const STATUS_TONES = {
@@ -50,14 +50,14 @@ function ConversationThread({ conversationId }) {
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-slate-700">
-                  {inbound ? message.fromAddress : 'DevLab — sent by hand from Zoho'}
+                  {inbound ? message.fromAddress : 'DevLab — sent by hand'}
                 </span>
                 <span className="text-xs text-slate-400">{formatDate(message.receivedAt || message.sentAt)}</span>
               </div>
               <p className="mt-1 text-sm font-medium text-slate-800">{message.subject}</p>
               <pre className="mt-1 whitespace-pre-wrap font-sans text-sm text-slate-700">{message.bodyText}</pre>
               {message.bodyTruncated ? (
-                <p className="mt-1 text-xs text-slate-400">Body truncated — open Zoho for the full message.</p>
+                <p className="mt-1 text-xs text-slate-400">Body truncated — open the message in your mail client to read it in full.</p>
               ) : null}
               {message.aiIntent ? (
                 <p className="mt-2 border-t border-slate-200 pt-2 text-xs text-slate-500">
@@ -106,7 +106,7 @@ function ConversationsPage() {
 
       {state === 'loading' ? <p className="text-sm text-slate-500">Loading conversations…</p> : null}
       {state === 'ready' && conversations.length === 0 ? (
-        <EmptyState title="No conversations yet." hint="One is created the first time a draft is pushed to Zoho." />
+        <EmptyState title="No conversations yet." hint="One is created the first time you export a draft for a lead." />
       ) : null}
 
       {conversations.length > 0 ? (

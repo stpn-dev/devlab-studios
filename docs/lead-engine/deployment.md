@@ -233,28 +233,27 @@ Deploy. Qualified leads are now reviewed by the model and drafts are generated.
 are specific rather than generic, and drafts you would be willing to sign. Check
 `invalid_output` rows — a cluster means the prompt needs attention.
 
-### Step 8 — Zoho
+### Step 8 — the outreach handoff
 
-Complete [zoho-integration.md](zoho-integration.md) Part 1 first, then:
+Nothing to enable, and nothing to configure. Approved drafts export as `.eml`
+files from the Review Queue and the lead detail screen.
 
-```jsonc
-"ZOHO_MAIL_ENABLED": "true"
-```
+**Verify:** export one draft and open the file. Confirm it opens as an *unsent*
+draft, is addressed to the right contact, carries the subject and body you
+approved, and that nothing was transmitted.
 
-Deploy. **Verify:** the settings screen says `Connected.`, then create one Zoho
-draft and **look at it in Zoho** — confirm it is in Drafts, correctly addressed,
-and that nothing was sent.
+There is no mail provider, by design — see
+[outreach-handoff.md](outreach-handoff.md) for why the previous Zoho
+integration was removed and what it left in the schema.
 
-### Step 9 — mailbox sync
+### Step 9 — confirming a send
 
-```jsonc
-"ZOHO_MAIL_SYNC_ENABLED": "true"
-```
+There is no mailbox synchronization, so nothing observes that you sent
+anything. After sending, press **I sent this** on the draft. That records
+`OUTBOUND_SEND_CONFIRMED` and moves the lead to `CONTACTED`.
 
-Deploy. **Verify:** send that draft by hand from Zoho, then press **Sync now**.
-The lead should move to `CONTACTED` → `AWAITING_REPLY`. Reply to yourself and
-confirm the inbound message is imported and matched. Reply `STOP` from a test
-address and confirm suppression fires.
+Replies arrive in your own inbox. Log one against its conversation to bring it
+into the CRM.
 
 ### Step 10 — optional extras
 

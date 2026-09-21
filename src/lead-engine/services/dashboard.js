@@ -27,9 +27,7 @@ import { listFailedCrawlRuns } from '../repositories/research.js'
 import { listUnansweredReplies } from '../repositories/conversations.js'
 import { resolveSettingsSafely } from '../repositories/settings.js'
 import { listSources } from '../repositories/sources.js'
-import { listSyncState } from '../repositories/syncState.js'
 import { getUsage } from '../repositories/usage.js'
-import { readZohoConfig } from '../zoho/oauth.js'
 
 /** Consecutive sync failures after which the dashboard raises it as a problem. */
 const SYNC_PROBLEM_THRESHOLD = 2
@@ -56,7 +54,6 @@ export async function getDashboard(env, options = {}) {
     replies,
     failedCrawls,
     deadJobs,
-    syncState,
     settings,
     sources,
   ] = await Promise.all([
@@ -70,7 +67,6 @@ export async function getDashboard(env, options = {}) {
     listUnansweredReplies(db, { limit: 10 }),
     listFailedCrawlRuns(db, { since: since7d, limit: 10 }),
     listJobs(db, { status: 'dead', limit: 10 }),
-    listSyncState(db),
     resolveSettingsSafely(db),
     listSources(db),
   ])
@@ -95,8 +91,6 @@ export async function getDashboard(env, options = {}) {
     cumulative[PROGRESSION_STAGES[index]] = running
   }
 
-  const zoho = readZohoConfig(env)
-  const syncProblems = syncState.filter((state) => state.consecutiveFailures >= SYNC_PROBLEM_THRESHOLD)
 
   return {
     flags: resolveFlags(env),
@@ -136,7 +130,6 @@ export async function getDashboard(env, options = {}) {
       replyDraftsReady: { count: pendingReplyDrafts },
       leadsNeedingManualAction: { count: stageOf(STAGES.NO_CONTACT), leads: needingAction },
       failedResearchJobs: { count: failedCrawls.length + (jobCounts.dead ?? 0), crawls: failedCrawls, jobs: deadJobs },
-      mailboxProblems: { count: syncProblems.length, states: syncProblems },
       suppressionEvents: {
         count:
           (activityCounts[ACTIVITY.SUPPRESSED] ?? 0) +
@@ -148,12 +141,6 @@ export async function getDashboard(env, options = {}) {
     usage: { daily: usage, ai: aiSpend },
     jobs: jobCounts,
     compliance: complianceCounts,
-    zoho: {
-      configured: zoho.isConfigured,
-      missing: zoho.missing,
-      enabled: zoho.enabled,
-      syncState,
-    },
     activity24h: activityCounts,
   }
 }

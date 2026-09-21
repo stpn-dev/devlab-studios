@@ -130,7 +130,7 @@ function SuppressionPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Suppression</h1>
         <p className="mt-1 text-sm text-slate-500">
-          A match here stops outreach entirely — at draft generation, at Zoho draft creation, and at review-queue
+          A match here stops outreach entirely — at draft generation, at draft export, and at review-queue
           admission.
         </p>
       </div>

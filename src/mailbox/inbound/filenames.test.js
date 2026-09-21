@@ -1,0 +1,102 @@
+import { describe, expect, it } from 'vitest'
+import { contentDisposition, safeContentType, sanitizeFilename } from './filenames.js'
+
+describe('sanitizeFilename', () => {
+  it('keeps an ordinary name intact', () => {
+    expect(sanitizeFilename('Quarterly Report.pdf')).toBe('Quarterly Report.pdf')
+    expect(sanitizeFilename('rapport-trimestriel.pdf')).toBe('rapport-trimestriel.pdf')
+  })
+
+  it('reduces a traversal attempt to its basename', () => {
+    expect(sanitizeFilename('../../../etc/passwd')).toBe('passwd')
+    expect(sanitizeFilename('..\\..\\Windows\\System32\\evil.dll')).toBe('evil.dll')
+    expect(sanitizeFilename('/absolute/path/file.txt')).toBe('file.txt')
+  })
+
+  it('removes characters that would split or escape a header', () => {
+    // A CR or LF here ends up in Content-Disposition and appends headers of the
+    // sender's choosing.
+    expect(sanitizeFilename('inv\r\noice.pdf')).toBe('invoice.pdf')
+    expect(sanitizeFilename('in"voice".pdf')).toBe('in_voice_.pdf')
+    expect(sanitizeFilename('a\u0000b.txt')).toBe('ab.txt')
+  })
+
+  it('removes bidirectional overrides', () => {
+    // `invoice<RLO>fdp.exe` renders as `invoiceexe.pdf` in most file managers.
+    expect(sanitizeFilename('invoice‮fdp.exe')).toBe('invoicefdp.exe')
+    expect(sanitizeFilename('a​b.txt')).toBe('ab.txt')
+  })
+
+  it('handles hidden files and trailing dots', () => {
+    expect(sanitizeFilename('.hidden')).toBe('hidden')
+    expect(sanitizeFilename('name.')).toBe('name')
+    expect(sanitizeFilename('name.txt   ')).toBe('name.txt')
+  })
+
+  it('defuses Windows reserved names', () => {
+    expect(sanitizeFilename('CON')).toBe('attachment-CON')
+    expect(sanitizeFilename('nul.txt')).toBe('attachment-nul.txt')
+    expect(sanitizeFilename('COM1.pdf')).toBe('attachment-COM1.pdf')
+    // Not reserved — only the exact stem is.
+    expect(sanitizeFilename('console.log')).toBe('console.log')
+  })
+
+  it('falls back when there is nothing left', () => {
+    expect(sanitizeFilename('')).toBe('attachment')
+    expect(sanitizeFilename(null)).toBe('attachment')
+    expect(sanitizeFilename('...')).toBe('attachment')
+    expect(sanitizeFilename('x', { fallback: 'part-3' })).toBe('x')
+    expect(sanitizeFilename('', { fallback: 'part-3' })).toBe('part-3')
+  })
+
+  it('truncates the stem, never the extension', () => {
+    const result = sanitizeFilename(`${'a'.repeat(300)}.pdf`)
+    expect(result.length).toBeLessThanOrEqual(120)
+    expect(result.endsWith('.pdf')).toBe(true)
+  })
+})
+
+describe('safeContentType', () => {
+  it('passes types we are willing to name', () => {
+    expect(safeContentType('application/pdf')).toBe('application/pdf')
+    expect(safeContentType('image/png; charset=binary')).toBe('image/png')
+    expect(safeContentType('IMAGE/PNG')).toBe('image/png')
+  })
+
+  it('downgrades anything else to octet-stream', () => {
+    // text/html is the dangerous one: served with its own type from the admin
+    // origin, an emailed HTML attachment would run script there.
+    expect(safeContentType('text/html')).toBe('application/octet-stream')
+    expect(safeContentType('image/svg+xml')).toBe('application/octet-stream')
+    expect(safeContentType('application/xhtml+xml')).toBe('application/octet-stream')
+    expect(safeContentType('')).toBe('application/octet-stream')
+    expect(safeContentType(null)).toBe('application/octet-stream')
+  })
+})
+
+describe('contentDisposition', () => {
+  it('emits both the ASCII fallback and the UTF-8 form', () => {
+    expect(contentDisposition('report.pdf')).toBe(
+      'attachment; filename="report.pdf"; filename*=UTF-8\'\'report.pdf',
+    )
+  })
+
+  it('cannot be escaped by the filename', () => {
+    // The quote must not survive into the ASCII form, or it closes the quoted
+    // string early and everything after it parses as further parameters.
+    const value = contentDisposition('a"b.pdf')
+    expect(value).toContain('filename="a_b.pdf"')
+
+    const ascii = /filename="([^"]*)"/.exec(value)
+    expect(ascii?.[1]).toBe('a_b.pdf')
+    // Exactly one quoted section: two would mean the name broke out of its own.
+    expect((value.match(/"/g) ?? []).length).toBe(2)
+  })
+
+  it('keeps a non-Latin name in the UTF-8 form', () => {
+    const value = contentDisposition('報告書.pdf')
+    expect(value).toContain("filename*=UTF-8''")
+    expect(value).toContain(encodeURIComponent('報告書.pdf'))
+    expect(value).toContain('filename="___.pdf"')
+  })
+})

@@ -31,9 +31,7 @@ import { WorkflowEntrypoint } from 'cloudflare:workers'
 import type { WorkflowEvent, WorkflowStep } from 'cloudflare:workers'
 import { runJob } from '../jobs/handlers.js'
 import { drainJobs } from '../jobs/runner.js'
-import { syncMailbox } from '../services/mailboxSync.js'
 import { processInboundReply } from '../services/replyCopilot.js'
-import { listLeadsInStage } from '../repositories/leads.js'
 import { STAGES } from '../domain/pipeline.js'
 
 /**
@@ -163,57 +161,6 @@ export class LeadResearchWorkflow extends WorkflowEntrypoint<Env, LeadResearchPa
     )
 
     return { research, review, draft }
-  }
-}
-
-/**
- * Synchronizes the Zoho mailbox and analyses whatever replies arrived.
- *
- * Sent before Inbox, which `syncMailbox` already enforces — a manual send and
- * its reply can both land between runs, and the correct sequence needs the
- * send processed first.
- */
-export class MailboxSyncWorkflow extends WorkflowEntrypoint<Env, { correlationId?: string }> {
-  async run(event: WorkflowEvent<{ correlationId?: string }>, step: WorkflowStep) {
-    const correlationId = event.payload?.correlationId
-
-    const sync = await step.do('sync-mailbox', EXTERNAL_RETRY, async () => {
-      const result = await syncMailbox(this.env, { correlationId })
-      return { sent: result.sent.status, inbox: result.inbox.status, imported: result.sent.imported + result.inbox.imported }
-    })
-
-    // Queried rather than carried from the sync result, so a sync that
-    // half-completed still gets its replies analysed.
-    const replied: Array<{ id: string }> = await step.do('find-unanalyzed-replies', async () => {
-      const leads: Array<{ id: string }> = await listLeadsInStage(this.env.DB, STAGES.REPLIED, { limit: 20 })
-      return leads.map((lead) => ({ id: lead.id }))
-    })
-
-    const analyses: string[] = []
-    for (const lead of replied) {
-      const row = await this.env.DB.prepare(
-        `SELECT id FROM lead_messages
-         WHERE lead_id = ? AND direction = 'inbound' AND ai_summary IS NULL
-         ORDER BY created_at DESC LIMIT 1`,
-      )
-        .bind(lead.id)
-        .first<{ id: string }>()
-
-      if (!row) continue
-
-      // One step per message: a model failure on one reply must not discard
-      // the analysis of the others.
-      await step.do(`analyze-reply-${row.id}`, EXTERNAL_RETRY, async () => {
-        await processInboundReply(this.env, row.id, { correlationId })
-        // The analysis itself is persisted to D1 by the service; only the count
-        // travels back through the workflow, so nothing here has to be
-        // serializable beyond a string.
-        return { messageId: row.id }
-      })
-      analyses.push(row.id)
-    }
-
-    return { sync, analyzed: analyses.length }
   }
 }
 

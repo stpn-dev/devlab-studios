@@ -10,32 +10,39 @@ not exist.
 
 Three separate, verifiable facts back that up:
 
-1. **`src/lead-engine/zoho/client.js` has no send function.** It exports
-   `createDraft`, `listMessages`, `getMessageContent`, `buildZohoUrl` and
-   `checkConnection`. There is no other function in the file that POSTs a
-   message.
-2. **`mode: 'draft'` is a literal.** Zoho's message endpoint takes a `mode`
-   parameter where `draft` saves to Drafts and `sendMail` transmits.
-   `createDraft` writes `mode: 'draft'` inline in the payload object. It is not
-   a parameter, not a default, and no caller can change it.
-3. **`assertNoSendMode(payload)` refuses.** Before the payload leaves
-   `createDraft`, it is passed through a guard that throws a non-retryable
-   `ZohoApiError` if `mode` is anything other than `draft`, or if
-   `scheduleType` / `scheduleTime` are present. It is belt-and-braces behind the
-   literal, and it turns a future mistake into an exception at the boundary
-   rather than an email to a stranger.
+1. **There is no mail provider integrated at all.** No SMTP client, no ESP, no
+   mailbox API. `src/lead-engine/mail/eml.js` builds a file; nothing in the
+   codebase opens a connection to anything that could deliver it.
+2. **The output is an inert file.** `buildEmlMessage` produces RFC 5322 text
+   served as `message/rfc822` with `Content-Disposition: attachment`. A `.eml`
+   opens as an *unsent* draft in a mail client. The guarantee is the format,
+   not a parameter — there is no `mode` to set wrongly.
+3. **No credential exists that could authorize a send.** There are no mail
+   secrets on either Worker. Even code added by mistake would have nothing to
+   authenticate with.
+
+This is stronger than what preceded it. The engine used to write drafts through
+the Zoho API, where "does not send" rested on `mode: 'draft'` being a literal
+plus a guard function — correct, but a property of *how the call was made*. It
+is now a property of there being no call.
+
+That integration was removed after it got the mailbox account blocked: a
+Cloudflare Worker has no stable egress IP, so its scheduled mailbox calls
+arrived from a different country each run and the provider read that as a
+compromised account. See [outreach-handoff.md](outreach-handoff.md).
 
 The consequences, which the rest of this documentation assumes:
 
 - `lead_outreach_drafts` has **no `sent` status and no `send_after` column**.
-  Its statuses are `draft`, `edited`, `zoho_draft_created`, `zoho_draft_failed`,
-  `discarded`, `superseded`.
-- The only thing that moves a lead to `CONTACTED` is the **Zoho Sent folder
-  sync** observing that a message to that lead's contact actually left the
-  mailbox (`services/mailboxSync.js`, `handleOutboundMessage`). The operator is
-  never asked to press "Mark Sent".
-- There is **no auto-send feature flag**, deliberately. `config/flags.js` says
-  so in its module comment: a flag would imply a switch exists.
+  Its statuses are `draft`, `edited`, `zoho_draft_created` (the legacy spelling
+  of *exported* — see [outreach-handoff.md](outreach-handoff.md)),
+  `zoho_draft_failed`, `discarded`, `superseded`.
+- The only thing that moves a lead to `CONTACTED` is **the operator saying so**,
+  via the "I sent this" action, which records `OUTBOUND_SEND_CONFIRMED`. Nothing
+  observes the mailbox, so nothing can infer it.
+- There is **no auto-send feature flag**, deliberately, and now no mail-provider
+  flag either. `config/flags.js` says so in its module comment: a flag would
+  imply a switch exists.
 
 If a send capability is ever wanted, it has to be written on purpose, and
 `assertNoSendMode` has to be deleted on purpose.
@@ -56,8 +63,8 @@ or a separate account resource.
   │  exports      Durable Objects  +  5 Workflow classes (not bound)       │
   └───────────────────────────────────────────────────────────────────────┘
         │              │                │              │            │
-     D1 (DB)       Workers AI      Zoho Mail API   Overpass    Brave (optional)
-   devlab-studios-cms   @cf/meta/...   mail.zoho.com  overpass-api.de
+     D1 (DB)       Workers AI       Overpass      Nominatim    Brave (optional)
+   devlab-studios-cms   @cf/meta/...  overpass-api.de  nominatim.osm.org
 ```
 
 What that buys: no extra deploy pipeline, no second set of secrets, no
@@ -86,8 +93,8 @@ not incidental; it is what makes the whole thing resumable.
   re-run, never a lost lead."
 
 Nothing is cached anywhere else. There is no KV, no Durable Object, and no R2
-object in the engine's path. The one piece of in-memory state is the Zoho access
-token cache in `zoho/oauth.js`, which is per-isolate, one hour long, and
+object in the engine's path. The one piece of in-memory state is the Overpass
+folder/endpoint resolution cache, which is per-isolate and
 deliberately not written to D1 (a live bearer credential in every database
 backup would be a poor trade for saving one HTTP request per isolate).
 
@@ -154,11 +161,11 @@ never block or cascade a delete in the public site's own table.
    [5]  ├── HUMAN REVIEW ......... /admin/lead-crm/review
         │     read the opportunity, edit the draft, approve
         │
-   [6]  ├── Create Zoho Draft .... services/zohoDraft.js
-        │     re-checks suppression → Zoho Drafts folder
+   [6]  ├── Export draft ........ services/draftExport.js
+        │     re-checks suppression → .eml download
         │     → READY_TO_CONTACT   (NOT contacted)
         │
-   [7]  ├── HUMAN SENDS IN ZOHO ..  outside this system entirely
+   [7]  ├── HUMAN SENDS IT ......  outside this system entirely
         │
    [8]  ├── Sent sync ............ services/mailboxSync.js
         │     observes the message in Sent
@@ -189,7 +196,7 @@ and returns *every* failure rather than the first:
 5. The country compliance profile permits review (`passed` or human-`waived`).
 6. Neither the address nor its domain is suppressed.
 
-Suppression is additionally re-checked at Zoho-draft creation time, because time
+Suppression is additionally re-checked at draft export time, because time
 passes between a screen rendering and a button being pressed.
 
 ## What Cloudflare owns

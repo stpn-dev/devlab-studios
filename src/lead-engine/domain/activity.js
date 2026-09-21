@@ -40,16 +40,25 @@ export const ACTIVITY = Object.freeze({
   OUTREACH_DRAFT_CREATED: 'OUTREACH_DRAFT_CREATED',
   OUTREACH_DRAFT_EDITED: 'OUTREACH_DRAFT_EDITED',
   OUTREACH_DRAFT_REGENERATED: 'OUTREACH_DRAFT_REGENERATED',
-  ZOHO_DRAFT_CREATED: 'ZOHO_DRAFT_CREATED',
-  ZOHO_DRAFT_FAILED: 'ZOHO_DRAFT_FAILED',
-  ZOHO_DRAFT_OPENED: 'ZOHO_DRAFT_OPENED',
+  OUTREACH_DRAFT_EXPORTED: 'OUTREACH_DRAFT_EXPORTED',
+  OUTBOUND_SEND_CONFIRMED: 'OUTBOUND_SEND_CONFIRMED',
+  /**
+   * The transmitter could not put the message on the wire AT ALL.
+   *
+   * Deliberately distinct from BOUNCED. A bounce is the recipient's mail system
+   * refusing a message that reached it; this is our own side failing before it
+   * ever left -- nodemailer missing, Postfix down, the CMS unreachable, a
+   * runtime error. Neither proves anything about the address, so this must
+   * never reach suppression.
+   */
+  OUTBOUND_SEND_FAILED: 'OUTBOUND_SEND_FAILED',
 
   OUTBOUND_MESSAGE_SENT: 'OUTBOUND_MESSAGE_SENT',
   AWAITING_REPLY: 'AWAITING_REPLY',
   INBOUND_REPLY: 'INBOUND_REPLY',
   REPLY_ANALYZED: 'REPLY_ANALYZED',
   REPLY_DRAFT_CREATED: 'REPLY_DRAFT_CREATED',
-  ZOHO_REPLY_DRAFT_CREATED: 'ZOHO_REPLY_DRAFT_CREATED',
+  REPLY_DRAFT_EXPORTED: 'REPLY_DRAFT_EXPORTED',
   MANUAL_REPLY_SENT: 'MANUAL_REPLY_SENT',
 
   MEETING_BOOKED: 'MEETING_BOOKED',
@@ -116,15 +125,15 @@ export const ACTIVITY_LABELS = Object.freeze({
   OUTREACH_DRAFT_CREATED: 'Outreach draft created',
   OUTREACH_DRAFT_EDITED: 'Outreach draft edited',
   OUTREACH_DRAFT_REGENERATED: 'Outreach draft regenerated',
-  ZOHO_DRAFT_CREATED: 'Saved to Zoho Drafts',
-  ZOHO_DRAFT_FAILED: 'Zoho draft creation failed',
-  ZOHO_DRAFT_OPENED: 'Opened in Zoho',
+  OUTREACH_DRAFT_EXPORTED: 'Draft exported for manual sending',
+  OUTBOUND_SEND_CONFIRMED: 'Operator confirmed the message was sent',
+  OUTBOUND_SEND_FAILED: 'The sender could not transmit the message',
   OUTBOUND_MESSAGE_SENT: 'Message sent manually from Zoho',
   AWAITING_REPLY: 'Awaiting reply',
   INBOUND_REPLY: 'Reply received',
   REPLY_ANALYZED: 'Reply analyzed',
   REPLY_DRAFT_CREATED: 'Reply draft created',
-  ZOHO_REPLY_DRAFT_CREATED: 'Reply saved to Zoho Drafts',
+  REPLY_DRAFT_EXPORTED: 'Reply draft exported for manual sending',
   MANUAL_REPLY_SENT: 'Reply sent manually from Zoho',
   MEETING_BOOKED: 'Meeting booked',
   PROPOSAL_SENT: 'Proposal sent',

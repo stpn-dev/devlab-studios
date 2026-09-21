@@ -47,6 +47,26 @@
     {
       "binding": "MEDIA_BUCKET",
       "bucket_name": "devlab-studios"
+    },
+    // Raw .eml originals and attachments for the mailbox. Created 2026-09-20.
+    //
+    // DELIBERATELY NOT `MEDIA_BUCKET`: that one is served publicly through
+    // R2_PUBLIC_BASE_URL (a pub-*.r2.dev origin), and other people's
+    // correspondence behind a public URL would be a data breach rather than a
+    // configuration choice. Do not enable public access on this bucket.
+    //
+    // The binding name must stay MAILBOX_BUCKET. `wrangler r2 bucket create`
+    // offers to add a snake_case binding derived from the bucket name
+    // (`devlab_mailbox`), which nothing in the code reads — it also puts BOTH
+    // buckets at the top level, which would give production a binding to the
+    // preview bucket and leave preview with none.
+    //
+    // It also offers to point local dev at the REMOTE bucket. Declined:
+    // `wrangler dev` would then write test objects into the real mailbox store,
+    // alongside other people's actual correspondence.
+    {
+      "binding": "MAILBOX_BUCKET",
+      "bucket_name": "devlab-mailbox"
     }
   ],
   // One Durable Object per Open Play session, keyed by session id, so two
@@ -184,8 +204,6 @@
     // per-campaign schedule_enabled column is a separate, independent switch -
     // both are required, by design.
     "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false",
-    "ZOHO_MAIL_ENABLED": "true",
-    "ZOHO_MAIL_SYNC_ENABLED": "true",
     "R2_PUBLIC_BASE_URL": "https://pub-401ca3448c3348158cdb3e4e9a9dcb20.r2.dev",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAEO3GbzGXQvAtOdI",
     "RESEND_FROM_EMAIL": "hello@devlabstudios.com",
@@ -230,15 +248,13 @@
         "LEAD_ENGINE_ENABLED": "true",
         "LEAD_DISCOVERY_ENABLED": "true",
         "LEAD_CRAWLER_ENABLED": "true",
-            // False for the same reason as production: no credentials exist.
+        // False for the same reason as production: no credentials exist.
         "LEAD_BROWSER_RUN_ENABLED": "false",
         "LEAD_AI_ENABLED": "true",
         "LEAD_TRACKING_ENABLED": "true",
-            // False for the same reason as production: unattended running is
+        // False for the same reason as production: unattended running is
         // the last thing to enable, after both runs have been inspected.
-        "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false",
-        "ZOHO_MAIL_ENABLED": "true",
-        "ZOHO_MAIL_SYNC_ENABLED": "true"
+        "LEAD_CAMPAIGN_SCHEDULES_ENABLED": "false"
       },
       // Also not inherited. Without it, optimizeImage() has no Images binding
       // on preview and responsive variants silently degrade there.
@@ -273,6 +289,15 @@
         {
           "binding": "MEDIA_BUCKET",
           "bucket_name": "devlab-studios-preview"
+        },
+        // Preview's own mailbox bucket. Repeated here because nothing at the
+        // top level is inherited by an environment — the same omission that
+        // once left preview silently enforcing no rate limits at all. Sharing
+        // one bucket would also mix real inbound mail with preview test mail,
+        // which is exactly what the separate preview D1 exists to prevent.
+        {
+          "binding": "MAILBOX_BUCKET",
+          "bucket_name": "devlab-mailbox-preview"
         }
       ],
       // Unlike D1/R2, a Durable Object needs no separate physical resource per

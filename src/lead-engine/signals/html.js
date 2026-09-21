@@ -12,6 +12,8 @@
  * is length-bounded by the caller.
  */
 
+import { CRAWLER } from '../config/defaults.js'
+
 /**
  * Visible text, with script/style/noscript content removed.
  *
@@ -110,12 +112,33 @@ export function inspectForms(html) {
  * A malformed block is skipped rather than failing the page — plenty of sites
  * emit JSON-LD with a trailing comma.
  *
+ * THE PER-BLOCK SIZE LIMIT IS THE CRAWLER'S OWN PAGE LIMIT, DELIBERATELY.
+ * It used to be a bare 20,000 characters, and a block larger than that did not
+ * get truncated — the lazy quantifier simply never reached `</script>`, so the
+ * regex did not match and the entire block was dropped without a word.
+ *
+ * That is not an edge case for this engine's targets. A local business with
+ * review markup blows past 20,000 characters easily: the page that exposed it
+ * was a Houston law firm whose `LocalBusiness` block carried 104 reviews and
+ * ran to 101,563 characters, holding the firm's email, telephone and postal
+ * address. The engine crawled the page, marked it used, extracted signals from
+ * it, and reported no email — because the one block that had the contact
+ * details was the one it silently skipped. A second, 113-character `WebSite`
+ * block parsed fine, so structured data appeared to be working.
+ *
+ * Tying the bound to CRAWLER.maxResponseBytes means a block the crawler was
+ * willing to fetch is always a block this is willing to read, and the two
+ * cannot drift apart. Work stays bounded because the crawler bounds the input.
+ *
  * @param {string} html
  * @returns {object[]}
  */
 export function parseJsonLd(html) {
   const blocks = []
-  const pattern = /<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]{0,20000}?)<\/script>/gi
+  const pattern = new RegExp(
+    `<script\\b[^>]*type\\s*=\\s*["']application/ld\\+json["'][^>]*>([\\s\\S]{0,${CRAWLER.maxResponseBytes}}?)</script>`,
+    'gi',
+  )
 
   let match
   let considered = 0

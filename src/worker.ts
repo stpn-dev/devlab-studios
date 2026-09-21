@@ -23,10 +23,10 @@ import { RateLimiterDO } from './worker/RateLimiterDO'
 import { runDailyDigest } from './worker/digest/runDigest.js'
 import { runScheduledTick } from './lead-engine/jobs/scheduler.js'
 import { handleQueueBatch } from './lead-engine/queues/consumer.js'
+import { handleEmail } from './mailbox/inbound/handler.js'
 import {
   CampaignDiscoveryWorkflow,
   LeadResearchWorkflow,
-  MailboxSyncWorkflow,
   MaintenanceWorkflow,
   ReplyAnalysisWorkflow,
 } from './lead-engine/workflows/index'
@@ -43,7 +43,6 @@ export { SessionCoordinatorDO, RateLimiterDO }
 export {
   CampaignDiscoveryWorkflow,
   LeadResearchWorkflow,
-  MailboxSyncWorkflow,
   ReplyAnalysisWorkflow,
   MaintenanceWorkflow,
 }
@@ -93,6 +92,23 @@ export default {
         )
       }),
     )
+  },
+
+  // Inbound mail for devlabconnect.com.
+  //
+  // Lives here rather than in a separate Worker because `ExportedHandler`
+  // accepts `email` alongside `fetch`, `scheduled` and `queue` — so the mailbox
+  // shares this Worker's D1, R2 and deployment instead of duplicating all
+  // three. Nothing routes to it until an Email Routing rule points an address
+  // at this Worker, which is an account-level setting rather than a binding;
+  // until then this handler is inert, exactly like the Workflow exports above.
+  //
+  // NOT wrapped in `waitUntil`. A scheduled job that fails should not be
+  // retried, which is why the two above are detached — but a delivery that
+  // fails SHOULD be, and awaiting is the only thing that lets the runtime know
+  // whether the message was stored. See src/mailbox/inbound/handler.js.
+  async email(message, env, ctx) {
+    await handleEmail(message, env, ctx)
   },
 
   // Cloudflare Queues consumer for the Lead Intelligence Engine.

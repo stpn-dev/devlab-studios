@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { FLAG_KEYS } from '../../src/lead-engine/config/flags.js'
 
 /**
  * Lead CRM end-to-end checks.
@@ -38,7 +39,6 @@ const LEAD_CRM_ENDPOINTS = [
   '/api/admin/lead-crm/settings',
   '/api/admin/lead-crm/feature-flags',
   '/api/admin/lead-crm/jobs',
-  '/api/admin/lead-crm/zoho/status',
 ]
 
 let cachedSessionCookie = null
@@ -227,7 +227,10 @@ test.describe('Lead CRM admin screens', () => {
     await page.goto('/admin/lead-crm/settings')
 
     await expect(page.getByRole('heading', { name: 'Operational switches' })).toBeVisible()
-    await expect(page.getByRole('switch')).toHaveCount(9)
+    // Derived, not hard-coded. A literal count went stale the moment two flags
+    // were removed with the mailbox integration, and failed here rather than
+    // where the change was made.
+    await expect(page.getByRole('switch')).toHaveCount(Object.keys(FLAG_KEYS).length)
 
     // Permitted by the deployment ceiling, and still off until someone turns it
     // on: an operable switch that has not been operated.
@@ -236,8 +239,11 @@ test.describe('Lead CRM admin screens', () => {
     await expect(engine).not.toBeChecked()
 
     await expect(page.getByText(/no automated-send switch/i)).toBeVisible()
-    // Nothing on this screen may offer to send mail.
+    // Nothing on THIS application may offer to send mail. Sending, where it
+    // happens at all, is an external automation collecting from the outbox -
+    // it has no switch here because there is nothing here to switch.
     await expect(page.getByRole('button', { name: /^send$/i })).toHaveCount(0)
+    await expect(page.getByRole('switch', { name: /send/i })).toHaveCount(0)
   })
 
   test('a switch whose deployment ceiling is shut is locked, and says so', async ({ page }) => {

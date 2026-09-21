@@ -19,6 +19,10 @@ interface Env {
   ADMIN_EMAIL?: string
   ADMIN_PASSWORD_HASH?: string
   ADMIN_SESSION_SECRET?: string
+  // Bearer token for the outbox endpoints, which sit outside the admin session
+  // gate because an automation cannot hold a browser session. SECRET — set
+  // with `wrangler secret put`. Unset, the outbox refuses every request.
+  LEAD_OUTBOX_TOKEN?: string
   ADMIN_USERS?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
@@ -49,8 +53,6 @@ interface Env {
   LEAD_AI_ENABLED?: string
   LEAD_TRACKING_ENABLED?: string
   LEAD_CAMPAIGN_SCHEDULES_ENABLED?: string
-  ZOHO_MAIL_ENABLED?: string
-  ZOHO_MAIL_SYNC_ENABLED?: string
 
   /** Optional discovery source. The engine works without it. */
   BRAVE_SEARCH_API_KEY?: string
@@ -59,20 +61,36 @@ interface Env {
   CLOUDFLARE_ACCOUNT_ID?: string
   BROWSER_RENDERING_API_TOKEN?: string
 
-  // Zoho Mail. SECRETS — set with `wrangler secret put`, never in wrangler.jsonc.
-  ZOHO_ACCOUNT_ID?: string
-  ZOHO_USER_EMAIL?: string
-  ZOHO_OAUTH_CLIENT_ID?: string
-  ZOHO_OAUTH_CLIENT_SECRET?: string
-  ZOHO_OAUTH_REFRESH_TOKEN?: string
-  ZOHO_API_BASE_URL?: string
-  ZOHO_ACCOUNTS_BASE_URL?: string
 
   // Optional Queue bindings. Absent by default — the D1 job ledger drains the
   // same work on the cron tick when they are not configured.
   LEAD_RESEARCH_QUEUE?: Queue
   LEAD_AI_REVIEW_QUEUE?: Queue
   LEAD_MAILBOX_QUEUE?: Queue
+
+  // ---------------------------------------------------------------------
+  // Mailbox (hello@devlabconnect.com)
+  // ---------------------------------------------------------------------
+  /**
+   * Private R2 bucket holding raw .eml originals and attachments.
+   *
+   * DELIBERATELY NOT `MEDIA_BUCKET`. That bucket is served publicly through
+   * R2_PUBLIC_BASE_URL (a pub-*.r2.dev origin), and putting other people's
+   * correspondence behind a public URL would be a data breach rather than a
+   * configuration choice. This bucket has no public access and is only ever
+   * read through an authenticated admin route.
+   *
+   * Optional in the type so the Worker still builds and serves before the
+   * bucket exists; ingest records `raw_unavailable` rather than losing mail if
+   * it is missing.
+   */
+  MAILBOX_BUCKET?: R2Bucket
+  /**
+   * Bearer token for the mailbox outbox endpoints, which sit outside the admin
+   * session gate because an automation cannot hold a browser session. SECRET.
+   * Unset, those endpoints refuse every request.
+   */
+  MAILBOX_OUTBOX_TOKEN?: string
 
   // Optional Workflow bindings, likewise absent by default.
   LEAD_CAMPAIGN_DISCOVERY_WORKFLOW?: Workflow

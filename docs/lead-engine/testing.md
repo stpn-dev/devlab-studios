@@ -1,5 +1,14 @@
 # Testing
 
+> **Superseded in part.** The mailbox integration this describes was removed —
+> a Worker's rotating egress IPs got the provider account blocked for suspicious
+> logins. Drafts are exported as `.eml` files and replies are read by a person
+> in their own client. See [outreach-handoff.md](outreach-handoff.md).
+>
+> What remains accurate: the schema, the matching *order*, and the reasoning
+> behind both. The columns and their names are unchanged, deliberately.
+
+
 ## The numbers
 
 **497 tests across 23 files** under `src/lead-engine/`, all passing. The whole
@@ -150,7 +159,7 @@ emails people is not a test suite.
 The consequence, stated plainly: **the tests prove the code handles the shapes we
 believe those APIs return. They do not prove those are the shapes.** See the
 "not verified against the live API" list in
-[zoho-integration.md](zoho-integration.md).
+[outreach-handoff.md](outreach-handoff.md).
 
 ### SQLite is not D1
 

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { STAGE_TONES, formatDate, humanize, relativeTime } from './format'
+import { STAGE_TONES, formatDate, humanize } from './format'
 import { Badge, DisabledNotice, EmptyState, Panel } from './shared'
 import { useResource } from './useResource'
 
@@ -156,7 +156,7 @@ function LeadCrmDashboardPage() {
   if (state === 'error') return <p className="text-sm text-rose-600">The dashboard could not be loaded.</p>
   if (!data) return null
 
-  const { totals, actionable, usage, flags, zoho, jobs, readiness } = data
+  const { totals, actionable, usage, flags, jobs, readiness } = data
   const maxFunnel = Math.max(1, ...FUNNEL_ROWS.map(([, key]) => totals[key] || 0))
 
   return (
@@ -164,7 +164,7 @@ function LeadCrmDashboardPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Lead CRM</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Discovery through to Won. Every outbound email is written here and sent by hand from Zoho — this system has no
+          Discovery through to Won. Every outbound email is written here and sent by hand from your own mail client — this system has no
           send capability.
         </p>
       </div>
@@ -193,7 +193,7 @@ function LeadCrmDashboardPage() {
           <ActionCard
             title="Ready to contact"
             count={actionable.readyToContact.count}
-            hint="Approved. Create the Zoho draft, then send it yourself."
+            hint="Approved. Export the draft, then send it yourself."
             to="/admin/lead-crm/leads?stage=READY_TO_CONTACT"
             tone="border-amber-300"
           />
@@ -224,26 +224,6 @@ function LeadCrmDashboardPage() {
             hint="Crawls and background jobs that gave up."
             to="/admin/lead-crm/activity?view=jobs"
             tone="border-rose-300"
-          />
-          <ActionCard
-            title="Mailbox problems"
-            count={actionable.mailboxProblems.count}
-            hint="Zoho synchronization has been failing."
-            to="/admin/lead-crm/settings"
-            tone="border-rose-300"
-          >
-            {actionable.mailboxProblems.states.map((sync) => (
-              <p key={`${sync.folder}`} className="mt-2 text-xs text-rose-700">
-                {humanize(sync.folder)}: {sync.lastError || 'unknown error'}
-              </p>
-            ))}
-          </ActionCard>
-          <ActionCard
-            title="Suppression events"
-            count={actionable.suppressionEvents.count}
-            hint="Opt-outs and do-not-contact requests in the last 24 hours."
-            to="/admin/lead-crm/suppression"
-            tone="border-slate-300"
           />
         </div>
       </section>
@@ -302,23 +282,6 @@ function LeadCrmDashboardPage() {
             </div>
           </Panel>
 
-          <Panel title="Zoho">
-            {zoho.configured ? (
-              <div className="space-y-2 text-xs text-slate-600">
-                <p>Configured. Sync {zoho.enabled ? 'enabled' : 'disabled'}.</p>
-                {zoho.syncState.map((sync) => (
-                  <p key={sync.folder}>
-                    {humanize(sync.folder)}: last success {relativeTime(sync.lastSuccessAt)}
-                    {sync.consecutiveFailures > 0 ? ` — ${sync.consecutiveFailures} consecutive failures` : ''}
-                  </p>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500">
-                Not configured. Missing: {zoho.missing.join(', ') || 'unknown'}.
-              </p>
-            )}
-          </Panel>
         </div>
       </div>
 
@@ -337,7 +300,7 @@ function LeadCrmDashboardPage() {
           </ul>
         </Panel>
       ) : (
-        <EmptyState title="No replies waiting." hint="Replies appear here once Zoho synchronization imports them." />
+        <EmptyState title="No replies waiting." hint="Replies are recorded when you log them against a conversation." />
       )}
     </div>
   )

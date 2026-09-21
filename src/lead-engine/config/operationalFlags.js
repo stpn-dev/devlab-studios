@@ -84,7 +84,6 @@ export async function getOperationalFlagState(env) {
     if (key === 'engine') continue
     effective[key] = effective.engine && deployment[key] && requested[key]
   }
-  effective.zohoMailSync = effective.zohoMail && effective.zohoMailSync
 
   return { available: true, persisted, deployment, requested, effective }
 }

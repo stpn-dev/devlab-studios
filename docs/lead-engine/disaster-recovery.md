@@ -1,5 +1,14 @@
 # Disaster recovery
 
+> **Superseded in part.** The mailbox integration this describes was removed —
+> a Worker's rotating egress IPs got the provider account blocked for suspicious
+> logins. Drafts are exported as `.eml` files and replies are read by a person
+> in their own client. See [outreach-handoff.md](outreach-handoff.md).
+>
+> What remains accurate: the schema, the matching *order*, and the reasoning
+> behind both. The columns and their names are unchanged, deliberately.
+
+
 ## The claim this document exists to make
 
 **No critical workflow in this system exists only in an external dashboard.**
@@ -247,7 +256,7 @@ Every threshold, weight, prompt and budget comes from code defaults.
 | Secret | How to get it again |
 |---|---|
 | `ZOHO_OAUTH_CLIENT_ID` / `_SECRET` | <https://api-console.zoho.com/> — the client still exists; the secret is re-readable there |
-| `ZOHO_OAUTH_REFRESH_TOKEN` | **Redo the authorization-code flow.** [zoho-integration.md](zoho-integration.md) 1.3–1.4. 10 minutes. |
+| `ZOHO_OAUTH_REFRESH_TOKEN` | **Redo the authorization-code flow.** [outreach-handoff.md](outreach-handoff.md) 1.3–1.4. 10 minutes. |
 | `ZOHO_ACCOUNT_ID` / `ZOHO_USER_EMAIL` | `GET https://mail.zoho.com/api/accounts` |
 | `BRAVE_SEARCH_API_KEY` | Brave dashboard, or regenerate |
 | `BROWSER_RENDERING_API_TOKEN` | Cloudflare → API Tokens, or create a new one |

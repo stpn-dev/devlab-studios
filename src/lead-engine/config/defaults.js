@@ -323,6 +323,29 @@ export const BUSINESS_IDENTITY_FIELDS = Object.freeze({
  * The effective defaults as a flat key/value map, which is the shape
  * `lead_settings` overrides and the Settings screen edits.
  */
+/**
+ * Outbound sending, for the external sender that collects from the outbox.
+ *
+ * NOTHING IN THIS CODEBASE SENDS. These bound what an external automation is
+ * allowed to collect — see services/outbox.js.
+ *
+ * The daily limit is deliberately below the 30-50 per inbox per day that cold
+ * email guidance treats as steady state, because a domain with no sending
+ * history has to be warmed first: roughly 5-10 a day for a week, then 10-20,
+ * and only then higher. Raising this before the domain is warm is how a
+ * sending reputation is lost, and it is not recoverable by slowing down later.
+ */
+export const OUTREACH = Object.freeze({
+  dailySendLimit: 10,
+  /**
+   * Per collection call, however many the caller asks for.
+   *
+   * Raise this WITH `dailySendLimit`, or a once-a-day schedule never reaches
+   * the daily figure. Both are overridable together under `outreach.sending`.
+   */
+  maxPerCollection: 10,
+})
+
 export const DEFAULT_SETTINGS = Object.freeze({
   'scoring.thresholds': SCORE_THRESHOLDS,
   'scoring.weights': SIGNAL_WEIGHTS,
@@ -334,6 +357,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   'contacts.config': CONTACTS,
   'zoho.config': ZOHO,
   'tracking.config': TRACKING,
+  'outreach.sending': OUTREACH,
   /**
    * Sender identity used in outreach drafts and required by the US compliance
    * profile. Empty by default — the US profile blocks review until it is set,

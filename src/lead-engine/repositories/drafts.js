@@ -30,10 +30,22 @@ function mapRow(row) {
     variant: row.variant,
     editedBy: row.edited_by,
     editedAt: row.edited_at,
+    // Legacy column names. The mailbox integration they were built for is
+    // gone (see services/draftExport.js); the columns stay because migrations
+    // 0012 and 0013 are applied to live databases and renaming them would mean
+    // rebuilding a table that lead_messages references, for no behavioural
+    // gain. `exported` is the vocabulary the code and UI use.
+    exported: row.status === EXPORTED_STATUS,
+    exportedAt: row.zoho_draft_created_at,
     zohoDraftId: row.zoho_draft_id,
     zohoMessageId: row.zoho_message_id,
     zohoDraftCreatedAt: row.zoho_draft_created_at,
     zohoError: row.zoho_error,
+    // The same column under the name the code actually means. It now holds the
+    // last TRANSMISSION error -- the external sender failing to put the message
+    // on the wire -- which has nothing to do with the mailbox API it was named
+    // for. See recordDraftTransmissionFailure below.
+    transmissionError: row.zoho_error,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -152,49 +164,71 @@ export async function editDraft(db, id, { subject, bodyText, actorEmail }) {
 }
 
 /**
- * Records that Zoho accepted the draft into the Drafts folder.
+ * The stored status meaning "handed to the operator to send".
  *
- * Note what this does NOT do: it does not touch the lead's stage. Saving a
- * draft is not contacting anybody, and the CONTACTED transition belongs to the
- * Sent-folder sync alone.
+ * Its spelling is historical. The CHECK constraint on `lead_outreach_drafts`
+ * was written when a mailbox API created the draft, and 0012 is applied to
+ * live databases holding real drafts — widening the constraint means a table
+ * rebuild, which is not worth doing for a name. The code, the UI and the
+ * activity timeline all say "exported"; only the stored token is legacy.
+ */
+const EXPORTED_STATUS = 'zoho_draft_created'
+
+/**
+ * Marks a draft as exported for manual sending.
+ *
+ * Deliberately does NOT move the lead to CONTACTED. A file on somebody's disk
+ * is not a contacted prospect, and nothing observes the send any more, so that
+ * transition is an explicit act by the person who sent it.
+ *
+ * Re-exporting is allowed and is not an error: an operator who loses the file,
+ * or edits the draft and wants a fresh copy, should simply get one. Only the
+ * timestamp moves.
  *
  * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {string} id
  */
-export async function recordZohoDraftCreated(db, id, { zohoDraftId, zohoMessageId = null }) {
+export async function recordDraftExported(db, id) {
   const now = nowIso()
   await db
     .prepare(
       `UPDATE lead_outreach_drafts
-       SET status = 'zoho_draft_created', zoho_draft_id = ?, zoho_message_id = ?,
-           zoho_draft_created_at = ?, zoho_error = NULL, updated_at = ?
+       SET status = ?, zoho_draft_created_at = ?, zoho_error = NULL, updated_at = ?
        WHERE id = ?`,
     )
-    .bind(zohoDraftId, zohoMessageId, now, now, id)
+    .bind(EXPORTED_STATUS, now, now, id)
     .run()
 
   return getDraft(db, id)
 }
 
 /**
- * Records a Zoho failure, leaving the draft retryable.
+ * Records that the external sender could not transmit this draft.
  *
- * The status moves to `zoho_draft_failed` rather than back to `draft` so the
- * UI can show that an attempt was made and why it failed — but the draft is
- * still editable and still retryable, because a Zoho outage must not cost the
- * generated text.
+ * THE STATUS IS DELIBERATELY LEFT ALONE. It stays `exported`, which is what
+ * keeps `collectOutbox` from offering the draft again: that function skips any
+ * draft whose `exported` flag is set, and flipping the status here would put
+ * the message straight back into the sending queue.
+ *
+ * That restraint matters because a transmission that REPORTED failure may still
+ * have reached an MTA -- the error can happen after DATA was accepted. Silently
+ * re-offering it would mail a stranger twice, which is unrecoverable, and is
+ * the same under-send-rather-than-double-send bias the outbox is built around.
+ *
+ * So the draft is retained exactly as it was, with the error attached for a
+ * person to read. Retrying is a human decision.
  *
  * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {string} id
+ * @param {string|null} error
  */
-export async function recordZohoDraftFailure(db, id, errorMessage) {
-  const now = nowIso()
+export async function recordDraftTransmissionFailure(db, id, error) {
   await db
-    .prepare(
-      `UPDATE lead_outreach_drafts
-       SET status = 'zoho_draft_failed', zoho_error = ?, updated_at = ?
-       WHERE id = ?`,
-    )
-    .bind(bounded(errorMessage, 500), now, id)
+    .prepare('UPDATE lead_outreach_drafts SET zoho_error = ?, updated_at = ? WHERE id = ?')
+    .bind(error ? String(error).slice(0, 1000) : null, nowIso(), id)
     .run()
+
+  return getDraft(db, id)
 }
 
 /** @param {import('@cloudflare/workers-types').D1Database} db */

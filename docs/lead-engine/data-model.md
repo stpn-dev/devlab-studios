@@ -1,5 +1,14 @@
 # Data model
 
+> **Superseded in part.** The mailbox integration this describes was removed —
+> a Worker's rotating egress IPs got the provider account blocked for suspicious
+> logins. Drafts are exported as `.eml` files and replies are read by a person
+> in their own client. See [outreach-handoff.md](outreach-handoff.md).
+>
+> What remains accurate: the schema, the matching *order*, and the reasoning
+> behind both. The columns and their names are unchanged, deliberately.
+
+
 Everything is in `migrations/0012_lead_intelligence_engine.sql`, which is itself
 heavily commented. This document is the map and the reasoning; the migration is
 the authority.
@@ -36,7 +45,7 @@ Key/value rather than columns so adding a tunable is a code change with a
 default, not a migration. Deleting a row restores the default.
 
 `is_secret` marks a value the admin UI must mask. **Real secrets do not belong
-here at all** — the Zoho client secret, refresh token and API keys are
+here at all** — no mail credentials exist, and aPI keys are
 Cloudflare Worker secrets. `is_secret` is for merely sensitive operational
 values such as the Zoho account id.
 
@@ -207,7 +216,7 @@ reviewer and a reason; `evaluateCompliance()` can never compute its way to it.
 
 #### `lead_suppression`
 The hard boundary. A match stops outreach generation entirely, and it is checked
-at draft generation, at Zoho draft creation *and* at review-queue admission — no
+at draft generation, at draft export *and* at review-queue admission — no
 single missed call site can let a suppressed address through.
 
 `scope` is `email` or `domain`. A domain entry suppresses every address at that
@@ -370,4 +379,4 @@ it today** — see [cloudflare-workflows.md](cloudflare-workflows.md).
 | Timeline events not doubled | Partial `UNIQUE (dedupe_key) WHERE dedupe_key IS NOT NULL` + `INSERT OR IGNORE` |
 | Signals replaced, not accumulated | `UNIQUE (lead_id, category, signal_key)` + delete-then-insert batch |
 | Budget not overspent under concurrency | Single conditional `UPDATE` in `consumeBudget` |
-| Pressing "Create Zoho Draft" twice | `status === 'zoho_draft_created'` short-circuit returns `already_created` |
+| Pressing "Download .eml" twice | `status === 'zoho_draft_created'` short-circuit returns `already_created` |

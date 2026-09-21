@@ -63,6 +63,10 @@ export default defineConfig({
         /admin\.spec\.js/,
         /digest\.spec\.js/,
         /lead-crm\.spec\.js/,
+        // The mailbox suite signs in and calls /api/admin/mailbox/* and
+        // /api/mailbox/*, so it needs the wrangler dev worker with its D1
+        // binding rather than the static preview server.
+        /mailbox\.spec\.js/,
         /pickleball[\\/].*\.spec\.js/,
       ],
       use: { baseURL: 'http://localhost:8787' },

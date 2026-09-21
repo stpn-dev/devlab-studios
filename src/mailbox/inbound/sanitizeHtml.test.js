@@ -1,0 +1,200 @@
+import { describe, expect, it } from 'vitest'
+import { safeUrl, sanitizeEmailHtml } from './sanitizeHtml.js'
+
+const clean = (input) => sanitizeEmailHtml(input).html
+
+describe('safeUrl', () => {
+  it('allows the three schemes an email may link with', () => {
+    expect(safeUrl('https://example.com/a?b=c')).toBe('https://example.com/a?b=c')
+    expect(safeUrl('http://example.com')).toBe('http://example.com')
+    expect(safeUrl('mailto:someone@example.com')).toBe('mailto:someone@example.com')
+  })
+
+  it('rejects javascript: however it is disguised', () => {
+    expect(safeUrl('javascript:alert(1)')).toBeNull()
+    expect(safeUrl('JaVaScRiPt:alert(1)')).toBeNull()
+    expect(safeUrl('  javascript:alert(1)')).toBeNull()
+    // Browsers strip these while resolving the scheme; so must we, BEFORE the
+    // allowlist check rather than after it.
+    expect(safeUrl('java\tscript:alert(1)')).toBeNull()
+    expect(safeUrl('java\nscript:alert(1)')).toBeNull()
+    expect(safeUrl('java\u0000script:alert(1)')).toBeNull()
+  })
+
+  it('rejects data:, vbscript: and relative URLs', () => {
+    expect(safeUrl('data:text/html;base64,PHNjcmlwdD4=')).toBeNull()
+    expect(safeUrl('vbscript:msgbox')).toBeNull()
+    expect(safeUrl('/admin/lead-crm')).toBeNull()
+    expect(safeUrl('//evil.example')).toBeNull()
+    expect(safeUrl('')).toBeNull()
+  })
+})
+
+describe('sanitizeEmailHtml — script execution', () => {
+  it('removes a script element and its contents', () => {
+    expect(clean('<p>before</p><script>alert(1)</script><p>after</p>')).toBe('<p>before</p><p>after</p>')
+  })
+
+  it('does not treat markup inside a script as markup', () => {
+    // The classic bypass: if script content is parsed as markup, the `</div>`
+    // inside the string terminates an element the sanitizer thinks is open.
+    const out = clean('<div><script>var a = "</div>"; alert(1)</script>ok</div>')
+    expect(out).not.toContain('alert')
+    expect(out).toContain('ok')
+  })
+
+  it('strips every event handler attribute', () => {
+    const out = clean('<p onclick="alert(1)" onmouseover="alert(2)">text</p>')
+    expect(out).toBe('<p>text</p>')
+  })
+
+  it('drops a javascript: href but keeps the link text', () => {
+    const out = clean('<a href="javascript:alert(1)">click</a>')
+    expect(out).toBe('<a target="_blank" rel="noopener noreferrer nofollow">click</a>')
+    expect(out).not.toContain('javascript')
+  })
+
+  it('removes style elements and style attributes', () => {
+    expect(clean('<style>body{background:url(http://x/y)}</style><p>hi</p>')).toBe('<p>hi</p>')
+    expect(clean('<p style="position:fixed;top:0">hi</p>')).toBe('<p>hi</p>')
+  })
+
+  it('removes svg, math, iframe, object and form subtrees', () => {
+    expect(clean('<svg><script>alert(1)</script></svg>x')).toBe('x')
+    expect(clean('<math><mtext>y</mtext></math>x')).toBe('x')
+    expect(clean('<iframe src="http://evil"></iframe>x')).toBe('x')
+    expect(clean('<object data="http://evil"><param name="a"></object>x')).toBe('x')
+    expect(clean('<form action="http://evil"><input name="p"></form>x')).toBe('x')
+  })
+
+  it('drops conditional comments rather than reasoning about them', () => {
+    expect(clean('<!--[if mso]><script>alert(1)</script><![endif]-->ok')).toBe('ok')
+    expect(clean('<!-- plain comment -->ok')).toBe('ok')
+  })
+
+  it('escapes an unterminated comment instead of dropping the rest of the message', () => {
+    // An unclosed comment swallows everything after it, which is a denial of
+    // content rather than a security hole — but it should be visible.
+    expect(clean('ok<!-- never closed')).toBe('ok')
+  })
+})
+
+describe('sanitizeEmailHtml — remote content', () => {
+  it('removes images and reports it', () => {
+    const result = sanitizeEmailHtml('<p>hi</p><img src="https://tracker.example/pixel.gif" width="1">')
+    expect(result.html).toBe('<p>hi</p>')
+    expect(result.strippedRemoteContent).toBe(true)
+  })
+
+  it('keeps an image alt text, so a picture-led message still says something', () => {
+    const result = sanitizeEmailHtml('<img src="https://x/y.png" alt="Quarterly results">')
+    expect(result.html).toBe('Quarterly results')
+    expect(result.strippedRemoteContent).toBe(true)
+  })
+
+  it('removes media, link and meta elements', () => {
+    const result = sanitizeEmailHtml('<link rel="stylesheet" href="https://x/a.css"><video src="https://x/v.mp4"></video><meta http-equiv="refresh" content="0;url=http://evil">ok')
+    expect(result.html).toBe('ok')
+    expect(result.strippedRemoteContent).toBe(true)
+  })
+
+  it('reports no stripping for a message that had none', () => {
+    const result = sanitizeEmailHtml('<p>Just text and a <a href="https://example.com">link</a>.</p>')
+    expect(result.strippedRemoteContent).toBe(false)
+  })
+})
+
+describe('sanitizeEmailHtml — ordinary mail', () => {
+  it('keeps the formatting people actually use', () => {
+    const out = clean('<p>Hi <strong>there</strong>,</p><ul><li>one</li><li>two</li></ul><blockquote>quoted</blockquote>')
+    expect(out).toBe('<p>Hi <strong>there</strong>,</p><ul><li>one</li><li>two</li></ul><blockquote>quoted</blockquote>')
+  })
+
+  it('keeps tables with their spans, clamped and re-emitted as numbers', () => {
+    expect(clean('<table><tr><td colspan="2">a</td></tr></table>')).toBe(
+      '<table><tr><td colspan="2">a</td></tr></table>',
+    )
+    expect(clean('<td colspan="99999999">a</td>')).toBe('<td colspan="1000">a</td>')
+    expect(clean('<td colspan="abc">a</td>')).toBe('<td>a</td>')
+  })
+
+  it('adds noopener to links it keeps', () => {
+    expect(clean('<a href="https://example.com" title="t">go</a>')).toBe(
+      '<a href="https://example.com" title="t" target="_blank" rel="noopener noreferrer nofollow">go</a>',
+    )
+  })
+
+  it('unwraps unknown elements rather than losing their content', () => {
+    expect(clean('<o:p>Outlook paragraph</o:p>')).toBe('Outlook paragraph')
+    expect(clean('<center>centred</center>')).toBe('centred')
+  })
+
+  it('escapes text, without double-escaping existing entities', () => {
+    expect(clean('a &amp; b &lt; c')).toBe('a &amp; b &lt; c')
+    expect(clean('Tom & Jerry')).toBe('Tom &amp; Jerry')
+    expect(clean('5 < 6 and 7 > 6')).toBe('5 &lt; 6 and 7 &gt; 6')
+  })
+
+  it('closes elements the sender left open', () => {
+    expect(clean('<p>one<p>two')).toBe('<p>one<p>two</p></p>')
+    expect(clean('<b>bold')).toBe('<b>bold</b>')
+  })
+
+  it('recovers from mis-nesting instead of italicising the rest of the message', () => {
+    const out = clean('<b><i>both</b>after')
+    expect(out).toBe('<b><i>both</i></b>after')
+  })
+
+  it('handles void elements', () => {
+    expect(clean('a<br>b<br/>c<hr>')).toBe('a<br>b<br>c<hr>')
+  })
+
+  it('survives an empty or absent body', () => {
+    expect(clean('')).toBe('')
+    expect(clean(null)).toBe('')
+    expect(clean(undefined)).toBe('')
+  })
+
+  it('does not hang on malformed tag soup', () => {
+    expect(() => clean('<<<>>><a href=<b<<')).not.toThrow()
+    expect(() => clean('<a href="unterminated')).not.toThrow()
+    expect(() => clean('</>' .repeat(500))).not.toThrow()
+  })
+
+  it('caps nesting, so deep input cannot become quadratic work', () => {
+    // Closing a tag searches the open-element stack backwards. Without a cap,
+    // 100k opening tags followed by 100k mismatched closing ones is O(n²) on
+    // input bounded only by the 8 MiB parse limit — a CPU exhaustion inside a
+    // Worker. The cap bounds that search to a constant.
+    const attack = `${'<div>'.repeat(100_000)}${'</span>'.repeat(100_000)}`
+
+    const started = Date.now()
+    const result = sanitizeEmailHtml(attack, { maxLength: Number.MAX_SAFE_INTEGER })
+    const elapsed = Date.now() - started
+
+    expect(elapsed).toBeLessThan(3_000)
+    // Content is kept; only the excess nesting is dropped.
+    expect(result.html.startsWith('<div>')).toBe(true)
+  })
+
+  it('keeps the content of elements nested past the cap', () => {
+    const deep = `${'<div>'.repeat(300)}hello${'</div>'.repeat(300)}`
+    expect(clean(deep)).toContain('hello')
+  })
+})
+
+describe('sanitizeEmailHtml — size', () => {
+  it('truncates and re-closes rather than emitting half a tag', () => {
+    const long = `<p>${'x'.repeat(5_000)}</p>`
+    const result = sanitizeEmailHtml(long, { maxLength: 200 })
+    expect(result.truncated).toBe(true)
+    expect(result.html.length).toBeLessThanOrEqual(220)
+    expect(result.html.endsWith('</p>')).toBe(true)
+  })
+
+  it('leaves a body under the limit untouched', () => {
+    const result = sanitizeEmailHtml('<p>short</p>', { maxLength: 200 })
+    expect(result.truncated).toBe(false)
+    expect(result.html).toBe('<p>short</p>')
+  })
+})
