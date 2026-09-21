@@ -41,6 +41,11 @@ function mapRow(row) {
     zohoMessageId: row.zoho_message_id,
     zohoDraftCreatedAt: row.zoho_draft_created_at,
     zohoError: row.zoho_error,
+    // The same column under the name the code actually means. It now holds the
+    // last TRANSMISSION error -- the external sender failing to put the message
+    // on the wire -- which has nothing to do with the mailbox API it was named
+    // for. See recordDraftTransmissionFailure below.
+    transmissionError: row.zoho_error,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -192,6 +197,35 @@ export async function recordDraftExported(db, id) {
        WHERE id = ?`,
     )
     .bind(EXPORTED_STATUS, now, now, id)
+    .run()
+
+  return getDraft(db, id)
+}
+
+/**
+ * Records that the external sender could not transmit this draft.
+ *
+ * THE STATUS IS DELIBERATELY LEFT ALONE. It stays `exported`, which is what
+ * keeps `collectOutbox` from offering the draft again: that function skips any
+ * draft whose `exported` flag is set, and flipping the status here would put
+ * the message straight back into the sending queue.
+ *
+ * That restraint matters because a transmission that REPORTED failure may still
+ * have reached an MTA -- the error can happen after DATA was accepted. Silently
+ * re-offering it would mail a stranger twice, which is unrecoverable, and is
+ * the same under-send-rather-than-double-send bias the outbox is built around.
+ *
+ * So the draft is retained exactly as it was, with the error attached for a
+ * person to read. Retrying is a human decision.
+ *
+ * @param {import('@cloudflare/workers-types').D1Database} db
+ * @param {string} id
+ * @param {string|null} error
+ */
+export async function recordDraftTransmissionFailure(db, id, error) {
+  await db
+    .prepare('UPDATE lead_outreach_drafts SET zoho_error = ?, updated_at = ? WHERE id = ?')
+    .bind(error ? String(error).slice(0, 1000) : null, nowIso(), id)
     .run()
 
   return getDraft(db, id)

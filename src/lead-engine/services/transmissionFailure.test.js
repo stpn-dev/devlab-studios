@@ -65,6 +65,11 @@ beforeEach(async () => {
   }
 })
 
+async function db_markExported() {
+  const { recordDraftExported } = await import('../repositories/drafts.js')
+  await recordDraftExported(env.DB, DRAFT_ID)
+}
+
 async function suppression() {
   const result = await env.DB.prepare('SELECT * FROM lead_suppression').all()
   return result.results ?? []
@@ -130,6 +135,31 @@ describe('a local transmission failure', () => {
 
   it('refuses an unknown draft rather than inventing one', async () => {
     await expect(recordTransmissionFailure(env, 'nope', {})).rejects.toThrow(/not found/i)
+  })
+})
+
+describe('the draft itself', () => {
+  it('is retained with the error attached, and is NOT re-offered to the sender', async () => {
+    const { collectOutbox } = await import('./outbox.js')
+    const { getDraft } = await import('../repositories/drafts.js')
+
+    // The draft starts exported, which is how collectOutbox knows not to hand
+    // it out again.
+    await db_markExported()
+
+    await recordTransmissionFailure(env, DRAFT_ID, { error: "Cannot find module 'nodemailer'" })
+
+    const draft = await getDraft(env.DB, DRAFT_ID)
+    // Retained for inspection: still there, still exported, error readable.
+    expect(draft).not.toBeNull()
+    expect(draft.exported).toBe(true)
+    expect(draft.transmissionError).toContain('nodemailer')
+
+    // And crucially NOT queued up again. A transmission that reported failure
+    // may still have reached an MTA, so re-offering it risks a second send to
+    // a stranger.
+    const collected = await collectOutbox(env, { limit: 10 })
+    expect(collected.messages.map((message) => message.draftId)).not.toContain(DRAFT_ID)
   })
 })
 

@@ -37,7 +37,7 @@ import { ACTIVITY } from '../domain/activity.js'
 import { STAGES } from '../domain/pipeline.js'
 import { recordActivity } from '../repositories/activity.js'
 import { getPrimaryContact } from '../repositories/contacts.js'
-import { getCurrentDraft, getDraft } from '../repositories/drafts.js'
+import { getCurrentDraft, getDraft, recordDraftTransmissionFailure } from '../repositories/drafts.js'
 import { addSuppression } from '../repositories/suppression.js'
 import { getLead, listLeadsInStage, refreshNextAction, transitionLead } from '../repositories/leads.js'
 import { resolveSettingsSafely } from '../repositories/settings.js'
@@ -381,6 +381,11 @@ export async function recordTransmissionFailure(env, draftId, options = {}) {
 
   const logger = createLogger({ correlationId: options.correlationId, leadId: lead.id })
   const retryable = Boolean(options.retryable)
+
+  // The draft is RETAINED, with the error attached, using the existing state
+  // model -- its status stays `exported`, so the sender will not pick it up
+  // again and an operator can read what went wrong on the lead.
+  await recordDraftTransmissionFailure(db, draftId, options.error ?? null)
 
   await recordActivity(db, {
     leadId: lead.id,
