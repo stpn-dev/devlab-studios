@@ -52,6 +52,94 @@ function headerSafe(value) {
   return String(value ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim()
 }
 
+/** The line ending every RFC 5322 message uses. */
+const CRLF = '\r\n'
+
+
+/**
+ * A boundary that cannot collide with the content it delimits.
+ *
+ * Random rather than derived: a predictable boundary in a message that quotes
+ * attacker-supplied text lets that text end a part early and have the
+ * remainder read as headers. 128 bits of randomness, behind a prefix no base64
+ * alphabet can produce, means neither the encoded attachments nor the wrapped
+ * body can contain it by accident.
+ */
+function makeBoundary() {
+  const random = crypto.getRandomValues(new Uint8Array(16))
+  const hex = Array.from(random, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return `--=_devlab_${hex}`
+}
+
+/**
+ * Base64, wrapped to 76 characters as RFC 2045 requires.
+ *
+ * Encoded in chunks because `String.fromCharCode(...bytes)` on a multi-megabyte
+ * attachment exceeds the argument limit — which would fail as a RangeError at
+ * send time, long after the operator was told the upload succeeded.
+ *
+ * @param {Uint8Array} bytes
+ */
+function base64Lines(bytes) {
+  let binary = ''
+  const CHUNK = 0x8000
+  for (let index = 0; index < bytes.length; index += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + CHUNK))
+  }
+
+  const encoded = btoa(binary)
+  const lines = []
+  for (let index = 0; index < encoded.length; index += 76) {
+    lines.push(encoded.slice(index, index + 76))
+  }
+  return lines.join(CRLF)
+}
+
+/** `type/subtype` and nothing else. Anything else becomes octet-stream. */
+function safeContentType(value) {
+  const bare = String(value ?? '').split(';')[0].trim()
+  return /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/i.test(bare) ? bare.toLowerCase() : 'application/octet-stream'
+}
+
+/**
+ * The `filename` parameter of a Content-Disposition, safely.
+ *
+ * Control characters and quotes are stripped first: a CR in a filename appends
+ * headers of the sender's choosing, and `Bcc:` is the obvious one to append.
+ * A non-ASCII name additionally gets an RFC 2231 `filename*`, because a raw
+ * UTF-8 byte in a header is not something every receiver agrees about.
+ *
+ * @param {string} filename
+ */
+function filenameParameters(filename) {
+  // eslint-disable-next-line no-control-regex
+  const cleaned = String(filename ?? '').replace(/[\u0000-\u001F\u007F"\\]/g, '').trim()
+  const safe = cleaned || 'attachment.bin'
+  const ascii = safe.replace(/[^\u0020-\u007E]/g, '_')
+
+  if (ascii === safe) return `filename="${ascii}"`
+  return `filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(safe)}`
+}
+
+/**
+ * One attachment as a MIME part.
+ *
+ * @param {{ filename: string, contentType?: string, bytes: Uint8Array }} attachment
+ * @param {string} boundary
+ */
+function attachmentPart(attachment, boundary) {
+  const bytes = attachment.bytes instanceof Uint8Array ? attachment.bytes : new Uint8Array(attachment.bytes ?? [])
+
+  return [
+    `--${boundary}`,
+    `Content-Type: ${safeContentType(attachment.contentType)}`,
+    'Content-Transfer-Encoding: base64',
+    `Content-Disposition: attachment; ${filenameParameters(attachment.filename)}`,
+    '',
+    base64Lines(bytes),
+  ].join(CRLF)
+}
+
 /**
  * Assembles a plain-text message.
  *
@@ -70,6 +158,7 @@ function headerSafe(value) {
  *   references?: string[]|null,
  *   replyTo?: string|null,
  *   date?: Date,
+ *   attachments?: Array<{ filename: string, contentType?: string, bytes: Uint8Array }>,
  * }} input
  * @returns {string}
  */
@@ -103,10 +192,35 @@ export function buildOutboundMessage(input) {
   }
 
   headers.push('MIME-Version: 1.0')
-  headers.push('Content-Type: text/plain; charset=utf-8')
-  headers.push('Content-Transfer-Encoding: 8bit')
 
-  return `${headers.join('\r\n')}\r\n\r\n${wrapBody(input.bodyText)}\r\n`
+  const attachments = (input.attachments ?? []).filter(Boolean)
+
+  if (attachments.length === 0) {
+    headers.push('Content-Type: text/plain; charset=utf-8')
+    headers.push('Content-Transfer-Encoding: 8bit')
+    return `${headers.join(CRLF)}${CRLF}${CRLF}${wrapBody(input.bodyText)}${CRLF}`
+  }
+
+  // multipart/mixed rather than /alternative: these parts are a message and its
+  // enclosures, not two renderings of the same thing. The body stays text/plain
+  // for the reason it always was -- a reply to a prospect is correspondence,
+  // and an HTML alternative adds size and a rendering surface for no gain.
+  const boundary = makeBoundary()
+  headers.push(`Content-Type: multipart/mixed; boundary="${boundary}"`)
+
+  const parts = [
+    [
+      `--${boundary}`,
+      'Content-Type: text/plain; charset=utf-8',
+      'Content-Transfer-Encoding: 8bit',
+      '',
+      wrapBody(input.bodyText),
+    ].join(CRLF),
+    ...attachments.map((attachment) => attachmentPart(attachment, boundary)),
+    `--${boundary}--`,
+  ]
+
+  return `${headers.join(CRLF)}${CRLF}${CRLF}${parts.join(CRLF)}${CRLF}`
 }
 
 /**
