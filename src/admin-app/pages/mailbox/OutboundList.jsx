@@ -20,6 +20,48 @@ import { OUTBOUND_STATUS_TONES } from './folders'
  * received. The API refuses it too; this just does not offer it.
  */
 
+/**
+ * Puts one failed reply back in the queue.
+ *
+ * Confirmed first, because the consequence is not recoverable: if the failure
+ * happened after the message reached a mail server, retrying sends a second
+ * copy to a real person. The API refuses anything that is not `failed`, so the
+ * ambiguous `collected` state cannot be retried from here or anywhere else.
+ */
+function RetryButton({ item, onChanged }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+
+  async function retry() {
+    if (!window.confirm('Send this reply again? Do this only if you know the message was not transmitted.')) return
+
+    setBusy(true)
+    setError(null)
+    try {
+      await adminApi.post(`/api/admin/mailbox/outbound/${item.id}/retry`, {})
+      onChanged?.()
+    } catch (caught) {
+      setError(caught.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <span className="mt-2 block">
+      <button
+        type="button"
+        onClick={retry}
+        disabled={busy}
+        className="rounded border border-rose-300 bg-white px-2 py-0.5 font-semibold text-rose-800 disabled:opacity-50"
+      >
+        {busy ? 'Queueing…' : 'Retry this reply'}
+      </button>
+      {error ? <span className="ml-2 text-rose-700">{error}</span> : null}
+    </span>
+  )
+}
+
 function DraftEditor({ item, onChanged }) {
   const [subject, setSubject] = useState(item.subject ?? '')
   const [body, setBody] = useState(item.bodyText ?? '')
@@ -152,12 +194,23 @@ function OutboundList({ folder, messages, onChanged }) {
             </button>
 
             {item.status === 'failed' && item.error ? (
-              <p className="mt-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-800">
+              <div className="mt-2 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-800">
                 {item.error}
-                <span className="block text-rose-600">
+                <span className="mt-1 block text-rose-600">
                   This will not be retried on its own — a reply that silently re-queued forever would mail the same
-                  person repeatedly the moment a fault cleared.
+                  person repeatedly the moment a fault cleared. Retry once you know the cause, and know that a send
+                  which reported failure may still have reached a mail server.
                 </span>
+                <RetryButton item={item} onChanged={onChanged} />
+              </div>
+            ) : null}
+
+            {item.status === 'queued' && item.error ? (
+              // The error survives a retry on purpose: while the reply waits
+              // again, what went wrong last time is the most useful thing to
+              // show about it.
+              <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                Queued again after: {item.error}
               </p>
             ) : null}
 

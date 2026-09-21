@@ -206,6 +206,55 @@ export async function cancelOutbound(db, id) {
 }
 
 /**
+ * Puts a failed reply back in the queue, as an explicit human act.
+ *
+ * WHY THIS IS NOT AUTOMATIC. `markFailed` already returns a row to `queued`
+ * when the transmitter says the failure was retryable. Everything else stays
+ * `failed` on purpose: a submission that reported failure may still have
+ * reached an MTA, so retrying it risks a second copy landing on a stranger.
+ * The system under-sends rather than double-sends, and it cannot tell the two
+ * cases apart on its own.
+ *
+ * A person can. They can read the error, see that `451 4.7.1` came from our own
+ * Postfix before `DATA` was ever accepted, and know nothing was transmitted.
+ * That judgement is the safeguard, which is why this is a button and not a
+ * timer.
+ *
+ * `error` is deliberately left on the row. It is the record of what happened
+ * last, the UI shows it as such while the reply waits, and the next outcome
+ * overwrites it — `markSent` clears it, `markFailed` replaces it.
+ *
+ * @param {D1Database} db
+ * @param {string} id
+ */
+export async function requeueOutbound(db, id) {
+  const row = await getOutbound(db, id)
+  if (!row) throw operationError('Outbound message not found.', 404)
+
+  if (row.status === 'sent') {
+    throw operationError('This reply was already sent. Send a new one rather than repeating it.', 409)
+  }
+
+  // `collected` is the dangerous one: the transmitter holds it and we do not
+  // know whether it reached an MTA. Re-queueing that is exactly the
+  // double-send this system refuses to risk.
+  if (row.status !== 'failed') {
+    throw operationError(`This reply is ${row.status} and is not waiting to be retried.`, 409)
+  }
+
+  const now = nowIso()
+  await db
+    .prepare(
+      "UPDATE mailbox_outbound SET status = 'queued', collected_at = NULL, failed_at = NULL, " +
+        "updated_at = ? WHERE id = ? AND status = 'failed'",
+    )
+    .bind(now, id)
+    .run()
+
+  return getOutbound(db, id)
+}
+
+/**
  * Saves a reply without handing it to the transmitter.
  *
  * A draft is invisible to the sender BY CONSTRUCTION, not by a filter someone
