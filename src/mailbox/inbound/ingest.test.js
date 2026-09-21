@@ -324,7 +324,7 @@ describe('catch-all routing', () => {
 
 describe('failure handling', () => {
   it('stores a message whose MIME cannot be parsed, rather than dropping it', async () => {
-    const garbage = 'this is not a message at all '
+    const garbage = 'this is not a message at all\u0000\u0001\u0002'
     const result = await ingestEmail(
       env,
       message({ from: 'weird@sender.example', to: 'hello@devlabconnect.com', raw: garbage }),
