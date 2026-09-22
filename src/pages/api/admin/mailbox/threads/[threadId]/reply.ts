@@ -16,6 +16,10 @@ const replySchema = z.object({
   bodyText: z.string().trim().max(100_000),
   /** Save without handing it to the transmitter — the Drafts folder. */
   asDraft: z.boolean().default(false),
+  // Uploads to bind to this message, in the order the operator arranged them.
+  // Validated and size-capped when claimed, not here -- the limit is per
+  // message, and the message does not exist yet.
+  attachmentIds: z.array(z.string().trim().min(1)).max(10).optional(),
   subject: z.string().trim().max(500).optional().nullable(),
   /** The specific message being answered. Defaults to the latest inbound one. */
   inReplyToMessageId: z.string().trim().max(100).optional().nullable(),
@@ -46,6 +50,7 @@ export const POST: APIRoute = async (context) =>
       threadId: context.params.threadId!,
       bodyText: body.data.bodyText,
       asDraft: body.data.asDraft,
+      attachmentIds: body.data.attachmentIds ?? [],
       subject: body.data.subject ?? null,
       inReplyToMessageId: body.data.inReplyToMessageId ?? null,
       toAddress: body.data.toAddress ?? null,

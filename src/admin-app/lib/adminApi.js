@@ -28,4 +28,9 @@ export const adminApi = {
   put: (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) }),
   patch: (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: (path) => request(path, { method: 'DELETE' }),
+  // No Content-Type: the browser must set it itself, because a multipart body
+  // is unparseable without the boundary parameter that only it knows. Passing
+  // `body` as FormData rather than a string is what keeps `request` from
+  // adding the JSON header.
+  upload: (path, formData) => request(path, { method: 'POST', body: formData, headers: undefined }),
 }

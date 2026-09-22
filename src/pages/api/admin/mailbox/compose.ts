@@ -17,6 +17,10 @@ const composeSchema = z.object({
   bodyText: z.string().max(100_000),
   /** Save to Drafts instead of handing it to the transmitter. */
   asDraft: z.boolean().default(false),
+  // Uploads to bind to this message, in the order the operator arranged them.
+  // Validated and size-capped when claimed, not here -- the limit is per
+  // message, and the message does not exist yet.
+  attachmentIds: z.array(z.string().trim().min(1)).max(10).optional(),
 })
 
 /**
@@ -46,6 +50,7 @@ export const POST: APIRoute = async (context) =>
       subject: body.data.subject ?? null,
       bodyText: body.data.bodyText,
       asDraft: body.data.asDraft,
+      attachmentIds: body.data.attachmentIds ?? [],
       actorEmail: actorEmail(context),
     })
 

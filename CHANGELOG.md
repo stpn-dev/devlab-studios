@@ -51,6 +51,10 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Added
+- **A message on the way out can carry attachments.** Compose and reply now take files, up to 10 MB in total across at most 10 of them — 10 MB because that is Postfix's default `message_size_limit`, so nothing is accepted in the UI that the MTA will then refuse. Files upload as they are chosen rather than on Send, so a slow upload is a progress bar instead of a hang, and an upload lives unclaimed (`outbound_id IS NULL`) until the message that will carry it exists. Claiming is one UPDATE guarded by that null, so a double-submit cannot attach the same bytes to two messages. Requires migration `0016_mailbox_outbound_attachments.sql`.
+- **The outbox JSON now describes the attachments and withholds the fallback when there are any.** `renderOutbound` emits `multipart/mixed` with base64 parts, and n8n needs no change at all — the contract was already `raw` plus `envelope`, so `raw` simply becomes multipart. The `fallback` object is `null` once a message has attachments, because that shape cannot express a file and a transmitter using it would send the covering note while silently dropping the document it refers to. A file missing from R2 fails the whole send rather than quietly omitting a part.
+
 ## [1.11.1] - 2026-09-22
 
 ### Fixed

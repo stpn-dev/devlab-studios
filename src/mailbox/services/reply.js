@@ -17,6 +17,7 @@ import { buildOutboundMessage, replySubject } from '../outbound/buildMessage.js'
 import { newId, operationError } from '../repositories/helpers.js'
 import { getMessage, listMessagesForThread } from '../repositories/messages.js'
 import { queueOutbound } from '../repositories/outbound.js'
+import { claimOutboundAttachments, listOutboundAttachments } from '../repositories/outboundAttachments.js'
 import { createThread, getThread } from '../repositories/threads.js'
 import { checkSuppression } from '../../lead-engine/repositories/suppression.js'
 import { normalizeEmail } from '../../lead-engine/domain/domains.js'
@@ -39,7 +40,7 @@ import { createLogger } from '../../lead-engine/services/log.js'
  *
  * @param {{ threadId: string, inReplyToMessageId?: string|null, bodyText: string,
  *           subject?: string|null, toAddress?: string|null, actorEmail?: string|null,
- *           asDraft?: boolean, correlationId?: string }} input
+ *           asDraft?: boolean, attachmentIds?: string[], correlationId?: string }} input
  */
 export async function composeReply(env, input) {
   const db = env.DB
@@ -107,8 +108,19 @@ export async function composeReply(env, input) {
     createdBy: input.actorEmail ?? null,
   })
 
+  // Claimed AFTER the row exists, because an upload is bound to a message and
+  // the message did not exist a moment ago. A failure here throws, leaving the
+  // reply queued without its files rather than silently sending a message the
+  // operator believes carries them -- see the note on the same risk in
+  // repositories/outboundAttachments.js.
+  const attachments = await claimOutboundAttachments(db, {
+    ids: input.attachmentIds ?? [],
+    outboundId,
+  })
+
   logger.log(input.asDraft ? 'mailbox.reply_drafted' : 'mailbox.reply_queued', {
     outbound_id: outboundId,
+    attachments: attachments.length,
     thread_id: thread.id,
     lead_id: thread.leadId ?? null,
     in_reply_to: Boolean(parent),
@@ -133,7 +145,8 @@ export async function composeReply(env, input) {
  *
  * @param {Env} env
  * @param {{ toAddress: string, subject?: string|null, bodyText: string,
- *           asDraft?: boolean, actorEmail?: string|null, correlationId?: string }} input
+ *           asDraft?: boolean, actorEmail?: string|null, attachmentIds?: string[],
+ *           correlationId?: string }} input
  */
 export async function composeNew(env, input) {
   const db = env.DB
@@ -184,8 +197,14 @@ export async function composeNew(env, input) {
     createdBy: input.actorEmail ?? null,
   })
 
+  const attachments = await claimOutboundAttachments(db, {
+    ids: input.attachmentIds ?? [],
+    outboundId,
+  })
+
   logger.log(input.asDraft ? 'mailbox.compose_drafted' : 'mailbox.compose_queued', {
     outbound_id: outboundId,
+    attachments: attachments.length,
     thread_id: thread.id,
   })
 
@@ -201,10 +220,34 @@ export async function composeNew(env, input) {
  * default, and what n8n's mail node forces) produces a message whose bounces
  * come back to `hello@` with no identifier attached.
  *
+ * @param {Env} env
  * @param {object} outbound a `mailbox_outbound` row
  * @param {{ date?: Date }} [options]
  */
-export function renderOutbound(outbound, options = {}) {
+export async function renderOutbound(env, outbound, options = {}) {
+  const attachments = await listOutboundAttachments(env.DB, outbound.id)
+
+  // Bytes are fetched here rather than stored in D1, and a missing object is
+  // FATAL rather than skipped. Sending a message whose attachment silently
+  // vanished is the failure this whole path is arranged to prevent: the
+  // operator believes the recipient has the file, and nothing in the delivered
+  // message says otherwise.
+  const parts = []
+  for (const attachment of attachments) {
+    const object = await env.MAILBOX_BUCKET?.get(attachment.r2Key)
+    if (!object) {
+      throw operationError(
+        `The file "${attachment.filename}" is no longer in storage, so this message was not sent.`,
+        410,
+      )
+    }
+    parts.push({
+      filename: attachment.filename,
+      contentType: attachment.contentType,
+      bytes: new Uint8Array(await object.arrayBuffer()),
+    })
+  }
+
   const raw = buildOutboundMessage({
     to: { email: outbound.toAddress, name: outbound.toName },
     from: { email: PRIMARY_ADDRESS, name: 'DevLab Studios' },
@@ -213,10 +256,11 @@ export function renderOutbound(outbound, options = {}) {
     messageId: outbound.messageId,
     inReplyTo: outbound.inReplyTo,
     references: parseReferences(outbound.references),
+    attachments: parts,
     // NOW, not `createdAt`. The Date header states when the message was handed
     // to a mail server, and this function runs at exactly that moment. Taking
-    // it from the row's creation time was usually harmless — a reply is
-    // normally collected within minutes — but a reply that sat in the queue,
+    // it from the row's creation time was usually harmless -- a reply is
+    // normally collected within minutes -- but a reply that sat in the queue,
     // or was retried after a fault, went out claiming a Date hours in the past.
     // The first real send did exactly that: created 13:05 on the 21st,
     // transmitted 05:16 on the 22nd, and arrived stamped 16 hours stale, which
@@ -232,14 +276,28 @@ export function renderOutbound(outbound, options = {}) {
       to: [outbound.toAddress],
     },
     raw,
+    attachments: attachments.map((attachment) => ({
+      filename: attachment.filename,
+      contentType: attachment.contentType,
+      size: attachment.size,
+    })),
     // Repeated as plain fields so a transmitter that genuinely cannot take a
-    // raw message can still send something — degraded (no threading headers,
+    // raw message can still send something -- degraded (no threading headers,
     // no VERP), but not broken. The `raw` field is the supported path.
-    fallback: {
-      from: PRIMARY_ADDRESS,
-      to: outbound.toAddress,
-      subject: outbound.subject,
-      text: outbound.bodyText,
-    },
+    //
+    // WITHHELD ENTIRELY once there are attachments, because this shape cannot
+    // express them. A transmitter falling back here would send the covering
+    // note and quietly drop the files, which is worse than not sending: the
+    // recipient gets a message referring to a document that is not there, and
+    // the operator has no way to know. No fallback forces the real path.
+    fallback:
+      attachments.length > 0
+        ? null
+        : {
+            from: PRIMARY_ADDRESS,
+            to: outbound.toAddress,
+            subject: outbound.subject,
+            text: outbound.bodyText,
+          },
   }
 }

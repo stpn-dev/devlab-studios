@@ -60,7 +60,13 @@ export const GET: APIRoute = async (context) =>
     })
 
     return jsonResponse({
-      messages: collected.filter(Boolean).map((outbound) => renderOutbound(outbound)),
+      // Sequential, not Promise.all: rendering now reads attachment bytes out
+      // of R2, and a batch of ten messages each carrying 10 MB would otherwise
+      // be held in memory all at once.
+      messages: await collected.filter(Boolean).reduce(
+        async (previous, outbound) => [...(await previous), await renderOutbound(database.env, outbound)],
+        Promise.resolve([] as unknown[]),
+      ),
       sent: false,
       instruction:
         'Nothing has been sent. Submit each `raw` message using its `envelope`, then POST to ' +

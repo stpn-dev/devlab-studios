@@ -5,6 +5,7 @@ import { buttonClass, formatDate, inputClass, primaryButtonClass } from '../lead
 import { EmptyState, Feedback } from '../lead-crm/shared'
 import { useResource } from '../lead-crm/useResource'
 import MessageBody from './MessageBody'
+import AttachmentPicker from './AttachmentPicker'
 
 /**
  * One conversation, and the box to answer it.
@@ -75,6 +76,7 @@ function ReplyBox({ threadId, parentMessageId, onDone }) {
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState(null)
+  const [attachmentIds, setAttachmentIds] = useState([])
 
   async function submit(asDraft) {
     if (!body.trim() && !asDraft) return
@@ -86,8 +88,10 @@ function ReplyBox({ threadId, parentMessageId, onDone }) {
         bodyText: body,
         inReplyToMessageId: parentMessageId ?? null,
         asDraft,
+        attachmentIds,
       })
       setBody('')
+      setAttachmentIds([])
       setFeedback({
         tone: 'ok',
         message: asDraft
@@ -121,6 +125,7 @@ function ReplyBox({ threadId, parentMessageId, onDone }) {
         className={`${inputClass} w-full font-sans`}
         placeholder="Write your reply…"
       />
+      <AttachmentPicker attachmentIds={attachmentIds} onChange={setAttachmentIds} disabled={busy} />
       <Feedback feedback={feedback} />
       <div className="flex flex-wrap items-center gap-2">
         <button type="submit" disabled={busy || !body.trim()} className={primaryButtonClass}>

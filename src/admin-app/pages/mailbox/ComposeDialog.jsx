@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { adminApi } from '../../lib/adminApi'
+import AttachmentPicker from './AttachmentPicker'
 import { buttonClass, dangerButtonClass, inputClass, primaryButtonClass } from '../lead-crm/format'
 import { Feedback } from '../lead-crm/shared'
 
@@ -19,6 +20,7 @@ function ComposeDialog({ open, onClose, onSent }) {
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [attachmentIds, setAttachmentIds] = useState([])
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState(null)
 
@@ -33,10 +35,12 @@ function ComposeDialog({ open, onClose, onSent }) {
         subject,
         bodyText: body,
         asDraft,
+        attachmentIds,
       })
       setTo('')
       setSubject('')
       setBody('')
+      setAttachmentIds([])
       onSent?.(asDraft ? 'drafts' : 'outbox', result)
       onClose?.()
     } catch (error) {
@@ -101,9 +105,12 @@ function ComposeDialog({ open, onClose, onSent }) {
             />
           </div>
 
+          <AttachmentPicker attachmentIds={attachmentIds} onChange={setAttachmentIds} disabled={busy} />
+
           <p className="text-xs text-slate-500">
-            Sent as hello@devlabconnect.com. Plain text only — attachments and Cc/Bcc are not supported on the way
-            out, so they are not offered here rather than being dropped silently.
+            Sent as hello@devlabconnect.com. The body is plain text; files travel as separate attachments. Cc and
+            Bcc are still not supported on the way out, so they are not offered here rather than being dropped
+            silently.
           </p>
 
           <Feedback feedback={feedback} />

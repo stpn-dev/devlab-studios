@@ -9,6 +9,7 @@ import { MAILBOX } from '../domain/mailboxes.js'
 import { parseMessageId } from '../domain/messageId.js'
 import { collectQueued, getOutbound, markSent } from '../repositories/outbound.js'
 import { getThread, listThreads } from '../repositories/threads.js'
+import { createOutboundAttachment } from '../repositories/outboundAttachments.js'
 import { addSuppression } from '../../lead-engine/repositories/suppression.js'
 
 /**
@@ -32,6 +33,7 @@ const schema = [
   // draft cases run against the REAL constraint — the fourth CHECK widening in
   // this schema, and the first three each silently discarded rows first.
   readFileSync(join(MIGRATIONS, '0015_mailbox_drafts.sql'), 'utf8'),
+  readFileSync(join(MIGRATIONS, '0016_mailbox_outbound_attachments.sql'), 'utf8'),
 ]
 
 const INBOUND = [
@@ -48,7 +50,20 @@ const INBOUND = [
 
 function bucket() {
   const objects = new Map()
-  return { objects, async put(key, value) { objects.set(key, value); return { key } }, async get(key) { return objects.has(key) ? { body: objects.get(key) } : null } }
+  return {
+    objects,
+    async put(key, value) { objects.set(key, value); return { key } },
+    async get(key) {
+      if (!objects.has(key)) return null
+      const value = objects.get(key)
+      return {
+        body: value,
+        async arrayBuffer() {
+          return value instanceof Uint8Array ? value.buffer : new TextEncoder().encode(String(value)).buffer
+        },
+      }
+    },
+  }
 }
 
 function message(raw, { from = 'jane@prospect.example', to = 'hello@devlabconnect.com' } = {}) {
@@ -139,6 +154,61 @@ describe('composeReply', () => {
 })
 
 describe('renderOutbound', () => {
+  async function anUpload(env, { filename, body }) {
+    const key = `mailbox/out/${crypto.randomUUID()}`
+    const bytes = new TextEncoder().encode(body)
+    await env.MAILBOX_BUCKET.put(key, bytes)
+    return createOutboundAttachment(env.DB, {
+      filename,
+      contentType: 'application/pdf',
+      size: bytes.byteLength,
+      r2Key: key,
+    })
+  }
+
+  it('renders attachments as MIME parts, in the order the operator chose', async () => {
+    const second = await anUpload(env, { filename: 'b.pdf', body: 'BBBB' })
+    const first = await anUpload(env, { filename: 'a.pdf', body: 'AAAA' })
+
+    const queued = await composeReply(env, {
+      bodyText: 'Both attached.',
+      threadId,
+      // Deliberately not upload order -- the operator listed a.pdf first.
+      attachmentIds: [first.id, second.id],
+    })
+    const rendered = await renderOutbound(env, queued)
+
+    expect(rendered.raw).toContain('Content-Type: multipart/mixed')
+    expect(rendered.raw.indexOf('a.pdf')).toBeLessThan(rendered.raw.indexOf('b.pdf'))
+    expect(rendered.raw).toContain('Content-Transfer-Encoding: base64')
+    expect(rendered.attachments.map((file) => file.filename)).toEqual(['a.pdf', 'b.pdf'])
+  })
+
+  it('withholds the fallback once a message has attachments', async () => {
+    // The fallback shape has no way to carry a file. A transmitter using it
+    // would send the covering note and silently drop the attachment, leaving a
+    // message that refers to a document the recipient does not have.
+    const upload = await anUpload(env, { filename: 'proposal.pdf', body: 'PDF' })
+    const queued = await composeReply(env, { bodyText: 'Attached.', threadId, attachmentIds: [upload.id] })
+
+    expect((await renderOutbound(env, queued)).fallback).toBeNull()
+  })
+
+  it('keeps the fallback when there is nothing to attach', async () => {
+    const queued = await composeReply(env, { bodyText: 'No files.', threadId })
+    expect((await renderOutbound(env, queued)).fallback).toMatchObject({ to: 'jane@prospect.example' })
+  })
+
+  it('refuses to send at all when the bytes are gone from storage', async () => {
+    // Skipping the missing part would send a message the operator believes
+    // carries it. Failing is the only honest option.
+    const upload = await anUpload(env, { filename: 'gone.pdf', body: 'X' })
+    const queued = await composeReply(env, { bodyText: 'Attached.', threadId, attachmentIds: [upload.id] })
+    env.MAILBOX_BUCKET.objects.delete(upload.r2Key)
+
+    await expect(renderOutbound(env, queued)).rejects.toThrow(/no longer in storage/i)
+  })
+
   it('dates the message when it is rendered, not when the row was created', async () => {
     // A reply that waited in the queue, or was retried after an outage, must
     // not go out claiming a Date hours in the past. The first real send did:
@@ -148,7 +218,7 @@ describe('renderOutbound', () => {
     const queued = await composeReply(env, { bodyText: 'Sent much later.', threadId })
     const stale = { ...queued, createdAt: '2020-01-01T00:00:00.000Z' }
 
-    const rendered = renderOutbound(stale)
+    const rendered = await renderOutbound(env, stale)
     const dateHeader = /^Date: (.+)$/m.exec(rendered.raw)?.[1]
 
     expect(dateHeader).toBeTruthy()
@@ -158,14 +228,14 @@ describe('renderOutbound', () => {
 
   it('still honours an explicit date, so the output stays reproducible in tests', async () => {
     const queued = await composeReply(env, { bodyText: 'Fixed date.', threadId })
-    const rendered = renderOutbound(queued, { date: new Date('2026-09-22T05:16:00Z') })
+    const rendered = await renderOutbound(env, queued, { date: new Date('2026-09-22T05:16:00Z') })
 
     expect(rendered.raw).toContain('Date: Tue, 22 Sep 2026 05:16:00 +0000')
   })
 
   it('produces a message and an envelope that are not derivable from each other', async () => {
     const queued = await composeReply(env, { bodyText: 'Happy to help.\nBest,\nDevLab', threadId })
-    const rendered = renderOutbound(queued)
+    const rendered = await renderOutbound(env, queued)
 
     // The envelope sender is the VERP address; the visible From is not. A
     // transmitter that infers MAIL FROM from the From: header loses the
@@ -194,7 +264,7 @@ describe('renderOutbound', () => {
       threadId,
       subject: 'Hello\r\nBcc: attacker@evil.example',
     })
-    const rendered = renderOutbound(queued)
+    const rendered = await renderOutbound(env, queued)
 
     // The text survives INSIDE the subject; what must not exist is a header
     // line of its own, which is what a bare CRLF would have produced.
