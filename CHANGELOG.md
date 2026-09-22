@@ -51,6 +51,8 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-09-22
+
 ### Added
 - **A failed reply can be retried, by a person.** The outbox has always refused to retry on its own — a submission that reported failure may still have reached a mail server, so re-queueing risks a second copy landing on a stranger — but that left a failed reply with nowhere to go. The Failed folder now offers `Retry this reply`, behind a confirmation, which is the only path back to `queued`. A `collected` row is still refused with a 409, because that is the genuinely ambiguous state. The previous error is kept on the row and shown while the reply waits again, so retrying does not erase the record of what went wrong.
 - **Inbound mail renders with the sender's own formatting.** The sanitizer previously dropped every `style` attribute and every image, so a company-branded email arrived as an unstyled column — which for prospecting correspondence loses real information about what the sender emphasised. Inline `style` is now allowed through a property allowlist (`src/mailbox/inbound/sanitizeStyle.js`), as are the legacy `align`/`valign`/`bgcolor`/`width`/`height` attributes that templated mail lays itself out with. `position`, `z-index`, `transform`, `display:none`, `visibility:hidden`, `opacity:0` and `font-size:0` stay refused: they let the rendered message differ from the message actually sent. A value containing `url()`, a CSS escape, a comment or any function other than `rgb`/`rgba`/`hsl`/`hsla` fails the whole attribute rather than being decoded.
