@@ -51,6 +51,8 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-09-22
+
 ### Fixed
 - **An outgoing reply is dated when it is sent, not when it was written.** `renderOutbound` took the `Date:` header from the row's `created_at`, which is usually within minutes of transmission and so went unnoticed. A reply that waits in the queue — or fails and is later retried — went out claiming a time hours in the past. The first real send did exactly that: written 13:05 on the 21st, transmitted 05:16 on the 22nd, delivered stamped 16 hours stale. Receivers read a Date far behind the `Received:` chain as a replayed or forged message, and it is one of several reasons that message landed in spam despite SPF, DKIM and DMARC all passing under strict alignment.
 
