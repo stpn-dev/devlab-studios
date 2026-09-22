@@ -139,6 +139,30 @@ describe('composeReply', () => {
 })
 
 describe('renderOutbound', () => {
+  it('dates the message when it is rendered, not when the row was created', async () => {
+    // A reply that waited in the queue, or was retried after an outage, must
+    // not go out claiming a Date hours in the past. The first real send did:
+    // created 13:05 on the 21st, transmitted 05:16 on the 22nd, stamped 16
+    // hours stale. Receivers read that as a replayed or forged message, and
+    // this one landed in spam.
+    const queued = await composeReply(env, { bodyText: 'Sent much later.', threadId })
+    const stale = { ...queued, createdAt: '2020-01-01T00:00:00.000Z' }
+
+    const rendered = renderOutbound(stale)
+    const dateHeader = /^Date: (.+)$/m.exec(rendered.raw)?.[1]
+
+    expect(dateHeader).toBeTruthy()
+    expect(new Date(dateHeader).getUTCFullYear()).not.toBe(2020)
+    expect(Date.now() - new Date(dateHeader).getTime()).toBeLessThan(60_000)
+  })
+
+  it('still honours an explicit date, so the output stays reproducible in tests', async () => {
+    const queued = await composeReply(env, { bodyText: 'Fixed date.', threadId })
+    const rendered = renderOutbound(queued, { date: new Date('2026-09-22T05:16:00Z') })
+
+    expect(rendered.raw).toContain('Date: Tue, 22 Sep 2026 05:16:00 +0000')
+  })
+
   it('produces a message and an envelope that are not derivable from each other', async () => {
     const queued = await composeReply(env, { bodyText: 'Happy to help.\nBest,\nDevLab', threadId })
     const rendered = renderOutbound(queued)

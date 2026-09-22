@@ -213,7 +213,15 @@ export function renderOutbound(outbound, options = {}) {
     messageId: outbound.messageId,
     inReplyTo: outbound.inReplyTo,
     references: parseReferences(outbound.references),
-    date: options.date instanceof Date ? options.date : new Date(outbound.createdAt),
+    // NOW, not `createdAt`. The Date header states when the message was handed
+    // to a mail server, and this function runs at exactly that moment. Taking
+    // it from the row's creation time was usually harmless — a reply is
+    // normally collected within minutes — but a reply that sat in the queue,
+    // or was retried after a fault, went out claiming a Date hours in the past.
+    // The first real send did exactly that: created 13:05 on the 21st,
+    // transmitted 05:16 on the 22nd, and arrived stamped 16 hours stale, which
+    // spam filters read as a forged or replayed message.
+    date: options.date instanceof Date ? options.date : new Date(),
   })
 
   return {
