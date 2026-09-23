@@ -51,6 +51,8 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-09-23
+
 ### Added
 - **Preview has mail to look at, so the mail client can be reviewed before it reaches production.** Preview already mirrored production for every other screen — 19 projects, 15 articles, 8 pages — but `mailbox_messages` was empty, which is why every mailbox change over the last few days had to be checked in production. `npm run cms:seed:mailbox-preview` generates synthetic mail covering the states a one-message inbox never produces: a plain enquiry, a branded HTML message with inline and remote images plus an attachment, a two-message thread with a sent reply, a queued reply, a failed reply with its error and Retry button, a hard bounce, and a DMARC report. Every address is in an RFC 2606 reserved domain so no fixture can reach a real person.
 - **The mailbox tables are now on the mirror's forbidden list.** `mirror-production-to-preview.mjs` already refused to copy leads because they are "real people's names, emails, and the messages they sent". Correspondence is the same category and was never excluded only because it did not exist when that list was written. The script's existing leak check now enforces it.
