@@ -6,6 +6,8 @@ import { EmptyState, Feedback } from '../lead-crm/shared'
 import { useResource } from '../lead-crm/useResource'
 import MessageBody from './MessageBody'
 import AttachmentPicker from './AttachmentPicker'
+import DmarcReportView from './DmarcReportView'
+import { looksLikeDmarcReport } from '../../../mailbox/inbound/dmarcReport.js'
 
 /**
  * One conversation, and the box to answer it.
@@ -295,7 +297,18 @@ function ThreadView({ threadId, onChanged }) {
               ) : null}
 
               <div className="mt-2">
-                <MessageBody message={message} />
+                {/*
+                  A DMARC aggregate report has no readable body -- the content is
+                  a compressed XML attachment. Rendering the parsed report in its
+                  place is the difference between a folder that accumulates
+                  evidence and one that reports it.
+                */}
+                {(() => {
+                  const report = (message.attachments ?? []).find(
+                    (attachment) => attachment.r2Key && looksLikeDmarcReport(attachment),
+                  )
+                  return report ? <DmarcReportView attachment={report} /> : <MessageBody message={message} />
+                })()}
               </div>
 
               <Attachments attachments={message.attachments} />

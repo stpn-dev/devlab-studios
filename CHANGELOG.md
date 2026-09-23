@@ -51,6 +51,10 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Added
+- **DMARC aggregate reports are read, not just stored.** The folder collected compressed XML that nobody was going to unzip, which meant it accumulated evidence nothing acted on — the first report had to be pulled out of R2 and decompressed by hand to learn anything from it. Reports now render in place: who reported, the window covered, the policy the receiver actually applied (which is not always the one we think we published), and a row per source IP with its message count and DKIM/SPF alignment. Anything failing is stated first and in full, because that is the only case that asks for action; the usual "our own server, all passed" is kept quiet.
+- Parsed in the browser rather than at ingest. Storing a parsed summary is the better shape once anyone wants trends across weeks, but it needs a migration and would leave every report already in the folder unreadable until something reprocessed it. `DecompressionStream` exists in browsers exactly as in Workers, so the same parser runs unchanged and every stored report became readable at once. No XML library and no `DOMParser`: DMARC's schema is small and fixed by RFC 7489, and a general parser is a large dependency and a large attack surface for input a stranger sends us.
+
 ## [1.12.1] - 2026-09-23
 
 ### Fixed
