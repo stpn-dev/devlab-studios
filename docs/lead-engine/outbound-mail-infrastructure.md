@@ -1,7 +1,7 @@
 # Outbound mail infrastructure
 
-**Status as of 2026-09-20.** Session handoff: what is decided, what is verified,
-what is blocking, and what happens next.
+**Status as of 2026-09-23.** What is decided, what is verified, what is still
+open, and what happens next.
 
 This document covers the *sending path*. How the CRM produces a message and what
 gates it passes is [outreach-handoff.md](outreach-handoff.md); how n8n consumes
@@ -12,9 +12,16 @@ it is [`integrations/n8n/README.md`](../../integrations/n8n/README.md).
 The engine's brief originally forbade automated sending entirely. That was
 reversed deliberately. The chosen path is `CRM → n8n → Postfix → recipient MX`,
 running on our own MTA on a dedicated domain, because **no email service
-provider will permit this workload**. Infrastructure is built and hardened and
-DNS authentication is verified; **inbound mail handling is the one remaining
-blocker** before a first real send.
+provider will permit this workload**. Infrastructure is built and hardened, DNS
+authentication is verified, and inbound mail — once the blocker here — now
+works: `hello@devlabconnect.com` receives, replies transmit and bounces
+correlate. See [mailbox.md](mailbox.md).
+
+**The one thing standing between this and a first real send is that
+`business.identity` is unset**, which is an application setting, not
+infrastructure. The US compliance profile blocks draft review until it is
+filled, so nothing generates and the send path idles no matter how well it is
+wired.
 
 Verdict on the architecture: **CONDITIONAL GO** — conditional on the legal
 question below and on deliverability discipline, not on anything technical.
