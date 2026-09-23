@@ -51,6 +51,10 @@ decided against that surface specifically:
 
 ## [Unreleased]
 
+### Fixed
+- **The admin CMS shows the DevLab icon in the browser tab instead of the browser's generic globe.** `/admin` builds its own document rather than using `Layout.astro`, and was the only page on the site with no `rel="icon"` at all — every public page and all four pickleball standalone pages already had one. The same two links are now in its head, pointing at the same file.
+- **`/favicon.ico` exists.** It answered 404, and browsers request that path on their own whenever the icon link is missing or not yet parsed — as do bookmark managers, feed readers and link unfurlers that never run the page. `scripts/generate-app-icons.mjs` now emits a genuine multi-size ICO (16/32/48) alongside the PNGs. Genuine rather than a renamed PNG because `public/_headers` sets `X-Content-Type-Options: nosniff` on every route: the file would be served as `image/vnd.microsoft.icon` from its extension and the browser would be forbidden from correcting that by inspecting the bytes.
+
 ## [1.12.0] - 2026-09-22
 
 ### Added
