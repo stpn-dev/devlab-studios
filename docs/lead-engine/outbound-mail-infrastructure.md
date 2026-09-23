@@ -153,19 +153,23 @@ key; a botched split would have failed to parse.
 Not verifiable from outside: that OpenDKIM is signing with this selector and the
 matching private key. That shows up on the first real message.
 
-## The blocking item: no inbound mail — NOW BUILT, NOT YET LIVE
+## What was blocking: no inbound mail — RESOLVED
 
-> **Update, 2026-09-20.** The mailbox described below as "proposed" has been
-> built: Cloudflare Email Routing into an Email Worker in the existing Worker,
-> storing to D1 and R2, read and answered inside the Admin CMS. It is **not yet
-> deployed and not yet receiving mail** — the Cloudflare and DNS steps are
-> outstanding. See [mailbox.md](mailbox.md) for the architecture, the SPF
-> decision and the bring-up steps. The section below records why it was
-> blocking, which has not changed.
+> **Resolved 2026-09-20; live and verified against DNS 2026-09-23.** Cloudflare
+> Email Routing publishes the MX into an `email()` handler in the existing
+> Worker, storing to D1 and a private R2 bucket, read and answered inside the
+> Admin CMS. Mail arrives, replies transmit, and DMARC aggregate reports are
+> parsed. See [mailbox.md](mailbox.md) for the architecture, the SPF decision
+> and the bring-up record.
+>
+> The section below is kept as the record of **why** it was blocking. That
+> reasoning has not changed, and it is the standing argument for never letting
+> the receiving side lapse — a domain that cannot receive is worse than one that
+> does not send.
 
-## The blocking item: no inbound mail
+### Why it was blocking
 
-There is no MX **and no apex address record**. Under RFC 5321 a sender with no
+There was no MX **and no apex address record**. Under RFC 5321 a sender with no
 MX falls back to the domain's A record as an implicit MX; with neither present,
 remote servers get no mail destination and fail **immediately and permanently**
 rather than queuing.
@@ -179,9 +183,10 @@ Two consequences, and the first is worse than the second:
    suppression never populates, and every future campaign retries dead
    addresses. That is the mechanism by which sending reputation is lost.
 
-**Do not send a real test message before this is closed.**
+At the time: **do not send a real test message before this is closed.** It is
+closed.
 
-### Proposed inbound architecture
+### The inbound architecture, as built
 
 **Cloudflare Email Routing for replies and DSNs; Postfix stays completely
 outbound-only.** `devlabconnect.com` is already on Cloudflare
@@ -241,10 +246,12 @@ only job is `MAIL FROM`, `RCPT TO`, `DATA` — which a Code node using
 nodemailer's `raw` + `envelope` does. That also makes the application
 independent of which transmitter is used.
 
-**The outreach path has not been converted yet.** It still uses the `emailSend`
-node, so outreach bounces correlate by recipient address only (which works, and
-is tested). Closing that is a contained change described in
-[mailbox.md](mailbox.md#known-limitation-outreach-bounces-use-route-3-only).
+**The outreach path has since been converted too.** `collectOutbox` emits
+`raw`, `envelope` and `messageId` per draft, and `devlab-lead-outreach.json`
+submits through the same Code node as the mailbox workflow — so outreach bounces
+now correlate on an identifier we issued rather than on the recipient address a
+stranger asserted. Both workflows therefore require
+`NODE_FUNCTION_ALLOW_EXTERNAL=nodemailer` on the n8n container.
 
 ## Next steps, in order
 
@@ -254,8 +261,13 @@ is tested). Closing that is a contained change described in
    `v=spf1 ip4:37.60.237.227 include:_spf.mx.cloudflare.net ~all` — both
    senders authorised. See [mailbox.md](mailbox.md#spf-merged-deliberately);
    note the record now ends `~all` rather than `-all`.
-2. Test plus-addressing and null-sender DSN delivery deliberately.
-3. Add `rua` to DMARC now that a receiving address exists.
+2. Test plus-addressing and null-sender DSN delivery deliberately. Plus
+   addressing is confirmed and null-sender handling is unit-tested; **confirming
+   a real DSN from a real MTA is still outstanding** and is the one acceptance
+   test that cannot be satisfied from inside the codebase.
+3. ~~Add `rua` to DMARC now that a receiving address exists.~~ **Done** — the
+   record carries `rua=mailto:dmarc@devlabconnect.com`, verified 2026-09-23,
+   and reports are parsed rather than filed unopened.
 4. ~~Resolve the envelope-sender question and settle bounce ingestion.~~ Done —
    see the table above and [mailbox.md](mailbox.md).
 5. Send a first real test to a controlled mailbox; verify SPF, DKIM and DMARC
@@ -272,12 +284,17 @@ is tested). Closing that is a contained change described in
 
 Independent of the infrastructure track:
 
-- **Six commits unpushed** on `feat/lead-intelligence-engine` — five of code,
-  plus this document. Preview still runs `473f492`, so the outbox endpoints and
-  draft export are not deployed anywhere.
-- **Business identity is unset**, which blocks draft generation entirely. Until
-  it is filled in through the UI the outbox has nothing to hand out, regardless
-  of whether the MTA exists.
+- **Shipped.** The feature branch merged; `development` and `origin/development`
+  are level at 1.13.0 and production (`origin/main`) is at 1.12.1. The outbox
+  endpoints, draft export and mailbox are all deployed. Production trails
+  preview by the DMARC-reading and preview synthetic-mail work.
+- **Business identity is still unset**, and it blocks draft generation entirely.
+  Until it is filled in at **CRM Settings** the outbox has nothing to hand out,
+  no matter how well the MTA is wired. It now needs
+  `hello@devlabconnect.com` as the sender address, plus a real legal name and
+  postal address — the US compliance profile refuses to proceed without them
+  rather than inventing a postal address. **This is the single thing standing
+  between the engine and a first real send.**
 - Research jobs remain pending on preview; the cron drains a limited number per
   day.
 - Measured contactability is **11–14 of 35 researched leads (~31–40%)**. Two

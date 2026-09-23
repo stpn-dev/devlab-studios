@@ -1,18 +1,18 @@
 # The devlabconnect.com mailbox
 
-**Status as of 2026-09-20.** Deployed to preview and production, and verified:
-`wrangler versions view` reports `Handlers: fetch, scheduled, email, queue` and
-`MAILBOX_BUCKET` bound to its own bucket per environment, migration 0014 is
-applied on both remote databases, and Email Routing is active with MX published.
+**Status as of 2026-09-23. Live and receiving.** Routing rules point at the
+Worker, `MAILBOX_OUTBOX_TOKEN` is set, replies transmit, and DMARC aggregate
+reports arrive at `dmarc@` and are parsed rather than filed unopened.
 
-**Nothing receives mail yet**, because no routing rule points an address at the
-Worker. That is the remaining step, plus `MAILBOX_OUTBOX_TOKEN` before a reply
-can be transmitted. See [Bringing it up](#bringing-it-up).
+Verified against DNS on 2026-09-23: MX published to
+`route1/2/3.mx.cloudflare.net`, and DMARC now carries
+`rua=mailto:dmarc@devlabconnect.com`.
 
-⚠️ **Production is running code that is not on `main`.** It was deployed by hand
-from the feature branch. Until the branch reaches `main`, a Workers Builds
-rebuild of `main` would roll production back to a Worker with no `email()`
-handler — inbound mail would start failing with nothing to explain why.
+The earlier hazard — production running hand-deployed code that `main` did not
+have, so a Workers Builds rebuild would roll back to a Worker with no `email()`
+handler — is **resolved**. `origin/main` is downstream of the mailbox work, so a
+rebuild is safe. Production runs 1.12.1; preview runs 1.13.0 and is ahead by the
+DMARC-reading and preview-mail work.
 
 This document covers *inbound mail and replies*. The outbound prospecting path
 is [outbound-mail-infrastructure.md](outbound-mail-infrastructure.md); how a
@@ -226,9 +226,11 @@ keep it.
 
 ### DMARC
 
-`rua` can be added once `dmarc@devlabconnect.com` receives. `p=none` without
-reporting still defines policy and alignment for receivers but yields no
-telemetry — which is most needed during warm-up on a fresh IP.
+The published record is
+`v=DMARC1; p=none; adkim=s; aspf=s; rua=mailto:dmarc@devlabconnect.com`.
+Reporting was added once `dmarc@` was receiving. `p=none` without `rua` still
+defines policy and alignment for receivers but yields no telemetry — which is
+most needed during warm-up on a fresh IP, so it was never a state to sit in.
 
 Strict alignment (`adkim=s`, `aspf=s`) is **not** weakened. Nothing here needed
 it: DMARC passes on aligned SPF *or* aligned DKIM, and mail from our MTA is
@@ -267,8 +269,8 @@ second bounce state system.
 
 | # | Route | Identifier | Trusted? | Available |
 |---|---|---|---|---|
-| 1 | **VERP** — draft id in the envelope recipient | issued by us, unguessable | **yes** | mailbox replies. Outreach: not yet — see below |
-| 2 | **Message-ID** — our own id in the DSN's returned headers | issued by us, unguessable | **yes** | mailbox replies. Outreach: not yet |
+| 1 | **VERP** — draft id in the envelope recipient | issued by us, unguessable | **yes** | mailbox replies and outreach |
+| 2 | **Message-ID** — our own id in the DSN's returned headers | issued by us, unguessable | **yes** | mailbox replies and outreach |
 | 3 | **Address** — `Final-Recipient` → the most recent draft sent to it | asserted by the sender | **no** | everything |
 
 RFC 3464 requires a DSN to carry the original message's headers, which is what
@@ -330,27 +332,25 @@ alternative let a stranger delete our prospects.
    language the remote MTA chose. Unknown defaults to **soft**: under-suppressing
    costs one retry, over-suppressing is forever.
 
-### Known limitation: outreach bounces do not auto-suppress
+### Outreach bounces auto-suppress too — closed 2026-09-20
 
-The lead engine's outbox (`/api/lead-engine/outbox`) hands n8n
-`to`/`subject`/`bodyText` and the `emailSend` node assembles the message — so
-outreach messages carry a nodemailer-generated Message-ID and whatever envelope
-sender that node derives. Routes 1 and 2 therefore cannot fire for them, and
-route 3 is not trusted to suppress.
+This was a known limitation and is now closed. It is recorded because the
+failure it caused was invisible from the sending side.
 
-**Outreach bounces are still received, stored, attributed to the lead and shown
-on the timeline.** What no longer happens automatically is the suppression, so
-until this is closed an operator should work the Bounces screen and suppress
-genuine hard bounces by hand. **This is the most important reason to do the
-change below.**
+The outbox used to hand n8n `to`/`subject`/`bodyText` and let the `emailSend`
+node assemble the message, so outreach carried a nodemailer-generated Message-ID
+and whatever envelope sender that node derived. Routes 1 and 2 could not fire,
+route 3 is not trusted to suppress, and an operator had to work the Bounces
+screen by hand — which means dead addresses stayed contactable for as long as
+nobody did.
 
-Closing this is a contained change and is the recommended next piece of work:
-have `collectOutbox` return `raw` and `envelope` per draft — built with
-`buildMessageId({ kind: 'd', id: draftId })`, `verpAddressForDraft(draftId)` and
-`buildOutboundMessage()`, all of which already exist and are tested — and switch
-`devlab-lead-outreach.json` to the same Code node that
-`devlab-mailbox-outbound.json` uses. It was left out of this work because it
-changes an existing, working integration that was not in scope.
+`collectOutbox` now returns `raw`, `envelope` and `messageId` per draft, built
+with `buildMessageId({ kind: KIND_DRAFT, id: draftId })`,
+`verpAddressForDraft(draftId)` and `buildOutboundMessage()`, and
+`devlab-lead-outreach.json` submits through the same Code node as
+`devlab-mailbox-outbound.json`. The two paths are now indistinguishable to the
+MTA, and both correlate on an identifier we issued rather than one a stranger
+asserted.
 
 ## Replies
 
@@ -451,7 +451,10 @@ what happened, and the Diagnostics screen lists them.
 
 ## Bringing it up
 
-Steps 1–4 are account/DNS actions. **Nothing receives mail until they are done.**
+**All of these are done.** The list is kept as the record of what was required —
+for rebuilding this setup, or standing up a second sending domain. Steps 1, 3, 4
+and 7 are account/DNS actions that no deployment performs, so a fresh
+environment does not acquire them by shipping code.
 
 1. ~~**Create the R2 buckets.**~~ **Done 2026-09-20** — `devlab-mailbox` and
    `devlab-mailbox-preview` exist, and both `MAILBOX_BUCKET` bindings are
@@ -473,19 +476,23 @@ Steps 1–4 are account/DNS actions. **Nothing receives mail until they are done
    and both senders are authorised. Whenever this record is touched again, the
    check is that ours is the ONLY SPF TXT — two records is a `permerror`, not
    "both apply".
-4. **Add the routing rules**, each action "Send to a Worker" → `devlab-studios`:
-   `hello@`, `bounce@`, `dmarc@`, `postmaster@`, `abuse@`, plus **catch-all**.
-5. **Set the token** on both environments:
+4. ~~**Add the routing rules**~~ **Done 2026-09-20**, each action "Send to a
+   Worker" → `devlab-studios`: `hello@`, `bounce@`, `dmarc@`, `postmaster@`,
+   `abuse@`, plus **catch-all**.
+5. ~~**Set the token**~~ **Done** on both environments:
    ```powershell
    npx wrangler versions secret put MAILBOX_OUTBOX_TOKEN
    npx wrangler versions secret put MAILBOX_OUTBOX_TOKEN --env preview
    ```
    (`wrangler versions secret put`, not `wrangler secret put` — the latter
    errors 10215 on this setup.)
-6. **Import** `integrations/n8n/devlab-mailbox-outbound.json`, create the
-   `DevLab mailbox outbox token` header-auth credential, set
-   `NODE_FUNCTION_ALLOW_EXTERNAL=nodemailer`, and run it manually once.
-7. **Add `rua`** to the DMARC record once `dmarc@` receives.
+6. ~~**Import**~~ **Done** — `integrations/n8n/devlab-mailbox-outbound.json`
+   and `devlab-lead-outreach.json`, each with its header-auth credential, and
+   `NODE_FUNCTION_ALLOW_EXTERNAL=nodemailer` set on the container. Both use the
+   same Code node, so both need that variable; without it `require` is blocked
+   and the node fails closed, which is the right direction.
+7. ~~**Add `rua`**~~ **Done** — the record now carries
+   `rua=mailto:dmarc@devlabconnect.com`, verified against DNS 2026-09-23.
 
 ## Acceptance testing
 
@@ -514,18 +521,12 @@ means the sender retries, permanent means they are told the address is dead.
 
 ## Limitations
 
-- **Not deployed.** Steps 1–4 above are outstanding.
-- **Outreach bounces do not auto-suppress** — see above. They are received and
-  visible; the suppression is a manual step until the outreach path emits our
-  Message-ID and VERP address.
+- **Production trails preview.** Production runs 1.12.1. DMARC report reading
+  and the preview synthetic-mail work are on `development` at 1.13.0 and not yet
+  shipped, so the parsed DMARC view exists only on preview.
 - **No full-text search** of message bodies. Search covers sender, name and
   subject. Bodies would need an FTS5 table; it was not obviously worth it at
   this volume.
-- **No outbound attachments.** Replies are plain text. A reply to a prospect is
-  correspondence, and multipart would add size and a rendering surface for a
-  domain with no sending history.
-- **DMARC reports are stored, not parsed.** They are visible on Diagnostics as
-  gzipped XML attachments. Parsing them into a report is separate work.
 - **`trash` is a state, not a delete.** Nothing in this mailbox destroys a
   message; retention is a decision an archive button should not be making
   quietly.
