@@ -10,9 +10,8 @@ Verified against DNS on 2026-09-23: MX published to
 
 The earlier hazard — production running hand-deployed code that `main` did not
 have, so a Workers Builds rebuild would roll back to a Worker with no `email()`
-handler — is **resolved**. `origin/main` is downstream of the mailbox work, so a
-rebuild is safe. Production runs 1.12.1; preview runs 1.13.0 and is ahead by the
-DMARC-reading and preview-mail work.
+handler — is **resolved**. `main` is downstream of the mailbox work, so a
+rebuild is safe, and `main` and `development` are level at 1.13.0.
 
 This document covers *inbound mail and replies*. The outbound prospecting path
 is [outbound-mail-infrastructure.md](outbound-mail-infrastructure.md); how a
@@ -521,9 +520,6 @@ means the sender retries, permanent means they are told the address is dead.
 
 ## Limitations
 
-- **Production trails preview.** Production runs 1.12.1. DMARC report reading
-  and the preview synthetic-mail work are on `development` at 1.13.0 and not yet
-  shipped, so the parsed DMARC view exists only on preview.
 - **No full-text search** of message bodies. Search covers sender, name and
   subject. Bodies would need an FTS5 table; it was not obviously worth it at
   this volume.

@@ -291,10 +291,9 @@ stranger asserted. Both workflows therefore require
 
 Independent of the infrastructure track:
 
-- **Shipped.** The feature branch merged; `development` and `origin/development`
-  are level at 1.13.0 and production (`origin/main`) is at 1.12.1. The outbox
-  endpoints, draft export and mailbox are all deployed. Production trails
-  preview by the DMARC-reading and preview synthetic-mail work.
+- **Shipped and aligned.** The feature branch merged. `main`, `development` and
+  both their remotes are level at 1.13.0, so preview and production run the same
+  code. The outbox endpoints, draft export and mailbox are all deployed.
 - **Business identity is still unset**, and it blocks draft generation entirely.
   Until it is filled in at **CRM Settings** the outbox has nothing to hand out,
   no matter how well the MTA is wired. It now needs
