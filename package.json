@@ -19,6 +19,7 @@
     "prepare": "husky",
     "cms:seed:insights": "node scripts/cms/generate-insights-seed.mjs",
     "cms:seed:projects": "node scripts/cms/generate-project-seed.mjs > scripts/cms/seed/project-seed.sql",
+    "cms:seed:mailbox-preview": "node scripts/cms/generate-mailbox-preview-seed.mjs > scripts/cms/seed/mailbox-preview-seed.sql",
     "cms:upload:project-media": "node scripts/cms/upload-project-media.mjs",
     "cms:hash-admin-password": "node scripts/cms/hash-admin-password.mjs",
     "cms:mirror-preview": "node scripts/cms/mirror-production-to-preview.mjs",
@@ -75,6 +76,6 @@
     "typescript-eslint": "^8.65.0",
     "vite": "^7.2.4",
     "vitest": "^4.1.10",
-    "wrangler": "^4.134.0"
+    "wrangler": "^4.136.3"
   }
 }

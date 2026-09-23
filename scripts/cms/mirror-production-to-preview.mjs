@@ -16,6 +16,13 @@
  *                                      into a second environment multiplies
  *                                      where it can leak from, for no benefit —
  *                                      you cannot visually check a lead.
+ *   mailbox_*                          correspondence, which is the same
+ *                                      category: mail real people wrote to us,
+ *                                      replies we sent them, and the files they
+ *                                      attached. Preview gets synthetic mail
+ *                                      from generate-mailbox-preview-seed.mjs,
+ *                                      which is enough to review the mail
+ *                                      client without copying anyone's inbox.
  *   admin_session_revocations          security state belonging to one Worker.
  *   audit_log                          operational history containing admin
  *                                      identities; no visual value.
@@ -109,6 +116,17 @@ const FORBIDDEN_TABLES = [
   // show days its own retention sweep is about to delete.
   'digests',
   'digest_items',
+  // Correspondence. mailbox_messages holds mail real people wrote to us and
+  // replies we sent them, mailbox_attachments indexes the files they sent, and
+  // mailbox_outbound carries recipient addresses -- the same category as the
+  // lead tables above, and excluded for the same reason. Preview gets synthetic
+  // mail from scripts/cms/generate-mailbox-preview-seed.mjs instead, which is
+  // enough to review the mail client without copying anyone's inbox.
+  'mailbox_threads',
+  'mailbox_messages',
+  'mailbox_attachments',
+  'mailbox_outbound',
+  'mailbox_outbound_attachments',
 ]
 
 const isDryRun = process.argv.includes('--dry-run')
